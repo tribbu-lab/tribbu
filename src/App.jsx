@@ -77,8 +77,8 @@ function Login({ onLogin }) {
   };
 
   const demos = [
-    { label:"Apoderado",   hint:"ana@mail.com · 1234",    e:"ana@mail.com",   p:"1234"  },
-    { label:"Room Parent", hint:"laura@mail.com · admin", e:"laura@mail.com", p:"admin" },
+   { label:"Apoderado",   hint:"dam@mail.com · dam1234",        e:"dam@mail.com",   p:"dam1234" },
+    { label:"Room Parent", hint:"luciana@mail.com · 1234",       e:"luciana@mail.com", p:"1234"   },
     { label:"Super Admin", hint:"super@mail.com · super", e:"super@mail.com", p:"super" },
   ];
 
@@ -319,7 +319,7 @@ function SuperAdmin() {
                   {u.rol==="padre"&&u.hijos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Hijos: {u.hijos.map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ")}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{ setForm({...u}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                  <button onClick={()=>{ setForm({...u, cursos:[...(u.cursos||[])], hijos:[...(u.hijos||[])]}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                   <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                   {u.rol!=="super"&&<button onClick={()=>setConfirm({msg:`¿Eliminar a ${u.nombre}?`,action:()=>eliminarUsuario(u.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
                 </div>
