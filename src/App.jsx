@@ -77,9 +77,9 @@ function Login({ onLogin }) {
   };
 
   const demos = [
-    { label:"Apoderado",   hint:"ana@mail.com · 1234",    e:"ana@mail.com",   p:"1234"  },
-    { label:"Room Parent", hint:"laura@mail.com · admin", e:"laura@mail.com", p:"admin" },
-    { label:"Super Admin", hint:"super@mail.com · super", e:"super@mail.com", p:"super" },
+    { label:"Apoderado",   hint:"dam@mail.com · 1234",    e:"dam@mail.com",   p:"dam1234"  },
+    { label:"Room Parent", hint:"yanina@mail.com · admin", e:"yanina@mail.com", p:"room" },
+    { label:"Admin", hint:"admin@mail.com · super", e:"admin@mail.com", p:"super" },
   ];
 
   return (
