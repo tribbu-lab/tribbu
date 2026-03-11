@@ -128,6 +128,8 @@ function SuperAdmin() {
   const [form,setForm]         = useState({});
   const [confirm,setConfirm]   = useState(null);
   const [maestros,setMaestros] = useState([]);
+  const [alumnos,setAlumnos]   = useState([]);
+  const [cursoFiltro,setCursoFiltro] = useState(null);
 
   useEffect(()=>{ cargar(); },[]);
 
@@ -145,6 +147,8 @@ function SuperAdmin() {
     setHijos(h.data||[]);
     const mcData = mc.data||[];
     setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
+    const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,email,telefono))").order("nombre");
+    setAlumnos(al.data||[]);
     setLoading(false);
   };
 
@@ -213,6 +217,25 @@ function SuperAdmin() {
   const eliminarMaestro = async (id) => {
     await supabase.from("maestro_cursos").delete().eq("maestro_id",id);
     await supabase.from("maestros").delete().eq("id",id);
+    setConfirm(null); cargar();
+  };
+
+  const guardarAlumno = async () => {
+    if(!form.nombre||!form.curso_id) return;
+    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
+    const color = form.color||colors[Math.floor(Math.random()*colors.length)];
+    if(modal==="nuevo_alumno") {
+      await supabase.from("hijos").insert({nombre:form.nombre,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
+    } else {
+      await supabase.from("hijos").update({nombre:form.nombre,curso_id:form.curso_id,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+    }
+    setModal(null); cargar();
+  };
+
+  const eliminarAlumno = async (id) => {
+    await supabase.from("usuario_hijos").delete().eq("hijo_id",id);
+    await supabase.from("hijos").delete().eq("id",id);
     setConfirm(null); cargar();
   };
 
@@ -335,6 +358,32 @@ function SuperAdmin() {
         </div>
       )}
 
+      {(modal==="nuevo_alumno"||modal==="editar_alumno") && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_alumno"?"Nuevo alumno":"Editar alumno"}</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre completo</div>
+              <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía García" style={inp}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
+              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Curso</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {cursos.map(c=>{ const sel=form.curso_id===c.id; return <button key={c.id} onClick={()=>setForm(p=>({...p,curso_id:c.id}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>; })}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarAlumno} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_alumno"?"Crear alumno":"Guardar cambios"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <div style={{marginBottom:24}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
           <div style={{fontSize:22,fontWeight:900}}>Panel Super Admin</div>
@@ -355,9 +404,9 @@ function SuperAdmin() {
           </div>
         ))}
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:20,maxWidth:420}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"}].map(t=>(
-          <button key={t.id} onClick={()=>setSec(t.id)} style={{flex:1,padding:"8px 0",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"}].map(t=>(
+          <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
 
@@ -412,6 +461,39 @@ function SuperAdmin() {
           })}
         </>
       )}
+      {sec==="alumnos" && (
+        <>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            <button onClick={()=>setCursoFiltro(null)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===null?"#0F172A":"white",color:cursoFiltro===null?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>Todos</button>
+            {cursos.map(c=><button key={c.id} onClick={()=>setCursoFiltro(c.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===c.id?c.color:"white",color:cursoFiltro===c.id?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>{c.avatar} {c.nombre}</button>)}
+          </div>
+          <button onClick={()=>{ setForm({nombre:"",curso_id:cursoFiltro||cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo alumno</button>
+          {(cursoFiltro?alumnos.filter(a=>a.curso_id===cursoFiltro):alumnos).map(a=>{
+            const curso = cursos.find(c=>c.id===a.curso_id);
+            const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
+            return (
+              <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <div style={{fontSize:14,fontWeight:700}}>{a.nombre}</div>
+                      {curso&&<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>}
+                    </div>
+                    {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
+                    {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>setConfirm({msg:`¿Eliminar a ${a.nombre}?`,action:()=>eliminarAlumno(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </>
+      )}
+
       {sec==="maestros" && (
         <>
           <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #8B5CF6",background:"#F5F3FF",color:"#8B5CF6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo maestro</button>
@@ -892,29 +974,85 @@ function Finanzas({ cursoId }) {
   );
 }
 
-function Cumpleanios({ cursoId, userId, isAdmin }) {
-  const [tab,setTab]=useState("proximos");
-  const [cumples,setCumples]=useState([]);
-  const [asistencias,setAsistencias]=useState([]);
-  useEffect(()=>{
-    supabase.from("cumples").select("*").eq("curso_id",cursoId).order("fecha").then(r=>setCumples(r.data||[]));
-    supabase.from("cumple_asistencia").select("*").eq("usuario_id",userId).then(r=>setAsistencias(r.data||[]));
-  },[cursoId]);
+function CumpleModal({ cumple, onClose, onSave }) {
+  const [form,setForm] = useState({
+    fecha_festejo: cumple?.fecha_festejo||"",
+    hora_festejo:  cumple?.hora_festejo||"",
+    lugar_festejo: cumple?.lugar_festejo||"",
+    responsable:   cumple?.responsable||"",
+    comprado:      cumple?.comprado||false,
+  });
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>🎂 {cumple.nombre}</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:18}}>
+          Cumpleaños: {cumple.fecha ? fmtF(cumple.fecha) : "Sin fecha de nacimiento"}
+          {cumple.tipo&&<span style={{marginLeft:8}}><Pill label={cumple.tipo==="maestro"?"👨‍🏫 Maestro":"🎒 Alumno"} color={cumple.tipo==="maestro"?"#8B5CF6":"#3B82F6"} bg={cumple.tipo==="maestro"?"#F5F3FF":"#EFF6FF"}/></span>}
+        </div>
+        {[
+          {label:"Fecha del festejo",key:"fecha_festejo",type:"date"},
+          {label:"Hora del festejo", key:"hora_festejo", type:"text", ph:"Ej: 15:00"},
+          {label:"Lugar",            key:"lugar_festejo",type:"text", ph:"Ej: Salón de actos"},
+          {label:"Responsable",      key:"responsable",  type:"text", ph:"Ej: Mamá de Sofía"},
+        ].map(f=>(
+          <div key={f.key} style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+            <input type={f.type||"text"} value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+          </div>
+        ))}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Regalo</div>
+          <button onClick={()=>setForm(p=>({...p,comprado:!p.comprado}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.comprado?"#10B981":"#E2E8F0"}`,background:form.comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.comprado?"#10B981":"#94A3B8"}}>{form.comprado?"✓ Comprado":"Pendiente"}</button>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+          <button onClick={()=>onSave(form)} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
-  const toggleComprado = async (c) => {
-    await supabase.from("cumples").update({comprado:!c.comprado}).eq("id",c.id);
-    setCumples(prev=>prev.map(x=>x.id===c.id?{...x,comprado:!x.comprado}:x));
+function Cumpleanios({ cursoId, userId, isAdmin }) {
+  const [tab,setTab]           = useState("proximos");
+  const [cumples,setCumples]   = useState([]);
+  const [asistencias,setAsist] = useState([]);
+  const [editando,setEditando] = useState(null);
+
+  const cargar = async () => {
+    const { data } = await supabase.from("cumples").select("*").eq("curso_id",cursoId).order("fecha_festejo",{ascending:true,nullsFirst:false});
+    setCumples(data||[]);
+    const { data:as } = await supabase.from("cumple_asistencia").select("*").eq("usuario_id",userId);
+    setAsist(as||[]);
+  };
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const guardarCumple = async (form) => {
+    await supabase.from("cumples").update({
+      fecha_festejo: form.fecha_festejo||null,
+      hora_festejo:  form.hora_festejo||null,
+      lugar_festejo: form.lugar_festejo||null,
+      responsable:   form.responsable||null,
+      comprado:      form.comprado,
+    }).eq("id",editando.id);
+    setEditando(null); cargar();
   };
 
   const setAsistencia = async (cumpleId,valor) => {
     const existe=asistencias.find(a=>a.cumple_id===cumpleId);
     if(existe) await supabase.from("cumple_asistencia").update({asiste:valor}).eq("cumple_id",cumpleId).eq("usuario_id",userId);
     else await supabase.from("cumple_asistencia").insert({cumple_id:cumpleId,usuario_id:userId,asiste:valor});
-    setAsistencias(prev=>[...prev.filter(a=>a.cumple_id!==cumpleId),{cumple_id:cumpleId,usuario_id:userId,asiste:valor}]);
+    setAsist(prev=>[...prev.filter(a=>a.cumple_id!==cumpleId),{cumple_id:cumpleId,usuario_id:userId,asiste:valor}]);
   };
+
+  const fechaMostrar = (c) => c.fecha_festejo || c.fecha;
+  const diasHasta    = (c) => c.fecha_festejo ? dHasta(c.fecha_festejo) : c.fecha ? dHasta(c.fecha) : null;
 
   return (
     <div>
+      {editando&&<CumpleModal cumple={editando} onClose={()=>setEditando(null)} onSave={guardarCumple}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Calendario y organización del curso</div>
       <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:420}}>
@@ -922,29 +1060,60 @@ function Cumpleanios({ cursoId, userId, isAdmin }) {
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===t.id?"#0F172A":"white",color:tab===t.id?"white":"#94A3B8",boxShadow:tab===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
-      {tab==="proximos"&&cumples.map(c=>{ const dias=dHasta(c.fecha); return(
-        <Card key={c.id} style={{padding:"13px 15px",marginBottom:10,display:"flex",gap:12,alignItems:"center",maxWidth:560}}>
-          <div style={{width:44,height:44,borderRadius:12,background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🎂</div>
-          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{c.nombre}</div><div style={{fontSize:11,color:"#94A3B8"}}>📅 {fmtF(c.fecha)} · {c.responsable}</div></div>
-          <div style={{fontSize:12,fontWeight:700,color:dias<=7?"#EF4444":"#94A3B8",background:dias<=7?"#FEE2E2":"#F1F5F9",borderRadius:8,padding:"3px 8px",flexShrink:0}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</div>
-        </Card>
-      );})}
+
+      {tab==="proximos"&&cumples.map(c=>{
+        const dias=diasHasta(c);
+        const fm=fechaMostrar(c);
+        return(
+          <Card key={c.id} style={{padding:"13px 15px",marginBottom:10,maxWidth:560}}>
+            <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{width:44,height:44,borderRadius:12,background:c.tipo==="maestro"?"#F5F3FF":"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.tipo==="maestro"?"👨‍🏫":"🎂"}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <div style={{fontSize:14,fontWeight:700}}>{c.nombre}</div>
+                  <Pill label={c.tipo==="maestro"?"Maestro":"Alumno"} color={c.tipo==="maestro"?"#8B5CF6":"#3B82F6"} bg={c.tipo==="maestro"?"#F5F3FF":"#EFF6FF"}/>
+                </div>
+                {c.fecha&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 Cumple: {new Date(c.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>}
+                {c.fecha_festejo&&<div style={{fontSize:11,color:"#3B82F6",fontWeight:600,marginTop:2}}>🎉 Festejo: {fmtF(c.fecha_festejo)}{c.hora_festejo&&` · ${c.hora_festejo}`}</div>}
+                {c.lugar_festejo&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>📍 {c.lugar_festejo}</div>}
+                {c.responsable&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👤 {c.responsable}</div>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                {dias!==null&&<div style={{fontSize:12,fontWeight:700,color:dias<=7?"#EF4444":"#94A3B8",background:dias<=7?"#FEE2E2":"#F1F5F9",borderRadius:8,padding:"3px 8px",whiteSpace:"nowrap"}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</div>}
+                {isAdmin&&<button onClick={()=>setEditando(c)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600}}>✏️ Editar</button>}
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+
       {tab==="regalos"&&cumples.map(c=>(
         <Card key={c.id} style={{padding:"13px 15px",marginBottom:10,maxWidth:560}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:40,height:40,borderRadius:12,background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🎁</div>
-            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div><div style={{fontSize:11,color:"#94A3B8"}}>{c.responsable} · {fmtF(c.fecha)}</div></div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+              <div style={{fontSize:11,color:"#94A3B8"}}>{c.responsable&&`${c.responsable} · `}{c.fecha_festejo?fmtF(c.fecha_festejo):c.fecha?fmtF(c.fecha):"Sin fecha"}</div>
+            </div>
             {isAdmin
-              ?<button onClick={()=>toggleComprado(c)} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${c.comprado?"#10B981":"#E2E8F0"}`,background:c.comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:c.comprado?"#10B981":"#94A3B8"}}>{c.comprado?"✓ Comprado":"Marcar"}</button>
+              ?<button onClick={async()=>{ await supabase.from("cumples").update({comprado:!c.comprado}).eq("id",c.id); cargar(); }} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${c.comprado?"#10B981":"#E2E8F0"}`,background:c.comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:c.comprado?"#10B981":"#94A3B8"}}>{c.comprado?"✓ Comprado":"Marcar"}</button>
               :<Pill label={c.comprado?"✓ Comprado":"Pendiente"} color={c.comprado?"#10B981":"#F59E0B"} bg={c.comprado?"#F0FDF4":"#FFFBEB"}/>
             }
           </div>
         </Card>
       ))}
+
       {tab==="asistencia"&&cumples.map(c=>{ const asi=asistencias.find(a=>a.cumple_id===c.id); return(
         <Card key={c.id} style={{padding:"13px 15px",marginBottom:10,maxWidth:560}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div><div style={{fontSize:11,color:"#94A3B8"}}>📅 {fmtF(c.fecha)}</div></div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+              <div style={{fontSize:11,color:"#94A3B8"}}>
+                {c.fecha_festejo?`🎉 ${fmtF(c.fecha_festejo)}`:c.fecha?`🎂 ${fmtF(c.fecha)}`:"Sin fecha"}
+                {c.hora_festejo&&` · ${c.hora_festejo}`}
+              </div>
+              {c.lugar_festejo&&<div style={{fontSize:11,color:"#94A3B8"}}>📍 {c.lugar_festejo}</div>}
+            </div>
             <div style={{display:"flex",gap:6}}>
               <button onClick={()=>setAsistencia(c.id,"si")} style={{padding:"6px 10px",borderRadius:20,border:`2px solid ${asi?.asiste==="si"?"#10B981":"#E2E8F0"}`,background:asi?.asiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:asi?.asiste==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
               <button onClick={()=>setAsistencia(c.id,"no")} style={{padding:"6px 10px",borderRadius:20,border:`2px solid ${asi?.asiste==="no"?"#EF4444":"#E2E8F0"}`,background:asi?.asiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:asi?.asiste==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
@@ -952,6 +1121,107 @@ function Cumpleanios({ cursoId, userId, isAdmin }) {
           </div>
         </Card>
       );})}
+    </div>
+  );
+}
+
+function Alumnos({ cursoId, isAdmin }) {
+  const [alumnos,setAlumnos]   = useState([]);
+  const [modal,setModal]       = useState(null);
+  const [form,setForm]         = useState({});
+  const [confirm,setConfirm]   = useState(null);
+  const [busqueda,setBusqueda] = useState("");
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const cargar = async () => {
+    const { data } = await supabase.from("hijos")
+      .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,email,telefono))")
+      .eq("curso_id",cursoId).order("nombre");
+    setAlumnos(data||[]);
+  };
+
+  const guardar = async () => {
+    if(!form.nombre) return;
+    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
+    const color = form.color||colors[Math.floor(Math.random()*colors.length)];
+    if(modal==="nuevo") {
+      await supabase.from("hijos").insert({nombre:form.nombre,curso_id:cursoId,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
+    } else {
+      await supabase.from("hijos").update({nombre:form.nombre,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+    }
+    setModal(null); cargar();
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("usuario_hijos").delete().eq("hijo_id",id);
+    await supabase.from("hijos").delete().eq("id",id);
+    setConfirm(null); cargar();
+  };
+
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
+  const filtrados = alumnos.filter(a=>a.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+
+  return (
+    <div>
+      {confirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,maxWidth:340,width:"100%"}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>¿Estás segura?</div>
+            <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>{confirm.msg}</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
+              <button onClick={confirm.action} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Eliminar</button>
+            </div>
+          </Card>
+        </div>
+      )}
+      {(modal==="nuevo"||modal==="editar")&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo"?"Nuevo alumno":"Editar alumno"}</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre completo</div>
+              <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía García" style={inp}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
+              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo"?"Crear":"Guardar cambios"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Alumnos 🎒</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{alumnos.length} alumnos en el curso</div>
+      {isAdmin&&<button onClick={()=>{ setForm({nombre:"",fecha_nacimiento:""}); setModal("nuevo"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno</button>}
+      <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar alumno..." style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",marginBottom:14,boxSizing:"border-box",background:"white"}}/>
+      <div style={{maxWidth:560}}>
+        {filtrados.map(a=>{
+          const apoderados=(a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
+          return (
+            <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700}}>{a.nombre}</div>
+                  {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
+                  {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}{apoderados[0]?.telefono&&` · ${apoderados[0].telefono}`}</div>}
+                </div>
+                {isAdmin&&<div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>{ setForm({...a}); setModal("editar"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                  <button onClick={()=>setConfirm({msg:`¿Eliminar a ${a.nombre}?`,action:()=>eliminar(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                </div>}
+              </div>
+            </Card>
+          );
+        })}
+        {filtrados.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No se encontraron alumnos</div>}
+      </div>
     </div>
   );
 }
@@ -1064,6 +1334,7 @@ export default function App() {
     {id:"finanzas",label:"Finanzas", emoji:"💳"},
     {id:"cumples", label:"Cumples",  emoji:"🎂"},
     {id:"contacto",label:"Contacto", emoji:"📞"},
+    {id:"alumnos",  label:"Alumnos",  emoji:"🎒"},
     ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
@@ -1077,6 +1348,7 @@ export default function App() {
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId}/>;
+      case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
     }
