@@ -1178,7 +1178,7 @@ function Clases({ cursoId }) {
   );
 }
 
-function InfoUtil({ cursoId }) {
+function InfoUtil({ cursoId, isAdmin }) {
   const [sec,setSec]=useState("utiles");
   const [utiles,setUtiles]=useState([]);
   const [uniformes,setUniformes]=useState([]);
@@ -1193,7 +1193,7 @@ function InfoUtil({ cursoId }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Info Útil 📋</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Listas y uniformes del curso</div>
       <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:400}}>
-        {[{id:"utiles",l:"✏️ Útiles"},{id:"uniformes",l:"👕 Uniformes"},{id:"libros",l:"📚 Libros"}].map(s=>(
+        {[{id:"utiles",l:"✏️ Útiles"},{id:"uniformes",l:"👕 Uniformes"},{id:"libros",l:"📚 Libros"},{id:"alumnos",l:"🎒 Alumnos"}].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
@@ -1209,6 +1209,7 @@ function InfoUtil({ cursoId }) {
         </Card>
       ))}
       {sec==="libros"&&libros.map((l,i)=><Card key={i} style={{padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,maxWidth:560}}><span style={{fontSize:18}}>📖</span><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.item}</span></Card>)}
+      {sec==="alumnos"&&<Alumnos cursoId={cursoId} isAdmin={isAdmin}/>}
     </div>
   );
 }
@@ -1812,14 +1813,13 @@ export default function App() {
   const isAdmin    = usuario.rol==="admin";
 
   const TABS = [
-    {id:"muro",    label:"Inicio",   emoji:"🏠"},
-    {id:"clases",  label:"Clases",   emoji:"📅"},
-    {id:"comedor", label:"Comedor",  emoji:"🍽️"},
-    {id:"info",    label:"Info",     emoji:"📋"},
-    {id:"finanzas",label:"Finanzas", emoji:"💳"},
-    {id:"cumples", label:"Cumples",  emoji:"🎂"},
-    {id:"contacto",label:"Contacto", emoji:"📞"},
-    {id:"alumnos",  label:"Alumnos",  emoji:"🎒"},
+    {id:"muro",    label:"Inicio",    emoji:"🏠"},
+    {id:"clases",  label:"Clases",    emoji:"📅"},
+    {id:"comedor", label:"Comedor",   emoji:"🍽️"},
+    {id:"cumples", label:"Cumples",   emoji:"🎂"},
+    {id:"info",    label:"Info Útil", emoji:"📋"},
+    {id:"contacto",label:"Contacto",  emoji:"📞"},
+    {id:"finanzas",label:"Finanzas",  emoji:"💳"},
     ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
@@ -1829,7 +1829,7 @@ export default function App() {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin}/>;
       case "clases":   return <Clases cursoId={cursoId}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
-      case "info":     return <InfoUtil cursoId={cursoId}/>;
+      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin}/>;
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId}/>;
