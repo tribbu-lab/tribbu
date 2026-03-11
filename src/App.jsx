@@ -10,7 +10,8 @@ const T = {
 };
 
 const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
-const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"});
+const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
+const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
 const dHasta = s => { const h=new Date();h.setHours(0,0,0,0);const f=new Date(s+"T00:00:00");f.setHours(0,0,0,0);return Math.ceil((f-h)/86400000); };
 const fmtNombre = (a) => a ? `${a.nombre||""} ${a.apellido||""}`.trim() : "";
 const MESES  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -501,14 +502,9 @@ function SuperAdmin() {
               </div>
             ))}
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de cumpleaños</div>
-              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
-              <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>Solo se mostrará el día y mes</div>
-            </div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de cumpleaños</div>
-              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
-              <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>Solo se mostrará día y mes</div>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cumpleaños</div>
+              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} placeholder="dd/mm/aaaa" style={inp}/>
+
             </div>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
@@ -687,7 +683,7 @@ function SuperAdmin() {
                     {!m.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                   </div>
                   {m.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{m.email}</div>}
-                  {m.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {new Date(m.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>}
+                  {m.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtDM(m.fecha_nacimiento)}</div>}
                   {m.cursos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Cursos: {m.cursos.map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
@@ -1313,12 +1309,16 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   useEffect(()=>{ cargar(); },[alumno.id]);
 
   const cargar = async () => {
-    const [v,t] = await Promise.all([
+    const [v,t,rp] = await Promise.all([
       supabase.from("usuario_hijos").select("*, usuarios(id,nombre,email,telefono)").eq("hijo_id",alumno.id),
-      supabase.from("usuarios").select("id,nombre,email,telefono").eq("rol","padre").eq("activo",true).order("nombre"),
+      supabase.from("usuarios").select("id,nombre,email,telefono,rol").eq("activo",true).order("nombre"),
+      supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",alumno.curso_id),
     ]);
+    // Exclude users who are room parents of THIS specific course
+    const rpIds = (rp.data||[]).map(r=>r.usuario_id);
+    const aptos = (t.data||[]).filter(u => u.rol !== "super" && !rpIds.includes(u.id));
     setVinculados(v.data||[]);
-    setTodos(t.data||[]);
+    setTodos(aptos);
   };
 
   const vincular = async (userId) => {
