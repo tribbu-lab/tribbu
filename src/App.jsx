@@ -731,7 +731,7 @@ function AlertaModal({ onClose, onEnviar }) {
   );
 }
 
-function Muro({ cursoId, cursoNombre, isAdmin }) {
+function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
@@ -740,7 +740,9 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
 
   const cargar = async () => {
     const fechaHoy = new Date().toISOString().split("T")[0];
-    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData] = await Promise.all([
+    const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
+    const mesFin    = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).toISOString().slice(0,10);
+    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData] = await Promise.all([
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
@@ -748,6 +750,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
       supabase.from("cuotas").select("*").eq("curso_id",cursoId),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
+      supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
     ]);
     // Build unified birthday list sorted by next occurrence
     const nextBday = (fecha) => {
@@ -768,7 +771,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
-    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList });
+    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo") });
   };
 
   const enviarAlerta = async (msg) => {
@@ -786,7 +789,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
   return (
     <div>
       <div style={{marginBottom:18}}>
-        <div style={{fontSize:22,fontWeight:900}}>Hola 👋</div>
+        <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
       </div>
       {datos.alerta&&(
@@ -837,6 +840,34 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
               {r.urgente&&<Pill label="Urgente" color="#EF4444" bg="#FEE2E2"/>}
             </div>
           ))}
+        </div>
+      )}
+      {datos.eventos?.length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Eventos del mes</div>
+          {datos.eventos.map(e=>{
+            const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
+            const d   = new Date(e.fecha+"T00:00:00");
+            const hoyD = new Date(); hoyD.setHours(0,0,0,0);
+            const dias = Math.round((d-hoyD)/86400000);
+            return (
+              <Card key={e.id} style={{padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cfg.emoji}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
+                      {d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}
+                      {e.lugar?` · 📍${e.lugar}`:""}
+                    </div>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<0?"#F1F5F9":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<0?"#CBD5E1":dias<=7?"#F59E0B":"#94A3B8",flexShrink:0}}>
+                    {dias===0?"Hoy":dias===1?"Mañana":dias<0?"Pasado":`${dias}d`}
+                  </span>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
       <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Próximos cumpleaños</div>
@@ -2086,7 +2117,7 @@ export default function App() {
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin}/>;
