@@ -742,7 +742,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
     const fechaHoy = new Date().toISOString().split("T")[0];
     const [alerta,menu,recordatorios,cumples,cuotas] = await Promise.all([
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
-      supabase.from("menu").select("*").eq("curso_id",cursoId).eq("fecha",fechaHoy).single(),
+      supabase.from("menu").select("*").eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId).order("fecha"),
       supabase.from("cuotas").select("*").eq("curso_id",cursoId),
@@ -843,7 +843,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
   );
 }
 
-function UploadMenuExcel({ cursoId, onDone }) {
+function UploadMenuExcel({ onDone }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
 
@@ -898,7 +898,6 @@ function UploadMenuExcel({ cursoId, onDone }) {
         return s;
       };
       const inserts = rows.map(r=>({
-        curso_id: cursoId,
         fecha:          parseFecha(r[colFecha]),
         entrada:        colEntrada ?r[colEntrada]||null :null,
         plato:          colPlato1  ?r[colPlato1]||null  :null,
@@ -909,7 +908,7 @@ function UploadMenuExcel({ cursoId, onDone }) {
         dia: null,
       })).filter(r=>r.fecha);
       if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
-      await supabase.from("menu").delete().eq("curso_id",cursoId);
+      await supabase.from("menu").delete();
       const { error } = await supabase.from("menu").insert(inserts);
       if(error) throw error;
       setMsg(`✅ ${inserts.length} días cargados correctamente`);
@@ -938,14 +937,14 @@ function UploadMenuExcel({ cursoId, onDone }) {
   );
 }
 
-function Comedor({ cursoId, isAdmin }) {
+function Comedor({ cursoId, isAdmin, isSuper }) {
   const [menu,setMenu]         = useState([]);
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
   const [mes,setMes]           = useState(new Date());
 
   const cargarMenu = () => {
-    supabase.from("menu").select("*").eq("curso_id",cursoId).order("fecha").then(r=>setMenu(r.data||[]));
+    supabase.from("menu").select("*").order("fecha").then(r=>setMenu(r.data||[]));
   };
   useEffect(()=>{ cargarMenu(); },[cursoId]);
 
@@ -972,7 +971,7 @@ function Comedor({ cursoId, isAdmin }) {
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Comedor 🍽️</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
-      {isAdmin && <UploadMenuExcel cursoId={cursoId} onDone={cargarMenu}/>}
+      {isSuper && <UploadMenuExcel onDone={cargarMenu}/>}
       <div style={{display:"flex",gap:6,marginBottom:18,maxWidth:260}}>
         {[{id:"diario",l:"Día"},{id:"mensual",l:"Mes"}].map(v=>(
           <button key={v.id} onClick={()=>setVista(v.id)} style={{flex:1,padding:"8px 0",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===v.id?"#0F172A":"white",color:vista===v.id?"white":"#94A3B8",boxShadow:vista===v.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{v.l}</button>
@@ -1616,7 +1615,7 @@ export default function App() {
     switch(tab) {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin}/>;
       case "clases":   return <Clases cursoId={cursoId}/>;
-      case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin}/>;
+      case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId}/>;
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
