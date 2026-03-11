@@ -753,7 +753,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
-      supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",userId||0).eq("asiste","pendiente"),
+      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",Number(userId)).eq("asiste","pendiente") : Promise.resolve({data:[]}),
     ]);
     // Build unified birthday list sorted by next occurrence
     const nextBday = (fecha) => {
@@ -1688,12 +1688,21 @@ function FestejoDetalleModal({ evento, userId, onClose, onUpdate }) {
   },[evento.id]);
 
   const cargar = async () => {
-    const { data } = await supabase.from("evento_asistencia")
-      .select("*, usuario:usuario_id(id,nombre,avatar,color)")
+    const { data: asist } = await supabase.from("evento_asistencia")
+      .select("*")
       .eq("evento_id", evento.id);
-    setAsistencia(data||[]);
+    const rows = asist||[];
+    // fetch usuarios separately
+    const uids = [...new Set(rows.map(r=>r.usuario_id).filter(Boolean))];
+    let usuariosMap = {};
+    if(uids.length) {
+      const { data: usrs } = await supabase.from("usuarios").select("id,nombre,avatar").in("id", uids);
+      (usrs||[]).forEach(u=>{ usuariosMap[Number(u.id)]=u; });
+    }
+    const data = rows.map(r=>({...r, usuario: usuariosMap[Number(r.usuario_id)]||null}));
+    setAsistencia(data);
     const uid = Number(userId);
-    const mia = (data||[]).find(a=>Number(a.usuario_id)===uid);
+    const mia = data.find(a=>Number(a.usuario_id)===uid);
     if(mia) {
       setMiRespuesta(mia);
       setComentario(mia.comentario||"");
@@ -1853,7 +1862,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido,color)").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
-      supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",userId),
+      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
     setMontoRegalo(curso.data?.monto_regalo||null);
     setInvitaciones((inv.data||[]).filter(i=>i.evento));
