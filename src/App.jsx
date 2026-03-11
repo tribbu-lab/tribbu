@@ -732,9 +732,10 @@ function AlertaModal({ onClose, onEnviar }) {
   );
 }
 
-function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
+function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
+  const [festejoDetalle,setFestejoDetalle] = useState(null);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -743,7 +744,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
     const fechaHoy = new Date().toISOString().split("T")[0];
     const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
     const mesFin    = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).toISOString().slice(0,10);
-    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData] = await Promise.all([
+    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData] = await Promise.all([
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
@@ -752,6 +753,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
+      supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",userId||0).eq("asiste","pendiente"),
     ]);
     // Build unified birthday list sorted by next occurrence
     const nextBday = (fecha) => {
@@ -772,7 +774,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
-    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo") });
+    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
   };
 
   const enviarAlerta = async (msg) => {
@@ -789,6 +791,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
 
   return (
     <div>
+      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} onClose={()=>{ setFestejoDetalle(null); cargar(); }} onUpdate={cargar}/>}
       <div style={{marginBottom:18}}>
         <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
@@ -816,6 +819,27 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName }) {
           </button>
           {modal&&<AlertaModal onClose={()=>setModal(false)} onEnviar={msg=>{enviarAlerta(msg);setModal(false);}}/>}
         </>
+      )}
+      {datos.invitaciones?.length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🎉 Invitaciones pendientes</div>
+          {datos.invitaciones.map(inv=>{
+            const e = inv.evento;
+            const d = new Date(e.fecha+"T00:00:00");
+            return (
+              <div key={inv.id} style={{background:"#FFFBEB",borderRadius:12,padding:"13px 15px",marginBottom:8,border:"1px solid #FCD34D",borderLeft:"3px solid #F59E0B"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🎉</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}{e.hora?` · ${e.hora}`:""}{e.lugar?` · 📍${e.lugar}`:""}</div>
+                  </div>
+                  <button onClick={()=>setFestejoDetalle(e)} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Responder</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
       {datos.menu&&(
         <>
@@ -1668,7 +1692,8 @@ function FestejoDetalleModal({ evento, userId, onClose, onUpdate }) {
       .select("*, usuario:usuario_id(id,nombre,avatar,color)")
       .eq("evento_id", evento.id);
     setAsistencia(data||[]);
-    const mia = (data||[]).find(a=>a.usuario_id===userId);
+    const uid = Number(userId);
+    const mia = (data||[]).find(a=>Number(a.usuario_id)===uid);
     if(mia) {
       setMiRespuesta(mia);
       setComentario(mia.comentario||"");
@@ -1681,17 +1706,18 @@ function FestejoDetalleModal({ evento, userId, onClose, onUpdate }) {
     await supabase.from("evento_asistencia")
       .update({ asiste, comentario, hermanos })
       .eq("evento_id", evento.id)
-      .eq("usuario_id", userId);
+      .eq("usuario_id", Number(userId));
     await cargar();
     setGuardando(false);
     onUpdate?.();
   };
 
+  const uid = Number(userId);
   const confirmados = asistencia.filter(a=>a.asiste==="si");
   const noVan      = asistencia.filter(a=>a.asiste==="no");
   const pendientes = asistencia.filter(a=>a.asiste==="pendiente"||!a.asiste);
-  const miAsiste   = asistencia.find(a=>a.usuario_id===userId)?.asiste;
-  const esInvitado = asistencia.some(a=>a.usuario_id===userId);
+  const miAsiste   = asistencia.find(a=>Number(a.usuario_id)===uid)?.asiste;
+  const esInvitado = asistencia.some(a=>Number(a.usuario_id)===uid);
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -1813,21 +1839,24 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
   const [cumpleMap,setCumpleMap]       = useState({});
   const [festejoMap,setFestejoMap]     = useState({});  // alumno_id → evento festejo
   const [editando,setEditando]         = useState(null);
-  const [festejoModal,setFestejoModal] = useState(null); // {alumnoId, alumnoNombre, festejo?}
+  const [festejoModal,setFestejoModal] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
+  const [invitaciones,setInvitaciones] = useState([]);
   const [busqueda,setBusqueda]         = useState("");
   const [mesFiltro,setMesFiltro]       = useState("all");
   const [montoRegalo,setMontoRegalo]   = useState(null);
 
   const cargar = async () => {
-    const [al,ma,cu,curso,fest] = await Promise.all([
+    const [al,ma,cu,curso,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido,color)").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
+      supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",userId),
     ]);
     setMontoRegalo(curso.data?.monto_regalo||null);
+    setInvitaciones((inv.data||[]).filter(i=>i.evento));
     const fmap = {};
     (fest.data||[]).forEach(f=>{ if(f.alumno_id) fmap[f.alumno_id]=f; });
     setFestejoMap(fmap);
@@ -2004,6 +2033,44 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
             </table>
           </Card>
         </div>
+
+      {/* Mis invitaciones a festejos */}
+      {invitaciones.length>0&&(
+        <div style={{marginTop:24,maxWidth:700}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🎉 Mis invitaciones</div>
+          {invitaciones.map(inv=>{
+            const e   = inv.evento;
+            const d   = new Date(e.fecha+"T00:00:00");
+            const hoyD = new Date(); hoyD.setHours(0,0,0,0);
+            const dias = Math.round((d-hoyD)/86400000);
+            const badge = inv.asiste==="si"  ? {l:"✓ Voy",    c:"#10B981",bg:"#F0FDF4"}
+                        : inv.asiste==="no"  ? {l:"✗ No voy", c:"#EF4444",bg:"#FEF2F2"}
+                        :                     {l:"Pendiente", c:"#F59E0B",bg:"#FFFBEB"};
+            return (
+              <Card key={inv.id} style={{padding:"13px 15px",marginBottom:10,borderLeft:`3px solid ${inv.asiste==="si"?"#10B981":inv.asiste==="no"?"#EF4444":"#F59E0B"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:"#FFFBEB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🎉</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
+                      {d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}
+                      {e.hora?` · ${e.hora}`:""}
+                      {e.lugar?` · 📍${e.lugar}`:""}
+                    </div>
+                    {inv.hermanos&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>👨‍👩‍👧 {inv.hermanos}</div>}
+                    {inv.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>💬 {inv.comentario}</div>}
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:badge.bg,color:badge.c}}>{badge.l}</span>
+                    <span style={{fontSize:10,color:dias<0?"#CBD5E1":dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8",fontWeight:600}}>{dias<0?"Pasado":dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
+                    <button onClick={()=>setFestejoDetalle(e)} style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>Ver / Responder</button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2358,7 +2425,7 @@ export default function App() {
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin}/>;
