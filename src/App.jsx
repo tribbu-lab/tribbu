@@ -55,6 +55,28 @@ function useIsMobile() {
   return v;
 }
 
+// ── Selección de perfil (admin con hijos) ────────────────────────────────────
+function SeleccionPerfil({ usuario, onElegir }) {
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0F172A 0%,#1E3A5F 50%,#0F172A 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{textAlign:"center",marginBottom:36}}>
+        <div style={{fontSize:32,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:6}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+        <div style={{fontSize:14,color:"rgba(255,255,255,0.5)"}}>Hola, {usuario.nombre?.split(" ")[0]}. ¿Con qué perfil querés entrar?</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:14,width:"100%",maxWidth:320}}>
+        <button onClick={()=>onElegir("admin")} style={{padding:"20px 24px",borderRadius:16,border:"2px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.07)",cursor:"pointer",textAlign:"left",color:"white"}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Room Parent</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Gestionar el curso, eventos, recordatorios y más</div>
+        </button>
+        <button onClick={()=>onElegir("padre")} style={{padding:"20px 24px",borderRadius:16,border:"2px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.07)",cursor:"pointer",textAlign:"left",color:"white"}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Apoderado</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Ver el curso de tus hijos, invitaciones y novedades</div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Login({ onLogin }) {
   const [email,setEmail] = useState("dam@mail.com");
   const [pass,setPass]   = useState("dam1234");
@@ -1693,7 +1715,7 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
   },[]);
 
   const toggleAlumno = (id) => setInvitados(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
-  const invitarTodos = () => setAlumnos(al => { setInvitados(al.map(a=>a.id)); return al; });
+  const invitarTodos = () => setAlumnos(al => { setInvitados(al.filter(a=>a.id!==alumnoId).map(a=>a.id)); return al; });
 
   const guardar = async () => {
     if(!form.fecha || !form.titulo) return;
@@ -2567,21 +2589,28 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
 export default function App() {
   const isMobile = useIsMobile();
-  const [usuario,setUsuario]   = useState(null);
-  const [tab,setTab]           = useState("muro");
-  const [cursoIdx,setCursoIdx] = useState(0);
-  const [items,setItems]       = useState([]);
+  const [usuario,setUsuario]       = useState(null);
+  const [perfilElegido,setPerfilElegido] = useState(null); // null | "admin" | "padre"
+  const [tab,setTab]               = useState("muro");
+  const [cursoIdx,setCursoIdx]     = useState(0);
+  const [items,setItems]           = useState([]);
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super") return;
-    if(usuario.rol==="padre") {
+    const rolEfectivo = perfilElegido || usuario.rol;
+    if(rolEfectivo==="padre") {
       supabase.from("hijos").select("*, cursos(nombre,color,avatar)").in("id",usuario.hijos).then(r=>setItems(r.data||[]));
     } else {
       supabase.from("cursos").select("*").in("id",usuario.cursos).then(r=>setItems(r.data||[]));
     }
-  },[usuario]);
+  },[usuario,perfilElegido]);
 
-  if(!usuario) return <Login onLogin={u=>{ setUsuario(u); setTab("muro"); setCursoIdx(0); setItems([]); }}/>;
+  const handleLogin = (u) => { setUsuario(u); setPerfilElegido(null); setTab("muro"); setCursoIdx(0); setItems([]); };
+  if(!usuario) return <Login onLogin={handleLogin}/>;
+  // Admin con hijos → elegir perfil
+  if(usuario.rol==="admin" && usuario.hijos?.length>0 && !perfilElegido) {
+    return <SeleccionPerfil usuario={usuario} onElegir={(p)=>{ setPerfilElegido(p); setTab("muro"); setCursoIdx(0); setItems([]); }}/>;
+  }
 
   if(usuario.rol==="super") return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
@@ -2593,11 +2622,12 @@ export default function App() {
     </div>
   );
 
-  const esPadre    = usuario.rol==="padre";
+  const rolEfectivo = perfilElegido || usuario.rol;
+  const esPadre    = rolEfectivo==="padre";
   const itemActual = items[cursoIdx];
   const cursoId    = esPadre ? itemActual?.curso_id    : itemActual?.id;
   const cursoNombre= esPadre ? itemActual?.cursos?.nombre : itemActual?.nombre;
-  const isAdmin    = usuario.rol==="admin";
+  const isAdmin    = rolEfectivo==="admin";
 
   const TABS = [
     {id:"muro",    label:"Inicio",    emoji:"🏠"},
@@ -2634,6 +2664,7 @@ export default function App() {
           <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {cursoNombre&&<div style={{fontSize:12,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{cursoNombre}</div>}
+            {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,marginRight:6}}>Cambiar perfil</button>}
             <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
           </div>
         </div>
