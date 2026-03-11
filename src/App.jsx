@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import * as XLSX from "xlsx";
 
 const T = {
   primary:"#0F172A", accent:"#3B82F6", green:"#10B981",
@@ -53,8 +54,8 @@ function useIsMobile() {
 }
 
 function Login({ onLogin }) {
-  const [email,setEmail] = useState("ana@mail.com");
-  const [pass,setPass]   = useState("1234");
+  const [email,setEmail] = useState("dam@mail.com");
+  const [pass,setPass]   = useState("dam1234");
   const [err,setErr]     = useState("");
   const [ld,setLd]       = useState(false);
 
@@ -77,9 +78,9 @@ function Login({ onLogin }) {
   };
 
   const demos = [
-   { label:"Apoderado",   hint:"dam@mail.com · dam1234",        e:"dam@mail.com",   p:"dam1234" },
-    { label:"Room Parent", hint:"luciana@mail.com · 1234",       e:"luciana@mail.com", p:"1234"   },
-    { label:"Super Admin", hint:"super@mail.com · super", e:"super@mail.com", p:"super" },
+    { label:"Apoderado",   hint:"dam@mail.com · dam1234",      e:"dam@mail.com",   p:"dam1234" },
+    { label:"Room Parent", hint:"luciana@mail.com · 1234",     e:"luciana@mail.com", p:"1234"  },
+    { label:"Super Admin", hint:"admin@mail.com · super",      e:"admin@mail.com", p:"super"   },
   ];
 
   return (
@@ -126,19 +127,24 @@ function SuperAdmin() {
   const [modal,setModal]       = useState(null);
   const [form,setForm]         = useState({});
   const [confirm,setConfirm]   = useState(null);
+  const [maestros,setMaestros] = useState([]);
 
   useEffect(()=>{ cargar(); },[]);
 
   const cargar = async () => {
     setLoading(true);
-    const [u,c,h] = await Promise.all([
+    const [u,c,h,m,mc] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)").order("id"),
       supabase.from("cursos").select("*").order("id"),
       supabase.from("hijos").select("*").order("id"),
+      supabase.from("maestros").select("*").order("id"),
+      supabase.from("maestro_cursos").select("*"),
     ]);
     setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id)})));
     setCursos(c.data||[]);
     setHijos(h.data||[]);
+    const mcData = mc.data||[];
+    setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
     setLoading(false);
   };
 
@@ -167,6 +173,12 @@ function SuperAdmin() {
     setModal(null); cargar();
   };
 
+  const actualizarCurso = async () => {
+    if(!form.nombre) return;
+    await supabase.from("cursos").update({nombre:form.nombre,avatar:form.avatar,color:form.color}).eq("id",form.id);
+    setModal(null); cargar();
+  };
+
   const toggleActivo = async (u) => {
     await supabase.from("usuarios").update({activo:!u.activo}).eq("id",u.id);
     cargar();
@@ -178,13 +190,29 @@ function SuperAdmin() {
     await supabase.from("usuarios").delete().eq("id",id);
     setConfirm(null); cargar();
   };
-const actualizarCurso = async () => {
-    if(!form.nombre) return;
-    await supabase.from("cursos").update({nombre:form.nombre,avatar:form.avatar,color:form.color}).eq("id",form.id);
-    setModal(null); cargar();
-  };
+
   const eliminarCurso = async (id) => {
     await supabase.from("cursos").delete().eq("id",id);
+    setConfirm(null); cargar();
+  };
+
+  const guardarMaestro = async () => {
+    if(!form.nombre) return;
+    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    if(modal==="nuevo_maestro") {
+      const { data } = await supabase.from("maestros").insert({nombre:form.nombre,materia:form.materia||null,email:form.email||null,avatar,activo:form.activo!==false}).select().single();
+      if(data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:data.id,curso_id:cid})));
+    } else {
+      await supabase.from("maestros").update({nombre:form.nombre,materia:form.materia||null,email:form.email||null,activo:form.activo!==false}).eq("id",form.id);
+      await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
+      if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
+    }
+    setModal(null); cargar();
+  };
+
+  const eliminarMaestro = async (id) => {
+    await supabase.from("maestro_cursos").delete().eq("maestro_id",id);
+    await supabase.from("maestros").delete().eq("id",id);
     setConfirm(null); cargar();
   };
 
@@ -256,7 +284,7 @@ const actualizarCurso = async () => {
       {(modal==="nuevo_curso"||modal==="editar_curso") && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>Nuevo curso</div>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":"Nuevo curso"}</div>
             {[{label:"Nombre del curso",key:"nombre",ph:"Ej: 4°B — Primaria"},{label:"Emoji",key:"avatar",ph:"🏫"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
@@ -274,6 +302,34 @@ const actualizarCurso = async () => {
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={modal==="editar_curso"?actualizarCurso:guardarCurso} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="editar_curso"?"Guardar cambios":"Crear curso"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {(modal==="nuevo_maestro"||modal==="editar_maestro") && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
+            {[{label:"Nombre completo",key:"nombre",ph:"Ej: Carlos Gómez"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {cursos.map(c=>{ const sel=(form.cursos||[]).includes(c.id); return <button key={c.id} onClick={()=>setForm(p=>({...p,cursos:sel?p.cursos.filter(x=>x!==c.id):[...(p.cursos||[]),c.id]}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>; })}
+              </div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
+              <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.activo!==false?"#10B981":"#EF4444"}`,background:form.activo!==false?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:form.activo!==false?"#10B981":"#EF4444"}}>{form.activo!==false?"✓ Activo":"✗ Inactivo"}</button>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarMaestro} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_maestro"?"Crear maestro":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -299,8 +355,8 @@ const actualizarCurso = async () => {
           </div>
         ))}
       </div>
-      <div style={{display:"flex",gap:6,marginBottom:20,maxWidth:300}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"}].map(t=>(
+      <div style={{display:"flex",gap:6,marginBottom:20,maxWidth:420}}>
+        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"}].map(t=>(
           <button key={t.id} onClick={()=>setSec(t.id)} style={{flex:1,padding:"8px 0",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -323,7 +379,7 @@ const actualizarCurso = async () => {
                   {u.rol==="padre"&&u.hijos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Hijos: {u.hijos.map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ")}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{ setForm({...u, cursos:[...(u.cursos||[])], hijos:[...(u.hijos||[])]}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                  <button onClick={()=>{ setForm({...u,cursos:[...(u.cursos||[])],hijos:[...(u.hijos||[])]}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                   <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                   {u.rol!=="super"&&<button onClick={()=>setConfirm({msg:`¿Eliminar a ${u.nombre}?`,action:()=>eliminarUsuario(u.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
                 </div>
@@ -345,15 +401,40 @@ const actualizarCurso = async () => {
                   <div style={{width:44,height:44,borderRadius:12,background:c.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.avatar}</div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:15,fontWeight:800}}>{c.nombre}</div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{admins.length} Room Partner{admins.length!==1?"s":""} · {padres.length} familias</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{admins.length} Room Parent{admins.length!==1?"s":""} · {padres.length} familias</div>
                     {admins.length>0&&<div style={{fontSize:11,color:"#94A3B8"}}>Admin: {admins.map(a=>a.nombre).join(", ")}</div>}
                   </div>
                   <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,marginRight:6}}>✏️</button>
-<button onClick={()=>setConfirm({msg:`¿Eliminar el curso ${c.nombre}?`,action:()=>eliminarCurso(c.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  <button onClick={()=>setConfirm({msg:`¿Eliminar el curso ${c.nombre}?`,action:()=>eliminarCurso(c.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                 </div>
               </Card>
             );
           })}
+        </>
+      )}
+      {sec==="maestros" && (
+        <>
+          <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #8B5CF6",background:"#F5F3FF",color:"#8B5CF6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo maestro</button>
+          {maestros.map(m=>(
+            <Card key={m.id} style={{padding:"14px 16px",marginBottom:10,opacity:m.activo?1:0.55}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:42,height:42,borderRadius:12,background:"#F5F3FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#8B5CF6",flexShrink:0}}>{m.avatar||"👨‍🏫"}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                    <div style={{fontSize:14,fontWeight:700}}>{m.nombre}</div>
+                    {m.materia&&<Pill label={m.materia} color="#8B5CF6" bg="#F5F3FF"/>}
+                    {!m.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
+                  </div>
+                  {m.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{m.email}</div>}
+                  {m.cursos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Cursos: {m.cursos.map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>{ setForm({...m,cursos:[...(m.cursos||[])]}); setModal("editar_maestro"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                  <button onClick={()=>setConfirm({msg:`¿Eliminar a ${m.nombre}?`,action:()=>eliminarMaestro(m.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                </div>
+              </div>
+            </Card>
+          ))}
         </>
       )}
     </div>
@@ -400,14 +481,15 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
   useEffect(()=>{ cargar(); },[cursoId]);
 
   const cargar = async () => {
+    const fechaHoy = new Date().toISOString().split("T")[0];
     const [alerta,menu,recordatorios,cumples,cuotas] = await Promise.all([
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
-      supabase.from("menu").select("*").eq("curso_id",cursoId),
+      supabase.from("menu").select("*").eq("curso_id",cursoId).eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId).order("fecha"),
       supabase.from("cuotas").select("*").eq("curso_id",cursoId),
     ]);
-    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||[], recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[] });
+    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[] });
   };
 
   const enviarAlerta = async (msg) => {
@@ -452,13 +534,15 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
           {modal&&<AlertaModal onClose={()=>setModal(false)} onEnviar={msg=>{enviarAlerta(msg);setModal(false);}}/>}
         </>
       )}
-      {datos.menu[0]&&(
-        <Card style={{padding:"14px 16px",marginBottom:12,display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:44,height:44,borderRadius:12,background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>🍽️</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:2}}>Menú de hoy — Lunes</div>
-            <div style={{fontSize:14,fontWeight:700}}>{datos.menu[0].plato}</div>
-            <div style={{fontSize:11,color:"#94A3B8"}}>Postre: {datos.menu[0].postre}</div>
+      {datos.menu&&(
+        <Card style={{padding:"14px 16px",marginBottom:12}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:8}}>🍽️ Menú de hoy</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {datos.menu.entrada&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#8B5CF6"}}>Entrada: </span>{datos.menu.entrada}</div>}
+            {datos.menu.plato&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#3B82F6"}}>Plato 1: </span>{datos.menu.plato}</div>}
+            {datos.menu.plato2&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#0EA5E9"}}>Plato 2: </span>{datos.menu.plato2}</div>}
+            {datos.menu.acompanamiento&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#F59E0B"}}>Acomp.: </span>{datos.menu.acompanamiento}</div>}
+            {datos.menu.postre&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#10B981"}}>Postre: </span>{datos.menu.postre}{datos.menu.postre2&&` / ${datos.menu.postre2}`}</div>}
           </div>
         </Card>
       )}
@@ -501,51 +585,186 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
   );
 }
 
-function Comedor({ cursoId }) {
-  const [menu,setMenu]=useState([]);
-  const [vista,setVista]=useState("semanal");
-  const dias=["Lu","Ma","Mi","Ju","Vi"];
-  useEffect(()=>{ supabase.from("menu").select("*").eq("curso_id",cursoId).then(r=>setMenu(r.data||[])); },[cursoId]);
+function UploadMenuExcel({ cursoId, onDone }) {
+  const [loading,setLoading] = useState(false);
+  const [msg,setMsg]         = useState("");
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    setLoading(true); setMsg("");
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, {cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
+      if(rows.length===0) throw new Error("El archivo está vacío.");
+      console.log("Columnas detectadas:", Object.keys(rows[0]));
+      console.log("Primera fila:", rows[0]);
+      // Detectar nombre real de la columna fecha (case-insensitive)
+      const colFecha  = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("fech")) || null;
+      const colEntrada = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("entrada")) || null;
+      const colPlato1  = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("plato") && k.includes("1")) || null;
+      const colPlato2  = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("plato") && k.includes("2")) || null;
+      const colPlato3  = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("plato") && k.includes("3")) || null;
+      const colAcomp   = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("acomp")) || null;
+      const colPostre1 = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("postre") && k.includes("1")) || null;
+      const colPostre2 = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("postre") && k.includes("2")) || null;
+      if(!colFecha) throw new Error(`No encontré columna de fecha. Columnas: ${Object.keys(rows[0]).join(", ")}`);
+      const parseFecha = (val) => {
+        if(!val) return null;
+        // Si es objeto Date (cellDates:true lo convierte directo)
+        if(val instanceof Date) {
+          return val.toISOString().split("T")[0];
+        }
+        const s = String(val).trim();
+        // YYYY-MM-DD
+        if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+        // DD/MM/YYYY
+        if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+          const [d,m,y]=s.split("/");
+          return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+        }
+        // M/D/YYYY (formato americano que genera xlsx)
+        if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+          const parts=s.split("/");
+          const y=parts[2], m=parts[0].padStart(2,"0"), d=parts[1].padStart(2,"0");
+          return `${y}-${m}-${d}`;
+        }
+        // Número de serie Excel (fallback)
+        const n = Number(s);
+        if(!isNaN(n) && n > 40000) {
+          const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+          return d.toISOString().split("T")[0];
+        }
+        return s;
+      };
+      const inserts = rows.map(r=>({
+        curso_id: cursoId,
+        fecha:          parseFecha(r[colFecha]),
+        entrada:        colEntrada ?r[colEntrada]||null :null,
+        plato:          colPlato1  ?r[colPlato1]||null  :null,
+        plato2:         colPlato2  ?r[colPlato2]||null  :null,
+        acompanamiento: colPlato3  ?r[colPlato3]||null  :colAcomp?r[colAcomp]||null:null,
+        postre:         colPostre1 ?r[colPostre1]||null :null,
+        postre2:        colPostre2 ?r[colPostre2]||null :null,
+        dia: null,
+      })).filter(r=>r.fecha);
+      if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
+      await supabase.from("menu").delete().eq("curso_id",cursoId);
+      const { error } = await supabase.from("menu").insert(inserts);
+      if(error) throw error;
+      setMsg(`✅ ${inserts.length} días cargados correctamente`);
+      onDone();
+    } catch(err) {
+      setMsg("❌ Error al leer el archivo. Verificá el formato.");
+      console.error(err);
+    }
+    setLoading(false);
+    e.target.value="";
+  };
+
+  return (
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Cargar menú desde Excel</div>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",cursor:"pointer",maxWidth:560}}>
+        <span style={{fontSize:20}}>📤</span>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#3B82F6"}}>{loading?"Procesando...":"Subir archivo Excel"}</div>
+          <div style={{fontSize:11,color:"#94A3B8"}}>Formato: menu_tribbu.xlsx</div>
+        </div>
+        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}}/>
+      </label>
+      {msg&&<div style={{fontSize:13,marginTop:10,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+    </div>
+  );
+}
+
+function Comedor({ cursoId, isAdmin }) {
+  const [menu,setMenu]         = useState([]);
+  const [vista,setVista]       = useState("diario");
+  const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
+  const [mes,setMes]           = useState(new Date());
+
+  const cargarMenu = () => {
+    supabase.from("menu").select("*").eq("curso_id",cursoId).order("fecha").then(r=>setMenu(r.data||[]));
+  };
+  useEffect(()=>{ cargarMenu(); },[cursoId]);
+
+  const diaActual = menu.find(m=>m.fecha===fechaSel);
+  const year=mes.getFullYear(), month=mes.getMonth();
+  const firstDay=(new Date(year,month,1).getDay()+6)%7;
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const cells=Array(firstDay).fill(null);
+  for(let i=1;i<=daysInMonth;i++) cells.push(i);
+  const pad = n => String(n).padStart(2,"0");
+  const tieneMenu = day => menu.some(m=>m.fecha===`${year}-${pad(month+1)}-${pad(day)}`);
+  const selDia = day => { setFechaSel(`${year}-${pad(month+1)}-${pad(day)}`); setVista("diario"); };
+
+  const campos = [
+    {key:"entrada",       label:"Entrada",          color:"#8B5CF6", emoji:"🥣"},
+    {key:"plato",         label:"Plato Principal 1", color:"#3B82F6", emoji:"🍽️"},
+    {key:"plato2",        label:"Plato Principal 2", color:"#0EA5E9", emoji:"🍽️"},
+    {key:"acompanamiento",label:"Plato Principal 3", color:"#6366F1", emoji:"🍽️"},
+    {key:"postre",        label:"Postre 1",          color:"#10B981", emoji:"🍎"},
+    {key:"postre2",       label:"Postre 2",          color:"#34D399", emoji:"🍊"},
+  ];
+
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Comedor 🍽️</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
-      <div style={{display:"flex",gap:6,marginBottom:18,maxWidth:300}}>
-        {["diario","semanal","mensual"].map(v=>(
-          <button key={v} onClick={()=>setVista(v)} style={{flex:1,padding:"8px 0",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===v?"#0F172A":"white",color:vista===v?"white":"#94A3B8",boxShadow:vista===v?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{v.charAt(0).toUpperCase()+v.slice(1)}</button>
+      {isAdmin && <UploadMenuExcel cursoId={cursoId} onDone={cargarMenu}/>}
+      <div style={{display:"flex",gap:6,marginBottom:18,maxWidth:260}}>
+        {[{id:"diario",l:"Día"},{id:"mensual",l:"Mes"}].map(v=>(
+          <button key={v.id} onClick={()=>setVista(v.id)} style={{flex:1,padding:"8px 0",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===v.id?"#0F172A":"white",color:vista===v.id?"white":"#94A3B8",boxShadow:vista===v.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{v.l}</button>
         ))}
       </div>
-      {vista==="diario"&&menu[0]&&(
-        <Card style={{padding:16,maxWidth:480}}>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{background:"#FFF7ED",borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,fontWeight:700,color:"#EA580C",textTransform:"uppercase",marginBottom:4}}>🍽️ Almuerzo</div><div style={{fontSize:16,fontWeight:800}}>{menu[0].plato}</div></div>
-            <div style={{background:"#F0FDF4",borderRadius:12,padding:"14px 16px"}}><div style={{fontSize:10,fontWeight:700,color:"#10B981",textTransform:"uppercase",marginBottom:4}}>🍎 Postre</div><div style={{fontSize:16,fontWeight:800}}>{menu[0].postre}</div></div>
+
+      {vista==="diario"&&(
+        <div style={{maxWidth:520}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <input type="date" value={fechaSel} onChange={e=>setFechaSel(e.target.value)} style={{padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,fontWeight:600,outline:"none",background:"white",color:"#0F172A"}}/>
+            <div style={{fontSize:12,color:"#94A3B8",textTransform:"capitalize"}}>{new Date(fechaSel+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
           </div>
-        </Card>
-      )}
-      {vista==="semanal"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:560}}>
-          {menu.map((m,i)=>(
-            <Card key={i} style={{padding:"13px 15px",borderLeft:"3px solid #3B82F6"}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:36,height:36,borderRadius:10,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#3B82F6",flexShrink:0}}>{dias[i]}</div>
-                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{m.plato}</div><div style={{fontSize:11,color:"#94A3B8"}}>🍎 {m.postre}</div></div>
-              </div>
+          {diaActual ? (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {campos.map(c=>diaActual[c.key]&&(
+                <Card key={c.key} style={{padding:"13px 16px",borderLeft:`3px solid ${c.color}`}}>
+                  <div style={{fontSize:10,fontWeight:700,color:c.color,textTransform:"uppercase",marginBottom:4}}>{c.emoji} {c.label}</div>
+                  <div style={{fontSize:15,fontWeight:700}}>{diaActual[c.key]}</div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card style={{padding:24,textAlign:"center"}}>
+              <div style={{fontSize:32,marginBottom:8}}>🍽️</div>
+              <div style={{fontSize:13,fontWeight:600,color:"#94A3B8"}}>No hay menú cargado para este día</div>
             </Card>
-          ))}
+          )}
         </div>
       )}
+
       {vista==="mensual"&&(
-        <div style={{maxWidth:480}}>
+        <div style={{maxWidth:400}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <button onClick={()=>setMes(new Date(year,month-1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>‹</button>
+            <div style={{fontSize:15,fontWeight:700}}>{MESES[month]} {year}</div>
+            <button onClick={()=>setMes(new Date(year,month+1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>›</button>
+          </div>
           <Card style={{padding:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:10}}>Menú semanal de referencia</div>
-            {menu.map((m,i)=>(
-              <div key={i} style={{display:"flex",gap:8,padding:"8px 0",borderBottom:i<menu.length-1?"1px solid #E2E8F0":"none"}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#3B82F6",width:26,flexShrink:0}}>{dias[i]}</span>
-                <span style={{fontSize:12,flex:1}}>{m.plato}</span>
-                <span style={{fontSize:11,color:"#94A3B8"}}>{m.postre}</span>
-              </div>
-            ))}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
+              {["Lu","Ma","Mi","Ju","Vi","Sa","Do"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94A3B8",padding:"4px 0"}}>{d}</div>)}
+              {cells.map((day,i)=>{
+                const tieneM=day&&tieneMenu(day);
+                const isHoy=day&&`${year}-${pad(month+1)}-${pad(day)}`===new Date().toISOString().split("T")[0];
+                return <div key={i} onClick={()=>day&&selDia(day)} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8,background:isHoy?"#3B82F6":tieneM?"#DBEAFE":"transparent",color:isHoy?"white":day?"#0F172A":"transparent",fontSize:12,fontWeight:isHoy?800:500,cursor:day?"pointer":"default",position:"relative"}}>
+                  {day}
+                  {tieneM&&!isHoy&&<div style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:"50%",background:"#3B82F6"}}/>}
+                </div>;
+              })}
+            </div>
+            <div style={{fontSize:11,color:"#94A3B8",textAlign:"center",marginTop:8}}>Tocá un día para ver el menú</div>
           </Card>
         </div>
       )}
@@ -831,11 +1050,10 @@ export default function App() {
     </div>
   );
 
-  const esPadre   = usuario.rol==="padre";
+  const esPadre    = usuario.rol==="padre";
   const itemActual = items[cursoIdx];
   const cursoId    = esPadre ? itemActual?.curso_id    : itemActual?.id;
   const cursoNombre= esPadre ? itemActual?.cursos?.nombre : itemActual?.nombre;
-  const cursoColor = itemActual?.color || itemActual?.cursos?.color || "#3B82F6";
   const isAdmin    = usuario.rol==="admin";
 
   const TABS = [
@@ -854,7 +1072,7 @@ export default function App() {
     switch(tab) {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin}/>;
       case "clases":   return <Clases cursoId={cursoId}/>;
-      case "comedor":  return <Comedor cursoId={cursoId}/>;
+      case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin}/>;
       case "info":     return <InfoUtil cursoId={cursoId}/>;
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
@@ -891,7 +1109,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      <div style={{padding:"20px 16px"}}>{renderTab()}</div>
+      <div style={{padding:"20px 16px",color:"#0F172A"}}>{renderTab()}</div>
     </div>
   );
 
@@ -928,7 +1146,7 @@ export default function App() {
           <button onClick={()=>setUsuario(null)} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>← Cerrar sesión</button>
         </div>
       </div>
-      <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0}}>
+      <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
         <div style={{maxWidth:800}}>{renderTab()}</div>
       </div>
     </div>
