@@ -427,7 +427,6 @@ function SuperAdmin() {
 
   return (
     <div>
-      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {confirm && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,maxWidth:340,width:"100%"}}>
@@ -2207,14 +2206,12 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   useEffect(()=>{ cargar(); },[alumno.id]);
 
   const cargar = async () => {
-    const [v,t,rp] = await Promise.all([
+    const [v,t] = await Promise.all([
       supabase.from("usuario_hijos").select("*, usuarios(id,nombre,email,telefono)").eq("hijo_id",alumno.id),
       supabase.from("usuarios").select("id,nombre,email,telefono,rol").eq("activo",true).order("nombre"),
-      supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",alumno.curso_id),
     ]);
-    // Exclude users who are room parents of THIS specific course
-    const rpIds = (rp.data||[]).map(r=>r.usuario_id);
-    const aptos = (t.data||[]).filter(u => u.rol !== "super" && !rpIds.includes(u.id));
+    // Exclude only super admins — room parents can also be apoderados
+    const aptos = (t.data||[]).filter(u => u.rol !== "super");
     setVinculados(v.data||[]);
     setTodos(aptos);
   };
@@ -2236,8 +2233,8 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   );
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
-      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
           <div style={{flex:1}}>
             <div style={{fontSize:17,fontWeight:900}}>Apoderados</div>
