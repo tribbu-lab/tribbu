@@ -1134,46 +1134,302 @@ function Comedor({ cursoId, isAdmin, isSuper }) {
   );
 }
 
-function Clases({ cursoId }) {
-  const horario=HORARIOS[cursoId]||HORARIOS[1];
-  const [mes,setMes]=useState(new Date(2026,2,1));
-  const year=mes.getFullYear(),month=mes.getMonth();
-  const firstDay=(new Date(year,month,1).getDay()+6)%7;
-  const daysInMonth=new Date(year,month+1,0).getDate();
-  const cells=Array(firstDay).fill(null);
-  for(let i=1;i<=daysInMonth;i++) cells.push(i);
-  const bgs=["#EFF6FF","#F0FDF4","#FFF7ED","#F5F3FF","#FEFCE8"];
-  const cols=["#3B82F6","#10B981","#F59E0B","#8B5CF6","#EAB308"];
+// Tipo → color/emoji
+const TIPO_CONFIG = {
+  cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
+  festejo:     { emoji:"🎉", color:"#F59E0B", bg:"#FFFBEB", label:"Festejo" },
+  paseo:       { emoji:"🚌", color:"#3B82F6", bg:"#EFF6FF", label:"Paseo" },
+  acto:        { emoji:"🎭", color:"#8B5CF6", bg:"#F5F3FF", label:"Acto escolar" },
+  dia_especial:{ emoji:"⭐", color:"#10B981", bg:"#F0FDF4", label:"Día especial" },
+  comunicado:  { emoji:"📢", color:"#F97316", bg:"#FFF7ED", label:"Comunicado" },
+};
+
+function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
+  const esNuevo = !evento;
+  const [form, setForm] = useState({
+    titulo:      evento?.titulo      || "",
+    tipo:        evento?.tipo        || "acto",
+    fecha:       evento?.fecha       || "",
+    hora:        evento?.hora        || "",
+    lugar:       evento?.lugar       || "",
+    descripcion: evento?.descripcion || "",
+    todo_el_dia: evento?.todo_el_dia !== false,
+  });
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const guardar = async () => {
+    if(!form.titulo || !form.fecha) return;
+    const payload = { ...form, curso_id: cursoId, creado_por: userId };
+    if(esNuevo) await supabase.from("eventos").insert(payload);
+    else        await supabase.from("eventos").update(payload).eq("id", evento.id);
+    onSave();
+  };
   return (
-    <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Clases 📅</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Calendario y horario escolar</div>
-      <Card style={{padding:16,marginBottom:16,maxWidth:360}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-          <button onClick={()=>setMes(new Date(year,month-1,1))} style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>‹</button>
-          <div style={{fontSize:15,fontWeight:700}}>{MESES[month]} {year}</div>
-          <button onClick={()=>setMes(new Date(year,month+1,1))} style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>›</button>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontSize:16,fontWeight:900,marginBottom:16}}>{esNuevo?"Nuevo evento":"Editar evento"}</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo").map(([k,v])=>(
+              <button key={k} onClick={()=>setForm(p=>({...p,tipo:k}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
+            ))}
+          </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-          {["Lu","Ma","Mi","Ju","Vi","Sa","Do"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94A3B8",padding:"4px 0"}}>{d}</div>)}
-          {cells.map((day,i)=>(
-            <div key={i} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8,background:day===10?"#3B82F6":day?bgs[i%5]:"transparent",color:day===10?"white":day?"#0F172A":"transparent",fontSize:12,fontWeight:day===10?800:500}}>{day}</div>
-          ))}
+        {[
+          {label:"Título",      key:"titulo",      type:"text", ph:"Ej: Acto del 25 de mayo"},
+          {label:"Fecha",       key:"fecha",       type:"date"},
+          {label:"Lugar",       key:"lugar",       type:"text", ph:"Ej: Patio del colegio"},
+          {label:"Descripción", key:"descripcion", type:"text", ph:"Detalles adicionales"},
+        ].map(f=>(
+          <div key={f.key} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+            <input type={f.type} value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+          </div>
+        ))}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Hora</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setForm(p=>({...p,todo_el_dia:!p.todo_el_dia}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.todo_el_dia?"#3B82F6":"#E2E8F0"}`,background:form.todo_el_dia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.todo_el_dia?"#3B82F6":"#94A3B8"}}>Todo el día</button>
+            {!form.todo_el_dia&&<input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))} style={{...inp,width:"auto",flex:1}}/>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+          <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
         </div>
       </Card>
-      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Horario semanal</div>
-      <div style={{maxWidth:640}}>
-        {horario.map((row,i)=>(
-          <Card key={i} style={{padding:"12px 14px",marginBottom:10}}>
-            <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-              <div style={{width:42,height:42,borderRadius:12,background:bgs[i],display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:cols[i],flexShrink:0}}>{row.dia.slice(0,3)}</div>
-              <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:6,paddingTop:4}}>
-                {row.clases.map((c,j)=><span key={j} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:20,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>{c}</span>)}
-              </div>
+    </div>
+  );
+}
+
+function Calendario({ cursoId, userId, isAdmin }) {
+  const horario   = HORARIOS[cursoId]||HORARIOS[1];
+  const hoy       = new Date(); hoy.setHours(0,0,0,0);
+  const [vista,   setVista]   = useState("mes");
+  const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  const [eventos, setEventos] = useState([]);
+  const [cumples, setCumples] = useState([]);
+  const [diaSelec,setDiaSelec]= useState(null);   // {year,month,day}
+  const [modal,   setModal]   = useState(null);   // null | "nuevo" | evento obj
+  const [confirm, setConfirm] = useState(null);
+
+  const cargar = async () => {
+    const [ev, al, ma] = await Promise.all([
+      supabase.from("eventos").select("*").eq("curso_id", cursoId).order("fecha"),
+      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
+      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id", cursoId),
+    ]);
+    setEventos(ev.data||[]);
+    // Armamos cumples como eventos virtuales (próxima ocurrencia)
+    const todos = [
+      ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
+        id:`c-a-${a.id}`, tipo:"cumple", nombre:fmtNombre(a), color:a.color||"#EC4899",
+        fecha_nacimiento: a.fecha_nacimiento,
+      })),
+      ...(ma.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
+        id:`c-m-${m.id}`, tipo:"cumple", nombre:m.nombre, color:"#8B5CF6",
+        fecha_nacimiento: m.fecha_nacimiento,
+      })),
+    ];
+    setCumples(todos);
+  };
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const eliminar = async (id) => {
+    await supabase.from("eventos").delete().eq("id", id);
+    setConfirm(null); cargar();
+  };
+
+  // Devuelve todos los "eventos" (reales + cumples) para un año/mes/día dado
+  const eventosDelDia = (year, month, day) => {
+    const fecha = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const reales = eventos.filter(e => e.fecha === fecha);
+    const bdayHoy = cumples.filter(c => {
+      const d = new Date(c.fecha_nacimiento+"T00:00:00");
+      return d.getMonth()===month && d.getDate()===day;
+    });
+    return [...reales, ...bdayHoy.map(c=>({...c, titulo:c.nombre, fecha}))];
+  };
+
+  const year = mes.getFullYear(), month = mes.getMonth();
+  const firstDay = (new Date(year,month,1).getDay()+6)%7;
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const cells = Array(firstDay).fill(null);
+  for(let i=1;i<=daysInMonth;i++) cells.push(i);
+
+  // Lista cronológica: próximos 60 días de eventos + cumples
+  const listaEventos = () => {
+    const limite = new Date(hoy); limite.setDate(limite.getDate()+90);
+    const reales = eventos
+      .filter(e => { const d=new Date(e.fecha+"T00:00:00"); return d>=hoy && d<=limite; })
+      .map(e => ({ ...e, titulo: e.titulo, _fecha: new Date(e.fecha+"T00:00:00") }));
+    const bdayList = cumples.map(c => {
+      const d = new Date(c.fecha_nacimiento+"T00:00:00");
+      let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+      if(next < hoy) next = new Date(hoy.getFullYear()+1, d.getMonth(), d.getDate());
+      if(next > limite) return null;
+      return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0,10), _fecha: next };
+    }).filter(Boolean);
+    return [...reales, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
+  };
+
+  const bgs = ["#EFF6FF","#F0FDF4","#FFF7ED","#F5F3FF","#FEFCE8"];
+  const cols = ["#3B82F6","#10B981","#F59E0B","#8B5CF6","#EAB308"];
+  const diaSelecFecha = diaSelec ? `${diaSelec.year}-${String(diaSelec.month+1).padStart(2,"0")}-${String(diaSelec.day).padStart(2,"0")}` : null;
+  const evDiaSelec = diaSelec ? eventosDelDia(diaSelec.year, diaSelec.month, diaSelec.day) : [];
+
+  return (
+    <div>
+      {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
+      {confirm && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,maxWidth:340,width:"100%"}}>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:8}}>¿Eliminar evento?</div>
+            <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>{confirm.titulo}</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>eliminar(confirm.id)} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Eliminar</button>
             </div>
           </Card>
+        </div>
+      )}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
+        <div style={{fontSize:22,fontWeight:900}}>Calendario 📅</div>
+        {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
+      </div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>Clases, eventos y cumpleaños</div>
+
+      {/* Tabs vista */}
+      <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
+        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos"},{id:"horario",l:"🕐 Horario"}].map(t=>(
+          <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===t.id?"#0F172A":"white",color:vista===t.id?"white":"#94A3B8",boxShadow:vista===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
+
+      {/* VISTA MES */}
+      {vista==="mes"&&(
+        <div style={{maxWidth:460}}>
+          <Card style={{padding:16,marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <button onClick={()=>setMes(new Date(year,month-1,1))} style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>‹</button>
+              <div style={{fontSize:15,fontWeight:700}}>{MESES[month]} {year}</div>
+              <button onClick={()=>setMes(new Date(year,month+1,1))} style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>›</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+              {["Lu","Ma","Mi","Ju","Vi","Sa","Do"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94A3B8",padding:"4px 0"}}>{d}</div>)}
+              {cells.map((day,i)=>{
+                if(!day) return <div key={i}/>;
+                const esHoy = day===hoy.getDate()&&month===hoy.getMonth()&&year===hoy.getFullYear();
+                const evs = eventosDelDia(year,month,day);
+                const selec = diaSelec?.day===day&&diaSelec?.month===month&&diaSelec?.year===year;
+                return (
+                  <div key={i} onClick={()=>setDiaSelec(selec?null:{year,month,day})} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:8,background:selec?"#0F172A":esHoy?"#3B82F6":"white",color:selec||esHoy?"white":"#0F172A",fontSize:12,fontWeight:esHoy||selec?800:500,cursor:"pointer",position:"relative",border:selec?"none":"1px solid #F1F5F9"}}>
+                    {day}
+                    {evs.length>0&&<div style={{display:"flex",gap:2,marginTop:2,flexWrap:"wrap",justifyContent:"center"}}>
+                      {evs.slice(0,3).map((e,ei)=>{
+                        const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
+                        return <div key={ei} style={{width:5,height:5,borderRadius:"50%",background:selec||esHoy?"white":cfg.color}}/>;
+                      })}
+                    </div>}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+          {/* Panel del día seleccionado */}
+          {diaSelec&&(
+            <Card style={{padding:16}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontSize:14,fontWeight:800}}>
+                  {diaSelec.day} de {MESES[diaSelec.month]}
+                </div>
+                {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+              </div>
+              {evDiaSelec.length===0
+                ? <div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin eventos este día</div>
+                : evDiaSelec.map((e,i)=>{
+                    const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
+                    return (
+                      <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:i<evDiaSelec.length-1?"1px solid #F1F5F9":"none"}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{cfg.emoji}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                          <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
+                            {cfg.label}{e.hora&&!e.todo_el_dia?` · ${e.hora}`:""}{e.lugar?` · 📍${e.lugar}`:""}
+                          </div>
+                          {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                        </div>
+                        {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&(
+                          <div style={{display:"flex",gap:4}}>
+                            <button onClick={()=>setModal(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                            <button onClick={()=>setConfirm(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+              }
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* VISTA LISTA */}
+      {vista==="lista"&&(
+        <div style={{maxWidth:560}}>
+          {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos próximos</div>}
+          {listaEventos().map((e,i)=>{
+            const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
+            const d   = new Date(e.fecha+"T00:00:00");
+            const dias = Math.round((d-hoy)/86400000);
+            return (
+              <Card key={e.id||i} style={{padding:"13px 15px",marginBottom:10,borderLeft:`3px solid ${cfg.color}`}}>
+                <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                  <div style={{width:42,height:42,borderRadius:12,background:cfg.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <div style={{fontSize:18}}>{cfg.emoji}</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
+                      {d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+                      {e.hora&&!e.todo_el_dia?` · ${e.hora}`:""}
+                    </div>
+                    {e.lugar&&<div style={{fontSize:11,color:"#94A3B8"}}>📍 {e.lugar}</div>}
+                    {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
+                    {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&(
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                        <button onClick={()=>setConfirm(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VISTA HORARIO */}
+      {vista==="horario"&&(
+        <div style={{maxWidth:640}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Horario semanal</div>
+          {horario.map((row,i)=>(
+            <Card key={i} style={{padding:"12px 14px",marginBottom:10}}>
+              <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{width:42,height:42,borderRadius:12,background:bgs[i%5],display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:cols[i%5],flexShrink:0}}>{row.dia.slice(0,3)}</div>
+                <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:6,paddingTop:4}}>
+                  {row.clases.map((c,j)=><span key={j} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:20,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>{c}</span>)}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1814,20 +2070,20 @@ export default function App() {
 
   const TABS = [
     {id:"muro",    label:"Inicio",    emoji:"🏠"},
-    {id:"clases",  label:"Clases",    emoji:"📅"},
+    {id:"clases",  label:"Calendario",emoji:"📅"},
     {id:"comedor", label:"Comedor",   emoji:"🍽️"},
     {id:"cumples", label:"Cumples",   emoji:"🎂"},
     {id:"info",    label:"Info Útil", emoji:"📋"},
     {id:"contacto",label:"Contacto",  emoji:"📞"},
     {id:"finanzas",label:"Finanzas",  emoji:"💳"},
-    ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
+    ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin}/>;
-      case "clases":   return <Clases cursoId={cursoId}/>;
+      case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin}/>;
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
