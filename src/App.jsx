@@ -814,8 +814,9 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
         </>
       )}
       {datos.menu&&(
-        <Card style={{padding:"14px 16px",marginBottom:12}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:8}}>🍽️ Menú de hoy</div>
+        <>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🍽️ Menú de hoy</div>
+          <Card style={{padding:"14px 16px",marginBottom:12}}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {datos.menu.entrada&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#8B5CF6"}}>Entrada: </span>{datos.menu.entrada}</div>}
             {datos.menu.plato&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#3B82F6"}}>Plato 1: </span>{datos.menu.plato}</div>}
@@ -824,6 +825,7 @@ function Muro({ cursoId, cursoNombre, isAdmin }) {
             {datos.menu.postre&&<div style={{fontSize:13}}><span style={{fontWeight:700,color:"#10B981"}}>Postre: </span>{datos.menu.postre}{datos.menu.postre2&&` / ${datos.menu.postre2}`}</div>}
           </div>
         </Card>
+        </>
       )}
       {datos.recordatorios.length>0&&(
         <div style={{marginBottom:14}}>
