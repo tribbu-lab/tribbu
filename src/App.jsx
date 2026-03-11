@@ -2316,20 +2316,47 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const [monto,setMonto]       = useState("");
   const [montoGuardado,setMontoGuardado] = useState(null);
   const [savingMonto,setSavingMonto]     = useState(false);
+  const [recordatorios,setRecordatorios] = useState([]);
+  const [recForm,setRecForm]   = useState(null); // null | {} | {id,...}
+  const [savingRec,setSavingRec] = useState(false);
 
-  useEffect(()=>{
+  const EMOJIS = ["📌","📢","⚠️","✅","📅","💰","🎒","📝","🏥","🚌"];
+
+  const cargar = () => {
     Promise.all([
       supabase.from("cuotas").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
-    ]).then(([c,cu,curso])=>{
+      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("id",{ascending:false}),
+    ]).then(([c,cu,curso,rec])=>{
       const cuotas=c.data||[],cumples=cu.data||[];
       setStats({cuotasOk:cuotas.filter(x=>x.pagado).length,sinPagar:cuotas.filter(x=>!x.pagado).length,regalos:cumples.filter(x=>!x.comprado).length});
       const m = curso.data?.monto_regalo;
       setMontoGuardado(m);
       setMonto(m ? String(m) : "");
+      setRecordatorios(rec.data||[]);
     });
-  },[cursoId]);
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const guardarRec = async () => {
+    if(!recForm?.texto?.trim()) return;
+    setSavingRec(true);
+    if(recForm.id) {
+      await supabase.from("recordatorios").update({texto:recForm.texto,emoji:recForm.emoji||"📌",urgente:recForm.urgente||false}).eq("id",recForm.id);
+    } else {
+      await supabase.from("recordatorios").insert({texto:recForm.texto,emoji:recForm.emoji||"📌",urgente:recForm.urgente||false,curso_id:cursoId});
+    }
+    setSavingRec(false);
+    setRecForm(null);
+    cargar();
+  };
+
+  const eliminarRec = async (id) => {
+    await supabase.from("recordatorios").delete().eq("id",id);
+    cargar();
+  };
 
   const guardarMonto = async () => {
     setSavingMonto(true);
@@ -2372,16 +2399,54 @@ function AdminPanel({ cursoId, cursoNombre }) {
         {montoGuardado&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:8}}>✓ Monto actual: ${Number(montoGuardado).toLocaleString("es-AR")} por familia</div>}
       </Card>
 
-      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Acciones rápidas</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:560}}>
-        {["📢 Enviar comunicado al curso","📋 Ver lista completa de familias","💳 Gestionar cuotas del curso","🎂 Organizar próximo cumpleaños"].map((a,i)=>(
-          <Card key={i} style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-            <span style={{fontSize:18}}>{a.split(" ")[0]}</span>
-            <span style={{fontSize:13,fontWeight:600}}>{a.split(" ").slice(1).join(" ")}</span>
-            <span style={{marginLeft:"auto",color:"#94A3B8",fontSize:16}}>›</span>
+      {/* Recordatorios */}
+      <div style={{maxWidth:560,marginBottom:24}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>📌 Recordatorios</div>
+          <button onClick={()=>setRecForm({texto:"",emoji:"📌",urgente:false})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
+        </div>
+        {recordatorios.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:"10px 0"}}>Sin recordatorios</div>}
+        {recordatorios.map(r=>(
+          <Card key={r.id} style={{padding:"11px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,borderLeft:r.urgente?"3px solid #EF4444":"3px solid #E2E8F0",background:r.urgente?"#FFF1F2":"white"}}>
+            <span style={{fontSize:20}}>{r.emoji}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:r.urgente?700:500}}>{r.texto}</div>
+              {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>URGENTE</span>}
+            </div>
+            <button onClick={()=>setRecForm({...r})} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+            <button onClick={()=>eliminarRec(r.id)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
           </Card>
         ))}
       </div>
+
+      {/* Modal recordatorio */}
+      {recForm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{recForm.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>EMOJI</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {EMOJIS.map(e=>(
+                  <button key={e} onClick={()=>setRecForm(p=>({...p,emoji:e}))} style={{width:36,height:36,borderRadius:8,border:`2px solid ${recForm.emoji===e?"#3B82F6":"#E2E8F0"}`,background:recForm.emoji===e?"#EFF6FF":"white",cursor:"pointer",fontSize:18}}>{e}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>TEXTO</div>
+              <textarea value={recForm.texto} onChange={e=>setRecForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Traer autorización firmada el viernes" rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",resize:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+              <input type="checkbox" id="urgente" checked={recForm.urgente||false} onChange={e=>setRecForm(p=>({...p,urgente:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
+              <label htmlFor="urgente" style={{fontSize:13,fontWeight:600,cursor:"pointer",color:recForm.urgente?"#EF4444":"#0F172A"}}>⚠️ Marcar como urgente</label>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setRecForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarRec} disabled={savingRec} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingRec?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
