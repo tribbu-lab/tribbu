@@ -736,6 +736,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
+  const [leidosMuro,setLeidosMuro] = useState(new Set());
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -744,7 +745,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
     const fechaHoy = new Date().toISOString().split("T")[0];
     const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
     const mesFin    = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).toISOString().slice(0,10);
-    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData] = await Promise.all([
+    const [alerta,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData] = await Promise.all([
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
@@ -754,6 +755,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
       userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",Number(userId)).eq("asiste","pendiente") : Promise.resolve({data:[]}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
     // Build unified birthday list sorted by next occurrence
     const nextBday = (fecha) => {
@@ -774,7 +776,17 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
-    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recordatorios.data||[], cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
+    const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
+    const hoyStr = new Date().toISOString().split("T")[0];
+    const recsNoLeidos = (recordatorios.data||[]).filter(r=> !leidosIds.has(r.id) && (!r.fecha || r.fecha >= hoyStr));
+    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
+  };
+
+  const marcarLeidoMuro = async (recId) => {
+    if(!userId) return;
+    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    setLeidosMuro(p=> new Set([...p, recId]));
+    setDatos(d=> d ? {...d, recordatorios: d.recordatorios.filter(r=>r.id!==recId)} : d);
   };
 
   const enviarAlerta = async (msg) => {
@@ -858,13 +870,21 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
       {datos.recordatorios.length>0&&(
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Recordatorios</div>
-          {datos.recordatorios.map(r=>(
-            <div key={r.id} style={{background:r.urgente?"#FFF1F2":"#FFFFFF",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:`1px solid ${r.urgente?"#FECACA":"#E2E8F0"}`,borderLeft:r.urgente?"3px solid #EF4444":"1px solid #E2E8F0"}}>
-              <span style={{fontSize:20}}>{r.emoji}</span>
-              <div style={{fontSize:13,fontWeight:r.urgente?700:500,flex:1}}>{r.texto}</div>
-              {r.urgente&&<Pill label="Urgente" color="#EF4444" bg="#FEE2E2"/>}
-            </div>
-          ))}
+          {datos.recordatorios.map(r=>{
+            const prioColor = {alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"];
+            return (
+              <div key={r.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,border:"1px solid #E2E8F0",borderLeft:`3px solid ${r.urgente?"#EF4444":prioColor}`}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:r.urgente?700:500}}>{r.texto}</div>
+                  <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center"}}>
+                    {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
+                    {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
+                  </div>
+                </div>
+                <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:"#64748B",flexShrink:0}}>Leído</button>
+              </div>
+            );
+          })}
         </div>
       )}
       {datos.eventos?.length>0&&(
@@ -1273,6 +1293,23 @@ function Calendario({ cursoId, userId, isAdmin }) {
   const [modal,   setModal]   = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [festejoDetalle, setFestejoDetalle] = useState(null);
+  const [recordatorios,  setRecordatorios]  = useState([]);
+  const [leidosSet,      setLeidosSet]      = useState(new Set());
+
+  const cargarRecs = async () => {
+    const hoyStr = new Date().toISOString().split("T")[0];
+    const [recs, leidos] = await Promise.all([
+      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+    ]);
+    setRecordatorios((recs.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr));
+    setLeidosSet(new Set((leidos.data||[]).map(l=>l.recordatorio_id)));
+  };
+
+  const marcarLeido = async (recId) => {
+    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    setLeidosSet(p=> new Set([...p, recId]));
+  };
 
   const cargar = async () => {
     const [ev, al, ma] = await Promise.all([
@@ -1294,7 +1331,7 @@ function Calendario({ cursoId, userId, isAdmin }) {
     ];
     setCumples(todos);
   };
-  useEffect(()=>{ cargar(); },[cursoId]);
+  useEffect(()=>{ cargar(); cargarRecs(); },[cursoId]);
 
   const eliminar = async (id) => {
     await supabase.from("eventos").delete().eq("id", id);
@@ -1363,7 +1400,7 @@ function Calendario({ cursoId, userId, isAdmin }) {
 
       {/* Tabs vista */}
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
-        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos"},{id:"horario",l:"🕐 Horario"}].map(t=>(
+        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos"},{id:"horario",l:"🕐 Horario"},{id:"recordatorios",l:"📌 Recordatorios"}].map(t=>(
           <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===t.id?"#0F172A":"white",color:vista===t.id?"white":"#94A3B8",boxShadow:vista===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -1493,6 +1530,62 @@ function Calendario({ cursoId, userId, isAdmin }) {
           ))}
         </div>
       )}
+
+      {/* VISTA RECORDATORIOS */}
+      {vista==="recordatorios"&&(()=>{
+        const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
+        const hoyStr = new Date().toISOString().split("T")[0];
+        const noLeidos = recordatorios.filter(r=>!leidosSet.has(r.id));
+        const leidos   = recordatorios.filter(r=> leidosSet.has(r.id));
+        const vencidos = recordatorios.filter(r=> r.fecha && r.fecha < hoyStr);
+        const renderRec = (r, showLeido=true) => {
+          const prio = PRIO[r.prioridad||"media"];
+          const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
+          const esLeido = leidosSet.has(r.id);
+          return (
+            <Card key={r.id} style={{padding:"12px 14px",marginBottom:8,maxWidth:560,opacity:esLeido?0.6:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:esLeido?400:600,textDecoration:esLeido?"line-through":"none",color:esLeido?"#94A3B8":"#0F172A"}}>{r.texto}</div>
+                  <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:prio.bg,color:prio.c}}>{prio.l}</span>
+                    {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
+                    {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}{dias!==null&&dias>=0?` · ${dias===0?"hoy":dias===1?"mañana":`${dias}d`}`:dias<0?" · vencido":""}</span>}
+                  </div>
+                </div>
+                {showLeido&&!esLeido&&(
+                  <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B",flexShrink:0,whiteSpace:"nowrap"}}>✓ Leído</button>
+                )}
+              </div>
+            </Card>
+          );
+        };
+        return (
+          <div style={{maxWidth:560}}>
+            {noLeidos.length===0&&leidos.length===0&&(
+              <div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios activos</div>
+            )}
+            {noLeidos.length>0&&(
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pendientes ({noLeidos.length})</div>
+                {noLeidos.sort((a,b)=>{
+                  const pa={alta:0,media:1,baja:2}; const ua=pa[a.prioridad||"media"]||1; const ub=pa[b.prioridad||"media"]||1;
+                  if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
+                  if(ua!==ub) return ua-ub;
+                  if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
+                  return 0;
+                }).map(r=>renderRec(r,true))}
+              </div>
+            )}
+            {leidos.length>0&&(
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#CBD5E1",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Historial leídos ({leidos.length})</div>
+                {leidos.map(r=>renderRec(r,false))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2343,10 +2436,11 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const guardarRec = async () => {
     if(!recForm?.texto?.trim()) return;
     setSavingRec(true);
+    const payload = {texto:recForm.texto, emoji:recForm.emoji||"📌", urgente:recForm.urgente||false, prioridad:recForm.prioridad||"media", fecha:recForm.fecha||null};
     if(recForm.id) {
-      await supabase.from("recordatorios").update({texto:recForm.texto,emoji:recForm.emoji||"📌",urgente:recForm.urgente||false}).eq("id",recForm.id);
+      await supabase.from("recordatorios").update(payload).eq("id",recForm.id);
     } else {
-      await supabase.from("recordatorios").insert({texto:recForm.texto,emoji:recForm.emoji||"📌",urgente:recForm.urgente||false,curso_id:cursoId});
+      await supabase.from("recordatorios").insert({...payload, curso_id:cursoId});
     }
     setSavingRec(false);
     setRecForm(null);
@@ -2403,7 +2497,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
       <div style={{maxWidth:560,marginBottom:24}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>📌 Recordatorios</div>
-          <button onClick={()=>setRecForm({texto:"",emoji:"📌",urgente:false})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
+          <button onClick={()=>setRecForm({texto:"",emoji:"📌",urgente:false,prioridad:"media",fecha:""})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
         </div>
         {recordatorios.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:"10px 0"}}>Sin recordatorios</div>}
         {recordatorios.map(r=>(
@@ -2411,9 +2505,15 @@ function AdminPanel({ cursoId, cursoNombre }) {
             <span style={{fontSize:20}}>{r.emoji}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:r.urgente?700:500}}>{r.texto}</div>
-              {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>URGENTE</span>}
+              <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
+                {r.urgente&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FEE2E2",color:"#EF4444"}}>⚠️ Urgente</span>}
+                {{alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"},media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"},baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"}}[r.prioridad||"media"]&&(
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:{alta:"#FEF2F2",media:"#FFFBEB",baja:"#F0FDF4"}[r.prioridad||"media"],color:{alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"]}}>{r.prioridad||"media"}</span>
+                )}
+                {r.fecha&&<span style={{fontSize:10,color:"#94A3B8"}}>📅 {new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</span>}
+              </div>
             </div>
-            <button onClick={()=>setRecForm({...r})} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+            <button onClick={()=>setRecForm({...r,fecha:r.fecha||"",prioridad:r.prioridad||"media"})} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
             <button onClick={()=>eliminarRec(r.id)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
           </Card>
         ))}
@@ -2435,6 +2535,20 @@ function AdminPanel({ cursoId, cursoNombre }) {
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>TEXTO</div>
               <textarea value={recForm.texto} onChange={e=>setRecForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Traer autorización firmada el viernes" rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",resize:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA LÍMITE</div>
+                <input type="date" value={recForm.fecha||""} onChange={e=>setRecForm(p=>({...p,fecha:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
+                <select value={recForm.prioridad||"media"} onChange={e=>setRecForm(p=>({...p,prioridad:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"}}>
+                  <option value="alta">🔴 Alta</option>
+                  <option value="media">🟡 Media</option>
+                  <option value="baja">🟢 Baja</option>
+                </select>
+              </div>
             </div>
             <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
               <input type="checkbox" id="urgente" checked={recForm.urgente||false} onChange={e=>setRecForm(p=>({...p,urgente:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
