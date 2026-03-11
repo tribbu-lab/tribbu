@@ -12,6 +12,7 @@ const T = {
 const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
 const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"});
 const dHasta = s => { const h=new Date();h.setHours(0,0,0,0);const f=new Date(s+"T00:00:00");f.setHours(0,0,0,0);return Math.ceil((f-h)/86400000); };
+const fmtNombre = (a) => a ? `${a.nombre||""} ${a.apellido||""}`.trim() : "";
 const MESES  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" };
 const ROL_COLOR = { padre:"#3B82F6", admin:"#10B981", super:"#8B5CF6" };
@@ -118,6 +119,160 @@ function Login({ onLogin }) {
   );
 }
 
+function UploadAlumnosExcel({ cursos, onDone }) {
+  const [loading,setLoading] = useState(false);
+  const [msg,setMsg]         = useState("");
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    setLoading(true); setMsg("");
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, {cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
+      if(!rows.length) throw new Error("Archivo vacío");
+      console.log("Alumnos - primera fila:", rows[0]);
+
+      const parseFecha = (val) => {
+        if(!val) return null;
+        if(val instanceof Date) return val.toISOString().split("T")[0];
+        const s = String(val).trim();
+        if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+        if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+          const [d,m,y]=s.split("/");
+          return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+        }
+        return null;
+      };
+
+      const findCurso = (val) => {
+        if(!val) return null;
+        const n = Number(val);
+        if(!isNaN(n)) return n;
+        const s = String(val).trim().toLowerCase();
+        const c = cursos.find(c=>c.nombre.toLowerCase()===s);
+        return c?.id||null;
+      };
+
+      const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
+      const inserts = rows.map(r=>{
+        const nombre   = String(r.nombre||"").trim();
+        const apellido = String(r.apellido||"").trim();
+        const curso_id = findCurso(r.curso_id||r.curso);
+        if(!nombre||!curso_id) return null;
+        const avatar = `${nombre[0]||""}${apellido[0]||""}`.toUpperCase() || nombre.slice(0,2).toUpperCase();
+        const color  = colors[Math.floor(Math.random()*colors.length)];
+        return { nombre, apellido:apellido||null, curso_id, avatar, color, fecha_nacimiento:parseFecha(r.fecha_nacimiento||r.fecha) };
+      }).filter(Boolean);
+
+      if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, apellido, curso_id, fecha_nacimiento");
+
+      // Delete all alumnos of the courses present in the file
+      const cursoIds = [...new Set(inserts.map(r=>r.curso_id))];
+      for(const cid of cursoIds) {
+        const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id",cid);
+        if(hijos?.length) {
+          const ids = hijos.map(h=>h.id);
+          await supabase.from("usuario_hijos").delete().in("hijo_id",ids);
+          await supabase.from("hijos").delete().eq("curso_id",cid);
+        }
+      }
+      const { error } = await supabase.from("hijos").insert(inserts);
+      if(error) throw error;
+      setMsg(`✅ ${inserts.length} alumnos cargados correctamente`);
+      onDone();
+    } catch(err) {
+      setMsg(`❌ ${err.message}`);
+      console.error(err);
+    }
+    setLoading(false);
+    e.target.value="";
+  };
+
+  return (
+    <div style={{marginBottom:16}}>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",cursor:"pointer",maxWidth:"100%"}}>
+        <span style={{fontSize:20}}>📤</span>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#10B981"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
+          <div style={{fontSize:11,color:"#94A3B8"}}>Columnas: nombre, apellido, curso_id, fecha_nacimiento</div>
+        </div>
+        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
+      </label>
+      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+    </div>
+  );
+}
+
+function UploadApoderadosExcel({ onDone }) {
+  const [loading,setLoading] = useState(false);
+  const [msg,setMsg]         = useState("");
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    setLoading(true); setMsg("");
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, {cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
+      if(!rows.length) throw new Error("Archivo vacío");
+      console.log("Apoderados - primera fila:", rows[0]);
+
+      const inserts = rows.map(r=>{
+        const nombre = String(r.nombre||"").trim();
+        const email  = String(r.email||"").trim().toLowerCase();
+        const pass   = String(r.pass||r.contraseña||r.password||"1234").trim();
+        if(!nombre||!email) return null;
+        const avatar = nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+        return {
+          nombre, email, pass, avatar,
+          telefono: r.telefono ? String(r.telefono).trim() : null,
+          rol:      r.rol||"padre",
+          activo:   true,
+        };
+      }).filter(Boolean);
+
+      if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, email, pass, telefono");
+
+      // Delete existing padres and their relations
+      const { data: padres } = await supabase.from("usuarios").select("id").eq("rol","padre");
+      if(padres?.length) {
+        const ids = padres.map(p=>p.id);
+        await supabase.from("usuario_hijos").delete().in("usuario_id",ids);
+        await supabase.from("usuario_cursos").delete().in("usuario_id",ids);
+        await supabase.from("usuarios").delete().in("id",ids);
+      }
+      const { error } = await supabase.from("usuarios").insert(inserts);
+      if(error) throw error;
+      setMsg(`✅ ${inserts.length} apoderados cargados correctamente`);
+      onDone();
+    } catch(err) {
+      setMsg(`❌ ${err.message}`);
+      console.error(err);
+    }
+    setLoading(false);
+    e.target.value="";
+  };
+
+  return (
+    <div style={{marginBottom:16}}>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",cursor:"pointer",maxWidth:"100%"}}>
+        <span style={{fontSize:20}}>📤</span>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#3B82F6"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
+          <div style={{fontSize:11,color:"#94A3B8"}}>Columnas: nombre, email, pass, telefono, rol</div>
+        </div>
+        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
+      </label>
+      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+    </div>
+  );
+}
+
 function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -130,6 +285,7 @@ function SuperAdmin() {
   const [maestros,setMaestros] = useState([]);
   const [alumnos,setAlumnos]   = useState([]);
   const [cursoFiltro,setCursoFiltro] = useState(null);
+  const [verApodSA,setVerApodSA]     = useState(null);
 
   useEffect(()=>{ cargar(); },[]);
 
@@ -154,7 +310,8 @@ function SuperAdmin() {
 
   const guardarUsuario = async () => {
     if(!form.nombre||!form.email||!form.pass) return;
-    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const apellido = form.apellido||"";
+    const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_usuario") {
       const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,email:form.email,pass:form.pass,rol:form.rol,avatar,activo:form.activo}).select().single();
       if(data) {
@@ -202,12 +359,13 @@ function SuperAdmin() {
 
   const guardarMaestro = async () => {
     if(!form.nombre) return;
-    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const apellido = form.apellido||"";
+    const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_maestro") {
-      const { data } = await supabase.from("maestros").insert({nombre:form.nombre,materia:form.materia||null,email:form.email||null,avatar,activo:form.activo!==false}).select().single();
+      const { data } = await supabase.from("maestros").insert({nombre:form.nombre,materia:form.materia||null,email:form.email||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
       if(data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:data.id,curso_id:cid})));
     } else {
-      await supabase.from("maestros").update({nombre:form.nombre,materia:form.materia||null,email:form.email||null,activo:form.activo!==false}).eq("id",form.id);
+      await supabase.from("maestros").update({nombre:form.nombre,materia:form.materia||null,email:form.email||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
       await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
       if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
     }
@@ -222,13 +380,14 @@ function SuperAdmin() {
 
   const guardarAlumno = async () => {
     if(!form.nombre||!form.curso_id) return;
-    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const apellido = form.apellido||"";
+    const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
     const color = form.color||colors[Math.floor(Math.random()*colors.length)];
     if(modal==="nuevo_alumno") {
-      await supabase.from("hijos").insert({nombre:form.nombre,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
+      await supabase.from("hijos").insert({nombre:form.nombre,apellido:form.apellido||null,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
     } else {
-      await supabase.from("hijos").update({nombre:form.nombre,curso_id:form.curso_id,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+      await supabase.from("hijos").update({nombre:form.nombre,apellido:form.apellido||null,curso_id:form.curso_id,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
     }
     setModal(null); cargar();
   };
@@ -258,6 +417,7 @@ function SuperAdmin() {
         </div>
       )}
 
+      {verApodSA&&<ApoderadosModal alumno={verApodSA} onClose={()=>setVerApodSA(null)}/>}
       {(modal==="nuevo_usuario"||modal?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
@@ -341,6 +501,16 @@ function SuperAdmin() {
               </div>
             ))}
             <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de cumpleaños</div>
+              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
+              <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>Solo se mostrará el día y mes</div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de cumpleaños</div>
+              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
+              <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>Solo se mostrará día y mes</div>
+            </div>
+            <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                 {cursos.map(c=>{ const sel=(form.cursos||[]).includes(c.id); return <button key={c.id} onClick={()=>setForm(p=>({...p,cursos:sel?p.cursos.filter(x=>x!==c.id):[...(p.cursos||[]),c.id]}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>; })}
@@ -362,9 +532,15 @@ function SuperAdmin() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_alumno"?"Nuevo alumno":"Editar alumno"}</div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre completo</div>
-              <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía García" style={inp}/>
+            <div style={{display:"flex",gap:10,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre</div>
+                <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía" style={inp}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Apellido</div>
+                <input value={form.apellido||""} onChange={e=>setForm(p=>({...p,apellido:e.target.value}))} placeholder="Ej: García" style={inp}/>
+              </div>
             </div>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
@@ -412,7 +588,8 @@ function SuperAdmin() {
 
       {sec==="usuarios" && (
         <>
-          <button onClick={()=>{ setForm({nombre:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo usuario</button>
+          <UploadApoderadosExcel onDone={cargar}/>
+          <button onClick={()=>{ setForm({nombre:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
           {usuarios.map(u=>(
             <Card key={u.id} style={{padding:"14px 16px",marginBottom:10,opacity:u.activo?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -467,7 +644,8 @@ function SuperAdmin() {
             <button onClick={()=>setCursoFiltro(null)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===null?"#0F172A":"white",color:cursoFiltro===null?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>Todos</button>
             {cursos.map(c=><button key={c.id} onClick={()=>setCursoFiltro(c.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===c.id?c.color:"white",color:cursoFiltro===c.id?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>{c.avatar} {c.nombre}</button>)}
           </div>
-          <button onClick={()=>{ setForm({nombre:"",curso_id:cursoFiltro||cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo alumno</button>
+          <UploadAlumnosExcel cursos={cursos} onDone={cargar}/>
+          <button onClick={()=>{ setForm({nombre:"",curso_id:cursoFiltro||cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
           {(cursoFiltro?alumnos.filter(a=>a.curso_id===cursoFiltro):alumnos).map(a=>{
             const curso = cursos.find(c=>c.id===a.curso_id);
             const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
@@ -477,15 +655,16 @@ function SuperAdmin() {
                   <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                      <div style={{fontSize:14,fontWeight:700}}>{a.nombre}</div>
+                      <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
                       {curso&&<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>}
                     </div>
                     {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
                     {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}</div>}
                   </div>
                   <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={()=>setVerApodSA(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
                     <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({msg:`¿Eliminar a ${a.nombre}?`,action:()=>eliminarAlumno(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>setConfirm({msg:`¿Eliminar a ${fmtNombre(a)}?`,action:()=>eliminarAlumno(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
                 </div>
               </Card>
@@ -508,6 +687,7 @@ function SuperAdmin() {
                     {!m.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                   </div>
                   {m.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{m.email}</div>}
+                  {m.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {new Date(m.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>}
                   {m.cursos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Cursos: {m.cursos.map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
@@ -1125,12 +1305,94 @@ function Cumpleanios({ cursoId, userId, isAdmin }) {
   );
 }
 
+function ApoderadosModal({ alumno, onClose, canEdit=true }) {
+  const [vinculados,setVinculados] = useState([]);
+  const [todos,setTodos]           = useState([]);
+  const [busqueda,setBusqueda]     = useState("");
+
+  useEffect(()=>{ cargar(); },[alumno.id]);
+
+  const cargar = async () => {
+    const [v,t] = await Promise.all([
+      supabase.from("usuario_hijos").select("*, usuarios(id,nombre,email,telefono)").eq("hijo_id",alumno.id),
+      supabase.from("usuarios").select("id,nombre,email,telefono").eq("rol","padre").eq("activo",true).order("nombre"),
+    ]);
+    setVinculados(v.data||[]);
+    setTodos(t.data||[]);
+  };
+
+  const vincular = async (userId) => {
+    await supabase.from("usuario_hijos").insert({usuario_id:userId, hijo_id:alumno.id});
+    cargar();
+  };
+
+  const desvincular = async (userId) => {
+    await supabase.from("usuario_hijos").delete().eq("usuario_id",userId).eq("hijo_id",alumno.id);
+    cargar();
+  };
+
+  const vinculadosIds = vinculados.map(v=>v.usuario_id);
+  const disponibles = todos.filter(u=>
+    !vinculadosIds.includes(u.id) &&
+    (u.nombre.toLowerCase().includes(busqueda.toLowerCase()) || u.email.toLowerCase().includes(busqueda.toLowerCase()))
+  );
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:17,fontWeight:900}}>Apoderados</div>
+            <div style={{fontSize:12,color:"#94A3B8"}}>{alumno.nombre}</div>
+          </div>
+          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>✕</button>
+        </div>
+
+        {vinculados.length>0&&(
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Vinculados</div>
+            {vinculados.map(v=>(
+              <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F0FDF4",border:"1px solid #BBF7D0",marginBottom:7}}>
+                <div style={{width:34,height:34,borderRadius:10,background:"#10B981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{v.usuarios?.nombre?.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{v.usuarios?.nombre}</div>
+                  <div style={{fontSize:11,color:"#94A3B8"}}>{v.usuarios?.email}{v.usuarios?.telefono&&` · ${v.usuarios.telefono}`}</div>
+                </div>
+                {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",fontSize:11,fontWeight:700,color:"#EF4444",flexShrink:0}}>Quitar</button>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {canEdit&&<>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Agregar apoderado</div>
+          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar por nombre o email..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",marginBottom:10,boxSizing:"border-box",background:"#F8FAFC"}}/>
+          <div style={{maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+            {disponibles.length===0&&<div style={{textAlign:"center",padding:20,fontSize:12,color:"#94A3B8"}}>No hay apoderados disponibles</div>}
+            {disponibles.map(u=>(
+              <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>
+                <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#3B82F6",flexShrink:0}}>{u.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{u.nombre}</div>
+                  <div style={{fontSize:11,color:"#94A3B8"}}>{u.email}{u.telefono&&` · ${u.telefono}`}</div>
+                </div>
+                <button onClick={()=>vincular(u.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6",flexShrink:0}}>Vincular</button>
+              </div>
+            ))}
+          </div>
+        </>}
+      </Card>
+    </div>
+  );
+}
+
 function Alumnos({ cursoId, isAdmin }) {
   const [alumnos,setAlumnos]   = useState([]);
   const [modal,setModal]       = useState(null);
   const [form,setForm]         = useState({});
   const [confirm,setConfirm]   = useState(null);
-  const [busqueda,setBusqueda] = useState("");
+  const [busqueda,setBusqueda]       = useState("");
+  const [verApoderados,setVerApoderados] = useState(null);
 
   useEffect(()=>{ cargar(); },[cursoId]);
 
@@ -1143,13 +1405,14 @@ function Alumnos({ cursoId, isAdmin }) {
 
   const guardar = async () => {
     if(!form.nombre) return;
-    const avatar = form.avatar||form.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const apellido = form.apellido||"";
+    const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
     const color = form.color||colors[Math.floor(Math.random()*colors.length)];
     if(modal==="nuevo") {
-      await supabase.from("hijos").insert({nombre:form.nombre,curso_id:cursoId,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
+      await supabase.from("hijos").insert({nombre:form.nombre,apellido:form.apellido||null,curso_id:cursoId,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
     } else {
-      await supabase.from("hijos").update({nombre:form.nombre,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+      await supabase.from("hijos").update({nombre:form.nombre,apellido:form.apellido||null,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
     }
     setModal(null); cargar();
   };
@@ -1165,6 +1428,7 @@ function Alumnos({ cursoId, isAdmin }) {
 
   return (
     <div>
+      {verApoderados&&<ApoderadosModal alumno={verApoderados} onClose={()=>setVerApoderados(null)} canEdit={isAdmin}/>}
       {confirm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,maxWidth:340,width:"100%"}}>
@@ -1181,9 +1445,15 @@ function Alumnos({ cursoId, isAdmin }) {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo"?"Nuevo alumno":"Editar alumno"}</div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre completo</div>
-              <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía García" style={inp}/>
+            <div style={{display:"flex",gap:10,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre</div>
+                <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía" style={inp}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Apellido</div>
+                <input value={form.apellido||""} onChange={e=>setForm(p=>({...p,apellido:e.target.value}))} placeholder="Ej: García" style={inp}/>
+              </div>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
@@ -1208,14 +1478,17 @@ function Alumnos({ cursoId, isAdmin }) {
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700}}>{a.nombre}</div>
+                  <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
                   {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
                   {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}{apoderados[0]?.telefono&&` · ${apoderados[0].telefono}`}</div>}
                 </div>
-                {isAdmin&&<div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{ setForm({...a}); setModal("editar"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                  <button onClick={()=>setConfirm({msg:`¿Eliminar a ${a.nombre}?`,action:()=>eliminar(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
-                </div>}
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>setVerApoderados(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
+                  {isAdmin&&<>
+                    <button onClick={()=>{ setForm({...a}); setModal("editar"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>setConfirm({msg:`¿Eliminar a ${fmtNombre(a)}?`,action:()=>eliminar(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  </>}
+                </div>
               </div>
             </Card>
           );
