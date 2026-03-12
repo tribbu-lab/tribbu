@@ -1766,22 +1766,195 @@ function Calendario({ cursoId, userId, isAdmin }) {
   );
 }
 
-function InfoUtil({ cursoId, isAdmin }) {
+function Libros({ cursoId, userId, isAdmin }) {
+  const [libros,    setLibros]    = useState([]);
+  const [adquiridos,setAdquiridos]= useState(new Set());
+  const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
+  const [form,      setForm]      = useState({});
+  const [busqueda,  setBusqueda]  = useState("");
+  const [filtroMat, setFiltroMat] = useState("all");
+  const [togglingId,setTogglingId]= useState(null);
+
+  const cargar = async () => {
+    const [lb, adq] = await Promise.all([
+      supabase.from("libros").select("*").eq("curso_id", cursoId).order("materia").order("nombre"),
+      userId ? supabase.from("libro_adquirido").select("libro_id").eq("usuario_id", Number(userId)) : Promise.resolve({data:[]}),
+    ]);
+    setLibros(lb.data||[]);
+    setAdquiridos(new Set((adq.data||[]).map(r=>r.libro_id)));
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const toggleAdquirido = async (libroId) => {
+    if(!userId) return;
+    setTogglingId(libroId);
+    if(adquiridos.has(libroId)) {
+      await supabase.from("libro_adquirido").delete().eq("libro_id",libroId).eq("usuario_id",Number(userId));
+      setAdquiridos(p=>{ const n=new Set(p); n.delete(libroId); return n; });
+    } else {
+      await supabase.from("libro_adquirido").insert({libro_id:libroId, usuario_id:Number(userId)});
+      setAdquiridos(p=>new Set([...p,libroId]));
+    }
+    setTogglingId(null);
+  };
+
+  const guardar = async () => {
+    if(!form.nombre?.trim()) return;
+    let imagen_url = form.imagen_url||null;
+    if(form._file) {
+      const ext = form._file.name.split(".").pop();
+      const path = `${cursoId}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true});
+      if(!error) {
+        const { data: pub } = supabase.storage.from("libros").getPublicUrl(path);
+        imagen_url = pub.publicUrl;
+      }
+    }
+    const payload = {nombre:form.nombre.trim(), editorial:form.editorial||null, materia:form.materia||null, curso_id:cursoId, imagen_url, url_descarga:form.url_descarga||null};
+    if(modal?.id) {
+      await supabase.from("libros").update(payload).eq("id",modal.id);
+    } else {
+      await supabase.from("libros").insert(payload);
+    }
+    setModal(null); setForm({}); cargar();
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("libro_adquirido").delete().eq("libro_id",id);
+    await supabase.from("libros").delete().eq("id",id);
+    cargar();
+  };
+
+  const materias = [...new Set(libros.map(l=>l.materia).filter(Boolean))].sort();
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const filtrados = libros.filter(l=> {
+    const q = busqueda.toLowerCase();
+    if(q && !l.nombre?.toLowerCase().includes(q) && !(l.materia||"").toLowerCase().includes(q) && !(l.editorial||"").toLowerCase().includes(q)) return false;
+    if(filtroMat!=="all" && l.materia!==filtroMat) return false;
+    return true;
+  });
+
+  // Group by materia
+  const agrupados = filtrados.reduce((acc,l)=>{ const k=l.materia||"Sin materia"; (acc[k]=acc[k]||[]).push(l); return acc; },{});
+
+  const adquiridosCount = libros.filter(l=>adquiridos.has(l.id)).length;
+
+  return (
+    <div style={{maxWidth:600}}>
+      {/* Modal edicion */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar libro":"Nuevo libro"}</div>
+            {[{label:"Nombre",key:"nombre",ph:"Ej: Matemáticas 3"},{label:"Editorial",key:"editorial",ph:"Ej: Santillana"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"}].map(f=>(
+              <div key={f.key} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.label.toUpperCase()}</div>
+                <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TAPA DEL LIBRO</div>
+              {(form.imagen_url&&!form._file)&&(
+                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
+                  <img src={form.imagen_url} alt="tapa" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"1px solid #E2E8F0"}}/>
+                  <button onClick={()=>setForm(p=>({...p,imagen_url:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+              )}
+              {form._file&&(
+                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
+                  <img src={URL.createObjectURL(form._file)} alt="preview" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"2px solid #3B82F6"}}/>
+                  <button onClick={()=>setForm(p=>({...p,_file:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+              )}
+              <label style={{display:"block",padding:"8px 12px",borderRadius:10,border:"1.5px dashed #CBD5E1",background:"#F8FAFC",cursor:"pointer",fontSize:12,color:"#64748B",textAlign:"center"}}>
+                {form._file||form.imagen_url?"Cambiar imagen":"Subir imagen (JPG, PNG)"}
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files[0]) setForm(p=>({...p,_file:e.target.files[0]})); }}/>
+              </label>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>LINK DE DESCARGA</div>
+              <input value={form.url_descarga||""} onChange={e=>setForm(p=>({...p,url_descarga:e.target.value}))} placeholder="Ej: https://drive.google.com/..." style={inp}/>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar libro"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Header + stats */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
+          {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+        </div>
+        {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
+      </div>
+
+      {/* Filtros */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar por nombre, materia o editorial..." style={{flex:2,minWidth:160,padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",background:"white",boxSizing:"border-box"}}/>
+        <select value={filtroMat} onChange={e=>setFiltroMat(e.target.value)} style={{flex:1,minWidth:120,padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white"}}>
+          <option value="all">Todas las materias</option>
+          {materias.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+        {(busqueda||filtroMat!=="all")&&<button onClick={()=>{setBusqueda("");setFiltroMat("all");}} style={{padding:"8px 12px",borderRadius:10,border:"1px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:"#EF4444"}}>Limpiar</button>}
+      </div>
+      <div style={{fontSize:11,color:"#94A3B8",marginBottom:12}}>{filtrados.length} libro{filtrados.length!==1?"s":""}</div>
+
+      {filtrados.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin libros para mostrar</div>}
+
+      {/* Agrupados por materia */}
+      {Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b,"es")).map(([materia,items])=>(
+        <div key={materia} style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:2}}>{materia}</div>
+          {items.map(l=>{
+            const adq = adquiridos.has(l.id);
+            return (
+              <Card key={l.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
+                <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                  {adq?"✓":""}
+                </button>
+                {l.imagen_url&&(
+                  <img src={l.imagen_url} alt={l.nombre} style={{width:38,height:52,objectFit:"cover",borderRadius:6,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer"}} onClick={()=>window.open(l.imagen_url,"_blank")}/>
+                )}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
+                  {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
+                  {l.url_descarga&&<a href={l.url_descarga} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
+                </div>
+                {isAdmin&&(
+                  <div style={{display:"flex",gap:5,flexShrink:0}}>
+                    <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+                    <button onClick={()=>eliminar(l.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InfoUtil({ cursoId, isAdmin, userId }) {
   const [sec,setSec]=useState("utiles");
   const [utiles,setUtiles]=useState([]);
   const [uniformes,setUniformes]=useState([]);
-  const [libros,setLibros]=useState([]);
   useEffect(()=>{
     supabase.from("utiles").select("*").eq("curso_id",cursoId).then(r=>setUtiles(r.data||[]));
     supabase.from("uniformes").select("*, uniforme_items(item)").eq("curso_id",cursoId).then(r=>setUniformes(r.data||[]));
-    supabase.from("libros").select("*").eq("curso_id",cursoId).then(r=>setLibros(r.data||[]));
   },[cursoId]);
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Info Útil 📋</div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Info Útil</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Listas y uniformes del curso</div>
       <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:400}}>
-        {[{id:"utiles",l:"✏️ Útiles"},{id:"uniformes",l:"👕 Uniformes"},{id:"libros",l:"📚 Libros"},{id:"alumnos",l:"🎒 Alumnos"}].map(s=>(
+        {[{id:"utiles",l:"Útiles"},{id:"uniformes",l:"Uniformes"},{id:"libros",l:"Libros"},{id:"alumnos",l:"Alumnos"}].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
@@ -1796,7 +1969,7 @@ function InfoUtil({ cursoId, isAdmin }) {
           <div style={{display:"flex",flexDirection:"column",gap:7}}>{(u.uniforme_items||[]).map((it,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",background:"#F8FAFC",borderRadius:9}}><div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/><span style={{fontSize:13}}>{it.item}</span></div>)}</div>
         </Card>
       ))}
-      {sec==="libros"&&libros.map((l,i)=><Card key={i} style={{padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,maxWidth:560}}><span style={{fontSize:18}}>📖</span><span style={{fontSize:13,fontWeight:600,flex:1}}>{l.item}</span></Card>)}
+      {sec==="libros"&&<Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin}/>}
       {sec==="alumnos"&&<Alumnos cursoId={cursoId} isAdmin={isAdmin}/>}
     </div>
   );
@@ -2818,7 +2991,8 @@ export default function App() {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
-      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin}/>;
+      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id}/>;
+
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
 
