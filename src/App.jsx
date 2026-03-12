@@ -103,7 +103,7 @@ function Login({ onLogin }) {
 
   const demos = [
     { label:"Apoderado",   hint:"dam@mail.com · dam1234",      e:"dam@mail.com",   p:"dam1234" },
-    { label:"Room Parent", hint:"luciana@mail.com · 1234",     e:"luciana@mail.com", p:"1234"  },
+    { label:"Room Parent", hint:"luciana@mail.com · luc122",   e:"luciana@mail.com", p:"luc122"},
     { label:"Super Admin", hint:"admin@mail.com · super",      e:"admin@mail.com", p:"super"   },
   ];
 
@@ -1774,6 +1774,7 @@ function Libros({ cursoId, userId, isAdmin }) {
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroMat, setFiltroMat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
+  const [imgPreview,setImgPreview]= useState(null); // {url, nombre}
 
   const cargar = async () => {
     const [lb, adq] = await Promise.all([
@@ -1803,12 +1804,14 @@ function Libros({ cursoId, userId, isAdmin }) {
     if(!form.nombre?.trim()) return;
     let imagen_url = form.imagen_url||null;
     if(form._file) {
-      const ext = form._file.name.split(".").pop();
+      const ext = form._file.name.split(".").pop().toLowerCase();
       const path = `${cursoId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true});
-      if(!error) {
+      const { data: upData, error: upError } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true, contentType: form._file.type});
+      if(upError) {
+        alert("Error al subir imagen: " + upError.message);
+      } else {
         const { data: pub } = supabase.storage.from("libros").getPublicUrl(path);
-        imagen_url = pub.publicUrl;
+        imagen_url = pub?.publicUrl || null;
       }
     }
     const payload = {nombre:form.nombre.trim(), editorial:form.editorial||null, materia:form.materia||null, curso_id:cursoId, imagen_url, url_descarga:form.url_descarga||null};
@@ -1885,6 +1888,15 @@ function Libros({ cursoId, userId, isAdmin }) {
         </div>
       )}
 
+      {/* Image preview modal */}
+      {imgPreview&&(
+        <div onClick={()=>setImgPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:400,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+          <img src={imgPreview.url} alt={imgPreview.nombre} style={{maxWidth:"100%",maxHeight:"75vh",borderRadius:12,boxShadow:"0 8px 40px rgba(0,0,0,0.5)",objectFit:"contain"}} onClick={e=>e.stopPropagation()}/>
+          <div style={{color:"white",fontSize:14,fontWeight:700,marginTop:14}}>{imgPreview.nombre}</div>
+          <button onClick={()=>setImgPreview(null)} style={{marginTop:12,padding:"8px 24px",borderRadius:20,border:"none",background:"rgba(255,255,255,0.15)",color:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cerrar</button>
+        </div>
+      )}
+
       {/* Header + stats */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
         <div>
@@ -1919,7 +1931,7 @@ function Libros({ cursoId, userId, isAdmin }) {
                   {adq?"✓":""}
                 </button>
                 {l.imagen_url&&(
-                  <img src={l.imagen_url} alt={l.nombre} style={{width:38,height:52,objectFit:"cover",borderRadius:6,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer"}} onClick={()=>window.open(l.imagen_url,"_blank")}/>
+                  <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
                 )}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
