@@ -3478,16 +3478,17 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
   const [invitaciones,setInvitaciones] = useState([]);
 
   const [montoRegalo,setMontoRegalo]   = useState(null);
+  const [monedaRegalo,setMonedaRegalo] = useState("$");
 
   const cargar = async () => {
-    const [al,ma,cu,curso,fest,inv] = await Promise.all([
+    const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido,color)").eq("curso_id",cursoId),
-      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single(),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
       userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
+    const curso = await supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single();
     setMontoRegalo(curso.data?.monto_regalo||null);
     setMonedaRegalo(curso.data?.moneda_regalo||"$");
     setInvitaciones((inv.data||[]).filter(i=>i.evento));
@@ -3594,7 +3595,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños en el curso</div>
-        {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: ${Number(montoRegalo).toLocaleString("es-AR")}</div>}
+        {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
       </div>
 
       <div style={{maxWidth:700}}>
