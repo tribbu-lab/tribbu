@@ -866,13 +866,19 @@ function SuperAdmin() {
 function HorariosAdmin({ cursos }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
+  const [maestros, setMaestros] = useState([]);
   const [horForm,  setHorForm]  = useState(null);
   const [saving,   setSaving]   = useState(false);
 
   const cargar = async (cid) => {
     if(!cid) return;
-    const { data } = await supabase.from("horarios").select("*").eq("curso_id",cid).order("dia").order("hora_inicio");
-    setHorarios(data||[]);
+    const [hor, mae] = await Promise.all([
+      supabase.from("horarios").select("*").eq("curso_id",cid).order("dia").order("hora_inicio"),
+      supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
+        .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cid)).data?.map(r=>r.maestro_id)||[]),
+    ]);
+    setHorarios(hor.data||[]);
+    setMaestros(mae.data||[]);
   };
 
   const selCurso = (c) => { setCursoSel(c); cargar(c.id); };
@@ -922,7 +928,10 @@ function HorariosAdmin({ cursos }) {
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
-              <input value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} placeholder="Ej: Prof. García" style={inp}/>
+              <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
+                <option value="">— Sin asignar —</option>
+                {maestros.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" · "+m.materia:""}</option>)}
+              </select>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
@@ -2323,13 +2332,6 @@ function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
 // ── InfoUtil ──────────────────────────────────────────────────────────────────
 function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
   const [sec,setSec] = useState("utiles");
-  const [uniformes,setUniformes] = useState([]);
-
-  useEffect(()=>{
-    supabase.from("uniformes").select("*, uniforme_items(item)").eq("curso_id",cursoId).then(r=>setUniformes(r.data||[]));
-  },[cursoId]);
-
-  const exportarUniformes = () => exportarPDF(uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo,Ítem:it.item}))),"uniformes",{ titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem"] });
 
   return (
     <div>
@@ -2340,36 +2342,163 @@ function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
+      {sec==="utiles"    &&<Utiles    cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="uniformes" &&<Uniformes cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="libros"    &&<Libros    cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} isAdmin={isAdmin}/>}
+    </div>
+  );
+}
 
-      {sec==="utiles"&&<Utiles cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+// ── Uniformes component ───────────────────────────────────────────────────────
+function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
+  const [uniformes,   setUniformes]   = useState([]);
+  const [adquiridos,  setAdquiridos]  = useState(new Set());
+  const [togglingId,  setTogglingId]  = useState(null);
+  const [modal,       setModal]       = useState(null); // null | uniforme obj
+  const [itemForm,    setItemForm]    = useState("");   // nuevo item text
+  const [tipoForm,    setTipoForm]    = useState("");
+  const [savingTipo,  setSavingTipo]  = useState(false);
 
-      {sec==="uniformes"&&(
-        <div style={{maxWidth:600}}>
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-            <button onClick={exportarUniformes} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
-          </div>
-          {uniformes.map((u,i)=>(
-            <Card key={i} style={{padding:"14px 16px",marginBottom:12,maxWidth:560}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                <div style={{width:38,height:38,borderRadius:10,background:["#EEF2FF","#F0FDF4","#FFF7ED"][i%3],display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{u.emoji}</div>
-                <div style={{fontSize:14,fontWeight:800}}>Uniforme {u.tipo}</div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:7}}>
-                {(u.uniforme_items||[]).map((it,j)=>(
-                  <div key={j} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",background:"#F8FAFC",borderRadius:9}}>
-                    <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/>
-                    <span style={{fontSize:13}}>{it.item}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-          {uniformes.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin uniformes cargados</div>}
+  const cargar = async () => {
+    const [uni, adq] = await Promise.all([
+      supabase.from("uniformes").select("*, uniforme_items(id,item)").eq("curso_id",cursoId).order("id"),
+      supabase.from("uniforme_adquirido").select("uniforme_item_id").eq("usuario_id",userId),
+    ]);
+    setUniformes(uni.data||[]);
+    setAdquiridos(new Set((adq.data||[]).map(r=>r.uniforme_item_id)));
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const toggleAdquirido = async (itemId) => {
+    setTogglingId(itemId);
+    if(adquiridos.has(itemId)) {
+      await supabase.from("uniforme_adquirido").delete().eq("uniforme_item_id",itemId).eq("usuario_id",userId);
+      setAdquiridos(p=>{ const n=new Set(p); n.delete(itemId); return n; });
+    } else {
+      await supabase.from("uniforme_adquirido").insert({uniforme_item_id:itemId, usuario_id:userId});
+      setAdquiridos(p=>new Set([...p,itemId]));
+    }
+    setTogglingId(null);
+  };
+
+  const guardarTipo = async () => {
+    if(!tipoForm.trim()) return;
+    setSavingTipo(true);
+    await supabase.from("uniformes").insert({curso_id:cursoId, tipo:tipoForm.trim(), emoji:"👕"});
+    setTipoForm(""); setSavingTipo(false); cargar();
+  };
+
+  const eliminarTipo = async (id) => {
+    await supabase.from("uniformes").delete().eq("id",id);
+    cargar();
+  };
+
+  const agregarItem = async (uniformeId) => {
+    if(!itemForm.trim()) return;
+    await supabase.from("uniforme_items").insert({uniforme_id:uniformeId, item:itemForm.trim()});
+    setItemForm(""); setModal(null); cargar();
+  };
+
+  const eliminarItem = async (itemId) => {
+    await supabase.from("uniforme_items").delete().eq("id",itemId);
+    cargar();
+  };
+
+  const allItems = uniformes.flatMap(u=>(u.uniforme_items||[]));
+  const total = allItems.length;
+  const adqCount = allItems.filter(it=>adquiridos.has(it.id)).length;
+  const pct = total ? Math.round(adqCount/total*100) : 0;
+
+  const exportar = () => exportarPDF(
+    uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo, Ítem:it.item, Adquirido:adquiridos.has(it.id)?"✓":""}))),
+    "uniformes",
+    { titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem","Adquirido"] }
+  );
+
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  return (
+    <div style={{maxWidth:600}}>
+      {/* Modal agregar item */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:380}}>
+            <div style={{fontSize:14,fontWeight:900,marginBottom:12}}>Agregar ítem — {modal.tipo}</div>
+            <input value={itemForm} onChange={e=>setItemForm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&agregarItem(modal.id)} placeholder="Ej: Remera blanca manga corta" style={{...inp,marginBottom:12}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setModal(null);setItemForm("");}} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>agregarItem(modal.id)} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Agregar</button>
+            </div>
+          </Card>
         </div>
       )}
 
-      {sec==="libros"&&<Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="alumnos"&&<Alumnos cursoId={cursoId} isAdmin={isAdmin}/>}
+      {/* Barra progreso */}
+      {total>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
+            <span>Adquiridos</span><span>{adqCount} / {total} ({pct}%)</span>
+          </div>
+          <div style={{height:6,borderRadius:10,background:"#E2E8F0",overflow:"hidden"}}>
+            <div style={{height:"100%",width:pct+"%",background:"#10B981",borderRadius:10,transition:"width 0.3s"}}/>
+          </div>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12,gap:8}}>
+        {total>0&&<button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>}
+      </div>
+
+      {/* Lista por tipo */}
+      {uniformes.map((u,i)=>{
+        const items = u.uniforme_items||[];
+        const bg = ["#EEF2FF","#F0FDF4","#FFF7ED"][i%3];
+        return (
+          <Card key={u.id} style={{marginBottom:12,overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:bg,borderBottom:"1px solid #F1F5F9"}}>
+              <div style={{width:34,height:34,borderRadius:10,background:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{u.emoji||"👕"}</div>
+              <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
+              {isAdmin&&(
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{setModal(u);setItemForm("");}} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
+                  <button onClick={()=>eliminarTipo(u.id)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                </div>
+              )}
+            </div>
+            <div>
+              {items.map((it,j)=>{
+                const adq = adquiridos.has(it.id);
+                return (
+                  <div key={it.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 14px",borderBottom:j<items.length-1?"1px solid #F8FAFC":"none",background:j%2===0?"white":"#FAFAFA",opacity:adq?0.7:1}}>
+                    <button onClick={()=>toggleAdquirido(it.id)} disabled={togglingId===it.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                      {adq?"✓":""}
+                    </button>
+                    <span style={{fontSize:13,flex:1,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{it.item}</span>
+                    {isAdmin&&<button onClick={()=>eliminarItem(it.id)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444",flexShrink:0}}>🗑</button>}
+                  </div>
+                );
+              })}
+              {items.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems. Agregá uno con + Ítem.</div>}
+            </div>
+          </Card>
+        );
+      })}
+
+      {/* Nuevo tipo (admin) */}
+      {isAdmin&&(
+        <Card style={{padding:"14px 16px",marginTop:4}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8,textTransform:"uppercase",letterSpacing:0.8}}>Nuevo tipo de uniforme</div>
+          <div style={{display:"flex",gap:8}}>
+            <input value={tipoForm} onChange={e=>setTipoForm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&guardarTipo()} placeholder="Ej: Deportivo, Formal..." style={{...inp,flex:1}}/>
+            <button onClick={guardarTipo} disabled={savingTipo} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0}}>{savingTipo?"...":"Agregar"}</button>
+          </div>
+        </Card>
+      )}
+
+      {uniformes.length===0&&!isAdmin&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin uniformes cargados</div>}
     </div>
   );
 }
@@ -3168,6 +3297,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const [recForm,setRecForm]   = useState(null);
   const [savingRec,setSavingRec] = useState(false);
   const [horarios,setHorarios] = useState([]);
+  const [maestrosHor,setMaestrosHor] = useState([]);
   const [horForm,setHorForm]   = useState(null); // null | {} | {id,...}
   const [savingHor,setSavingHor] = useState(false);
 
@@ -3175,14 +3305,16 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const DIAS   = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
   const COLORS_HOR = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"];
 
-  const cargar = () => {
+  const cargar = async () => {
     Promise.all([
       supabase.from("cuotas").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("id",{ascending:false}),
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
-    ]).then(([c,cu,curso,rec,hor])=>{
+      supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
+        .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cursoId)).data?.map(r=>r.maestro_id)||[]),
+    ]).then(([c,cu,curso,rec,hor,mae])=>{
       const cuotas=c.data||[],cumples=cu.data||[];
       setStats({cuotasOk:cuotas.filter(x=>x.pagado).length,sinPagar:cuotas.filter(x=>!x.pagado).length,regalos:cumples.filter(x=>!x.comprado).length});
       const m = curso.data?.monto_regalo;
@@ -3190,6 +3322,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
       setMonto(m ? String(m) : "");
       setRecordatorios(rec.data||[]);
       setHorarios(hor.data||[]);
+      setMaestrosHor(mae.data||[]);
     });
   };
 
@@ -3404,7 +3537,10 @@ function AdminPanel({ cursoId, cursoNombre }) {
                 </div>
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
-                  <input value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} placeholder="Ej: Prof. García" style={inp}/>
+                  <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
+                    <option value="">— Sin asignar —</option>
+                    {maestrosHor.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" · "+m.materia:""}</option>)}
+                  </select>
                 </div>
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
