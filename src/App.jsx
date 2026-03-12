@@ -1032,7 +1032,7 @@ function AlertaModal({ onClose, onEnviar }) {
   );
 }
 
-function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) {
+function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate }) {
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
@@ -1099,6 +1099,19 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
     await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
     setLeidosMuro(p=> new Set([...p, recId]));
     setDatos(d=> d ? {...d, recordatorios: d.recordatorios.filter(r=>r.id!==recId)} : d);
+  };
+
+  const marcarPagadoMuro = async (colecta, e) => {
+    e.stopPropagation();
+    if(!userId || !misHijos.length) return;
+    const fecha_pago = new Date().toISOString().slice(0,10);
+    await Promise.all(misHijos.map(hid=>
+      supabase.from("colecta_pagos").upsert(
+        { colecta_id:colecta.id, alumno_id:hid, estado:"pagado", fecha_pago, pagado_por:userId },
+        { onConflict:"colecta_id,alumno_id" }
+      )
+    ));
+    setDatos(d=> d ? {...d, colectasPend: (d.colectasPend||[]).filter(c=>c.id!==colecta.id)} : d);
   };
 
   const enviarAlerta = async (msg) => {
@@ -1204,7 +1217,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Colectas pendientes</div>
           {datos.colectasPend.map(c=>(
-            <div key={c.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,border:"1px solid #E2E8F0",borderLeft:"3px solid #F59E0B"}}>
+            <div key={c.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:"1px solid #E2E8F0",borderLeft:"3px solid #F59E0B",cursor:"pointer"}} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})}>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:600}}>{c.titulo}</div>
                 <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center"}}>
@@ -1212,7 +1225,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
                   {c.fecha_limite&&<span style={{fontSize:11,color:"#94A3B8"}}>Límite: {new Date(c.fecha_limite+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                 </div>
               </div>
-              <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:10,background:"#FFFBEB",color:"#F59E0B"}}>Pendiente</span>
+              <span style={{fontSize:11,fontWeight:700,padding:"4px 8px",borderRadius:8,background:"#FFFBEB",color:"#F59E0B"}}>Pendiente</span>
             </div>
           ))}
         </div>
@@ -1226,7 +1239,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
             const hoyD = new Date(); hoyD.setHours(0,0,0,0);
             const dias = Math.round((d-hoyD)/86400000);
             return (
-              <Card key={e.id} style={{padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`}}>
+              <div key={e.id} onClick={()=>onNavigate?.("clases")} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <div style={{width:40,height:40,borderRadius:12,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cfg.emoji}</div>
                   <div style={{flex:1}}>
@@ -1240,7 +1253,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
                     {dias===0?"Hoy":dias===1?"Mañana":dias<0?"Pasado":`${dias}d`}
                   </span>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -1254,7 +1267,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
         const dias = Math.round((next - hoy) / (1000*60*60*24));
         const isAlumno = a.tipo==="Alumno";
         return(
-          <Card key={a.id} style={{padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+          <div key={a.id} onClick={()=>onNavigate?.("cumples")} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
 
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:700}}>{a.nombre}</div>
@@ -1264,7 +1277,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) 
               </div>
             </div>
             <div style={{fontSize:12,fontWeight:700,color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8",background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",borderRadius:8,padding:"3px 8px",flexShrink:0}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</div>
-          </Card>
+          </div>
         );
       })}
       {(datos.bdayList||[]).length===0&&<div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin cumpleaños registrados</div>}
@@ -1745,7 +1758,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[] }) {
 
       {/* Tabs vista */}
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
-        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos eventos"},{id:"horario",l:"🕐 Horario de Clases"},{id:"recordatorios",l:"📌 Recordatorios"}].map(t=>(
+        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos eventos"},{id:"horario",l:"🕐 Horario de Clases"}].map(t=>(
           <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===t.id?"#0F172A":"white",color:vista===t.id?"white":"#94A3B8",boxShadow:vista===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -1982,60 +1995,6 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[] }) {
       })()}
 
       {/* VISTA RECORDATORIOS */}
-      {vista==="recordatorios"&&(()=>{
-        const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
-        const hoyStr = new Date().toISOString().split("T")[0];
-        const noLeidos = recordatorios.filter(r=>!leidosSet.has(r.id));
-        const leidos   = recordatorios.filter(r=> leidosSet.has(r.id));
-        const vencidos = recordatorios.filter(r=> r.fecha && r.fecha < hoyStr);
-        const renderRec = (r, showLeido=true) => {
-          const prio = PRIO[r.prioridad||"media"];
-          const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
-          const esLeido = leidosSet.has(r.id);
-          return (
-            <Card key={r.id} style={{padding:"12px 14px",marginBottom:8,maxWidth:560,opacity:esLeido?0.6:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:esLeido?400:600,textDecoration:esLeido?"line-through":"none",color:esLeido?"#94A3B8":"#0F172A"}}>{r.texto}</div>
-                  <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                    <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:prio.bg,color:prio.c}}>{prio.l}</span>
-                    {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
-                    {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}{dias!==null&&dias>=0?` · ${dias===0?"hoy":dias===1?"mañana":`${dias}d`}`:dias<0?" · vencido":""}</span>}
-                  </div>
-                </div>
-                {showLeido&&!esLeido&&(
-                  <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B",flexShrink:0,whiteSpace:"nowrap"}}>✓ Leído</button>
-                )}
-              </div>
-            </Card>
-          );
-        };
-        return (
-          <div style={{maxWidth:560}}>
-            {noLeidos.length===0&&leidos.length===0&&(
-              <div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios activos</div>
-            )}
-            {noLeidos.length>0&&(
-              <div style={{marginBottom:20}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pendientes ({noLeidos.length})</div>
-                {noLeidos.sort((a,b)=>{
-                  const pa={alta:0,media:1,baja:2}; const ua=pa[a.prioridad||"media"]||1; const ub=pa[b.prioridad||"media"]||1;
-                  if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
-                  if(ua!==ub) return ua-ub;
-                  if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
-                  return 0;
-                }).map(r=>renderRec(r,true))}
-              </div>
-            )}
-            {leidos.length>0&&(
-              <div>
-                <div style={{fontSize:11,fontWeight:700,color:"#CBD5E1",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Historial leídos ({leidos.length})</div>
-                {leidos.map(r=>renderRec(r,false))}
-              </div>
-            )}
-          </div>
-        );
-      })()}
     </div>
   );
 }
@@ -2724,7 +2683,7 @@ function UniformesAdmin({ cursos }) {
   );
 }
 
-function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
+function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen }) {
   const [colectas,   setColectas]   = useState([]);
   const [alumnos,    setAlumnos]    = useState([]);
   const [usuarios,   setUsuarios]   = useState([]);
@@ -2766,6 +2725,12 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
+  useEffect(()=>{
+    if(openColectaId && colectas.length) {
+      const c = colectas.find(x=>x.id===openColectaId);
+      if(c){ setVistaAdmin(c); onClearOpen?.(); }
+    }
+  },[openColectaId, colectas]);
 
   const guardar = async () => {
     if(!form.titulo?.trim()) return;
@@ -2925,14 +2890,14 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
                     {c.monto_sugerido&&<span style={{fontSize:11,color:"#64748B"}}>Monto sugerido: {fmtM(c.monto_sugerido)}</span>}
                   </div>
                 </div>
-                {isAdmin&&(
-                  <div style={{display:"flex",gap:5,flexShrink:0}}>
+                <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
-                    <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                    <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
-                    <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                    {isAdmin&&<>
+                      <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                      <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
+                      <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                    </>}
                   </div>
-                )}
               </div>
             </div>
 
@@ -3130,9 +3095,17 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
     setGuardando(false);
   };
 
-  const confirmados = asistencia.filter(a=>a.asiste==="si");
-  const noVan       = asistencia.filter(a=>a.asiste==="no");
-  const pendientes  = asistencia.filter(a=>a.asiste==="pendiente"||!a.asiste);
+  // Dedup por alumno: si un alumno tiene 2 apoderados, priorizar "si" > "no" > "pendiente"
+  const dedupAsistencia = (rows) => {
+    const PRIO = {"si":2,"no":1,"pendiente":0};
+    const map = {};
+    rows.forEach(r=>{ const k=r.alumno_invitado_id; if(!k) return; if(!map[k]||(PRIO[r.asiste]||0)>(PRIO[map[k].asiste]||0)) map[k]=r; });
+    return Object.values(map);
+  };
+  const asistenciaDedup = dedupAsistencia(asistencia);
+  const confirmados = asistenciaDedup.filter(a=>a.asiste==="si");
+  const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
+  const pendientes  = asistenciaDedup.filter(a=>a.asiste==="pendiente"||!a.asiste);
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -3232,9 +3205,16 @@ function EventoAsistenciaModal({ evento, onClose }) {
     cargar();
   },[evento.id]);
 
-  const confirmados = asistencia.filter(a=>a.asiste==="si");
-  const noVan       = asistencia.filter(a=>a.asiste==="no");
-  const pendientes  = asistencia.filter(a=>a.asiste==="pendiente"||!a.asiste);
+  const dedupAsistencia = (rows) => {
+    const PRIO = {"si":2,"no":1,"pendiente":0};
+    const map = {};
+    rows.forEach(r=>{ const k=r.alumno_invitado_id; if(!k) return; if(!map[k]||(PRIO[r.asiste]||0)>(PRIO[map[k].asiste]||0)) map[k]=r; });
+    return Object.values(map);
+  };
+  const asistenciaDedup = dedupAsistencia(asistencia);
+  const confirmados = asistenciaDedup.filter(a=>a.asiste==="si");
+  const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
+  const pendientes  = asistenciaDedup.filter(a=>a.asiste==="pendiente"||!a.asiste);
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -3767,6 +3747,170 @@ function Alumnos({ cursoId, isAdmin }) {
   );
 }
 
+
+function RecordatoriosTab({ cursoId, userId, isAdmin }) {
+  const [recordatorios, setRecordatorios] = useState([]);
+  const [leidosSet,     setLeidosSet]     = useState(new Set());
+  const [modal,         setModal]         = useState(null); // null | {} | {id,...}
+  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false});
+  const [saving,        setSaving]        = useState(false);
+  const [filtroRango,   setFiltroRango]   = useState("all"); // all|proximos|pasados
+  const [filtroPrio,    setFiltroPrio]    = useState("all");
+  const [pagina,        setPagina]        = useState(1);
+  const POR_PAG = 10;
+
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
+  const hoyStr = new Date().toISOString().split("T")[0];
+
+  const cargar = async () => {
+    const [recs, leidos] = await Promise.all([
+      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+    ]);
+    setRecordatorios(recs.data||[]);
+    setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const guardar = async () => {
+    if(!form.texto?.trim()) return;
+    setSaving(true);
+    const payload = { texto:form.texto.trim(), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, curso_id:cursoId };
+    if(modal?.id) await supabase.from("recordatorios").update(payload).eq("id",modal.id);
+    else          await supabase.from("recordatorios").insert(payload);
+    setSaving(false); setModal(null); cargar();
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("recordatorios").delete().eq("id",id);
+    cargar();
+  };
+
+  const marcarLeido = async (id) => {
+    if(!userId) return;
+    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:id,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    setLeidosSet(p=>new Set([...p,id]));
+  };
+
+  // filters
+  const filtrados = recordatorios.filter(r=>{
+    if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
+    if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
+    if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
+    return true;
+  }).sort((a,b)=>{
+    const PMAP={alta:0,media:1,baja:2};
+    if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
+    if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
+    if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1;
+    return (PMAP[a.prioridad||"media"]||1)-(PMAP[b.prioridad||"media"]||1);
+  });
+
+  const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
+  const pagina_ = Math.min(pagina,totalPags);
+  const visible = filtrados.slice((pagina_-1)*POR_PAG, pagina_*POR_PAG);
+
+  return (
+    <div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Recordatorios</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos y recordatorios del curso</div>
+
+      {/* Modal */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:420}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
+              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunión de padres el viernes" rows={3} style={{...inp,resize:"vertical"}}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
+              <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
+              <div style={{display:"flex",gap:6}}>
+                {["alta","media","baja"].map(p=>(
+                  <button key={p} onClick={()=>setForm(f=>({...f,prioridad:p}))} style={{flex:1,padding:"7px 0",borderRadius:8,border:`1.5px solid ${form.prioridad===p?PRIO[p].c:"#E2E8F0"}`,background:form.prioridad===p?PRIO[p].bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.prioridad===p?PRIO[p].c:"#94A3B8"}}>{PRIO[p].l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+              <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
+                {form.urgente?"Urgente":"Marcar urgente"}
+              </button>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+        <select value={filtroRango} onChange={e=>{setFiltroRango(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+          <option value="all">Todos</option>
+          <option value="proximos">Próximos</option>
+          <option value="pasados">Pasados</option>
+        </select>
+        <select value={filtroPrio} onChange={e=>{setFiltroPrio(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+          <option value="all">Todas las prioridades</option>
+          <option value="alta">Alta</option>
+          <option value="media">Media</option>
+          <option value="baja">Baja</option>
+        </select>
+        {isAdmin&&(
+          <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+        )}
+      </div>
+
+      {/* Lista */}
+      {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios</div>}
+      {visible.map(r=>{
+        const prio = PRIO[r.prioridad||"media"];
+        const esLeido = leidosSet.has(r.id);
+        const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
+        return (
+          <Card key={r.id} style={{padding:"12px 14px",marginBottom:8,maxWidth:560,opacity:esLeido?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A"}}>{r.texto}</div>
+                <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:prio.bg,color:prio.c}}>{prio.l}</span>
+                  {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 8px",borderRadius:10}}>Urgente</span>}
+                  {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}{dias!==null?` · ${dias===0?"hoy":dias===1?"mañana":dias<0?`hace ${Math.abs(dias)}d`:`${dias}d`}`:""}</span>}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:5,flexShrink:0}}>
+                {!esLeido&&<button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Leído</button>}
+                {isAdmin&&<>
+                  <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                  <button onClick={()=>eliminar(r.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                </>}
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+
+      {/* Paginación */}
+      {totalPags>1&&(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:16}}>
+          <button onClick={()=>setPagina(p=>Math.max(1,p-1))} disabled={pagina_===1} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===1?"default":"pointer",fontSize:12,color:pagina_===1?"#CBD5E1":"#0F172A"}}>‹ Ant</button>
+          <span style={{fontSize:12,color:"#64748B"}}>Pág {pagina_} de {totalPags}</span>
+          <button onClick={()=>setPagina(p=>Math.min(totalPags,p+1))} disabled={pagina_===totalPags} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===totalPags?"default":"pointer",fontSize:12,color:pagina_===totalPags?"#CBD5E1":"#0F172A"}}>Sig ›</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function Contacto({ cursoId, isSuperAdmin=false }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
@@ -4203,6 +4347,7 @@ export default function App() {
   const [usuario,setUsuario]       = useState(null);
   const [perfilElegido,setPerfilElegido] = useState(null); // null | "admin" | "padre"
   const [tab,setTab]               = useState("muro");
+  const [openColecta,setOpenColecta]   = useState(null);
   const [cursoIdx,setCursoIdx]     = useState(0);
   const [items,setItems]           = useState([]);
 
@@ -4241,28 +4386,30 @@ export default function App() {
   const isAdmin    = rolEfectivo==="admin";
 
   const TABS = [
-    {id:"muro",    label:"Inicio",    emoji:"🏠"},
-    {id:"clases",  label:"Calendario",emoji:"📅"},
-    {id:"comedor", label:"Comedor",   emoji:"🍽️"},
-    {id:"cumples", label:"Cumples",   emoji:"🎂"},
-    {id:"info",    label:"Info Útil", emoji:"📋"},
-    {id:"contacto",label:"Contacto",  emoji:"📞"},
-    {id:"finanzas",label:"Colectas",  emoji:"💳"},
+    {id:"muro",          label:"Inicio",        emoji:"🏠"},
+    {id:"clases",        label:"Calendario",    emoji:"📅"},
+    {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
+    {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
+    {id:"recordatorios", label:"Recordatorios", emoji:"📌"},
+    {id:"info",          label:"Info Útil",     emoji:"📋"},
+    {id:"finanzas",      label:"Colectas",      emoji:"💳"},
+    {id:"contacto",      label:"Contacto",      emoji:"📞"},
     ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={usuario.hijos||[]}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={usuario.hijos||[]} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); }}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
 
-      case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
+      case "finanzas":      return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
 
-      case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
+      case "contacto":      return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
