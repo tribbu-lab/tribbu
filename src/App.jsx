@@ -3465,7 +3465,7 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
   const cargar = async () => {
     const [col, con] = await Promise.all([
       supabase.from("colegio").select("*").eq("id",1).single(),
-      supabase.from("contactos").select("*").order("orden").order("nombre"),
+      supabase.from("contactos").select("*").order("nombre"),
     ]);
     setColegio(col.data||{});
     setContactos(con.data||[]);
@@ -3475,15 +3475,25 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
 
   const guardarColegio = async () => {
     setSaving(true);
-    await supabase.from("colegio").upsert({...colegioForm, id:1});
+    const {id:_id, ...colegioData} = colegioForm;
+    await supabase.from("colegio").update(colegioData).eq("id",1);
     setSaving(false); setEditColegio(false); cargar();
   };
 
   const guardarContacto = async () => {
     if(!form.nombre?.trim()) return;
     setSaving(true);
-    if(modal?.id) await supabase.from("contactos").update(form).eq("id",modal.id);
-    else          await supabase.from("contactos").insert(form);
+    // only send known columns
+    const payload = {
+      nombre:   form.nombre?.trim()||null,
+      rol:      form.rol?.trim()||null,
+      telefono: form.telefono?.trim()||null,
+      email:    form.email?.trim()||null,
+    };
+    let err;
+    if(modal?.id) { const r = await supabase.from("contactos").update(payload).eq("id",modal.id); err=r.error; }
+    else          { const r = await supabase.from("contactos").insert(payload); err=r.error; }
+    if(err) { console.error("contactos error:", err); setSaving(false); return; }
     setSaving(false); setModal(null); cargar();
   };
 
@@ -3494,8 +3504,8 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
 
   const openModal = (c=null) => {
     setModal(c||{});
-    setForm(c ? {nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||"",orden:c.orden||0}
-              : {nombre:"",rol:"",telefono:"",email:"",orden:0});
+    setForm(c ? {nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""}
+              : {nombre:"",rol:"",telefono:"",email:""});
   };
 
   return (
@@ -3503,7 +3513,26 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Contacto</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Directorio del colegio</div>
 
-      {/* Modal contacto */}
+      {/* ── Modal editar colegio ── */}
+      {editColegio&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>Datos del colegio</div>
+            {[{l:"Nombre del colegio",k:"nombre"},{l:"Teléfono",k:"telefono"},{l:"Email",k:"email"},{l:"Dirección",k:"direccion"},{l:"URL Google Maps",k:"url_maps"},{l:"Horario de clases",k:"horario_clases",ph:"Ej: 8:00 — 16:00"},{l:"Horario secretaría",k:"horario_secretaria",ph:"Ej: 8:00 — 17:00"},{l:"Sitio web",k:"sitio_web"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarColegio} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Modal contacto ── */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}}>
@@ -3524,75 +3553,55 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
 
       <div style={{maxWidth:560}}>
 
-        {/* ── Datos del colegio ── */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Datos del colegio</div>
-          {isSuperAdmin&&!editColegio&&<button onClick={()=>{setColegioForm(colegio||{});setEditColegio(true);}} style={{fontSize:12,padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontWeight:600,color:"#64748B"}}>Editar</button>}
-        </div>
-
-        {editColegio ? (
-          <Card style={{padding:"16px 18px",marginBottom:18}}>
-            {[{l:"Nombre del colegio",k:"nombre"},{l:"Teléfono",k:"telefono"},{l:"Email",k:"email"},{l:"Dirección",k:"direccion"},{l:"URL Google Maps",k:"url_maps"},{l:"Horario de clases",k:"horario_clases",ph:"Ej: 8:00 — 16:00"},{l:"Horario secretaría",k:"horario_secretaria",ph:"Ej: 8:00 — 17:00"},{l:"Sitio web",k:"sitio_web"}].map(f=>(
-              <div key={f.k} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
-                <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
-              </div>
-            ))}
-            <div style={{display:"flex",gap:8,marginTop:4}}>
-              <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarColegio} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
-            </div>
-          </Card>
-        ) : (
-          <Card style={{padding:"16px 18px",marginBottom:18}}>
-            {colegio?.nombre&&<div style={{fontSize:15,fontWeight:800,marginBottom:12}}>{colegio.nombre}</div>}
-            {[
-              {l:"Teléfono",       v:colegio?.telefono,        href:`tel:${colegio?.telefono}`},
-              {l:"Email",          v:colegio?.email,           href:`mailto:${colegio?.email}`},
-              {l:"Dirección",      v:colegio?.direccion,       href:colegio?.url_maps||null},
-              {l:"Horario clases", v:colegio?.horario_clases},
-              {l:"Secretaría",     v:colegio?.horario_secretaria},
-              {l:"Sitio web",      v:colegio?.sitio_web,       href:colegio?.sitio_web},
-            ].filter(r=>r.v).map((r,i,arr)=>(
-              <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<arr.length-1?"1px solid #F1F5F9":"none"}}>
-                <span style={{fontSize:12,color:"#94A3B8",flexShrink:0}}>{r.l}</span>
-                {r.href
-                  ? <a href={r.href} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:600,color:"#3B82F6",textAlign:"right",maxWidth:"60%",wordBreak:"break-all"}}>{r.v}</a>
-                  : <span style={{fontSize:13,fontWeight:600,textAlign:"right"}}>{r.v}</span>}
-              </div>
-            ))}
-            {!colegio?.nombre&&!colegio?.telefono&&!colegio?.email&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"8px 0"}}>Sin datos cargados aún</div>}
-          </Card>
-        )}
-
-        {/* ── Contactos ── */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Directorio</div>
-          {isSuperAdmin&&<button onClick={()=>openModal()} style={{fontSize:12,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Nuevo</button>}
-        </div>
-
-        {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
-
+        {/* ── Directorio ── */}
         {contactos.map(c=>(
-          <Card key={c.id} style={{padding:"13px 16px",marginBottom:8}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
-                {c.rol&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{c.rol}</div>}
-                <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
-                  {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,fontWeight:600,color:"#3B82F6",textDecoration:"none"}}>{c.telefono}</a>}
-                  {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,fontWeight:600,color:"#3B82F6",textDecoration:"none"}}>{c.email}</a>}
-                </div>
-              </div>
-              {isSuperAdmin&&(
-                <div style={{display:"flex",gap:4,flexShrink:0}}>
-                  <button onClick={()=>openModal(c)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-                  <button onClick={()=>eliminarContacto(c.id)} style={{padding:"4px 8px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                </div>
-              )}
+          <Card key={c.id} style={{padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700}}>{c.nombre}</div>
+              {c.rol&&<div style={{fontSize:12,color:"#94A3B8",marginTop:1}}>{c.rol}</div>}
+              {c.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{c.email}</div>}
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+              {c.telefono&&<a href={`tel:${c.telefono}`} style={{padding:"7px 14px",borderRadius:20,background:"#3B82F6",color:"white",fontSize:12,fontWeight:700,textDecoration:"none"}}>Llamar</a>}
+              {isSuperAdmin&&<>
+                <button onClick={()=>openModal(c)} style={{padding:"6px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+                <button onClick={()=>eliminarContacto(c.id)} style={{padding:"6px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+              </>}
             </div>
           </Card>
         ))}
+        {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
+
+        {isSuperAdmin&&(
+          <button onClick={()=>openModal()} style={{width:"100%",padding:"10px",borderRadius:10,border:"2px dashed #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8",marginBottom:18}}>+ Agregar contacto</button>
+        )}
+
+        {/* ── Info general ── */}
+        <Card style={{padding:"16px 18px",background:"#F8FAFC"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Info general</div>
+            {isSuperAdmin&&<button onClick={()=>{setColegioForm(colegio||{});setEditColegio(true);}} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontWeight:600,color:"#64748B"}}>Editar</button>}
+          </div>
+          {[
+            {l:"Horario clases",  v:colegio?.horario_clases},
+            {l:"Secretaría",      v:colegio?.horario_secretaria},
+            {l:"Dirección",       v:colegio?.direccion, href:colegio?.url_maps},
+            {l:"Teléfono",        v:colegio?.telefono,  href:`tel:${colegio?.telefono}`},
+            {l:"Email",           v:colegio?.email,     href:`mailto:${colegio?.email}`},
+            {l:"Sitio web",       v:colegio?.sitio_web, href:colegio?.sitio_web},
+          ].filter(r=>r.v).map((r,i,arr)=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<arr.length-1?"1px solid #E2E8F0":"none"}}>
+              <span style={{fontSize:12,color:"#94A3B8"}}>{r.l}</span>
+              {r.href
+                ? <a href={r.href} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:600,color:"#3B82F6",textAlign:"right",maxWidth:"65%",wordBreak:"break-all",textDecoration:"none"}}>{r.v}</a>
+                : <span style={{fontSize:12,fontWeight:600,textAlign:"right"}}>{r.v}</span>}
+            </div>
+          ))}
+          {!colegio?.horario_clases&&!colegio?.telefono&&!colegio?.email&&!colegio?.direccion&&(
+            <div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"4px 0"}}>Sin datos cargados{isSuperAdmin?" — presioná Editar para completar":""}</div>
+          )}
+        </Card>
       </div>
     </div>
   );
