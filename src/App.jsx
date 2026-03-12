@@ -1766,7 +1766,7 @@ function Calendario({ cursoId, userId, isAdmin }) {
   );
 }
 
-function Libros({ cursoId, userId, isAdmin }) {
+function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
@@ -1904,7 +1904,7 @@ function Libros({ cursoId, userId, isAdmin }) {
           {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>exportarExcel(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link descarga":l.url_descarga||""})),"libros.xlsx")} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
           {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
         </div>
       </div>
@@ -1933,14 +1933,14 @@ function Libros({ cursoId, userId, isAdmin }) {
                 <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
                   {adq?"✓":""}
                 </button>
-                {l.imagen_url&&(
-                  <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
-                )}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
                   {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
                   {l.url_descarga&&<a href={l.url_descarga} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
                 </div>
+                {l.imagen_url&&(
+                  <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
+                )}
                 {isAdmin&&(
                   <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
@@ -1956,16 +1956,72 @@ function Libros({ cursoId, userId, isAdmin }) {
   );
 }
 
-// ── Export helper ─────────────────────────────────────────────────────────────
-function exportarExcel(rows, nombreArchivo) {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Datos");
-  XLSX.writeFile(wb, nombreArchivo);
+// ── Export helper (PDF via ventana de impresión) ─────────────────────────────
+function exportarPDF(rows, nombreArchivo, { titulo, curso, columnas, grupos } = {}) {
+  const cols  = columnas || (rows.length ? Object.keys(rows[0]) : []);
+  const fecha = new Date().toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"});
+  const meta  = [curso ? "Curso: <b>"+curso+"</b>" : null, "Exportado: "+fecha].filter(Boolean).join("&nbsp;&nbsp;|&nbsp;&nbsp;");
+
+  let bodyHtml = "";
+
+  if(grupos) {
+    // Agrupado por categoría/materia
+    Object.entries(grupos).sort(([a],[b])=>{
+      if(a==="Notas") return -1; if(b==="Notas") return 1;
+      if(a==="Sin categoría"||a==="Sin materia") return 1;
+      if(b==="Sin categoría"||b==="Sin materia") return -1;
+      return a.localeCompare(b,"es");
+    }).forEach(([grupo, items])=>{
+      bodyHtml += `<tr><td colspan="${cols.length}" style="background:#0F172A;color:#fff;font-weight:700;font-size:11px;padding:7px 12px;letter-spacing:0.8px;text-transform:uppercase;">${grupo}</td></tr>`;
+      items.forEach((row,ri)=>{
+        const bg = ri%2===0?"#ffffff":"#F8FAFC";
+        bodyHtml += `<tr style="background:${bg};">${cols.map(c=>`<td style="padding:7px 12px;border-bottom:1px solid #F1F5F9;font-size:12px;color:#0F172A;">${row[c]??""}</td>`).join("")}</tr>`;
+      });
+    });
+  } else {
+    rows.forEach((row,ri)=>{
+      const bg = ri%2===0?"#ffffff":"#F8FAFC";
+      bodyHtml += `<tr style="background:${bg};">${cols.map(c=>`<td style="padding:7px 12px;border-bottom:1px solid #F1F5F9;font-size:12px;color:#0F172A;">${row[c]??""}</td>`).join("")}</tr>`;
+    });
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>${titulo||nombreArchivo}</title>
+<style>
+  @page { margin: 18mm 15mm; size: A4; }
+  * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { margin: 0; padding: 0; background: #fff; }
+  .header { padding: 0 0 16px 0; border-bottom: 3px solid #3B82F6; margin-bottom: 18px; }
+  .brand { font-size: 26px; font-weight: 900; color: #3B82F6; letter-spacing:-0.5px; }
+  .doc-title { font-size: 16px; font-weight: 700; color: #0F172A; margin-top: 4px; }
+  .meta { font-size: 10px; color: #94A3B8; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: #3B82F6; color: #fff; font-size: 11px; font-weight: 700; padding: 9px 12px; text-align: left; letter-spacing: 0.3px; }
+  tbody tr:last-child td { border-bottom: none; }
+  .footer { margin-top: 24px; font-size: 9px; color: #CBD5E1; text-align: center; border-top: 1px solid #E2E8F0; padding-top: 8px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head><body>
+<div class="header">
+  <div class="brand">tribbu.</div>
+  <div class="doc-title">${titulo||""}</div>
+  <div class="meta">${meta}</div>
+</div>
+<table>
+  <thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>
+  <tbody>${bodyHtml}</tbody>
+</table>
+<div class="footer">tribbu. &nbsp;·&nbsp; ${fecha}</div>
+</body></html>`;
+
+  const win = window.open("","_blank","width=900,height=700");
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
 }
 
 // ── Útiles component ──────────────────────────────────────────────────────────
-function Utiles({ cursoId, userId, isAdmin }) {
+function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const [utiles,    setUtiles]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null);
@@ -2024,10 +2080,10 @@ function Utiles({ cursoId, userId, isAdmin }) {
   const agrupados = filtrados.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push(u); return acc; },{});
   const adquiridosCount = utiles.filter(u=>adquiridos.has(u.id)).length;
 
-  const exportar = () => exportarExcel(
-    utiles.map(u=>({ Nombre:u.item, Categoría:u.categoria||"", Cantidad:u.cantidad||"", Comentario:u.comentario||"" })),
-    "utiles.xlsx"
-  );
+  const exportar = () => {
+    const grupos = utiles.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push({Nombre:u.item, Cantidad:u.cantidad||"", Comentario:u.comentario||""}); return acc; },{});
+    exportarPDF(utiles.map(u=>({Nombre:u.item,Cantidad:u.cantidad||"",Comentario:u.comentario||""})),"utiles",{ titulo:"Lista de Útiles Escolares", curso:cursoNombre, columnas:["Nombre","Cantidad","Comentario"], grupos });
+  };
 
   return (
     <div style={{maxWidth:600}}>
@@ -2075,32 +2131,52 @@ function Utiles({ cursoId, userId, isAdmin }) {
 
       {filtrados.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin útiles para mostrar</div>}
 
-      {Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b,"es")).map(([cat,items])=>(
-        <div key={cat} style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:2}}>{cat}</div>
-          {items.map(u=>{
-            const adq = adquiridos.has(u.id);
-            return (
-              <Card key={u.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
-                <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
-                  {adq?"✓":""}
-                </button>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
-                    {u.cantidad&&<span style={{fontSize:11,color:"#64748B",background:"#F1F5F9",padding:"2px 8px",borderRadius:10}}>{u.cantidad}</span>}
+      {Object.entries(agrupados).sort(([a],[b])=>{
+          if(a==="Notas") return -1; if(b==="Notas") return 1;
+          if(a==="Sin categoría") return 1; if(b==="Sin categoría") return -1;
+          return a.localeCompare(b,"es");
+        }).map(([cat,items])=>(
+        <div key={cat} style={{marginBottom:14,maxWidth:600}}>
+          {/* Categoría header */}
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:8,marginBottom:0}}>
+            <span style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.8,flex:1}}>{cat}</span>
+            <span style={{fontSize:10,color:"#94A3B8"}}>{items.filter(u=>adquiridos.has(u.id)).length}/{items.length}</span>
+          </div>
+          {/* Table rows */}
+          <div style={{border:"1px solid #E2E8F0",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+            {items.map((u,ri)=>{
+              const adq = adquiridos.has(u.id);
+              const isLast = ri===items.length-1;
+              return (
+                <div key={u.id} style={{display:"flex",alignItems:"center",gap:0,background:adq?"#F0FDF4":ri%2===0?"white":"#FAFAFA",borderBottom:isLast?"none":"1px solid #F1F5F9",minHeight:36}}>
+                  {/* check */}
+                  <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
+                    <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
+                      {adq?"✓":""}
+                    </button>
                   </div>
-                  {u.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{u.comentario}</div>}
+                  {/* nombre */}
+                  <div style={{flex:1,padding:"7px 10px",minWidth:0}}>
+                    <span style={{fontSize:13,fontWeight:500,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
+                    {u.comentario&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{u.comentario}</span>}
+                  </div>
+                  {/* cantidad */}
+                  {u.cantidad&&(
+                    <div style={{width:70,padding:"7px 10px",borderLeft:"1px solid #F1F5F9",flexShrink:0,textAlign:"center"}}>
+                      <span style={{fontSize:12,color:"#475569",fontWeight:600}}>{u.cantidad}</span>
+                    </div>
+                  )}
+                  {/* admin actions */}
+                  {isAdmin&&(
+                    <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
+                      <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"3px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#64748B"}}>✏️</button>
+                      <button onClick={()=>eliminar(u.id)} style={{padding:"3px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#EF4444"}}>🗑</button>
+                    </div>
+                  )}
                 </div>
-                {isAdmin&&(
-                  <div style={{display:"flex",gap:5,flexShrink:0}}>
-                    <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                    <button onClick={()=>eliminar(u.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ))}
     </div>
@@ -2108,7 +2184,7 @@ function Utiles({ cursoId, userId, isAdmin }) {
 }
 
 // ── InfoUtil ──────────────────────────────────────────────────────────────────
-function InfoUtil({ cursoId, isAdmin, userId }) {
+function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
   const [sec,setSec] = useState("utiles");
   const [uniformes,setUniformes] = useState([]);
 
@@ -2116,10 +2192,7 @@ function InfoUtil({ cursoId, isAdmin, userId }) {
     supabase.from("uniformes").select("*, uniforme_items(item)").eq("curso_id",cursoId).then(r=>setUniformes(r.data||[]));
   },[cursoId]);
 
-  const exportarUniformes = () => exportarExcel(
-    uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo, Item:it.item}))),
-    "uniformes.xlsx"
-  );
+  const exportarUniformes = () => exportarPDF(uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo,Ítem:it.item}))),"uniformes",{ titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem"] });
 
   return (
     <div>
@@ -2131,7 +2204,7 @@ function InfoUtil({ cursoId, isAdmin, userId }) {
         ))}
       </div>
 
-      {sec==="utiles"&&<Utiles cursoId={cursoId} userId={userId} isAdmin={isAdmin}/>}
+      {sec==="utiles"&&<Utiles cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
 
       {sec==="uniformes"&&(
         <div style={{maxWidth:600}}>
@@ -2158,7 +2231,7 @@ function InfoUtil({ cursoId, isAdmin, userId }) {
         </div>
       )}
 
-      {sec==="libros"&&<Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin}/>}
+      {sec==="libros"&&<Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
       {sec==="alumnos"&&<Alumnos cursoId={cursoId} isAdmin={isAdmin}/>}
     </div>
   );
@@ -3180,7 +3253,7 @@ export default function App() {
       case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
-      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id}/>;
+      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
 
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
