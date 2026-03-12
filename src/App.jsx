@@ -4321,14 +4321,6 @@ function AdminPanel({ cursoId, cursoNombre }) {
       </div>
 
       {solapa==="general"&&<>
-      <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        {[{n:stats.cuotasOk,l:"Cuotas OK",c:"#10B981",bg:"#F0FDF4"},{n:stats.sinPagar,l:"Sin pagar",c:"#EF4444",bg:"#FEF2F2"},{n:stats.regalos,l:"Regalos pend.",c:"#F59E0B",bg:"#FFFBEB"}].map((s,i)=>(
-          <div key={i} style={{flex:1,minWidth:80,background:s.bg,borderRadius:14,padding:"14px 10px",textAlign:"center"}}>
-            <div style={{fontSize:28,fontWeight:900,color:s.c}}>{s.n}</div>
-            <div style={{fontSize:10,color:"#94A3B8",fontWeight:700,marginTop:3}}>{s.l}</div>
-          </div>
-        ))}
-      </div>
 
       <Card style={{padding:"16px 18px",marginBottom:20,maxWidth:400}}>
         <div style={{fontSize:13,fontWeight:800,marginBottom:12}}>🎁 Monto regalo por alumno</div>
