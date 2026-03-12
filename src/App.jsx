@@ -79,7 +79,7 @@ function Login({ onLogin }) {
     if(error || !data) { setErr("Correo o contraseña incorrectos"); return; }
     onLogin({
       ...data,
-      hijos:  data.usuario_hijos.map(r=>r.hijo_id),
+      hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
       cursos: data.usuario_cursos.map(r=>r.curso_id),
     });
   };
@@ -1032,10 +1032,11 @@ function AlertaModal({ onClose, onEnviar }) {
   );
 }
 
-function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
+function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[] }) {
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
+  const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [leidosMuro,setLeidosMuro] = useState(new Set());
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
@@ -1049,8 +1050,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId),
-      supabase.from("cumples").select("*").eq("curso_id",cursoId).order("fecha"),
-      supabase.from("cuotas").select("*").eq("curso_id",cursoId),
+      supabase.from("cumples").select("*").eq("curso_id",cursoId).order("id"),
+      supabase.from("colectas").select("*").eq("curso_id",cursoId),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
@@ -1079,7 +1080,18 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
     const hoyStr = new Date().toISOString().split("T")[0];
     const recsNoLeidos = (recordatorios.data||[]).filter(r=> !leidosIds.has(r.id) && (!r.fecha || r.fecha >= hoyStr));
-    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
+    // colectas pendientes para mis hijos
+    const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
+    let colectasPend = [];
+    if(misHijosIds.length && (cuotas.data||[]).length) {
+      const colIds = (cuotas.data||[]).filter(c=>c.activa).map(c=>c.id);
+      const { data: pagosData } = colIds.length
+        ? await supabase.from("colecta_pagos").select("*").in("colecta_id",colIds).in("alumno_id",misHijosIds)
+        : {data:[]};
+      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${p.colecta_id}-${p.alumno_id}`));
+      colectasPend = (cuotas.data||[]).filter(c=>c.activa&&misHijosIds.some(hid=>!pagados.has(`${c.id}-${hid}`)));
+    }
+    setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
   };
 
   const marcarLeidoMuro = async (recId) => {
@@ -1188,6 +1200,23 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
           })}
         </div>
       )}
+      {(datos.colectasPend||[]).length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Colectas pendientes</div>
+          {datos.colectasPend.map(c=>(
+            <div key={c.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,border:"1px solid #E2E8F0",borderLeft:"3px solid #F59E0B"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600}}>{c.titulo}</div>
+                <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center"}}>
+                  {c.monto_sugerido&&<span style={{fontSize:11,color:"#94A3B8"}}>${Number(c.monto_sugerido).toLocaleString("es-AR")}</span>}
+                  {c.fecha_limite&&<span style={{fontSize:11,color:"#94A3B8"}}>Límite: {new Date(c.fecha_limite+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
+                </div>
+              </div>
+              <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:10,background:"#FFFBEB",color:"#F59E0B"}}>Pendiente</span>
+            </div>
+          ))}
+        </div>
+      )}
       {datos.eventos?.length>0&&(
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Eventos del mes</div>
@@ -1239,7 +1268,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
         );
       })}
       {(datos.bdayList||[]).length===0&&<div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin cumpleaños registrados</div>}
-      {datos.cuotas.filter(c=>!c.pagado).length>0&&(
+      {(datos.colectasPend||[]).length>0&&false&&(
         <div style={{marginTop:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pago pendiente</div>
           {datos.cuotas.filter(c=>!c.pagado).slice(0,1).map(c=>(
@@ -2712,14 +2741,19 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
     const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // apoderados del curso via usuario_cursos
-    const { data: ucData } = await supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",cursoId);
-    const apoderadoIds = (ucData||[]).map(r=>r.usuario_id);
+    // todos los usuarios vinculados al curso: room parents (usuario_cursos) + apoderados (usuario_hijos→hijos)
+    const alumnosDelCurso = (await supabase.from("hijos").select("id").eq("curso_id",cursoId)).data||[];
+    const alumnosIds = alumnosDelCurso.map(a=>a.id);
+    const [ucData, uhData] = await Promise.all([
+      supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",cursoId),
+      alumnosIds.length ? supabase.from("usuario_hijos").select("usuario_id").in("hijo_id",alumnosIds) : Promise.resolve({data:[]}),
+    ]);
+    const todosIds = [...new Set([...(ucData.data||[]).map(r=>r.usuario_id), ...(uhData.data||[]).map(r=>r.usuario_id)])];
 
     const [alum, usu, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
-      apoderadoIds.length
-        ? supabase.from("usuarios").select("id,nombre").in("id",apoderadoIds).eq("activo",true).order("nombre")
+      todosIds.length
+        ? supabase.from("usuarios").select("id,nombre").in("id",todosIds).eq("activo",true).order("nombre")
         : Promise.resolve({data:[]}),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
@@ -2738,10 +2772,12 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
     setSaving(true);
     const payload = {
       titulo:         form.titulo.trim(),
+      tipo:           "colecta",
       descripcion:    form.descripcion?.trim()||null,
       monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
       responsable_id: form.responsable_id ? Number(form.responsable_id) : null,
       fecha_limite:   form.fecha_limite||null,
+      vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
       curso_id:       cursoId,
       activa:         true,
     };
@@ -2765,10 +2801,18 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevoEstado = estadoActual==="pagado" ? "pendiente" : "pagado";
     const fecha_pago  = nuevoEstado==="pagado" ? new Date().toISOString().slice(0,10) : null;
-    await supabase.from("colecta_pagos").upsert(
-      { colecta_id:colectaId, alumno_id:alumnoId, estado:nuevoEstado, fecha_pago, pagado_por:userId },
-      { onConflict:"colecta_id,alumno_id" }
-    );
+    // check if row exists first
+    const { data: existe } = await supabase.from("colecta_pagos")
+      .select("id").eq("colecta_id",colectaId).eq("alumno_id",alumnoId).maybeSingle();
+    let err;
+    if(existe?.id) {
+      const r = await supabase.from("colecta_pagos").update({estado:nuevoEstado,fecha_pago,pagado_por:userId}).eq("id",existe.id);
+      err = r.error;
+    } else {
+      const r = await supabase.from("colecta_pagos").insert({colecta_id:colectaId,alumno_id:alumnoId,estado:nuevoEstado,fecha_pago,pagado_por:userId});
+      err = r.error;
+    }
+    if(err) { console.error("togglePago error:", JSON.stringify(err)); return; }
     cargar();
   };
 
@@ -3271,7 +3315,8 @@ function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
   );
 }
 
-function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
+function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
+  const misHijosUniq = [...new Set(misHijos)];
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
   const [festejoMap,setFestejoMap]     = useState({});  // alumno_id → evento festejo
@@ -3297,12 +3342,15 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
     (fest.data||[]).forEach(f=>{ if(f.alumno_id) fmap[f.alumno_id]=f; });
     setFestejoMap(fmap);
     // Build unified list
+    // deduplicate alumnos by id before building list
+    const alumnosUniq = Object.values((al.data||[]).reduce((acc,a)=>{ acc[a.id]=a; return acc; },{}));
+    const maestrosUniq = Object.values((ma.data||[]).reduce((acc,m)=>{ acc[m.id]=m; return acc; },{}));
     const unified = [
-      ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
+      ...alumnosUniq.filter(a=>a.fecha_nacimiento).map(a=>({
         id:`a-${a.id}`, rawId:a.id, nombre:fmtNombre(a), tipo:"Alumno",
         fecha_nacimiento:a.fecha_nacimiento, color:a.color||"#3B82F6",
       })),
-      ...(ma.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
+      ...maestrosUniq.filter(m=>m.fecha_nacimiento).map(m=>({
         id:`m-${m.id}`, rawId:m.id, nombre:m.nombre, tipo:"Maestro",
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
@@ -3436,7 +3484,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
                       <td style={{padding:"11px 14px"}}>
                         {isAlumno&&(()=>{
                           const fest = festejoMap[a.rawId];
-                          const esMiHijo = misHijos?.includes(a.rawId);
+                          const esMiHijo = misHijosUniq.includes(a.rawId);
                           if(fest) return (
                             <div style={{display:"flex",alignItems:"center",gap:6}}>
                               <button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
@@ -3894,7 +3942,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
   const cargar = async () => {
     Promise.all([
-      supabase.from("cuotas").select("*").eq("curso_id",cursoId),
+      supabase.from("colectas").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("id",{ascending:false}),
@@ -4206,7 +4254,7 @@ export default function App() {
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={usuario.hijos||[]}/>;
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
