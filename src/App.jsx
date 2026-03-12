@@ -869,7 +869,6 @@ function SuperAdmin() {
 function HorariosAdmin({ cursos }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
-  const [filtroTipo, setFiltroTipo] = useState("todos");
   const [maestros, setMaestros] = useState([]);
   const [horForm,  setHorForm]  = useState(null);
   const [saving,   setSaving]   = useState(false);
@@ -1528,6 +1527,7 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     fecha:       evento?.fecha       || "",
     hora:        evento?.hora        || "",
     lugar:       evento?.lugar       || "",
+    url_ubicacion: evento?.url_ubicacion || "",
     descripcion: evento?.descripcion || "",
     todo_el_dia: evento?.todo_el_dia !== false,
   });
@@ -1554,8 +1554,9 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         {[
           {label:"Título",      key:"titulo",      type:"text", ph:"Ej: Acto del 25 de mayo"},
           {label:"Fecha",       key:"fecha",       type:"date"},
-          {label:"Lugar",       key:"lugar",       type:"text", ph:"Ej: Patio del colegio"},
-          {label:"Descripción", key:"descripcion", type:"text", ph:"Detalles adicionales"},
+          {label:"Lugar",        key:"lugar",         type:"text", ph:"Ej: Patio del colegio"},
+          {label:"URL ubicación", key:"url_ubicacion", type:"url",  ph:"Ej: https://maps.google.com/..."},
+          {label:"Descripción",   key:"descripcion",   type:"text", ph:"Detalles adicionales"},
         ].map(f=>(
           <div key={f.key} style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
@@ -1581,6 +1582,10 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
 function Calendario({ cursoId, userId, isAdmin }) {
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
+  const [filtroTipo,   setFiltroTipo]   = useState("todos");
+  const [filtroRango,  setFiltroRango]  = useState("90"); // "7"|"30"|"90"|"custom"
+  const [filtroDesde,  setFiltroDesde]  = useState("");
+  const [filtroHasta,  setFiltroHasta]  = useState("");
   const [vista,   setVista]   = useState("mes");
   const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
@@ -1655,15 +1660,22 @@ function Calendario({ cursoId, userId, isAdmin }) {
 
   // Lista cronológica: próximos 60 días de eventos + cumples
   const listaEventos = () => {
-    const limite = new Date(hoy); limite.setDate(limite.getDate()+90);
+    let desde = new Date(hoy);
+    let hasta = new Date(hoy);
+    if(filtroRango==="custom") {
+      desde = filtroDesde ? new Date(filtroDesde+"T00:00:00") : new Date(hoy);
+      hasta = filtroHasta ? new Date(filtroHasta+"T00:00:00") : new Date(hoy.getFullYear()+1,11,31);
+    } else {
+      hasta.setDate(hasta.getDate() + Number(filtroRango));
+    }
     const reales = eventos
-      .filter(e => { const d=new Date(e.fecha+"T00:00:00"); return d>=hoy && d<=limite; })
+      .filter(e => { const d=new Date(e.fecha+"T00:00:00"); return d>=desde && d<=hasta; })
       .map(e => ({ ...e, _fecha: new Date(e.fecha+"T00:00:00") }));
     const bdayList = cumples.map(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
-      if(next < hoy) next = new Date(hoy.getFullYear()+1, d.getMonth(), d.getDate());
-      if(next > limite) return null;
+      if(next < desde) next = new Date(hoy.getFullYear()+1, d.getMonth(), d.getDate());
+      if(next < desde || next > hasta) return null;
       return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0,10), _fecha: next, tipo:"cumple" };
     }).filter(Boolean);
     const todos = [...reales, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
@@ -1776,14 +1788,45 @@ function Calendario({ cursoId, userId, isAdmin }) {
       {/* VISTA LISTA */}
       {vista==="lista"&&(
         <div style={{maxWidth:560}}>
-          {/* Filtro por tipo */}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-            {[{k:"todos",l:"Todos"}, ...Object.entries(TIPO_CONFIG).filter(([k])=>k!=="festejo").map(([k,v])=>({k,l:v.emoji+" "+v.label}))].map(f=>(
-              <button key={f.k} onClick={()=>setFiltroTipo(f.k)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,background:filtroTipo===f.k?"#0F172A":"white",color:filtroTipo===f.k?"white":"#94A3B8",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",transition:"all 0.15s"}}>
-                {f.l}
-              </button>
-            ))}
+          {/* ── Filtros ── */}
+          <div style={{marginBottom:14,display:"flex",flexDirection:"column",gap:10}}>
+
+            {/* Rango rápido */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[{k:"7",l:"Esta semana"},{k:"30",l:"Este mes"},{k:"90",l:"Próx. 3 meses"},{k:"custom",l:"📅 Personalizado"}].map(r=>(
+                <button key={r.k} onClick={()=>setFiltroRango(r.k)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,background:filtroRango===r.k?"#0F172A":"white",color:filtroRango===r.k?"white":"#94A3B8",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",transition:"all 0.15s"}}>
+                  {r.l}
+                </button>
+              ))}
+            </div>
+
+            {/* Picker desde/hasta */}
+            {filtroRango==="custom"&&(
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"#94A3B8"}}>Desde</span>
+                  <input type="date" value={filtroDesde} onChange={e=>setFiltroDesde(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"#94A3B8"}}>Hasta</span>
+                  <input type="date" value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
+                </div>
+                {(filtroDesde||filtroHasta)&&<button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{fontSize:11,color:"#94A3B8",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>✕ Limpiar</button>}
+              </div>
+            )}
+
+            {/* Filtro por tipo */}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:11,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>Tipo</span>
+              <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,color:"#0F172A",background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                <option value="todos">Todos los tipos</option>
+                {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="festejo").map(([k,v])=>(
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
           {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos para este filtro</div>}
           {listaEventos().map((e,i)=>{
             const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
@@ -1801,7 +1844,10 @@ function Calendario({ cursoId, userId, isAdmin }) {
                       {d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
                       {e.hora&&!e.todo_el_dia?` · ${e.hora}`:""}
                     </div>
-                    {e.lugar&&<div style={{fontSize:11,color:"#94A3B8"}}>📍 {e.lugar}</div>}
+                    {e.lugar&&<div style={{fontSize:11,color:"#94A3B8",display:"flex",alignItems:"center",gap:4}}>
+                      📍 {e.lugar}
+                      {e.url_ubicacion&&<a href={e.url_ubicacion} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
+                    </div>}
                     {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
@@ -2689,6 +2735,7 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
     fecha:       festejoExistente?.fecha       || "",
     hora:        festejoExistente?.hora        || "",
     lugar:       festejoExistente?.lugar       || "",
+    url_ubicacion: festejoExistente?.url_ubicacion || "",
     descripcion: festejoExistente?.descripcion || "",
     todo_el_dia: festejoExistente?.todo_el_dia !== false ? false : false,
   });
@@ -2742,7 +2789,8 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
         {[
           {label:"Título",      key:"titulo",      type:"text", ph:`Festejo de ${alumnoNombre}`},
           {label:"Fecha",       key:"fecha",       type:"date"},
-          {label:"Lugar",       key:"lugar",       type:"text", ph:"Ej: Salón de eventos, casa, etc."},
+          {label:"Lugar",        key:"lugar",         type:"text", ph:"Ej: Salón de eventos, casa, etc."},
+          {label:"URL ubicación", key:"url_ubicacion", type:"url",  ph:"Ej: https://maps.google.com/..."},
           {label:"Descripción", key:"descripcion", type:"text", ph:"Info adicional para los invitados"},
         ].map(f=>(
           <div key={f.key} style={{marginBottom:10}}>
@@ -2848,7 +2896,10 @@ function FestejoDetalleModal({ evento, userId, onClose, onUpdate }) {
               {new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
               {evento.hora?` · ${evento.hora}`:""}
             </div>
-            {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>📍 {evento.lugar}</div>}
+            {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2,display:"flex",alignItems:"center",gap:4}}>
+              📍 {evento.lugar}
+              {evento.url_ubicacion&&<a href={evento.url_ubicacion} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
+            </div>}
             {evento.descripcion&&<div style={{fontSize:12,color:"#64748B",marginTop:4}}>{evento.descripcion}</div>}
           </div>
           <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>✕</button>
