@@ -869,6 +869,7 @@ function SuperAdmin() {
 function HorariosAdmin({ cursos }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
+  const [filtroTipo, setFiltroTipo] = useState("todos");
   const [maestros, setMaestros] = useState([]);
   const [horForm,  setHorForm]  = useState(null);
   const [saving,   setSaving]   = useState(false);
@@ -1657,15 +1658,16 @@ function Calendario({ cursoId, userId, isAdmin }) {
     const limite = new Date(hoy); limite.setDate(limite.getDate()+90);
     const reales = eventos
       .filter(e => { const d=new Date(e.fecha+"T00:00:00"); return d>=hoy && d<=limite; })
-      .map(e => ({ ...e, titulo: e.titulo, _fecha: new Date(e.fecha+"T00:00:00") }));
+      .map(e => ({ ...e, _fecha: new Date(e.fecha+"T00:00:00") }));
     const bdayList = cumples.map(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
       if(next < hoy) next = new Date(hoy.getFullYear()+1, d.getMonth(), d.getDate());
       if(next > limite) return null;
-      return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0,10), _fecha: next };
+      return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0,10), _fecha: next, tipo:"cumple" };
     }).filter(Boolean);
-    return [...reales, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
+    const todos = [...reales, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
+    return filtroTipo==="todos" ? todos : todos.filter(e=>e.tipo===filtroTipo);
   };
 
   const bgs = ["#EFF6FF","#F0FDF4","#FFF7ED","#F5F3FF","#FEFCE8"];
@@ -1697,7 +1699,7 @@ function Calendario({ cursoId, userId, isAdmin }) {
 
       {/* Tabs vista */}
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
-        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos"},{id:"horario",l:"🕐 Horario"},{id:"recordatorios",l:"📌 Recordatorios"}].map(t=>(
+        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos eventos"},{id:"horario",l:"🕐 Horario de Clases"},{id:"recordatorios",l:"📌 Recordatorios"}].map(t=>(
           <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===t.id?"#0F172A":"white",color:vista===t.id?"white":"#94A3B8",boxShadow:vista===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -1774,7 +1776,15 @@ function Calendario({ cursoId, userId, isAdmin }) {
       {/* VISTA LISTA */}
       {vista==="lista"&&(
         <div style={{maxWidth:560}}>
-          {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos próximos</div>}
+          {/* Filtro por tipo */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+            {[{k:"todos",l:"Todos"}, ...Object.entries(TIPO_CONFIG).filter(([k])=>k!=="festejo").map(([k,v])=>({k,l:v.emoji+" "+v.label}))].map(f=>(
+              <button key={f.k} onClick={()=>setFiltroTipo(f.k)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,background:filtroTipo===f.k?"#0F172A":"white",color:filtroTipo===f.k?"white":"#94A3B8",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",transition:"all 0.15s"}}>
+                {f.l}
+              </button>
+            ))}
+          </div>
+          {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos para este filtro</div>}
           {listaEventos().map((e,i)=>{
             const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
             const d   = new Date(e.fecha+"T00:00:00");
