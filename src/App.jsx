@@ -1205,9 +1205,15 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
 
   const marcarLeidoMuro = async (recId) => {
     if(!userId) return;
-    const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
-    if(error) { console.error("marcarLeido error:", error); return; }
-    setLeidosMuro(p=> new Set([...p, recId]));
+    if(leidosMuro.has(recId)) {
+      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",recId).eq("usuario_id",Number(userId));
+      if(error) { console.error("desmarcarLeido error:", error); return; }
+      setLeidosMuro(p=>{ const n=new Set(p); n.delete(recId); return n; });
+    } else {
+      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      if(error) { console.error("marcarLeido error:", error); return; }
+      setLeidosMuro(p=> new Set([...p, recId]));
+    }
   };
 
   const marcarPagadoMuro = async (colecta, e) => {
@@ -1305,10 +1311,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
                     {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                   </div>
                 </div>
-                {leidosMuro.has(r.id)
-                  ? <span style={{fontSize:11,fontWeight:700,color:"#10B981",flexShrink:0}}>✓ Leído</span>
-                  : <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:"#64748B",flexShrink:0}}>Leído</button>
-                }
+                <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${leidosMuro.has(r.id)?"#10B981":"#E2E8F0"}`,background:leidosMuro.has(r.id)?"#F0FDF4":"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:leidosMuro.has(r.id)?"#10B981":"#64748B",flexShrink:0}}>{leidosMuro.has(r.id)?"✓ Leído":"Leído"}</button>
               </div>
             );
           })}
@@ -3975,8 +3978,13 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
 
   const marcarLeido = async (id) => {
     if(!userId) return;
-    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:id,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
-    setLeidosSet(p=>new Set([...p,id]));
+    if(leidosSet.has(id)) {
+      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",id).eq("usuario_id",Number(userId));
+      setLeidosSet(p=>{ const n=new Set(p); n.delete(id); return n; });
+    } else {
+      await supabase.from("recordatorio_leidos").upsert({recordatorio_id:id,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      setLeidosSet(p=>new Set([...p,id]));
+    }
   };
 
   const enviarAlerta = async (msg) => {
@@ -4141,7 +4149,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
             </div>
             {/* acciones */}
             <div style={{display:"flex",gap:5,flexShrink:0,marginLeft:8}}>
-              {!esLeido&&<button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Leído</button>}
+              <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"✓ Leído":"Leído"}</button>
               {isAdmin&&<>
                 <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
