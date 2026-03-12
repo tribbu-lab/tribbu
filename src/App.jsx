@@ -1187,7 +1187,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
     const hoyStr = new Date().toISOString().split("T")[0];
-    const recsNoLeidos = (recordatorios.data||[]).filter(r=> !leidosIds.has(r.id) && (!r.fecha || r.fecha >= hoyStr));
+    const recsNoLeidos = (recordatorios.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr);
     // colectas pendientes para mis hijos
     const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
     let colectasPend = [];
@@ -1206,7 +1206,6 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
     if(!userId) return;
     await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
     setLeidosMuro(p=> new Set([...p, recId]));
-    setDatos(d=> d ? {...d, recordatorios: d.recordatorios.filter(r=>r.id!==recId)} : d);
   };
 
   const marcarPagadoMuro = async (colecta, e) => {
@@ -1304,7 +1303,10 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
                     {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                   </div>
                 </div>
-                <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:"#64748B",flexShrink:0}}>Leído</button>
+                {leidosMuro.has(r.id)
+                  ? <span style={{fontSize:11,fontWeight:700,color:"#10B981",flexShrink:0}}>✓ Leído</span>
+                  : <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:"#64748B",flexShrink:0}}>Leído</button>
+                }
               </div>
             );
           })}
@@ -1693,7 +1695,7 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
       if(hijosIds.length) {
         const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
         const rows = (uh||[]).map(r=>({ evento_id:eventoId, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
-        if(rows.length) await supabase.from("evento_asistencia").upsert(rows,{onConflict:"evento_id,usuario_id"});
+        if(rows.length) await supabase.from("evento_asistencia").upsert(rows,{onConflict:"evento_id,alumno_invitado_id"});
       }
     }
     onSave();
@@ -3334,26 +3336,25 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
   const [alumnos,    setAlumnos]    = useState({});
 
   const cargar = async () => {
-      const { data: asist } = await supabase.from("evento_asistencia")
-        .select("*").eq("evento_id", evento.id);
-      const rows = asist||[];
-      const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
-      let alumnosMap = {};
-      if(aids.length) {
-        const { data: als } = await supabase.from("hijos").select("id,nombre,apellido").in("id",aids);
-        (als||[]).forEach(a=>{ alumnosMap[a.id]=a; });
-      }
-      setAlumnos(alumnosMap);
-      setAsistencia(rows);
+    const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
+    const rows = asist||[];
+    const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
+    let alumnosMap = {};
+    if(aids.length) {
+      const { data: als } = await supabase.from("hijos").select("id,nombre,apellido,color").in("id",aids);
+      (als||[]).forEach(a=>{ alumnosMap[a.id]=a; });
+    }
+    setAlumnos(alumnosMap);
+    setAsistencia(rows);
   };
 
   useEffect(()=>{ cargar(); },[evento.id]);
 
-  const confirmar = async (alumnoId, asiste) => {
+  const responder = async (alumnoId, asiste) => {
     if(!userId) return;
     await supabase.from("evento_asistencia").upsert(
       { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
-      { onConflict:"evento_id,usuario_id" }
+      { onConflict:"evento_id,alumno_invitado_id" }
     );
     cargar();
   };
@@ -3364,6 +3365,7 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
     rows.forEach(r=>{ const k=r.alumno_invitado_id; if(!k) return; if(!map[k]||(PRIO[r.asiste]||0)>(PRIO[map[k].asiste]||0)) map[k]=r; });
     return Object.values(map);
   };
+
   const asistenciaDedup = dedupAsistencia(asistencia);
   const confirmados = asistenciaDedup.filter(a=>a.asiste==="si");
   const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
@@ -3371,34 +3373,33 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"88vh",overflowY:"auto"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
           <div>
             <div style={{fontSize:15,fontWeight:900}}>{evento.titulo}</div>
-            <div style={{fontSize:12,color:"#94A3B8"}}>{new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
+            <div style={{fontSize:12,color:"#94A3B8"}}>{new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}{evento.hora?` · ${evento.hora}`:""}</div>
           </div>
           <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8"}}>✕</button>
         </div>
-        {/* Mis hijos — confirmar */}
-        {misHijos.filter(hid=>hid!==evento.alumno_id&&asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
+
+        {/* Apoderado: confirmar por cada hijo */}
+        {misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
           const fila = asistencia.find(a=>a.alumno_invitado_id===hid);
           const al   = alumnos[hid];
-          const confirmar = async (val) => {
-            await supabase.from("evento_asistencia").upsert({evento_id:evento.id,usuario_id:Number(userId),alumno_invitado_id:hid,asiste:val},{onConflict:"evento_id,usuario_id"});
-            const {data} = await supabase.from("evento_asistencia").select("*").eq("evento_id",evento.id);
-            setAsistencia(data||[]);
-          };
           return (
             <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:"12px 14px",marginBottom:10,border:"1.5px solid #E2E8F0"}}>
               <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?`${al.nombre} ${al.apellido}`:"Tu hijo/a"}</div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>confirmar("si")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="si"?"#10B981":"#E2E8F0"}`,background:fila?.asiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
-                <button onClick={()=>confirmar("no")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="no"?"#EF4444":"#E2E8F0"}`,background:fila?.asiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
+                <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="si"?"#10B981":"#E2E8F0"}`,background:fila?.asiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
+                <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="no"?"#EF4444":"#E2E8F0"}`,background:fila?.asiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
               </div>
             </div>
           );
         })}
-        {asistencia.length===0&&misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:24}}>Sin respuestas registradas</div>}
+
+        {asistenciaDedup.length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:24}}>Sin respuestas registradas</div>}
+
+        {/* Room parent: lista completa por alumno */}
         {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
           list.length>0&&(
             <div key={label} style={{marginBottom:12}}>
@@ -3406,10 +3407,9 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
               {list.map((a,i)=>{
                 const al = alumnos[a.alumno_invitado_id];
                 return (
-                  <div key={i} style={{padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5}}>
+                  <div key={i} style={{padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5,display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:al?.color||color,flexShrink:0}}/>
                     <div style={{fontSize:13,fontWeight:600}}>{al?`${al.nombre} ${al.apellido}`:"—"}</div>
-                    {a.hermanos&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>Hermanos: {a.hermanos}</div>}
-                    {a.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{a.comentario}</div>}
                   </div>
                 );
               })}
