@@ -2690,43 +2690,240 @@ function UniformesAdmin({ cursos }) {
   );
 }
 
-function Finanzas({ cursoId }) {
-  const [cuotas,setCuotas]=useState([]);
-  const [beca,setBeca]=useState(null);
-  useEffect(()=>{
-    supabase.from("cuotas").select("*").eq("curso_id",cursoId).then(r=>setCuotas(r.data||[]));
-    supabase.from("becas").select("*").eq("curso_id",cursoId).single().then(r=>setBeca(r.data));
-  },[cursoId]);
+function Finanzas({ cursoId, userId, isAdmin, misHijos=[] }) {
+  const [colectas,   setColectas]   = useState([]);
+  const [alumnos,    setAlumnos]    = useState([]);
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [pagos,      setPagos]      = useState([]); // todos los colecta_pagos del curso
+  const [modal,      setModal]      = useState(null); // null | {} | {id,...}
+  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",responsable_id:"",fecha_limite:""});
+  const [saving,     setSaving]     = useState(false);
+  const [vistaAdmin, setVistaAdmin] = useState(null); // colecta para ver detalle admin
+
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const cargar = async () => {
+    // traer ids de colectas del curso primero
+    const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
+    const colIds = (colData||[]).map(c=>c.id);
+
+    // apoderados del curso via usuario_cursos
+    const { data: ucData } = await supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",cursoId);
+    const apoderadoIds = (ucData||[]).map(r=>r.usuario_id);
+
+    const [alum, usu, pag] = await Promise.all([
+      supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
+      apoderadoIds.length
+        ? supabase.from("usuarios").select("id,nombre").in("id",apoderadoIds).eq("activo",true).order("nombre")
+        : Promise.resolve({data:[]}),
+      colIds.length
+        ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
+        : Promise.resolve({data:[]}),
+    ]);
+    setColectas(colData||[]);
+    setAlumnos(alum.data||[]);
+    setUsuarios(usu.data||[]);
+    setPagos(pag.data||[]);
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const guardar = async () => {
+    if(!form.titulo?.trim()) return;
+    setSaving(true);
+    const payload = {
+      titulo:         form.titulo.trim(),
+      descripcion:    form.descripcion?.trim()||null,
+      monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
+      responsable_id: form.responsable_id ? Number(form.responsable_id) : null,
+      fecha_limite:   form.fecha_limite||null,
+      curso_id:       cursoId,
+      activa:         true,
+    };
+    let err;
+    if(modal?.id) { const r = await supabase.from("colectas").update(payload).eq("id",modal.id); err=r.error; }
+    else          { const r = await supabase.from("colectas").insert(payload); err=r.error; }
+    if(err) { console.error("colectas error:", JSON.stringify(err)); setSaving(false); return; }
+    setSaving(false); setModal(null); cargar();
+  };
+
+  const toggleActiva = async (c) => {
+    await supabase.from("colectas").update({activa:!c.activa}).eq("id",c.id);
+    cargar();
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("colectas").delete().eq("id",id);
+    cargar();
+  };
+
+  const togglePago = async (colectaId, alumnoId, estadoActual) => {
+    const nuevoEstado = estadoActual==="pagado" ? "pendiente" : "pagado";
+    const fecha_pago  = nuevoEstado==="pagado" ? new Date().toISOString().slice(0,10) : null;
+    await supabase.from("colecta_pagos").upsert(
+      { colecta_id:colectaId, alumno_id:alumnoId, estado:nuevoEstado, fecha_pago, pagado_por:userId },
+      { onConflict:"colecta_id,alumno_id" }
+    );
+    cargar();
+  };
+
+  const getPago = (colectaId, alumnoId) =>
+    pagos.find(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
+
+  // alumnos que pertenecen al apoderado
+  const misAlumnos = alumnos.filter(a=>misHijos.includes(a.id));
+
+  const fmtM = (n) => n!=null ? `$${Number(n).toLocaleString("es-AR")}` : "";
+
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Finanzas 💳</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Cuotas, matrícula y beca</div>
-      {beca?.activa&&(
-        <div style={{background:"linear-gradient(135deg,#10B981,#059669)",borderRadius:16,padding:"16px 18px",marginBottom:16,color:"white",maxWidth:480}}>
-          <div style={{fontSize:11,opacity:0.8,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Beca activa</div>
-          <div style={{fontSize:32,fontWeight:900,marginBottom:4}}>{beca.porcentaje}% descuento</div>
-          <div style={{fontSize:12,opacity:0.8}}>Vigente hasta {fmtF(beca.vencimiento)}</div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Colectas</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Colectas del curso</div>
+
+      {/* Modal nueva/editar colecta */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar colecta":"Nueva colecta"}</div>
+            {[
+              {l:"Título",        k:"titulo",         ph:"Ej: Regalo día del maestro"},
+              {l:"Descripción",   k:"descripcion",    ph:"Detalles opcionales"},
+              {l:"Monto sugerido",k:"monto_sugerido", ph:"Ej: 2000", type:"number"},
+              {l:"Fecha límite",  k:"fecha_limite",   type:"date"},
+            ].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input type={f.type||"text"} value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>RESPONSABLE</div>
+              <select value={form.responsable_id||""} onChange={e=>setForm(p=>({...p,responsable_id:e.target.value}))} style={inp}>
+                <option value="">— Sin asignar —</option>
+                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
         </div>
       )}
-      <div style={{display:"flex",gap:10,marginBottom:16,maxWidth:560}}>
-        {[{l:"Pendientes",v:cuotas.filter(c=>!c.pagado).length,c:"#EF4444",bg:"#FEF2F2"},{l:"Pagadas",v:cuotas.filter(c=>c.pagado).length,c:"#10B981",bg:"#F0FDF4"}].map((s,i)=>(
-          <Card key={i} style={{flex:1,padding:"14px 10px",textAlign:"center"}}><div style={{fontSize:10,color:"#94A3B8",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{s.l}</div><div style={{fontSize:24,fontWeight:900,color:s.c}}>{s.v}</div></Card>
-        ))}
-      </div>
-      <div style={{maxWidth:560}}>
-        {cuotas.map((c,i)=>{
-          const dias=dHasta(c.vencimiento);
-          return(
-            <Card key={i} style={{padding:"14px 16px",marginBottom:10,borderLeft:`3px solid ${c.pagado?"#10B981":dias<=5?"#EF4444":"#F59E0B"}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:12,background:c.pagado?"#F0FDF4":dias<=5?"#FEF2F2":"#FFFBEB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{c.pagado?"✅":dias<=5?"⚠️":"📅"}</div>
-                <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{c.tipo}</div><div style={{fontSize:11,color:"#94A3B8"}}>Vence {fmtF(c.vencimiento)}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:15,fontWeight:900,color:c.pagado?"#10B981":"#0F172A"}}>{fmtM(c.monto)}</div>{c.pagado?<Pill label="✓ Pagado" color="#10B981" bg="#F0FDF4"/>:<Pill label={dias<=0?"Vencido":dias<=5?`⚠ ${dias}d`:fmtF(c.vencimiento)} color={dias<=5?"#EF4444":"#F59E0B"} bg={dias<=5?"#FEF2F2":"#FFFBEB"}/>}</div>
+
+      {/* Modal detalle admin */}
+      {vistaAdmin&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:900}}>{vistaAdmin.titulo}</div>
+              <button onClick={()=>setVistaAdmin(null)} style={{fontSize:18,background:"none",border:"none",cursor:"pointer",color:"#94A3B8"}}>✕</button>
+            </div>
+            {alumnos.map(a=>{
+              const pago = getPago(vistaAdmin.id, a.id);
+              const pagado = pago?.estado==="pagado";
+              return (
+                <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid #F1F5F9"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
+                    {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
+                  </div>
+                  <button onClick={()=>togglePago(vistaAdmin.id,a.id,pago?.estado)} style={{padding:"5px 14px",borderRadius:20,border:"none",background:pagado?"#10B981":"#F1F5F9",color:pagado?"white":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                    {pagado?"Pagado":"Pendiente"}
+                  </button>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
+      {/* Botón nueva colecta (admin) */}
+      {isAdmin&&(
+        <div style={{marginBottom:16}}>
+          <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",responsable_id:"",fecha_limite:"",});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
+        </div>
+      )}
+
+      {colectas.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No hay colectas activas</div>}
+
+      {colectas.map(c=>{
+        const alumnosPagados = alumnos.filter(a=>getPago(c.id,a.id)?.estado==="pagado");
+        const total          = alumnos.length;
+        const recaudado      = alumnosPagados.length * (c.monto_sugerido||0);
+        const esperado       = total * (c.monto_sugerido||0);
+        const pct            = total ? Math.round(alumnosPagados.length/total*100) : 0;
+        const resp           = usuarios.find(u=>u.id===c.responsable_id);
+        const dias           = c.fecha_limite ? dHasta(c.fecha_limite) : null;
+        const vencida        = dias!==null && dias<0;
+
+        return (
+          <Card key={c.id} style={{marginBottom:14,overflow:"hidden",opacity:c.activa?1:0.6}}>
+            {/* Header */}
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:14,fontWeight:800}}>{c.titulo}</span>
+                    {!c.activa&&<Pill label="Cerrada" color="#94A3B8" bg="#F1F5F9"/>}
+                    {c.activa&&vencida&&<Pill label="Vencida" color="#EF4444" bg="#FEF2F2"/>}
+                    {c.activa&&!vencida&&dias!==null&&dias<=7&&<Pill label={`${dias}d`} color="#F59E0B" bg="#FFFBEB"/>}
+                  </div>
+                  {c.descripcion&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{c.descripcion}</div>}
+                  <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
+                    {resp&&<span style={{fontSize:11,color:"#64748B"}}>Responsable: {resp.nombre}</span>}
+                    {c.fecha_limite&&<span style={{fontSize:11,color:"#64748B"}}>Límite: {fmtF(c.fecha_limite)}</span>}
+                    {c.monto_sugerido&&<span style={{fontSize:11,color:"#64748B"}}>Monto sugerido: {fmtM(c.monto_sugerido)}</span>}
+                  </div>
+                </div>
+                {isAdmin&&(
+                  <div style={{display:"flex",gap:5,flexShrink:0}}>
+                    <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
+                    <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                    <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
+                    <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                  </div>
+                )}
               </div>
-            </Card>
-          );
-        })}
-      </div>
+            </div>
+
+            {/* Progreso */}
+            {c.monto_sugerido&&(
+              <div style={{padding:"10px 16px",borderBottom:"1px solid #F8FAFC"}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
+                  <span>Recaudado</span>
+                  <span>{fmtM(recaudado)} <span style={{color:"#CBD5E1"}}>/ {fmtM(esperado)}</span></span>
+                </div>
+                <div style={{height:6,borderRadius:10,background:"#E2E8F0",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:pct+"%",background:"#10B981",borderRadius:10,transition:"width 0.3s"}}/>
+                </div>
+                <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>{alumnosPagados.length} de {total} alumnos pagaron</div>
+              </div>
+            )}
+
+            {/* Vista apoderado — mis alumnos */}
+            {!isAdmin&&misAlumnos.length>0&&(
+              <div style={{padding:"10px 16px"}}>
+                {misAlumnos.map(a=>{
+                  const pago   = getPago(c.id,a.id);
+                  const pagado = pago?.estado==="pagado";
+                  return (
+                    <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
+                        {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
+                      </div>
+                      <button onClick={()=>c.activa&&togglePago(c.id,a.id,pago?.estado)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${pagado?"#10B981":"#E2E8F0"}`,background:pagado?"#10B981":"white",color:pagado?"white":"#64748B",cursor:c.activa?"pointer":"default",fontSize:12,fontWeight:700,transition:"all 0.15s",opacity:c.activa?1:0.5}}>
+                        {pagado?"Pagado":"Marcar pagado"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -3931,7 +4128,7 @@ export default function App() {
     {id:"cumples", label:"Cumples",   emoji:"🎂"},
     {id:"info",    label:"Info Útil", emoji:"📋"},
     {id:"contacto",label:"Contacto",  emoji:"📞"},
-    {id:"finanzas",label:"Finanzas",  emoji:"💳"},
+    {id:"finanzas",label:"Colectas",  emoji:"💳"},
     ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
@@ -3943,7 +4140,7 @@ export default function App() {
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
 
-      case "finanzas": return <Finanzas cursoId={cursoId}/>;
+      case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
 
       case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
