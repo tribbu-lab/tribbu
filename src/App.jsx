@@ -19,23 +19,6 @@ const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" 
 const ROL_COLOR = { padre:"#3B82F6", admin:"#10B981", super:"#8B5CF6" };
 const ROL_BG    = { padre:"#EFF6FF", admin:"#F0FDF4", super:"#F5F3FF" };
 
-const HORARIOS = {
-  1:[
-    { dia:"Lunes",    clases:["Matemáticas 8:00","Lengua 9:30","Ed. Física 11:00","Cs. Naturales 14:00"] },
-    { dia:"Martes",   clases:["Inglés 8:00","Plástica 9:30","Matemáticas 11:00","Música 14:00"] },
-    { dia:"Miércoles",clases:["Lengua 8:00","Cs. Sociales 9:30","Ed. Física 11:00"] },
-    { dia:"Jueves",   clases:["Matemáticas 8:00","Inglés 9:30","Lengua 11:00","Tecnología 14:00"] },
-    { dia:"Viernes",  clases:["Cs. Naturales 8:00","Lengua 9:30","Música 11:00"] },
-  ],
-  2:[
-    { dia:"Lunes",    clases:["Matemáticas 8:00","Lengua 9:30","Inglés 11:00"] },
-    { dia:"Martes",   clases:["Cs. Naturales 8:00","Ed. Física 9:30","Plástica 11:00"] },
-    { dia:"Miércoles",clases:["Lengua 8:00","Matemáticas 9:30","Música 11:00"] },
-    { dia:"Jueves",   clases:["Inglés 8:00","Cs. Sociales 9:30","Tecnología 11:00"] },
-    { dia:"Viernes",  clases:["Lengua 8:00","Ed. Física 9:30","Matemáticas 11:00"] },
-  ],
-};
-
 const Card = ({children,style={}}) => (
   <div style={{background:"#FFFFFF",borderRadius:16,boxShadow:"0 1px 8px rgba(0,0,0,0.06)",border:"1px solid #E2E8F0",...style}}>{children}</div>
 );
@@ -750,7 +733,7 @@ function SuperAdmin() {
         ))}
       </div>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"}].map(t=>(
+        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"horarios",l:"🕐 Horarios"}].map(t=>(
           <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -822,7 +805,7 @@ function SuperAdmin() {
             return (
               <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
+                  
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                       <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
@@ -851,7 +834,7 @@ function SuperAdmin() {
           {ctrlMaestros.items.map(m=>(
             <Card key={m.id} style={{padding:"14px 16px",marginBottom:10,opacity:m.activo?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:12,background:"#F5F3FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#8B5CF6",flexShrink:0}}>{m.avatar||"👨‍🏫"}</div>
+                
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                     <div style={{fontSize:14,fontWeight:700}}>{m.nombre}</div>
@@ -870,6 +853,132 @@ function SuperAdmin() {
             </Card>
           ))}
           <Paginador pagina={ctrlMaestros.pagina} totalPag={ctrlMaestros.totalPag} setPagina={ctrlMaestros.setPagina}/>
+        </>
+      )}
+
+      {sec==="horarios"&&(
+        <HorariosAdmin cursos={cursos}/>
+      )}
+    </div>
+  );
+}
+
+function HorariosAdmin({ cursos }) {
+  const [cursoSel, setCursoSel] = useState(null);
+  const [horarios, setHorarios] = useState([]);
+  const [horForm,  setHorForm]  = useState(null);
+  const [saving,   setSaving]   = useState(false);
+
+  const cargar = async (cid) => {
+    if(!cid) return;
+    const { data } = await supabase.from("horarios").select("*").eq("curso_id",cid).order("dia").order("hora_inicio");
+    setHorarios(data||[]);
+  };
+
+  const selCurso = (c) => { setCursoSel(c); cargar(c.id); };
+
+  const guardar = async () => {
+    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin||!cursoSel) return;
+    setSaving(true);
+    const payload = { materia:horForm.materia.trim(), dia:horForm.dia, hora_inicio:horForm.hora_inicio, hora_fin:horForm.hora_fin, docente:horForm.docente||null, color:horForm.color||"#3B82F6", curso_id:cursoSel.id };
+    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
+    else           await supabase.from("horarios").insert(payload);
+    setSaving(false); setHorForm(null); cargar(cursoSel.id);
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("horarios").delete().eq("id",id);
+    cargar(cursoSel.id);
+  };
+
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  return (
+    <div>
+      {/* Modal */}
+      {horForm!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"} — {cursoSel?.nombre}</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DÍA</div>
+              <select value={horForm.dia||"Lunes"} onChange={e=>setHorForm(p=>({...p,dia:e.target.value}))} style={inp}>
+                {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(d=><option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO</div>
+                <input type="time" value={horForm.hora_inicio||""} onChange={e=>setHorForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN</div>
+                <input type="time" value={horForm.hora_fin||""} onChange={e=>setHorForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MATERIA</div>
+              <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matemáticas" style={inp}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
+              <input value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} placeholder="Ej: Prof. García" style={inp}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"].map(c=>(
+                  <button key={c} onClick={()=>setHorForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:horForm.color===c?"3px solid #0F172A":"2px solid transparent",cursor:"pointer"}}/>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setHorForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar clase"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Selector de curso */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+        {cursos.map(c=>(
+          <button key={c.id} onClick={()=>selCurso(c)} style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoSel?.id===c.id?c.color:"white",color:cursoSel?.id===c.id?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>
+            {c.avatar} {c.nombre}
+          </button>
+        ))}
+      </div>
+
+      {!cursoSel&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Seleccioná un curso para ver y editar su horario</div>}
+
+      {cursoSel&&(
+        <>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div style={{fontSize:14,fontWeight:700}}>{cursoSel.avatar} {cursoSel.nombre}</div>
+            <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva clase</button>
+          </div>
+          {horarios.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin clases cargadas para este curso</div>}
+          {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(dia=>{
+            const items = horarios.filter(h=>h.dia===dia);
+            if(!items.length) return null;
+            return (
+              <div key={dia} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{dia}</div>
+                {items.map(h=>(
+                  <div key={h.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F8FAFC",borderRadius:9,marginBottom:5,border:"1px solid #E2E8F0"}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:h.color||"#3B82F6",flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:13,fontWeight:600}}>{h.materia}</span>
+                      {h.docente&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{h.docente}</span>}
+                    </div>
+                    <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} – {h.hora_fin?.slice(0,5)}</span>
+                    <button onClick={()=>setHorForm({...h})} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                    <button onClick={()=>eliminar(h.id)} style={{padding:"3px 8px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </>
       )}
     </div>
@@ -1101,9 +1210,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId }) {
         const isAlumno = a.tipo==="Alumno";
         return(
           <Card key={a.id} style={{padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:40,height:40,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>
-              {a.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-            </div>
+
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:700}}>{a.nombre}</div>
               <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
@@ -1459,8 +1566,8 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
 }
 
 function Calendario({ cursoId, userId, isAdmin }) {
-  const horario   = HORARIOS[cursoId]||HORARIOS[1];
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
+  const [horarios, setHorarios] = useState([]);
   const [vista,   setVista]   = useState("mes");
   const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
@@ -1488,12 +1595,14 @@ function Calendario({ cursoId, userId, isAdmin }) {
   };
 
   const cargar = async () => {
-    const [ev, al, ma] = await Promise.all([
+    const [ev, al, ma, hor] = await Promise.all([
       supabase.from("eventos").select("*").eq("curso_id", cursoId).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id", cursoId),
+      supabase.from("horarios").select("*").eq("curso_id", cursoId).order("hora_inicio"),
     ]);
     setEventos(ev.data||[]);
+    setHorarios(hor.data||[]);
     // Armamos cumples como eventos virtuales (próxima ocurrencia)
     const todos = [
       ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
@@ -1691,21 +1800,49 @@ function Calendario({ cursoId, userId, isAdmin }) {
       )}
 
       {/* VISTA HORARIO */}
-      {vista==="horario"&&(
-        <div style={{maxWidth:640}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Horario semanal</div>
-          {horario.map((row,i)=>(
-            <Card key={i} style={{padding:"12px 14px",marginBottom:10}}>
-              <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                <div style={{width:42,height:42,borderRadius:12,background:bgs[i%5],display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:cols[i%5],flexShrink:0}}>{row.dia.slice(0,3)}</div>
-                <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:6,paddingTop:4}}>
-                  {row.clases.map((c,j)=><span key={j} style={{fontSize:11,fontWeight:600,padding:"4px 10px",borderRadius:20,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>{c}</span>)}
-                </div>
+      {vista==="horario"&&(()=>{
+        const DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
+        const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444"];
+        const fmtHora = t => t ? t.slice(0,5) : "";
+        const porDia = DIAS.map(dia=>({
+          dia,
+          clases: horarios.filter(h=>h.dia===dia).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)),
+        })).filter(d=>d.clases.length>0);
+        return (
+          <div style={{maxWidth:640}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Horario semanal</div>
+            {porDia.length===0&&(
+              <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
+                {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
               </div>
-            </Card>
-          ))}
-        </div>
-      )}
+            )}
+            {porDia.map((row,i)=>{
+              const dc = DIA_COLORS[DIAS.indexOf(row.dia)%5];
+              return (
+                <Card key={row.dia} style={{marginBottom:10,overflow:"hidden"}}>
+                  <div style={{background:dc+"18",padding:"8px 14px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:32,height:32,borderRadius:10,background:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{row.dia.slice(0,3).toUpperCase()}</div>
+                    <span style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{row.dia}</span>
+                    <span style={{fontSize:11,color:"#94A3B8",marginLeft:"auto"}}>{row.clases.length} clase{row.clases.length!==1?"s":""}</span>
+                  </div>
+                  <div>
+                    {row.clases.map((h,j)=>(
+                      <div key={h.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 14px",borderBottom:j<row.clases.length-1?"1px solid #F8FAFC":"none",background:j%2===0?"white":"#FAFAFA"}}>
+                        <div style={{width:80,fontSize:11,fontWeight:700,color:"#64748B",flexShrink:0}}>{fmtHora(h.hora_inicio)} – {fmtHora(h.hora_fin)}</div>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:h.color||dc,flexShrink:0}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{h.materia}</div>
+                          {h.docente&&<div style={{fontSize:11,color:"#94A3B8"}}>{h.docente}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* VISTA RECORDATORIOS */}
       {vista==="recordatorios"&&(()=>{
@@ -2483,9 +2620,7 @@ function FestejoDetalleModal({ evento, userId, onClose, onUpdate }) {
               <div style={{fontSize:11,fontWeight:700,color,marginBottom:5}}>{label} ({list.length})</div>
               {list.map((a,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5}}>
-                  <div style={{width:30,height:30,borderRadius:8,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color,flexShrink:0}}>
-                    {(a.usuario?.nombre||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-                  </div>
+
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:600}}>{a.usuario?.nombre||"—"}</div>
                     {a.hermanos&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>👨‍👩‍👧 {a.hermanos}</div>}
@@ -2526,7 +2661,7 @@ function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
               const sel = responsableId===a.rawId;
               return (
                 <div key={a.rawId} onClick={()=>setResponsableId(a.rawId)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:10,border:`2px solid ${sel?a.color:"#E2E8F0"}`,background:sel?a.color+"18":"white",cursor:"pointer"}}>
-                  <div style={{width:30,height:30,borderRadius:8,background:a.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:a.color,flexShrink:0}}>{a.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+
                   <span style={{fontSize:13,fontWeight:sel?700:500}}>{a.nombre}</span>
                   {sel&&<span style={{marginLeft:"auto",fontSize:14,color:a.color}}>✓</span>}
                 </div>
@@ -2697,9 +2832,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
                     <tr key={a.id} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFAFA"}}>
                       <td style={{padding:"11px 14px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
-                          <div style={{width:34,height:34,borderRadius:10,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>
-                            {a.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-                          </div>
+
                           <span style={{fontSize:13,fontWeight:700}}>{a.nombre}</span>
                         </div>
                       </td>
@@ -2973,7 +3106,7 @@ function Alumnos({ cursoId, isAdmin }) {
           return (
             <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:12,background:(a.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:a.color||"#3B82F6",flexShrink:0}}>{a.avatar||a.nombre?.slice(0,2).toUpperCase()}</div>
+                
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
                   {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
@@ -3032,10 +3165,15 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const [montoGuardado,setMontoGuardado] = useState(null);
   const [savingMonto,setSavingMonto]     = useState(false);
   const [recordatorios,setRecordatorios] = useState([]);
-  const [recForm,setRecForm]   = useState(null); // null | {} | {id,...}
+  const [recForm,setRecForm]   = useState(null);
   const [savingRec,setSavingRec] = useState(false);
+  const [horarios,setHorarios] = useState([]);
+  const [horForm,setHorForm]   = useState(null); // null | {} | {id,...}
+  const [savingHor,setSavingHor] = useState(false);
 
   const EMOJIS = ["📌","📢","⚠️","✅","📅","💰","🎒","📝","🏥","🚌"];
+  const DIAS   = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const COLORS_HOR = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"];
 
   const cargar = () => {
     Promise.all([
@@ -3043,13 +3181,15 @@ function AdminPanel({ cursoId, cursoNombre }) {
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("id",{ascending:false}),
-    ]).then(([c,cu,curso,rec])=>{
+      supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
+    ]).then(([c,cu,curso,rec,hor])=>{
       const cuotas=c.data||[],cumples=cu.data||[];
       setStats({cuotasOk:cuotas.filter(x=>x.pagado).length,sinPagar:cuotas.filter(x=>!x.pagado).length,regalos:cumples.filter(x=>!x.comprado).length});
       const m = curso.data?.monto_regalo;
       setMontoGuardado(m);
       setMonto(m ? String(m) : "");
       setRecordatorios(rec.data||[]);
+      setHorarios(hor.data||[]);
     });
   };
 
@@ -3071,6 +3211,20 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
   const eliminarRec = async (id) => {
     await supabase.from("recordatorios").delete().eq("id",id);
+    cargar();
+  };
+
+  const guardarHor = async () => {
+    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin) return;
+    setSavingHor(true);
+    const payload = { materia:horForm.materia.trim(), dia:horForm.dia, hora_inicio:horForm.hora_inicio, hora_fin:horForm.hora_fin, docente:horForm.docente||null, color:horForm.color||"#3B82F6", curso_id:cursoId };
+    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
+    else           await supabase.from("horarios").insert(payload);
+    setSavingHor(false); setHorForm(null); cargar();
+  };
+
+  const eliminarHor = async (id) => {
+    await supabase.from("horarios").delete().eq("id",id);
     cargar();
   };
 
@@ -3187,6 +3341,85 @@ function AdminPanel({ cursoId, cursoNombre }) {
               <button onClick={()=>setRecForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardarRec} disabled={savingRec} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingRec?"Guardando...":"Guardar"}</button>
             </div>
+          </Card>
+        </div>
+      )}
+      {/* ── HORARIOS ───────────────────────────────────────────── */}
+      <Card style={{padding:"16px 18px",marginTop:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>Horario de clases</div>
+          <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
+        </div>
+        {horarios.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:"8px 0"}}>Sin horarios cargados</div>}
+        {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(dia=>{
+          const items = horarios.filter(h=>h.dia===dia);
+          if(!items.length) return null;
+          return (
+            <div key={dia} style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{dia}</div>
+              {items.map(h=>(
+                <div key={h.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#F8FAFC",borderRadius:9,marginBottom:5}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:h.color||"#3B82F6",flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <span style={{fontSize:13,fontWeight:600}}>{h.materia}</span>
+                    {h.docente&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{h.docente}</span>}
+                  </div>
+                  <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} – {h.hora_fin?.slice(0,5)}</span>
+                  <button onClick={()=>setHorForm({...h})} style={{padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                  <button onClick={()=>eliminarHor(h.id)} style={{padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </Card>
+
+      {/* Modal horario */}
+      {horForm!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"}</div>
+            {(()=>{
+              const inp={width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+              return(<>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DÍA</div>
+                  <select value={horForm.dia||"Lunes"} onChange={e=>setHorForm(p=>({...p,dia:e.target.value}))} style={inp}>
+                    {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(d=><option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:10,marginBottom:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO</div>
+                    <input type="time" value={horForm.hora_inicio||""} onChange={e=>setHorForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN</div>
+                    <input type="time" value={horForm.hora_fin||""} onChange={e=>setHorForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MATERIA</div>
+                  <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matemáticas" style={inp}/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
+                  <input value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} placeholder="Ej: Prof. García" style={inp}/>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"].map(c=>(
+                      <button key={c} onClick={()=>setHorForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:horForm.color===c?"3px solid #0F172A":"2px solid transparent",cursor:"pointer"}}/>
+                    ))}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={()=>setHorForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+                  <button onClick={guardarHor} disabled={savingHor} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingHor?"Guardando...":"Guardar clase"}</button>
+                </div>
+              </>);
+            })()}
           </Card>
         </div>
       )}
