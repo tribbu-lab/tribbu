@@ -376,6 +376,50 @@ function Paginador({ pagina, totalPag, setPagina }) {
   );
 }
 
+
+function EmojiPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [cat,  setCat]  = useState(0);
+  const CATS = [
+    { l:"😀 Caritas", e:["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🫢","🤫","🤔","🫠","🤐","🥴","😐","😑","😶","🫥","😏","😒","🙄","😬","🤥","🫨","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥱","🤯","😳","🥺","🥹","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🤬","😤","😡","😠","🤡","💩","💀","☠️","👻","👽","👾","🤖"] },
+    { l:"🐶 Animales", e:["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🐤","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪲","🦟","🦗","🪳","🕷","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦛","🦏","🐪","🐫","🦒","🦘","🦬","🐃","🐂","🐄","🫏","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐕‍🦺","🐈","🐈‍⬛","🐓","🦃","🦤","🦚","🦜","🦢","🦩","🕊","🐇","🦝","🦨","🦡","🦫","🦦","🦥","🐁","🐀","🐿","🦔"] },
+    { l:"⚽ Deportes", e:["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🏹","🎣","🤿","🥊","🥋","🎽","🛹","🛼","🛷","⛸","🥌","🎿","⛷","🏂","🪂","🏋️","🤼","🤸","⛹️","🤺","🏇","🧘","🏌️","🏄","🚣","🧗","🚵","🚴","🤾","🏊","🤽"] },
+    { l:"🍕 Comida",   e:["🍕","🍔","🍟","🌭","🌮","🌯","🥙","🧆","🥚","🍳","🥘","🍲","🫕","🥣","🥗","🍿","🧂","🥫","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍠","🍢","🍣","🍤","🍥","🥮","🍡","🥟","🥠","🥡","🍦","🍧","🍨","🍩","🍪","🎂","🍰","🧁","🥧","🍫","🍬","🍭","🍮","🍯","🍼","🥛","☕","🫖","🍵","🧃","🥤","🧋","🍶","🍺","🍻","🥂","🍷","🫗","🥃","🍸","🍹","🧉","🍾"] },
+    { l:"🎒 Escuela",  e:["🎒","📚","📖","📝","✏️","🖊","🖋","📏","📐","✂️","🖍","📌","📍","📎","🖇","📋","📁","📂","🗂","📓","📔","📒","📕","📗","📘","📙","📜","📄","📑","🗒","🗓","📅","📆","🗑","🗃","🗄","💼","🖥","💻","⌨️","🖨","📱","📲","☎️","📞","📟","📠","📺","📻","🧮","🔭","🔬","🔋","💡","🔦","🕯","🪄","🎓","🏫","🏛","⚗️","🧪","🧫","🧬","🔑","🗝","🔐","🔒","🔓"] },
+    { l:"❤️ Símbolos", e:["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","❤️‍🩹","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☯️","🕎","🔯","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","⛎","🔀","🔁","🔂","▶️","⏩","⏭","⏯","◀️","⏪","⏮","🔼","⏫","🔽","⏬","⏸","⏹","⏺","🎦","🔅","🔆","📶","📳","📴","📵","📡","🔇","🔔","🔕","🔈","🔉","🔊","📢","📣","🔔","🔕","🃏","🎴","🀄","🎭","🎨","🖼","🎪","🎤","🎧","🎼","🎵","🎶","🎹","🥁","🪘","🎷","🎺","🎸","🎻","🪕","🎲","♟","🎯","🎳","🎮","🕹"] },
+  ];
+
+  return (
+    <div style={{position:"relative"}}>
+      <button type="button" onClick={()=>setOpen(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:10,border:"1.5px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>
+        <span style={{fontSize:22,lineHeight:1}}>{value||"+"}</span>
+        <span style={{color:"#94A3B8",fontSize:12}}>{value?"Cambiar":"Elegir emoji"} ▾</span>
+      </button>
+      {open&&(
+        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:300,background:"white",border:"1.5px solid #E2E8F0",borderRadius:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",width:300,overflow:"hidden"}}>
+          {/* Categorías */}
+          <div style={{display:"flex",borderBottom:"1px solid #F1F5F9",overflowX:"auto",scrollbarWidth:"none"}}>
+            {CATS.map((c,i)=>(
+              <button key={i} type="button" onClick={()=>setCat(i)} style={{padding:"8px 10px",border:"none",background:"none",cursor:"pointer",fontSize:15,borderBottom:`2px solid ${cat===i?"#3B82F6":"transparent"}`,flexShrink:0,whiteSpace:"nowrap"}}>
+                {c.l.split(" ")[0]}
+              </button>
+            ))}
+          </div>
+          {/* Grid */}
+          <div style={{display:"flex",flexWrap:"wrap",padding:8,maxHeight:200,overflowY:"auto"}}>
+            {CATS[cat].e.map(e=>(
+              <button key={e} type="button" onClick={()=>{ onChange(e); setOpen(false); }} style={{width:36,height:36,border:"none",background:value===e?"#EFF6FF":"transparent",borderRadius:8,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -603,9 +647,59 @@ function SuperAdmin() {
             )}
             {form.rol==="padre" && (
               <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Hijos vinculados</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                  {hijos.map(h=>{ const sel=(form.hijos||[]).includes(h.id); return <button key={h.id} onClick={()=>setForm(p=>({...p,hijos:sel?p.hijos.filter(x=>x!==h.id):[...(p.hijos||[]),h.id]}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?h.color:"#E2E8F0"}`,background:sel?h.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?h.color:"#94A3B8"}}>{h.nombre}</button>; })}
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Alumnos vinculados</div>
+                {/* Seleccionados */}
+                {(form.hijos||[]).length>0&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+                    {(form.hijos||[]).map(hid=>{ const h=hijos.find(x=>x.id===hid); if(!h) return null; const curso=cursos.find(c=>c.id===h.curso_id); return (
+                      <div key={hid} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:(h.color||"#3B82F6")+"18",border:`1.5px solid ${h.color||"#3B82F6"}`}}>
+                        <span style={{fontSize:12,fontWeight:700,color:h.color||"#3B82F6"}}>{h.nombre} {h.apellido}</span>
+                        {curso&&<span style={{fontSize:10,color:"#94A3B8"}}>· {curso.nombre}</span>}
+                        <button onClick={()=>setForm(p=>({...p,hijos:p.hijos.filter(x=>x!==hid)}))} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#94A3B8",lineHeight:1,padding:"0 2px"}}>✕</button>
+                      </div>
+                    ); })}
+                  </div>
+                )}
+                {/* Filtros */}
+                <div style={{display:"flex",gap:6,marginBottom:6}}>
+                  <input
+                    placeholder="Buscar por nombre..."
+                    value={form._busqHijo||""}
+                    onChange={e=>setForm(p=>({...p,_busqHijo:e.target.value}))}
+                    style={{flex:1,padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white"}}
+                  />
+                  <select value={form._filtroCurso||""} onChange={e=>setForm(p=>({...p,_filtroCurso:e.target.value}))} style={{padding:"7px 8px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white",cursor:"pointer"}}>
+                    <option value="">Todos los cursos</option>
+                    {cursos.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+                {/* Lista filtrada */}
+                <div style={{maxHeight:200,overflowY:"auto",border:"1px solid #E2E8F0",borderRadius:10,background:"white"}}>
+                  {hijos
+                    .filter(h=>{
+                      const busq=(form._busqHijo||"").toLowerCase();
+                      const matchNombre=!busq||`${h.nombre} ${h.apellido}`.toLowerCase().includes(busq);
+                      const matchCurso=!form._filtroCurso||String(h.curso_id)===String(form._filtroCurso);
+                      return matchNombre&&matchCurso;
+                    })
+                    .map((h,i,arr)=>{
+                      const sel=(form.hijos||[]).includes(h.id);
+                      const curso=cursos.find(c=>c.id===h.curso_id);
+                      return (
+                        <div key={h.id} onClick={()=>setForm(p=>({...p,hijos:sel?p.hijos.filter(x=>x!==h.id):[...(p.hijos||[]),h.id]}))}
+                          style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:i<arr.length-1?"1px solid #F1F5F9":"none",cursor:"pointer",background:sel?"#EFF6FF":"white",transition:"background 0.1s"}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:sel?700:500,color:sel?"#3B82F6":"#0F172A"}}>{h.nombre} {h.apellido}</div>
+                            {curso&&<div style={{fontSize:11,color:"#94A3B8"}}>{curso.nombre}</div>}
+                          </div>
+                          {sel&&<span style={{fontSize:12,color:"#3B82F6",fontWeight:700}}>✓</span>}
+                        </div>
+                      );
+                    })
+                  }
+                  {hijos.filter(h=>{ const b=(form._busqHijo||"").toLowerCase(); return (!b||`${h.nombre} ${h.apellido}`.toLowerCase().includes(b))&&(!form._filtroCurso||String(h.curso_id)===String(form._filtroCurso)); }).length===0&&(
+                    <div style={{padding:"12px",fontSize:12,color:"#94A3B8",textAlign:"center"}}>Sin resultados</div>
+                  )}
                 </div>
               </div>
             )}
@@ -625,12 +719,14 @@ function SuperAdmin() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":"Nuevo curso"}</div>
-            {[{label:"Nombre del curso",key:"nombre",ph:"Ej: 4°B — Primaria"},{label:"Emoji",key:"avatar",ph:"🏫"}].map(f=>(
-              <div key={f.key} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
-                <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
+            <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre del curso</div>
+                <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: 4°B — Primaria" style={inp}/>
               </div>
-            ))}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Icono</div>
+                <EmojiPicker value={form.avatar||"🏫"} onChange={v=>setForm(p=>({...p,avatar:v}))}/>
+              </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Color</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -697,6 +793,18 @@ function SuperAdmin() {
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
               <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Icono</div>
+              <EmojiPicker value={form.avatar||""} onChange={v=>setForm(p=>({...p,avatar:v}))}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Color</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#0EA5E9","#14B8A6","#F97316","#6366F1"].map(c=>(
+                  <button key={c} type="button" onClick={()=>setForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:"50%",background:c,border:(form.color||"#3B82F6")===c?"3px solid #0F172A":"3px solid transparent",cursor:"pointer"}}/>
+                ))}
+              </div>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Curso</div>
@@ -1146,18 +1254,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
           </div>
         </div>
       )}
-      {isAdmin&&(
-        <>
-          <button onClick={()=>setModal(true)} style={{width:"100%",padding:"13px 16px",borderRadius:14,border:`2px solid ${datos.alerta?"#EF4444":"transparent"}`,cursor:"pointer",background:datos.alerta?"#FFF1F2":"linear-gradient(135deg,#EF4444,#B91C1C)",color:datos.alerta?"#EF4444":"white",fontSize:13,fontWeight:800,marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:20}}>🚨</span>
-            <div style={{textAlign:"left"}}>
-              <div>{datos.alerta?"Alerta activa — tocar para actualizar":"Enviar alerta a toda la comunidad"}</div>
-              <div style={{fontSize:11,opacity:0.75,fontWeight:500}}>Notifica a todas las familias del curso</div>
-            </div>
-          </button>
-          {modal&&<AlertaModal onClose={()=>setModal(false)} onEnviar={msg=>{enviarAlerta(msg);setModal(false);}}/>}
-        </>
-      )}
+
       {datos.invitaciones?.length>0&&(
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🎉 Invitaciones pendientes</div>
@@ -2700,14 +2797,13 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // todos los usuarios vinculados al curso: room parents (usuario_cursos) + apoderados (usuario_hijos→hijos)
+    // responsables: solo apoderados cuyos hijos están en este curso
     const alumnosDelCurso = (await supabase.from("hijos").select("id").eq("curso_id",cursoId)).data||[];
     const alumnosIds = alumnosDelCurso.map(a=>a.id);
-    const [ucData, uhData] = await Promise.all([
-      supabase.from("usuario_cursos").select("usuario_id").eq("curso_id",cursoId),
-      alumnosIds.length ? supabase.from("usuario_hijos").select("usuario_id").in("hijo_id",alumnosIds) : Promise.resolve({data:[]}),
-    ]);
-    const todosIds = [...new Set([...(ucData.data||[]).map(r=>r.usuario_id), ...(uhData.data||[]).map(r=>r.usuario_id)])];
+    const { data: uhData } = alumnosIds.length
+      ? await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id",alumnosIds)
+      : {data:[]};
+    const todosIds = [...new Set((uhData||[]).map(r=>r.usuario_id))];
 
     const [alum, usu, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
@@ -3751,10 +3847,16 @@ function Alumnos({ cursoId, isAdmin }) {
 function RecordatoriosTab({ cursoId, userId, isAdmin }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
-  const [modal,         setModal]         = useState(null); // null | {} | {id,...}
+  const [modal,         setModal]         = useState(null);
   const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false});
   const [saving,        setSaving]        = useState(false);
-  const [filtroRango,   setFiltroRango]   = useState("all"); // all|proximos|pasados
+  // alerta
+  const [alerta,        setAlerta]        = useState(null);
+  const [alertaModal,   setAlertaModal]   = useState(false);
+  // filtros
+  const [filtroRango,   setFiltroRango]   = useState("all");
+  const [filtroDesde,   setFiltroDesde]   = useState("");
+  const [filtroHasta,   setFiltroHasta]   = useState("");
   const [filtroPrio,    setFiltroPrio]    = useState("all");
   const [pagina,        setPagina]        = useState(1);
   const POR_PAG = 10;
@@ -3764,12 +3866,14 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
   const hoyStr = new Date().toISOString().split("T")[0];
 
   const cargar = async () => {
-    const [recs, leidos] = await Promise.all([
+    const [recs, leidos, al] = await Promise.all([
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+      supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
     setRecordatorios(recs.data||[]);
     setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
+    setAlerta((al.data||[])[0]||null);
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -3794,18 +3898,32 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
     setLeidosSet(p=>new Set([...p,id]));
   };
 
-  // filters
+  const enviarAlerta = async (msg) => {
+    await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
+    await supabase.from("alertas").insert({curso_id:cursoId,mensaje:msg,hora:"Ahora",activa:true});
+    cargar();
+  };
+
+  const dismissAlerta = async () => {
+    if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
+  };
+
+  // filtros
   const filtrados = recordatorios.filter(r=>{
     if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
     if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
+    if(filtroRango==="personalizado"){
+      if(filtroDesde && r.fecha && r.fecha < filtroDesde) return false;
+      if(filtroHasta && r.fecha && r.fecha > filtroHasta) return false;
+      if(filtroDesde && !r.fecha) return false;
+    }
     if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
     return true;
   }).sort((a,b)=>{
-    const PMAP={alta:0,media:1,baja:2};
     if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
     if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
     if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1;
-    return (PMAP[a.prioridad||"media"]||1)-(PMAP[b.prioridad||"media"]||1);
+    return 0;
   });
 
   const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
@@ -3817,7 +3935,35 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Recordatorios</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos y recordatorios del curso</div>
 
-      {/* Modal */}
+      {/* Alerta comunidad — solo room parent */}
+      {isAdmin&&(
+        <div style={{marginBottom:16}}>
+          {alerta?(
+            <div style={{background:"linear-gradient(135deg,#EF4444,#B91C1C)",borderRadius:14,padding:"13px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+              <span style={{fontSize:20}}>🚨</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",marginBottom:2}}>Alerta activa</div>
+                <div style={{fontSize:13,fontWeight:700,color:"white"}}>{alerta.mensaje}</div>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>setAlertaModal(true)} style={{padding:"5px 10px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.2)",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>Editar</button>
+                <button onClick={dismissAlerta} style={{padding:"5px 10px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>✕</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>setAlertaModal(true)} style={{width:"100%",padding:"12px 16px",borderRadius:14,border:"2px dashed #FCA5A5",background:"#FFF1F2",color:"#EF4444",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{fontSize:18}}>🚨</span>
+              <div style={{textAlign:"left"}}>
+                <div>Enviar alerta a toda la comunidad</div>
+                <div style={{fontSize:11,fontWeight:500,color:"#F87171"}}>Solo para avisos urgentes</div>
+              </div>
+            </button>
+          )}
+          {alertaModal&&<AlertaModal onClose={()=>setAlertaModal(false)} onEnviar={msg=>{enviarAlerta(msg);setAlertaModal(false);}}/>}
+        </div>
+      )}
+
+      {/* Modal nuevo/editar */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:420}}>
@@ -3838,9 +3984,9 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
                 ))}
               </div>
             </div>
-            <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{marginBottom:14}}>
               <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
-                {form.urgente?"Urgente":"Marcar urgente"}
+                {form.urgente?"🚨 Urgente":"Marcar urgente"}
               </button>
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -3852,11 +3998,12 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
       )}
 
       {/* Filtros */}
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      <div style={{display:"flex",gap:8,marginBottom:filtroRango==="personalizado"?8:12,flexWrap:"wrap",alignItems:"center"}}>
         <select value={filtroRango} onChange={e=>{setFiltroRango(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todos</option>
           <option value="proximos">Próximos</option>
           <option value="pasados">Pasados</option>
+          <option value="personalizado">📅 Personalizado</option>
         </select>
         <select value={filtroPrio} onChange={e=>{setFiltroPrio(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todas las prioridades</option>
@@ -3868,6 +4015,19 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
           <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
         )}
       </div>
+      {filtroRango==="personalizado"&&(
+        <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:11,color:"#64748B",fontWeight:600}}>Desde</span>
+            <input type="date" value={filtroDesde} onChange={e=>{setFiltroDesde(e.target.value);setPagina(1);}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white"}}/>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:11,color:"#64748B",fontWeight:600}}>Hasta</span>
+            <input type="date" value={filtroHasta} onChange={e=>{setFiltroHasta(e.target.value);setPagina(1);}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white"}}/>
+          </div>
+          {(filtroDesde||filtroHasta)&&<button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#94A3B8"}}>✕ Limpiar</button>}
+        </div>
+      )}
 
       {/* Lista */}
       {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios</div>}
@@ -3875,26 +4035,38 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
         const prio = PRIO[r.prioridad||"media"];
         const esLeido = leidosSet.has(r.id);
         const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
+        const diasLabel = dias===null ? null : dias===0 ? "hoy" : dias===1 ? "mañana" : dias<0 ? `hace ${Math.abs(dias)}d` : `en ${dias}d`;
         return (
-          <Card key={r.id} style={{padding:"12px 14px",marginBottom:8,maxWidth:560,opacity:esLeido?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A"}}>{r.texto}</div>
-                <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap",alignItems:"center"}}>
-                  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:prio.bg,color:prio.c}}>{prio.l}</span>
-                  {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 8px",borderRadius:10}}>Urgente</span>}
-                  {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}{dias!==null?` · ${dias===0?"hoy":dias===1?"mañana":dias<0?`hace ${Math.abs(dias)}d`:`${dias}d`}`:""}</span>}
-                </div>
-              </div>
-              <div style={{display:"flex",gap:5,flexShrink:0}}>
-                {!esLeido&&<button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Leído</button>}
-                {isAdmin&&<>
-                  <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                  <button onClick={()=>eliminar(r.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                </>}
+          <div key={r.id} style={{display:"flex",alignItems:"center",gap:0,padding:"11px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",opacity:esLeido?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
+            {/* fecha columna */}
+            <div style={{width:72,flexShrink:0,marginRight:12,textAlign:"center"}}>
+              {r.fecha?(
+                <>
+                  <div style={{fontSize:18,fontWeight:900,color:"#0F172A",lineHeight:1}}>{new Date(r.fecha+"T00:00:00").getDate()}</div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{month:"short"})}</div>
+                  {diasLabel&&<div style={{fontSize:9,fontWeight:700,marginTop:2,color:dias<0?"#94A3B8":dias<=3?"#EF4444":"#10B981",background:dias<0?"#F8FAFC":dias<=3?"#FEF2F2":"#F0FDF4",borderRadius:6,padding:"1px 4px"}}>{diasLabel}</div>}
+                </>
+              ):(
+                <div style={{fontSize:10,color:"#CBD5E1",fontWeight:600}}>—</div>
+              )}
+            </div>
+            {/* contenido */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
+              <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
+                {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
             </div>
-          </Card>
+            {/* acciones */}
+            <div style={{display:"flex",gap:5,flexShrink:0,marginLeft:8}}>
+              {!esLeido&&<button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Leído</button>}
+              {isAdmin&&<>
+                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+              </>}
+            </div>
+          </div>
         );
       })}
 
@@ -4072,9 +4244,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
   const [monto,setMonto]       = useState("");
   const [montoGuardado,setMontoGuardado] = useState(null);
   const [savingMonto,setSavingMonto]     = useState(false);
-  const [recordatorios,setRecordatorios] = useState([]);
-  const [recForm,setRecForm]   = useState(null);
-  const [savingRec,setSavingRec] = useState(false);
+  const [solapa,setSolapa] = useState("general"); // general | horarios
   const [horarios,setHorarios] = useState([]);
   const [maestrosHor,setMaestrosHor] = useState([]);
   const [horForm,setHorForm]   = useState(null); // null | {} | {id,...}
@@ -4089,42 +4259,22 @@ function AdminPanel({ cursoId, cursoNombre }) {
       supabase.from("colectas").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
       supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
-      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("id",{ascending:false}),
+
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
         .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cursoId)).data?.map(r=>r.maestro_id)||[]),
-    ]).then(([c,cu,curso,rec,hor,mae])=>{
+    ]).then(([c,cu,curso,hor,mae])=>{
       const cuotas=c.data||[],cumples=cu.data||[];
       setStats({cuotasOk:cuotas.filter(x=>x.pagado).length,sinPagar:cuotas.filter(x=>!x.pagado).length,regalos:cumples.filter(x=>!x.comprado).length});
       const m = curso.data?.monto_regalo;
       setMontoGuardado(m);
       setMonto(m ? String(m) : "");
-      setRecordatorios(rec.data||[]);
       setHorarios(hor.data||[]);
       setMaestrosHor(mae.data||[]);
     });
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
-
-  const guardarRec = async () => {
-    if(!recForm?.texto?.trim()) return;
-    setSavingRec(true);
-    const payload = {texto:recForm.texto, emoji:recForm.emoji||"📌", urgente:recForm.urgente||false, prioridad:recForm.prioridad||"media", fecha:recForm.fecha||null};
-    if(recForm.id) {
-      await supabase.from("recordatorios").update(payload).eq("id",recForm.id);
-    } else {
-      await supabase.from("recordatorios").insert({...payload, curso_id:cursoId});
-    }
-    setSavingRec(false);
-    setRecForm(null);
-    cargar();
-  };
-
-  const eliminarRec = async (id) => {
-    await supabase.from("recordatorios").delete().eq("id",id);
-    cargar();
-  };
 
   const guardarHor = async () => {
     if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin) return;
@@ -4150,7 +4300,18 @@ function AdminPanel({ cursoId, cursoNombre }) {
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin Panel ⚙️</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{cursoNombre}</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>{cursoNombre}</div>
+
+      {/* Solapas */}
+      <div style={{display:"flex",gap:6,marginBottom:20,borderBottom:"2px solid #E2E8F0",paddingBottom:0}}>
+        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios de clases"}].map(s=>(
+          <button key={s.id} onClick={()=>setSolapa(s.id)} style={{padding:"8px 16px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:700,color:solapa===s.id?"#3B82F6":"#94A3B8",borderBottom:`2px solid ${solapa===s.id?"#3B82F6":"transparent"}`,marginBottom:-2}}>
+            {s.l}
+          </button>
+        ))}
+      </div>
+
+      {solapa==="general"&&<>
       <div style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
         {[{n:stats.cuotasOk,l:"Cuotas OK",c:"#10B981",bg:"#F0FDF4"},{n:stats.sinPagar,l:"Sin pagar",c:"#EF4444",bg:"#FEF2F2"},{n:stats.regalos,l:"Regalos pend.",c:"#F59E0B",bg:"#FFFBEB"}].map((s,i)=>(
           <div key={i} style={{flex:1,minWidth:80,background:s.bg,borderRadius:14,padding:"14px 10px",textAlign:"center"}}>
@@ -4181,82 +4342,10 @@ function AdminPanel({ cursoId, cursoNombre }) {
         {montoGuardado&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:8}}>✓ Monto actual: ${Number(montoGuardado).toLocaleString("es-AR")} por familia</div>}
       </Card>
 
-      {/* Recordatorios */}
-      <div style={{maxWidth:560,marginBottom:24}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>Recordatorios</div>
-          <button onClick={()=>setRecForm({texto:"",emoji:"📌",urgente:false,prioridad:"media",fecha:""})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
-        </div>
-        {[...recordatorios].sort((a,b)=>{
-          const priOrd={alta:0,media:1,baja:2};
-          if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
-          const pa=priOrd[a.prioridad||"media"],pb=priOrd[b.prioridad||"media"];
-          if(pa!==pb) return pa-pb;
-          if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
-          if(a.fecha) return -1; if(b.fecha) return 1;
-          return 0;
-        }).map(r=>(
-          <Card key={r.id} style={{padding:"11px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,borderLeft:r.urgente?"3px solid #EF4444":"3px solid #E2E8F0",background:r.urgente?"#FFF1F2":"white"}}>
-            <span style={{fontSize:20}}>{r.emoji}</span>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:r.urgente?700:500}}>{r.texto}</div>
-              <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
-                {r.urgente&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FEE2E2",color:"#EF4444"}}>⚠️ Urgente</span>}
-                {{alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"},media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"},baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"}}[r.prioridad||"media"]&&(
-                  <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:{alta:"#FEF2F2",media:"#FFFBEB",baja:"#F0FDF4"}[r.prioridad||"media"],color:{alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"]}}>{r.prioridad||"media"}</span>
-                )}
-                {r.fecha&&<span style={{fontSize:10,color:"#94A3B8"}}>📅 {new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</span>}
-              </div>
-            </div>
-            <button onClick={()=>setRecForm({...r,fecha:r.fecha||"",prioridad:r.prioridad||"media"})} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-            <button onClick={()=>eliminarRec(r.id)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-          </Card>
-        ))}
-      </div>
+      </>
+      }
 
-      {/* Modal recordatorio */}
-      {recForm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{recForm.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>EMOJI</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                {EMOJIS.map(e=>(
-                  <button key={e} onClick={()=>setRecForm(p=>({...p,emoji:e}))} style={{width:36,height:36,borderRadius:8,border:`2px solid ${recForm.emoji===e?"#3B82F6":"#E2E8F0"}`,background:recForm.emoji===e?"#EFF6FF":"white",cursor:"pointer",fontSize:18}}>{e}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>TEXTO</div>
-              <textarea value={recForm.texto} onChange={e=>setRecForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Traer autorización firmada el viernes" rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",resize:"none",boxSizing:"border-box"}}/>
-            </div>
-            <div style={{display:"flex",gap:10,marginBottom:12}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA LÍMITE</div>
-                <input type="date" value={recForm.fecha||""} onChange={e=>setRecForm(p=>({...p,fecha:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
-                <select value={recForm.prioridad||"media"} onChange={e=>setRecForm(p=>({...p,prioridad:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"}}>
-                  <option value="alta">🔴 Alta</option>
-                  <option value="media">🟡 Media</option>
-                  <option value="baja">🟢 Baja</option>
-                </select>
-              </div>
-            </div>
-            <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-              <input type="checkbox" id="urgente" checked={recForm.urgente||false} onChange={e=>setRecForm(p=>({...p,urgente:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
-              <label htmlFor="urgente" style={{fontSize:13,fontWeight:600,cursor:"pointer",color:recForm.urgente?"#EF4444":"#0F172A"}}>⚠️ Marcar como urgente</label>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setRecForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarRec} disabled={savingRec} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingRec?"Guardando...":"Guardar"}</button>
-            </div>
-          </Card>
-        </div>
-      )}
-      {/* ── HORARIOS ───────────────────────────────────────────── */}
+      {solapa==="horarios"&&
       <Card style={{padding:"16px 18px",marginTop:20}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>Horario de clases</div>
@@ -4285,6 +4374,8 @@ function AdminPanel({ cursoId, cursoNombre }) {
           );
         })}
       </Card>
+
+      }
 
       {/* Modal horario */}
       {horForm!==null&&(
