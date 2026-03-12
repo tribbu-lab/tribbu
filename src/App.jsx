@@ -1318,7 +1318,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:600}}>{c.titulo}</div>
                 <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center"}}>
-                  {c.monto_sugerido&&<span style={{fontSize:11,color:"#94A3B8"}}>${Number(c.monto_sugerido).toLocaleString("es-AR")}</span>}
+                  {c.monto_sugerido&&<span style={{fontSize:11,color:"#94A3B8"}}>{(c.moneda||"$")} {Number(c.monto_sugerido).toLocaleString("es-AR")}</span>}
                   {c.fecha_limite&&<span style={{fontSize:11,color:"#94A3B8"}}>Límite: {new Date(c.fecha_limite+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                 </div>
               </div>
@@ -1729,18 +1729,9 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             {!form.todo_el_dia&&<input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))} style={{...inp,width:"auto",flex:1}}/>}
           </div>
         </div>
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Confirmar asistencia</div>
-          <button onClick={()=>setForm(p=>({...p,confirma_asistencia:!p.confirma_asistencia}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.confirma_asistencia?"#3B82F6":"#E2E8F0"}`,background:form.confirma_asistencia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.confirma_asistencia?"#3B82F6":"#94A3B8"}}>
-            {form.confirma_asistencia?"✓ Solicitar confirmación de asistencia":"Sin confirmación de asistencia"}
-          </button>
-          <div style={{fontSize:11,color:"#94A3B8",marginTop:5}}>Si está activo, las familias podrán confirmar si van o no.</div>
-        </div>
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Confirmación de asistencia</div>
-          <button onClick={()=>setForm(p=>({...p,confirma_asistencia:!p.confirma_asistencia}))} style={{padding:"7px 16px",borderRadius:20,border:`2px solid ${form.confirma_asistencia?"#3B82F6":"#E2E8F0"}`,background:form.confirma_asistencia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.confirma_asistencia?"#3B82F6":"#94A3B8"}}>
-            {form.confirma_asistencia?"✓ Los apoderados deben confirmar asistencia":"Sin confirmación de asistencia"}
-          </button>
+        <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+          <input type="checkbox" id="confirma_asist" checked={!!form.confirma_asistencia} onChange={e=>setForm(p=>({...p,confirma_asistencia:e.target.checked}))} style={{width:16,height:16,cursor:"pointer",accentColor:"#3B82F6"}}/>
+          <label htmlFor="confirma_asist" style={{fontSize:13,fontWeight:600,cursor:"pointer",color:"#0F172A"}}>Solicitar asistencia</label>
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
@@ -2826,7 +2817,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
   const [usuarios,   setUsuarios]   = useState([]);
   const [pagos,      setPagos]      = useState([]); // todos los colecta_pagos del curso
   const [modal,      setModal]      = useState(null); // null | {} | {id,...}
-  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",responsable_id:"",fecha_limite:""});
+  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",responsable_id:"",fecha_limite:""});
   const [saving,     setSaving]     = useState(false);
   const [vistaAdmin, setVistaAdmin] = useState(null); // colecta para ver detalle admin
 
@@ -2876,6 +2867,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
       tipo:           "colecta",
       descripcion:    form.descripcion?.trim()||null,
       monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
+      moneda:         form.moneda||"$",
       responsable_id: form.responsable_id ? Number(form.responsable_id) : null,
       fecha_limite:   form.fecha_limite||null,
       vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
@@ -2923,7 +2915,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
   // alumnos que pertenecen al apoderado
   const misAlumnos = alumnos.filter(a=>misHijos.includes(a.id));
 
-  const fmtM = (n) => n!=null ? `$${Number(n).toLocaleString("es-AR")}` : "";
+  const fmtM = (n, moneda="$") => n!=null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
 
   return (
     <div>
@@ -2938,7 +2930,24 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
             {[
               {l:"Título",        k:"titulo",         ph:"Ej: Regalo día del maestro"},
               {l:"Descripción",   k:"descripcion",    ph:"Detalles opcionales"},
-              {l:"Monto sugerido",k:"monto_sugerido", ph:"Ej: 2000", type:"number"},
+            ].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input type={f.type||"text"} value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO SUGERIDO</div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <div style={{display:"flex",gap:4}}>
+                  {["$","USD"].map(m=>(
+                    <button key={m} type="button" onClick={()=>setForm(p=>({...p,moneda:m}))} style={{padding:"8px 14px",borderRadius:8,border:`2px solid ${(form.moneda||"$")===m?"#3B82F6":"#E2E8F0"}`,background:(form.moneda||"$")===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:(form.moneda||"$")===m?"#3B82F6":"#94A3B8"}}>{m}</button>
+                  ))}
+                </div>
+                <input type="number" value={form.monto_sugerido||""} onChange={e=>setForm(p=>({...p,monto_sugerido:e.target.value}))} placeholder="Ej: 2000" style={{...inp,flex:1}}/>
+              </div>
+            </div>
+            {[
               {l:"Fecha límite",  k:"fecha_limite",   type:"date"},
             ].map(f=>(
               <div key={f.k} style={{marginBottom:10}}>
@@ -3023,13 +3032,13 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
                   <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
                     {resp&&<span style={{fontSize:11,color:"#64748B"}}>Responsable: {resp.nombre}</span>}
                     {c.fecha_limite&&<span style={{fontSize:11,color:"#64748B"}}>Límite: {fmtF(c.fecha_limite)}</span>}
-                    {c.monto_sugerido&&<span style={{fontSize:11,color:"#64748B"}}>Monto sugerido: {fmtM(c.monto_sugerido)}</span>}
+                    {c.monto_sugerido&&<span style={{fontSize:11,color:"#64748B"}}>Monto sugerido: {fmtM(c.monto_sugerido, c.moneda||"$")}</span>}
                   </div>
                 </div>
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
                     {isAdmin&&<>
-                      <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                      <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                       <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
                       <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
                     </>}
@@ -3042,7 +3051,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
               <div style={{padding:"10px 16px",borderBottom:"1px solid #F8FAFC"}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
                   <span>Recaudado</span>
-                  <span>{fmtM(recaudado)} <span style={{color:"#CBD5E1"}}>/ {fmtM(esperado)}</span></span>
+                  <span>{fmtM(recaudado, c.moneda||"$")} <span style={{color:"#CBD5E1"}}>/ {fmtM(esperado, c.moneda||"$")}</span></span>
                 </div>
                 <div style={{height:6,borderRadius:10,background:"#E2E8F0",overflow:"hidden"}}>
                   <div style={{height:"100%",width:pct+"%",background:"#10B981",borderRadius:10,transition:"width 0.3s"}}/>
@@ -3100,7 +3109,7 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
       .then(r=>{ setAlumnos(r.data||[]); });
     if(festejoExistente?.id) {
       supabase.from("evento_asistencia").select("alumno_invitado_id").eq("evento_id", festejoExistente.id)
-        .then(r=>setInvitados((r.data||[]).map(x=>x.alumno_invitado_id).filter(Boolean)));
+        .then(r=>setInvitados((r.data||[]).map(x=>x.alumno_invitado_id).filter(Boolean).filter(id=>id!==alumnoId)));
     }
   },[]);
 
@@ -3238,7 +3247,7 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
     rows.forEach(r=>{ const k=r.alumno_invitado_id; if(!k) return; if(!map[k]||(PRIO[r.asiste]||0)>(PRIO[map[k].asiste]||0)) map[k]=r; });
     return Object.values(map);
   };
-  const asistenciaDedup = dedupAsistencia(asistencia);
+  const asistenciaDedup = dedupAsistencia(asistencia).filter(a=>a.alumno_invitado_id!==evento.alumno_id);
   const confirmados = asistenciaDedup.filter(a=>a.asiste==="si");
   const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
   const pendientes  = asistenciaDedup.filter(a=>a.asiste==="pendiente"||!a.asiste);
@@ -3265,7 +3274,7 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
         </div>
 
         {/* Mi respuesta — por cada hijo mío invitado */}
-        {misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
+        {misHijos.filter(hid=>hid!==evento.alumno_id&&asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
           const fila    = asistencia.find(a=>a.alumno_invitado_id===hid);
           const alumno  = alumnos[hid];
           const miAsiste = fila?.asiste;
@@ -3371,7 +3380,7 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
           <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8"}}>✕</button>
         </div>
         {/* Mis hijos — confirmar */}
-        {misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
+        {misHijos.filter(hid=>hid!==evento.alumno_id&&asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
           const fila = asistencia.find(a=>a.alumno_invitado_id===hid);
           const al   = alumnos[hid];
           const confirmar = async (val) => {
@@ -3475,11 +3484,12 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido,color)").eq("curso_id",cursoId),
-      supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
+      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single(),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
       userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
     setMontoRegalo(curso.data?.monto_regalo||null);
+    setMonedaRegalo(curso.data?.moneda_regalo||"$");
     setInvitaciones((inv.data||[]).filter(i=>i.evento));
     const fmap = {};
     (fest.data||[]).forEach(f=>{ if(f.alumno_id) fmap[f.alumno_id]=f; });
@@ -4308,7 +4318,8 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
 
 function AdminPanel({ cursoId, cursoNombre }) {
   const [stats,setStats]       = useState({cuotasOk:0,sinPagar:0,regalos:0});
-  const [monto,setMonto]       = useState("");
+  const [monto,setMonto]             = useState("");
+  const [monedaRegalo,setMonedaRegalo]   = useState("$");
   const [montoGuardado,setMontoGuardado] = useState(null);
   const [savingMonto,setSavingMonto]     = useState(false);
   const [solapa,setSolapa] = useState("general"); // general | horarios
@@ -4325,7 +4336,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
     Promise.all([
       supabase.from("colectas").select("*").eq("curso_id",cursoId),
       supabase.from("cumples").select("*").eq("curso_id",cursoId),
-      supabase.from("cursos").select("monto_regalo").eq("id",cursoId).single(),
+      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single(),
 
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
@@ -4336,6 +4347,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
       const m = curso.data?.monto_regalo;
       setMontoGuardado(m);
       setMonto(m ? String(m) : "");
+      setMonedaRegalo(curso.data?.moneda_regalo||"$");
       setHorarios(hor.data||[]);
       setMaestrosHor(mae.data||[]);
     });
@@ -4359,7 +4371,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
   const guardarMonto = async () => {
     setSavingMonto(true);
-    await supabase.from("cursos").update({monto_regalo: monto ? Number(monto) : null}).eq("id",cursoId);
+    await supabase.from("cursos").update({monto_regalo: monto ? Number(monto) : null, moneda_regalo: monedaRegalo}).eq("id",cursoId);
     setMontoGuardado(monto ? Number(monto) : null);
     setSavingMonto(false);
   };
@@ -4383,22 +4395,24 @@ function AdminPanel({ cursoId, cursoNombre }) {
       <Card style={{padding:"16px 18px",marginBottom:20,maxWidth:400}}>
         <div style={{fontSize:13,fontWeight:800,marginBottom:12}}>🎁 Monto regalo por alumno</div>
         <div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>Este monto se muestra a todos los apoderados del curso en la sección Cumpleaños.</div>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+          {["$","USD"].map(m=>(
+            <button key={m} type="button" onClick={()=>setMonedaRegalo(m)} style={{padding:"7px 14px",borderRadius:8,border:`2px solid ${monedaRegalo===m?"#3B82F6":"#E2E8F0"}`,background:monedaRegalo===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:monedaRegalo===m?"#3B82F6":"#94A3B8"}}>{m}</button>
+          ))}
+        </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,flex:1,border:"1.5px solid #E2E8F0",borderRadius:10,padding:"8px 12px",background:"#F8FAFC"}}>
-            <span style={{fontSize:14,fontWeight:700,color:"#94A3B8"}}>$</span>
-            <input
-              type="number"
-              value={monto}
-              onChange={e=>setMonto(e.target.value)}
-              placeholder="Ej: 5000"
-              style={{border:"none",outline:"none",background:"transparent",fontSize:14,fontWeight:600,width:"100%",color:"#0F172A"}}
-            />
-          </div>
+          <input
+            type="number"
+            value={monto}
+            onChange={e=>setMonto(e.target.value)}
+            placeholder="Ej: 5000"
+            style={{flex:1,padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:14,fontWeight:600,outline:"none",background:"#F8FAFC",color:"#0F172A"}}
+          />
           <button onClick={guardarMonto} disabled={savingMonto} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>
             {savingMonto?"Guardando...":"Guardar"}
           </button>
         </div>
-        {montoGuardado&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:8}}>✓ Monto actual: ${Number(montoGuardado).toLocaleString("es-AR")} por familia</div>}
+        {montoGuardado&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:8}}>✓ Monto actual: {monedaRegalo} {Number(montoGuardado).toLocaleString("es-AR")} por familia</div>}
       </Card>
 
       </>
