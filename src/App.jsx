@@ -296,6 +296,103 @@ function UploadApoderadosExcel({ onDone }) {
   );
 }
 
+
+// ── Reusable list controls ────────────────────────────────────────────────────
+function useListControls(items, { searchFn, sortOptions, filterOptions, pageSize=12 }) {
+  const [busqueda,  setBusqueda]  = useState("");
+  const [sortKey,   setSortKey]   = useState(sortOptions?.[0]?.key || null);
+  const [sortAsc,   setSortAsc]   = useState(true);
+  const [filtros,   setFiltros]   = useState({});
+  const [pagina,    setPagina]    = useState(1);
+
+  const toggleSort = (key) => {
+    if(sortKey===key) setSortAsc(a=>!a);
+    else { setSortKey(key); setSortAsc(true); }
+    setPagina(1);
+  };
+  const setFiltro = (k,v) => { setFiltros(p=>({...p,[k]:v})); setPagina(1); };
+  const resetFiltros = () => { setFiltros({}); setBusqueda(""); setPagina(1); };
+
+  const filtered = items.filter(item => {
+    if(busqueda && searchFn && !searchFn(item, busqueda.toLowerCase())) return false;
+    for(const [k,v] of Object.entries(filtros)) {
+      if(!v || v==="all") continue;
+      const opt = filterOptions?.find(f=>f.key===k);
+      if(opt && !opt.match(item, v)) return false;
+    }
+    return true;
+  });
+
+  const sorted = sortKey ? [...filtered].sort((a,b) => {
+    const opt = sortOptions?.find(s=>s.key===sortKey);
+    if(!opt) return 0;
+    const va = opt.val(a), vb = opt.val(b);
+    const cmp = typeof va==="string" ? va.localeCompare(vb,"es") : (va??Infinity)-(vb??Infinity);
+    return sortAsc ? cmp : -cmp;
+  }) : filtered;
+
+  const totalPag = Math.max(1, Math.ceil(sorted.length/pageSize));
+  const paginaActual = Math.min(pagina, totalPag);
+  const paginados = sorted.slice((paginaActual-1)*pageSize, paginaActual*pageSize);
+
+  return {
+    busqueda, setBusqueda,
+    sortKey, sortAsc, toggleSort,
+    filtros, setFiltro, resetFiltros,
+    pagina: paginaActual, setPagina, totalPag,
+    filtered: sorted,
+    items: paginados,
+    total: sorted.length,
+  };
+}
+
+function ListToolbar({ busqueda, setBusqueda, sortOptions, sortKey, sortAsc, toggleSort, filterOptions, filtros, setFiltro, resetFiltros, total, placeholder="Buscar..." }) {
+  const hayFiltros = busqueda || Object.values(filtros).some(v=>v&&v!=="all");
+  const s = {padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white",cursor:"pointer"};
+  return (
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+        <input
+          value={busqueda} onChange={e=>{setBusqueda(e.target.value);}}
+          placeholder={placeholder}
+          style={{flex:2,minWidth:160,...s,cursor:"text"}}
+        />
+        {sortOptions&&sortOptions.length>0&&(
+          <select value={sortKey||""} onChange={e=>toggleSort(e.target.value)} style={{flex:1,minWidth:120,...s}}>
+            {sortOptions.map(o=><option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        )}
+        {sortOptions&&<button onClick={()=>toggleSort(sortKey)} style={{...s,padding:"8px 10px",minWidth:36}}>{sortAsc?"↑":"↓"}</button>}
+        {hayFiltros&&<button onClick={resetFiltros} style={{...s,color:"#EF4444",borderColor:"#FCA5A5",background:"#FEF2F2",fontWeight:700}}>Limpiar</button>}
+      </div>
+      {filterOptions&&filterOptions.length>0&&(
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {filterOptions.map(f=>(
+            <select key={f.key} value={filtros[f.key]||"all"} onChange={e=>setFiltro(f.key,e.target.value)} style={{...s,fontSize:11,padding:"5px 10px"}}>
+              <option value="all">{f.label}: Todos</option>
+              {f.options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          ))}
+        </div>
+      )}
+      <div style={{fontSize:11,color:"#94A3B8",marginTop:6}}>{total} resultado{total!==1?"s":""}</div>
+    </div>
+  );
+}
+
+function Paginador({ pagina, totalPag, setPagina }) {
+  if(totalPag<=1) return null;
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:16}}>
+      <button onClick={()=>setPagina(1)} disabled={pagina===1} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina===1?"default":"pointer",fontSize:12,color:pagina===1?"#CBD5E1":"#0F172A"}}>«</button>
+      <button onClick={()=>setPagina(p=>Math.max(1,p-1))} disabled={pagina===1} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina===1?"default":"pointer",fontSize:12,color:pagina===1?"#CBD5E1":"#0F172A"}}>‹</button>
+      <span style={{fontSize:12,color:"#64748B",padding:"0 8px"}}>Pág. {pagina} de {totalPag}</span>
+      <button onClick={()=>setPagina(p=>Math.min(totalPag,p+1))} disabled={pagina===totalPag} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina===totalPag?"default":"pointer",fontSize:12,color:pagina===totalPag?"#CBD5E1":"#0F172A"}}>›</button>
+      <button onClick={()=>setPagina(totalPag)} disabled={pagina===totalPag} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina===totalPag?"default":"pointer",fontSize:12,color:pagina===totalPag?"#CBD5E1":"#0F172A"}}>»</button>
+    </div>
+  );
+}
+
 function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -309,6 +406,60 @@ function SuperAdmin() {
   const [alumnos,setAlumnos]   = useState([]);
   const [cursoFiltro,setCursoFiltro] = useState(null);
   const [verApodSA,setVerApodSA]     = useState(null);
+
+  const ctrlUsuarios = useListControls(usuarios, {
+    searchFn: (u,q)=> u.nombre.toLowerCase().includes(q)||u.email.toLowerCase().includes(q),
+    sortOptions: [
+      {key:"nombre", label:"Nombre", val:u=>u.nombre},
+      {key:"rol",    label:"Rol",    val:u=>u.rol},
+      {key:"id",     label:"Más reciente", val:u=>u.id},
+    ],
+    filterOptions: [
+      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
+      {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
+    ],
+    pageSize:12,
+  });
+
+  const ctrlCursos = useListControls(cursos, {
+    searchFn: (c,q)=> c.nombre.toLowerCase().includes(q),
+    sortOptions: [
+      {key:"nombre", label:"Nombre", val:c=>c.nombre},
+      {key:"id",     label:"Más reciente", val:c=>c.id},
+    ],
+    pageSize:12,
+  });
+
+  const ctrlAlumnos = useListControls(alumnos, {
+    searchFn: (a,q)=> (`${a.nombre} ${a.apellido||""}`).toLowerCase().includes(q),
+    sortOptions: [
+      {key:"nombre",    label:"Nombre",     val:a=>a.nombre},
+      {key:"apellido",  label:"Apellido",   val:a=>a.apellido||""},
+      {key:"nacimiento",label:"Cumpleaños", val:a=>a.fecha_nacimiento||"z"},
+    ],
+    filterOptions: [
+      {key:"curso", label:"Curso", options:[], match:(a,v)=>a.curso_id===Number(v)},
+    ],
+    pageSize:12,
+  });
+  // Populate curso filter options dynamically
+  ctrlAlumnos.filterOptions = [{
+    key:"curso", label:"Curso",
+    options: cursos.map(c=>({value:String(c.id), label:c.nombre})),
+    match:(a,v)=>a.curso_id===Number(v)
+  }];
+
+  const ctrlMaestros = useListControls(maestros, {
+    searchFn: (m,q)=> m.nombre.toLowerCase().includes(q)||(m.materia||"").toLowerCase().includes(q),
+    sortOptions: [
+      {key:"nombre",  label:"Nombre",   val:m=>m.nombre},
+      {key:"materia", label:"Materia",  val:m=>m.materia||""},
+    ],
+    filterOptions: [
+      {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(m,v)=>v==="si"?m.activo:!m.activo},
+    ],
+    pageSize:12,
+  });
 
   useEffect(()=>{ cargar(); },[]);
 
@@ -608,7 +759,8 @@ function SuperAdmin() {
         <>
           <UploadApoderadosExcel onDone={cargar}/>
           <button onClick={()=>{ setForm({nombre:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
-          {usuarios.map(u=>(
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          {ctrlUsuarios.items.map(u=>(
             <Card key={u.id} style={{padding:"14px 16px",marginBottom:10,opacity:u.activo?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:42,height:42,borderRadius:12,background:ROL_BG[u.rol],display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:ROL_COLOR[u.rol],flexShrink:0}}>{u.avatar}</div>
@@ -630,13 +782,15 @@ function SuperAdmin() {
               </div>
             </Card>
           ))}
+          <Paginador pagina={ctrlUsuarios.pagina} totalPag={ctrlUsuarios.totalPag} setPagina={ctrlUsuarios.setPagina}/>
         </>
       )}
 
       {sec==="cursos" && (
         <>
           <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6"}); setModal("nuevo_curso"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo curso</button>
-          {cursos.map(c=>{
+          <ListToolbar busqueda={ctrlCursos.busqueda} setBusqueda={ctrlCursos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"id",label:"Más reciente"}]} sortKey={ctrlCursos.sortKey} sortAsc={ctrlCursos.sortAsc} toggleSort={ctrlCursos.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrlCursos.resetFiltros} total={ctrlCursos.total} placeholder="Buscar curso..."/>
+          {ctrlCursos.items.map(c=>{
             const admins=usuarios.filter(u=>u.rol==="admin"&&u.cursos.includes(c.id));
             const padres=usuarios.filter(u=>u.rol==="padre"&&hijos.filter(h=>h.curso_id===c.id).some(h=>u.hijos.includes(h.id)));
             return (
@@ -654,17 +808,15 @@ function SuperAdmin() {
               </Card>
             );
           })}
+          <Paginador pagina={ctrlCursos.pagina} totalPag={ctrlCursos.totalPag} setPagina={ctrlCursos.setPagina}/>
         </>
       )}
       {sec==="alumnos" && (
         <>
-          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <button onClick={()=>setCursoFiltro(null)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===null?"#0F172A":"white",color:cursoFiltro===null?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>Todos</button>
-            {cursos.map(c=><button key={c.id} onClick={()=>setCursoFiltro(c.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoFiltro===c.id?c.color:"white",color:cursoFiltro===c.id?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>{c.avatar} {c.nombre}</button>)}
-          </div>
           <UploadAlumnosExcel cursos={cursos} onDone={cargar}/>
-          <button onClick={()=>{ setForm({nombre:"",curso_id:cursoFiltro||cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
-          {(cursoFiltro?alumnos.filter(a=>a.curso_id===cursoFiltro):alumnos).map(a=>{
+          <button onClick={()=>{ setForm({nombre:"",curso_id:cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
+          <ListToolbar busqueda={ctrlAlumnos.busqueda} setBusqueda={ctrlAlumnos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrlAlumnos.sortKey} sortAsc={ctrlAlumnos.sortAsc} toggleSort={ctrlAlumnos.toggleSort} filterOptions={[{key:"curso",label:"Curso",options:cursos.map(c=>({value:String(c.id),label:c.nombre}))}]} filtros={ctrlAlumnos.filtros} setFiltro={ctrlAlumnos.setFiltro} resetFiltros={ctrlAlumnos.resetFiltros} total={ctrlAlumnos.total} placeholder="Buscar alumno..."/>
+          {ctrlAlumnos.items.map(a=>{
             const curso = cursos.find(c=>c.id===a.curso_id);
             const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
             return (
@@ -688,13 +840,15 @@ function SuperAdmin() {
               </Card>
             );
           })}
+          <Paginador pagina={ctrlAlumnos.pagina} totalPag={ctrlAlumnos.totalPag} setPagina={ctrlAlumnos.setPagina}/>
         </>
       )}
 
       {sec==="maestros" && (
         <>
           <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #8B5CF6",background:"#F5F3FF",color:"#8B5CF6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo maestro</button>
-          {maestros.map(m=>(
+          <ListToolbar busqueda={ctrlMaestros.busqueda} setBusqueda={ctrlMaestros.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"materia",label:"Materia"}]} sortKey={ctrlMaestros.sortKey} sortAsc={ctrlMaestros.sortAsc} toggleSort={ctrlMaestros.toggleSort} filterOptions={[{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]}]} filtros={ctrlMaestros.filtros} setFiltro={ctrlMaestros.setFiltro} resetFiltros={ctrlMaestros.resetFiltros} total={ctrlMaestros.total} placeholder="Buscar maestro o materia..."/>
+          {ctrlMaestros.items.map(m=>(
             <Card key={m.id} style={{padding:"14px 16px",marginBottom:10,opacity:m.activo?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:42,height:42,borderRadius:12,background:"#F5F3FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#8B5CF6",flexShrink:0}}>{m.avatar||"👨‍🏫"}</div>
@@ -715,6 +869,7 @@ function SuperAdmin() {
               </div>
             </Card>
           ))}
+          <Paginador pagina={ctrlMaestros.pagina} totalPag={ctrlMaestros.totalPag} setPagina={ctrlMaestros.setPagina}/>
         </>
       )}
     </div>
@@ -1965,8 +2120,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
   const [festejoModal,setFestejoModal] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [invitaciones,setInvitaciones] = useState([]);
-  const [busqueda,setBusqueda]         = useState("");
-  const [mesFiltro,setMesFiltro]       = useState("all");
+
   const [montoRegalo,setMontoRegalo]   = useState(null);
 
   const cargar = async () => {
@@ -2057,9 +2211,20 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
 
   const mesesNombres = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
-  const listaFiltrada = lista
-    .filter(a => !busqueda || a.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    .filter(a => mesFiltro==="all" || new Date(a.fecha_nacimiento+"T00:00:00").getMonth()===parseInt(mesFiltro));
+  const ctrlCumple = useListControls(lista, {
+    searchFn: (a,q)=> a.nombre.toLowerCase().includes(q),
+    sortOptions:[
+      {key:"proximo",  label:"Próximo cumpleaños", val:a=>nextBday(a.fecha_nacimiento)},
+      {key:"nombre",   label:"Nombre",              val:a=>a.nombre},
+      {key:"mes",      label:"Mes",                 val:a=>new Date(a.fecha_nacimiento+"T00:00:00").getMonth()},
+    ],
+    filterOptions:[
+      {key:"mes",  label:"Mes",  options:mesesNombres.map((m,i)=>({value:String(i),label:m})), match:(a,v)=>new Date(a.fecha_nacimiento+"T00:00:00").getMonth()===parseInt(v)},
+      {key:"tipo", label:"Tipo", options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}], match:(a,v)=>a.tipo===v},
+    ],
+    pageSize:20,
+  });
+  const listaFiltrada = ctrlCumple.items;
 
   return (
     <div>
@@ -2073,13 +2238,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
       </div>
 
       <div style={{maxWidth:700}}>
-          <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-            <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar nombre..." style={{flex:1,minWidth:160,padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",background:"white"}}/>
-            <select value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)} style={{padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",background:"white",color:"#0F172A"}}>
-              <option value="all">Todos los meses</option>
-              {mesesNombres.map((m,i)=><option key={i} value={i}>{m}</option>)}
-            </select>
-          </div>
+          <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Próximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
           <Card style={{overflow:"hidden",padding:0}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
@@ -2155,6 +2314,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos }) {
               </tbody>
             </table>
           </Card>
+          <Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>
         </div>
 
       {/* Mis invitaciones a festejos */}
@@ -2286,7 +2446,6 @@ function Alumnos({ cursoId, isAdmin }) {
   const [modal,setModal]       = useState(null);
   const [form,setForm]         = useState({});
   const [confirm,setConfirm]   = useState(null);
-  const [busqueda,setBusqueda]       = useState("");
   const [verApoderados,setVerApoderados] = useState(null);
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -2319,7 +2478,15 @@ function Alumnos({ cursoId, isAdmin }) {
   };
 
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
-  const filtrados = alumnos.filter(a=>a.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+  const ctrl = useListControls(alumnos, {
+    searchFn: (a,q)=>(`${a.nombre} ${a.apellido||""}`).toLowerCase().includes(q),
+    sortOptions:[
+      {key:"nombre",  label:"Nombre",     val:a=>a.nombre},
+      {key:"apellido",label:"Apellido",   val:a=>a.apellido||""},
+      {key:"nacimiento",label:"Cumpleaños",val:a=>a.fecha_nacimiento||"z"},
+    ],
+    pageSize:15,
+  });
 
   return (
     <div>
@@ -2364,9 +2531,9 @@ function Alumnos({ cursoId, isAdmin }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Alumnos 🎒</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{alumnos.length} alumnos en el curso</div>
       {isAdmin&&<button onClick={()=>{ setForm({nombre:"",fecha_nacimiento:""}); setModal("nuevo"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno</button>}
-      <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar alumno..." style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",marginBottom:14,boxSizing:"border-box",background:"white"}}/>
+      <ListToolbar busqueda={ctrl.busqueda} setBusqueda={ctrl.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrl.sortKey} sortAsc={ctrl.sortAsc} toggleSort={ctrl.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrl.resetFiltros} total={ctrl.total} placeholder="Buscar alumno..."/>
       <div style={{maxWidth:560}}>
-        {filtrados.map(a=>{
+        {ctrl.items.map(a=>{
           const apoderados=(a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
           return (
             <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
@@ -2388,7 +2555,8 @@ function Alumnos({ cursoId, isAdmin }) {
             </Card>
           );
         })}
-        {filtrados.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No se encontraron alumnos</div>}
+        {ctrl.items.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No se encontraron alumnos</div>}
+        <Paginador pagina={ctrl.pagina} totalPag={ctrl.totalPag} setPagina={ctrl.setPagina}/>
       </div>
     </div>
   );
@@ -2515,11 +2683,18 @@ function AdminPanel({ cursoId, cursoNombre }) {
       {/* Recordatorios */}
       <div style={{maxWidth:560,marginBottom:24}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>📌 Recordatorios</div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>Recordatorios</div>
           <button onClick={()=>setRecForm({texto:"",emoji:"📌",urgente:false,prioridad:"media",fecha:""})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
         </div>
-        {recordatorios.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:"10px 0"}}>Sin recordatorios</div>}
-        {recordatorios.map(r=>(
+        {[...recordatorios].sort((a,b)=>{
+          const priOrd={alta:0,media:1,baja:2};
+          if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
+          const pa=priOrd[a.prioridad||"media"],pb=priOrd[b.prioridad||"media"];
+          if(pa!==pb) return pa-pb;
+          if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
+          if(a.fecha) return -1; if(b.fecha) return 1;
+          return 0;
+        }).map(r=>(
           <Card key={r.id} style={{padding:"11px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,borderLeft:r.urgente?"3px solid #EF4444":"3px solid #E2E8F0",background:r.urgente?"#FFF1F2":"white"}}>
             <span style={{fontSize:20}}>{r.emoji}</span>
             <div style={{flex:1}}>
