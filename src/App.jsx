@@ -1186,6 +1186,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
+    setLeidosMuro(leidosIds);
     const hoyStr = new Date().toISOString().split("T")[0];
     const recsNoLeidos = (recordatorios.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr);
     // colectas pendientes para mis hijos
@@ -1204,7 +1205,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
 
   const marcarLeidoMuro = async (recId) => {
     if(!userId) return;
-    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    if(error) { console.error("marcarLeido error:", error); return; }
     setLeidosMuro(p=> new Set([...p, recId]));
   };
 
@@ -3922,7 +3924,7 @@ function Alumnos({ cursoId, isAdmin }) {
 }
 
 
-function RecordatoriosTab({ cursoId, userId, isAdmin }) {
+function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -3955,6 +3957,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin }) {
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
+  useEffect(()=>{ if(active) cargar(); },[active]);
 
   const guardar = async () => {
     if(!form.texto?.trim()) return;
@@ -4572,7 +4575,7 @@ export default function App() {
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
 
       case "finanzas":      return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} active={tab==="recordatorios"}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
 
       case "contacto":      return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
