@@ -733,7 +733,7 @@ function SuperAdmin() {
         ))}
       </div>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"horarios",l:"🕐 Horarios"},{id:"uniformes",l:"👕 Uniformes"}].map(t=>(
+        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"horarios",l:"🕐 Horarios"},{id:"uniformes",l:"👕 Uniformes"},{id:"colegio",l:"🏫 Colegio"}].map(t=>(
           <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -861,6 +861,9 @@ function SuperAdmin() {
       )}
       {sec==="uniformes"&&(
         <UniformesAdmin cursos={cursos}/>
+      )}
+      {sec==="colegio"&&(
+        <Contacto isSuperAdmin={true}/>
       )}
     </div>
   );
@@ -3448,30 +3451,148 @@ function Alumnos({ cursoId, isAdmin }) {
   );
 }
 
-function Contacto({ cursoId }) {
-  const [contactos,setContactos]=useState([]);
-  useEffect(()=>{ supabase.from("contactos").select("*").eq("curso_id",cursoId).then(r=>setContactos(r.data||[])); },[cursoId]);
+function Contacto({ cursoId, isSuperAdmin=false }) {
+  const [colegio,    setColegio]    = useState(null);
+  const [contactos,  setContactos]  = useState([]);
+  const [editColegio,setEditColegio]= useState(false);
+  const [colegioForm,setColegioForm]= useState({});
+  const [modal,      setModal]      = useState(null); // null | {} | {id,...}
+  const [form,       setForm]       = useState({nombre:"",rol:"",telefono:"",email:"",orden:0});
+  const [saving,     setSaving]     = useState(false);
+
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const cargar = async () => {
+    const [col, con] = await Promise.all([
+      supabase.from("colegio").select("*").eq("id",1).single(),
+      supabase.from("contactos").select("*").order("orden").order("nombre"),
+    ]);
+    setColegio(col.data||{});
+    setContactos(con.data||[]);
+  };
+
+  useEffect(()=>{ cargar(); },[]);
+
+  const guardarColegio = async () => {
+    setSaving(true);
+    await supabase.from("colegio").upsert({...colegioForm, id:1});
+    setSaving(false); setEditColegio(false); cargar();
+  };
+
+  const guardarContacto = async () => {
+    if(!form.nombre?.trim()) return;
+    setSaving(true);
+    if(modal?.id) await supabase.from("contactos").update(form).eq("id",modal.id);
+    else          await supabase.from("contactos").insert(form);
+    setSaving(false); setModal(null); cargar();
+  };
+
+  const eliminarContacto = async (id) => {
+    await supabase.from("contactos").delete().eq("id",id);
+    cargar();
+  };
+
+  const openModal = (c=null) => {
+    setModal(c||{});
+    setForm(c ? {nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||"",orden:c.orden||0}
+              : {nombre:"",rol:"",telefono:"",email:"",orden:0});
+  };
+
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Contacto 📞</div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Contacto</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Directorio del colegio</div>
+
+      {/* Modal contacto */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar contacto":"Nuevo contacto"}</div>
+            {[{l:"Nombre",k:"nombre",ph:"Ej: Secretaría"},{l:"Rol / Cargo",k:"rol",ph:"Ej: Directora, Secretaria"},{l:"Teléfono",k:"telefono",ph:"Ej: +54 11 1234-5678"},{l:"Email",k:"email",ph:"Ej: secretaria@colegio.edu"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarContacto} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <div style={{maxWidth:560}}>
-        {contactos.map((c,i)=>(
-          <Card key={i} style={{padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:44,height:44,borderRadius:12,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.emoji}</div>
-            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{c.nombre}</div><div style={{fontSize:13,color:"#94A3B8"}}>{c.telefono}</div></div>
-            <a href={`tel:${c.telefono}`} style={{padding:"8px 14px",borderRadius:20,background:"#3B82F6",color:"white",fontSize:12,fontWeight:700,textDecoration:"none"}}>Llamar</a>
+
+        {/* ── Datos del colegio ── */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Datos del colegio</div>
+          {isSuperAdmin&&!editColegio&&<button onClick={()=>{setColegioForm(colegio||{});setEditColegio(true);}} style={{fontSize:12,padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontWeight:600,color:"#64748B"}}>Editar</button>}
+        </div>
+
+        {editColegio ? (
+          <Card style={{padding:"16px 18px",marginBottom:18}}>
+            {[{l:"Nombre del colegio",k:"nombre"},{l:"Teléfono",k:"telefono"},{l:"Email",k:"email"},{l:"Dirección",k:"direccion"},{l:"URL Google Maps",k:"url_maps"},{l:"Horario de clases",k:"horario_clases",ph:"Ej: 8:00 — 16:00"},{l:"Horario secretaría",k:"horario_secretaria",ph:"Ej: 8:00 — 17:00"},{l:"Sitio web",k:"sitio_web"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarColegio} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            </div>
+          </Card>
+        ) : (
+          <Card style={{padding:"16px 18px",marginBottom:18}}>
+            {colegio?.nombre&&<div style={{fontSize:15,fontWeight:800,marginBottom:12}}>{colegio.nombre}</div>}
+            {[
+              {l:"Teléfono",       v:colegio?.telefono,        href:`tel:${colegio?.telefono}`},
+              {l:"Email",          v:colegio?.email,           href:`mailto:${colegio?.email}`},
+              {l:"Dirección",      v:colegio?.direccion,       href:colegio?.url_maps||null},
+              {l:"Horario clases", v:colegio?.horario_clases},
+              {l:"Secretaría",     v:colegio?.horario_secretaria},
+              {l:"Sitio web",      v:colegio?.sitio_web,       href:colegio?.sitio_web},
+            ].filter(r=>r.v).map((r,i,arr)=>(
+              <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<arr.length-1?"1px solid #F1F5F9":"none"}}>
+                <span style={{fontSize:12,color:"#94A3B8",flexShrink:0}}>{r.l}</span>
+                {r.href
+                  ? <a href={r.href} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:600,color:"#3B82F6",textAlign:"right",maxWidth:"60%",wordBreak:"break-all"}}>{r.v}</a>
+                  : <span style={{fontSize:13,fontWeight:600,textAlign:"right"}}>{r.v}</span>}
+              </div>
+            ))}
+            {!colegio?.nombre&&!colegio?.telefono&&!colegio?.email&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"8px 0"}}>Sin datos cargados aún</div>}
+          </Card>
+        )}
+
+        {/* ── Contactos ── */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Directorio</div>
+          {isSuperAdmin&&<button onClick={()=>openModal()} style={{fontSize:12,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Nuevo</button>}
+        </div>
+
+        {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
+
+        {contactos.map(c=>(
+          <Card key={c.id} style={{padding:"13px 16px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+                {c.rol&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{c.rol}</div>}
+                <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
+                  {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,fontWeight:600,color:"#3B82F6",textDecoration:"none"}}>{c.telefono}</a>}
+                  {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,fontWeight:600,color:"#3B82F6",textDecoration:"none"}}>{c.email}</a>}
+                </div>
+              </div>
+              {isSuperAdmin&&(
+                <div style={{display:"flex",gap:4,flexShrink:0}}>
+                  <button onClick={()=>openModal(c)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+                  <button onClick={()=>eliminarContacto(c.id)} style={{padding:"4px 8px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                </div>
+              )}
+            </div>
           </Card>
         ))}
-        <Card style={{padding:"16px 18px",marginTop:16,background:"#F8FAFC"}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Info general</div>
-          {[{l:"Horario de clases",v:"8:00 — 16:00"},{l:"Horario secretaría",v:"8:00 — 17:00"},{l:"Dirección",v:"Av. Corrientes 1234, CABA"}].map((r,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:i<2?"1px solid #E2E8F0":"none"}}>
-              <span style={{fontSize:12,color:"#94A3B8"}}>{r.l}</span>
-              <span style={{fontSize:12,fontWeight:600}}>{r.v}</span>
-            </div>
-          ))}
-        </Card>
       </div>
     </div>
   );
@@ -3816,7 +3937,7 @@ export default function App() {
       case "finanzas": return <Finanzas cursoId={cursoId}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
 
-      case "contacto": return <Contacto cursoId={cursoId}/>;
+      case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
