@@ -1185,8 +1185,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
-    const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
-    setLeidosMuro(leidosIds);
+    const leidosIds = new Set((leidosData.data||[]).map(l=>Number(l.recordatorio_id)));
+    setLeidosMuro(new Set([...leidosIds].map(Number)));
     const hoyStr = new Date().toISOString().split("T")[0];
     const recsNoLeidos = (recordatorios.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr);
     // colectas pendientes para mis hijos
@@ -1205,14 +1205,15 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
 
   const marcarLeidoMuro = async (recId) => {
     if(!userId) return;
-    if(leidosMuro.has(recId)) {
-      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",recId).eq("usuario_id",Number(userId));
+    const nid = Number(recId);
+    if(leidosMuro.has(nid)) {
+      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",Number(userId));
       if(error) { console.error("desmarcarLeido error:", error); return; }
-      setLeidosMuro(p=>{ const n=new Set(p); n.delete(recId); return n; });
+      setLeidosMuro(p=>{ const n=new Set(p); n.delete(nid); return n; });
     } else {
-      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
       if(error) { console.error("marcarLeido error:", error); return; }
-      setLeidosMuro(p=> new Set([...p, recId]));
+      setLeidosMuro(p=> new Set([...p, nid]));
     }
   };
 
@@ -2988,15 +2989,21 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
             {alumnos.map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
+              const esResponsable = isAdmin || Number(userId)===Number(vistaAdmin.responsable_id);
               return (
                 <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid #F1F5F9"}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
                     {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
                   </div>
-                  <button onClick={()=>togglePago(vistaAdmin.id,a.id,pago?.estado)} style={{padding:"5px 14px",borderRadius:20,border:"none",background:pagado?"#10B981":"#F1F5F9",color:pagado?"white":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-                    {pagado?"Pagado":"Pendiente"}
-                  </button>
+                  {esResponsable
+                    ? <button onClick={()=>togglePago(vistaAdmin.id,a.id,pago?.estado)} style={{padding:"5px 14px",borderRadius:20,border:"none",background:pagado?"#10B981":"#F1F5F9",color:pagado?"white":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                        {pagado?"✓ Pagado":"Marcar pagado"}
+                      </button>
+                    : <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:pagado?"#F0FDF4":"#F8FAFC",color:pagado?"#10B981":"#94A3B8",border:`1px solid ${pagado?"#BBF7D0":"#E2E8F0"}`}}>
+                        {pagado?"✓ Pagado":"Pendiente"}
+                      </span>
+                  }
                 </div>
               );
             })}
@@ -3073,7 +3080,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
                 {misAlumnos.map(a=>{
                   const pago        = getPago(c.id,a.id);
                   const pagado      = pago?.estado==="pagado";
-                  const esResponsable = Number(userId)===Number(c.responsable_id);
+                  const esResponsable = isAdmin || Number(userId)===Number(c.responsable_id);
                   return (
                     <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
                       <div style={{flex:1}}>
@@ -3961,7 +3968,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
     setRecordatorios(recs.data||[]);
-    setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
+    setLeidosSet(new Set((leidos.data||[]).map(r=>Number(r.recordatorio_id))));
     setAlerta((al.data||[])[0]||null);
   };
 
@@ -3984,12 +3991,13 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
 
   const marcarLeido = async (id) => {
     if(!userId) return;
-    if(leidosSet.has(id)) {
-      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",id).eq("usuario_id",Number(userId));
-      setLeidosSet(p=>{ const n=new Set(p); n.delete(id); return n; });
+    const nid = Number(id);
+    if(leidosSet.has(nid)) {
+      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",Number(userId));
+      setLeidosSet(p=>{ const n=new Set(p); n.delete(nid); return n; });
     } else {
-      await supabase.from("recordatorio_leidos").upsert({recordatorio_id:id,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
-      setLeidosSet(p=>new Set([...p,id]));
+      await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      setLeidosSet(p=>new Set([...p,nid]));
     }
   };
 
@@ -4599,6 +4607,23 @@ export default function App() {
     }
   };
 
+  const TABS_ORDER = TABS.map(t=>t.id);
+  const handleSwipe = (() => {
+    let x0 = null;
+    return {
+      onTouchStart: e => { x0 = e.touches[0].clientX; },
+      onTouchEnd:   e => {
+        if(x0===null) return;
+        const dx = e.changedTouches[0].clientX - x0;
+        x0 = null;
+        if(Math.abs(dx) < 50) return;
+        const idx = TABS_ORDER.indexOf(tab);
+        if(dx < 0 && idx < TABS_ORDER.length-1) setTab(TABS_ORDER[idx+1]);
+        if(dx > 0 && idx > 0) setTab(TABS_ORDER[idx-1]);
+      }
+    };
+  })();
+
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
       <div style={{background:"#0F172A",position:"sticky",top:0,zIndex:100}}>
@@ -4627,7 +4652,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      <div style={{padding:"20px 16px",color:"#0F172A"}}>{renderTab()}</div>
+      <div style={{padding:"20px 16px",color:"#0F172A"}} onTouchStart={handleSwipe.onTouchStart} onTouchEnd={handleSwipe.onTouchEnd}>{renderTab()}</div>
     </div>
   );
 
