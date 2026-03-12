@@ -1336,7 +1336,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
             const hoyD = new Date(); hoyD.setHours(0,0,0,0);
             const dias = Math.round((d-hoyD)/86400000);
             return (
-              <div key={e.id} onClick={()=>onNavigate?.("clases")} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`,cursor:"pointer"}}>
+              <div key={e.id} onClick={()=>onNavigate?.("clases",{openFecha:e.fecha})} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <div style={{width:40,height:40,borderRadius:12,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cfg.emoji}</div>
                   <div style={{flex:1}}>
@@ -1722,7 +1722,7 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   );
 }
 
-function Calendario({ cursoId, userId, isAdmin, misHijos=[] }) {
+function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha }) {
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
   const [filtroTipo,   setFiltroTipo]   = useState("todos");
@@ -1779,6 +1779,15 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[] }) {
     setCumples(todos);
   };
   useEffect(()=>{ cargar(); cargarRecs(); },[cursoId]);
+
+  useEffect(()=>{
+    if(!openFecha) return;
+    const d = new Date(openFecha+"T00:00:00");
+    setMes(new Date(d.getFullYear(), d.getMonth(), 1));
+    setDiaSelec({year:d.getFullYear(), month:d.getMonth(), day:d.getDate()});
+    setVista("mes");
+    onClearOpenFecha?.();
+  },[openFecha]);
 
   const eliminar = async (id) => {
     await supabase.from("eventos").delete().eq("id", id);
@@ -4439,6 +4448,7 @@ export default function App() {
   const [perfilElegido,setPerfilElegido] = useState(null); // null | "admin" | "padre"
   const [tab,setTab]               = useState("muro");
   const [openColecta,setOpenColecta]   = useState(null);
+  const [openFecha,setOpenFecha]         = useState(null);
   const [cursoIdx,setCursoIdx]     = useState(0);
   const [items,setItems]           = useState([]);
 
@@ -4491,8 +4501,8 @@ export default function App() {
   const renderTab = () => {
     if(!cursoId) return <Spinner/>;
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={usuario.hijos||[]} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); }}/>;
-      case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={usuario.hijos||[]} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); if(extra?.openFecha) setOpenFecha(extra.openFecha); }}/>;
+      case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
 
