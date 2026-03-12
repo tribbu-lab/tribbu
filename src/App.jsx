@@ -3071,17 +3071,23 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
             {!isAdmin&&misAlumnos.length>0&&(
               <div style={{padding:"10px 16px"}}>
                 {misAlumnos.map(a=>{
-                  const pago   = getPago(c.id,a.id);
-                  const pagado = pago?.estado==="pagado";
+                  const pago        = getPago(c.id,a.id);
+                  const pagado      = pago?.estado==="pagado";
+                  const esResponsable = Number(userId)===Number(c.responsable_id);
                   return (
                     <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
                         {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
                       </div>
-                      <button onClick={()=>c.activa&&togglePago(c.id,a.id,pago?.estado)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${pagado?"#10B981":"#E2E8F0"}`,background:pagado?"#10B981":"white",color:pagado?"white":"#64748B",cursor:c.activa?"pointer":"default",fontSize:12,fontWeight:700,transition:"all 0.15s",opacity:c.activa?1:0.5}}>
-                        {pagado?"Pagado":"Marcar pagado"}
-                      </button>
+                      {esResponsable
+                        ? <button onClick={()=>c.activa&&togglePago(c.id,a.id,pago?.estado)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${pagado?"#10B981":"#E2E8F0"}`,background:pagado?"#10B981":"white",color:pagado?"white":"#64748B",cursor:c.activa?"pointer":"default",fontSize:12,fontWeight:700,transition:"all 0.15s",opacity:c.activa?1:0.5}}>
+                            {pagado?"✓ Pagado":"Marcar pagado"}
+                          </button>
+                        : <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:pagado?"#F0FDF4":"#F8FAFC",color:pagado?"#10B981":"#94A3B8",border:`1px solid ${pagado?"#BBF7D0":"#E2E8F0"}`}}>
+                            {pagado?"✓ Pagado":"Pendiente"}
+                          </span>
+                      }
                     </div>
                   );
                 })}
