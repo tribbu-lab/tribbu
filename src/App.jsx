@@ -1813,42 +1813,74 @@ function Calendario({ cursoId, userId, isAdmin }) {
         const DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
         const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444"];
         const fmtHora = t => t ? t.slice(0,5) : "";
-        const porDia = DIAS.map(dia=>({
-          dia,
-          clases: horarios.filter(h=>h.dia===dia).sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)),
-        })).filter(d=>d.clases.length>0);
+        // Collect all unique time slots sorted
+        const allSlots = [...new Set(
+          horarios.map(h=>h.hora_inicio)
+        )].sort();
+
         return (
-          <div style={{maxWidth:640}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Horario semanal</div>
-            {porDia.length===0&&(
+          <div>
+            <div style={{fontSize:16,fontWeight:900,color:"#0F172A",marginBottom:2}}>Horario de Clases</div>
+            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Vista semanal</div>
+
+            {horarios.length===0&&(
               <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
                 {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
               </div>
             )}
-            {porDia.map((row,i)=>{
-              const dc = DIA_COLORS[DIAS.indexOf(row.dia)%5];
-              return (
-                <Card key={row.dia} style={{marginBottom:10,overflow:"hidden"}}>
-                  <div style={{background:dc+"18",padding:"8px 14px",borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:32,height:32,borderRadius:10,background:dc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{row.dia.slice(0,3).toUpperCase()}</div>
-                    <span style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{row.dia}</span>
-                    <span style={{fontSize:11,color:"#94A3B8",marginLeft:"auto"}}>{row.clases.length} clase{row.clases.length!==1?"s":""}</span>
-                  </div>
-                  <div>
-                    {row.clases.map((h,j)=>(
-                      <div key={h.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 14px",borderBottom:j<row.clases.length-1?"1px solid #F8FAFC":"none",background:j%2===0?"white":"#FAFAFA"}}>
-                        <div style={{width:80,fontSize:11,fontWeight:700,color:"#64748B",flexShrink:0}}>{fmtHora(h.hora_inicio)} – {fmtHora(h.hora_fin)}</div>
-                        <div style={{width:8,height:8,borderRadius:"50%",background:h.color||dc,flexShrink:0}}/>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{h.materia}</div>
-                          {h.docente&&<div style={{fontSize:11,color:"#94A3B8"}}>{h.docente}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              );
-            })}
+
+            {horarios.length>0&&(
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{borderCollapse:"collapse",minWidth:520,width:"100%",tableLayout:"fixed"}}>
+                  <colgroup>
+                    <col style={{width:68}}/>
+                    {DIAS.map(d=><col key={d} style={{width:"18%"}}/>)}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th style={{padding:"8px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:10,color:"#94A3B8",fontWeight:700}}></th>
+                      {DIAS.map((d,i)=>(
+                        <th key={d} style={{padding:"8px 6px",background:DIA_COLORS[i]+"18",border:"1px solid #E2E8F0",fontSize:11,fontWeight:800,color:DIA_COLORS[i],textAlign:"center",letterSpacing:0.3}}>
+                          {d.slice(0,3).toUpperCase()}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSlots.map((slot,si)=>{
+                      // find max hora_fin for this slot to show range
+                      const slotClases = horarios.filter(h=>h.hora_inicio===slot);
+                      const maxFin = slotClases.map(h=>h.hora_fin).sort().pop();
+                      return (
+                        <tr key={slot}>
+                          <td style={{padding:"6px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",textAlign:"center",verticalAlign:"middle"}}>
+                            <div style={{fontSize:10,fontWeight:700,color:"#64748B",whiteSpace:"nowrap"}}>{fmtHora(slot)}</div>
+                            {maxFin&&<div style={{fontSize:9,color:"#CBD5E1",whiteSpace:"nowrap"}}>{fmtHora(maxFin)}</div>}
+                          </td>
+                          {DIAS.map((dia,di)=>{
+                            const clase = horarios.find(h=>h.dia===dia&&h.hora_inicio===slot);
+                            const dc = DIA_COLORS[di];
+                            return (
+                              <td key={dia} style={{padding:"5px 5px",border:"1px solid #E2E8F0",verticalAlign:"top",background:"white"}}>
+                                {clase ? (
+                                  <div style={{background:(clase.color||dc)+"18",border:`1.5px solid ${clase.color||dc}44`,borderRadius:8,padding:"6px 7px",height:"100%",boxSizing:"border-box"}}>
+                                    <div style={{fontSize:11,fontWeight:700,color:clase.color||dc,lineHeight:1.3,marginBottom:clase.docente?2:0}}>{clase.materia}</div>
+                                    {clase.docente&&<div style={{fontSize:9,color:"#94A3B8",lineHeight:1.2}}>{clase.docente}</div>}
+                                    <div style={{fontSize:9,color:"#CBD5E1",marginTop:2}}>{fmtHora(clase.hora_inicio)}–{fmtHora(clase.hora_fin)}</div>
+                                  </div>
+                                ) : (
+                                  <div style={{height:52}}/>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -2352,13 +2384,15 @@ function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
 
 // ── Uniformes component ───────────────────────────────────────────────────────
 function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
-  const [uniformes,   setUniformes]   = useState([]);
-  const [adquiridos,  setAdquiridos]  = useState(new Set());
-  const [togglingId,  setTogglingId]  = useState(null);
-  const [modal,       setModal]       = useState(null); // null | uniforme obj
-  const [itemForm,    setItemForm]    = useState("");   // nuevo item text
-  const [tipoForm,    setTipoForm]    = useState("");
-  const [savingTipo,  setSavingTipo]  = useState(false);
+  const [uniformes,  setUniformes]  = useState([]);
+  const [adquiridos, setAdquiridos] = useState(new Set());
+  const [togglingId, setTogglingId] = useState(null);
+  // modal: null | {mode:"newTipo"} | {mode:"editTipo",u} | {mode:"newItem",u} | {mode:"editItem",u,it}
+  const [modal,      setModal]      = useState(null);
+  const [form,       setForm]       = useState({tipo:"",emoji:"👕",item:""});
+  const [saving,     setSaving]     = useState(false);
+
+  const EMOJIS_UNI = ["👕","👖","👟","🧥","🎽","🧢","👗","🩳"];
 
   const cargar = async () => {
     const [uni, adq] = await Promise.all([
@@ -2383,59 +2417,92 @@ function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
     setTogglingId(null);
   };
 
-  const guardarTipo = async () => {
-    if(!tipoForm.trim()) return;
-    setSavingTipo(true);
-    await supabase.from("uniformes").insert({curso_id:cursoId, tipo:tipoForm.trim(), emoji:"👕"});
-    setTipoForm(""); setSavingTipo(false); cargar();
+  const guardar = async () => {
+    if(!modal) return;
+    setSaving(true);
+    if(modal.mode==="newTipo") {
+      if(!form.tipo.trim()) { setSaving(false); return; }
+      await supabase.from("uniformes").insert({curso_id:cursoId, tipo:form.tipo.trim(), emoji:form.emoji||"👕"});
+    } else if(modal.mode==="editTipo") {
+      if(!form.tipo.trim()) { setSaving(false); return; }
+      await supabase.from("uniformes").update({tipo:form.tipo.trim(), emoji:form.emoji||"👕"}).eq("id",modal.u.id);
+    } else if(modal.mode==="newItem") {
+      if(!form.item.trim()) { setSaving(false); return; }
+      await supabase.from("uniforme_items").insert({uniforme_id:modal.u.id, item:form.item.trim()});
+    } else if(modal.mode==="editItem") {
+      if(!form.item.trim()) { setSaving(false); return; }
+      await supabase.from("uniforme_items").update({item:form.item.trim()}).eq("id",modal.it.id);
+    }
+    setSaving(false); setModal(null); cargar();
   };
 
-  const eliminarTipo = async (id) => {
-    await supabase.from("uniformes").delete().eq("id",id);
-    cargar();
-  };
+  const eliminarTipo = async (id) => { await supabase.from("uniformes").delete().eq("id",id); cargar(); };
+  const eliminarItem = async (id) => { await supabase.from("uniforme_items").delete().eq("id",id); cargar(); };
 
-  const agregarItem = async (uniformeId) => {
-    if(!itemForm.trim()) return;
-    await supabase.from("uniforme_items").insert({uniforme_id:uniformeId, item:itemForm.trim()});
-    setItemForm(""); setModal(null); cargar();
-  };
-
-  const eliminarItem = async (itemId) => {
-    await supabase.from("uniforme_items").delete().eq("id",itemId);
-    cargar();
+  const openModal = (mode, u=null, it=null) => {
+    setModal({mode,u,it});
+    if(mode==="newTipo")  setForm({tipo:"",emoji:"👕",item:""});
+    if(mode==="editTipo") setForm({tipo:u.tipo||"",emoji:u.emoji||"👕",item:""});
+    if(mode==="newItem")  setForm({tipo:"",emoji:"",item:""});
+    if(mode==="editItem") setForm({tipo:"",emoji:"",item:it.item||""});
   };
 
   const allItems = uniformes.flatMap(u=>(u.uniforme_items||[]));
-  const total = allItems.length;
+  const total    = allItems.length;
   const adqCount = allItems.filter(it=>adquiridos.has(it.id)).length;
-  const pct = total ? Math.round(adqCount/total*100) : 0;
+  const pct      = total ? Math.round(adqCount/total*100) : 0;
 
   const exportar = () => exportarPDF(
-    uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo, Ítem:it.item, Adquirido:adquiridos.has(it.id)?"✓":""}))),
-    "uniformes",
-    { titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem","Adquirido"] }
+    uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo,Ítem:it.item,Adquirido:adquiridos.has(it.id)?"✓":""}))),
+    "uniformes", { titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem","Adquirido"] }
   );
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
+  const modalTitle = modal ? ({newTipo:"Nueva categoría",editTipo:"Editar categoría",newItem:"Agregar ítem",editItem:"Editar ítem"}[modal.mode]) : "";
+
   return (
     <div style={{maxWidth:600}}>
-      {/* Modal agregar item */}
+
+      {/* ── Modal ── */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:380}}>
-            <div style={{fontSize:14,fontWeight:900,marginBottom:12}}>Agregar ítem — {modal.tipo}</div>
-            <input value={itemForm} onChange={e=>setItemForm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&agregarItem(modal.id)} placeholder="Ej: Remera blanca manga corta" style={{...inp,marginBottom:12}}/>
+            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>{modalTitle}{modal.u?" — "+modal.u.tipo:""}</div>
+
+            {/* Tipo/Emoji fields for newTipo / editTipo */}
+            {(modal.mode==="newTipo"||modal.mode==="editTipo")&&(<>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>NOMBRE</div>
+                <input value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))} placeholder="Ej: Deportivo, Formal..." style={inp} autoFocus/>
+              </div>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>EMOJI</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {EMOJIS_UNI.map(e=>(
+                    <button key={e} onClick={()=>setForm(p=>({...p,emoji:e}))} style={{width:36,height:36,borderRadius:8,border:form.emoji===e?"2.5px solid #3B82F6":"1.5px solid #E2E8F0",background:form.emoji===e?"#EFF6FF":"white",fontSize:18,cursor:"pointer"}}>{e}</button>
+                  ))}
+                </div>
+              </div>
+            </>)}
+
+            {/* Item field for newItem / editItem */}
+            {(modal.mode==="newItem"||modal.mode==="editItem")&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ÍTEM</div>
+                <input value={form.item} onChange={e=>setForm(p=>({...p,item:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&guardar()} placeholder="Ej: Remera blanca manga corta" style={inp} autoFocus/>
+              </div>
+            )}
+
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{setModal(null);setItemForm("");}} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={()=>agregarItem(modal.id)} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Agregar</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
           </Card>
         </div>
       )}
 
-      {/* Barra progreso */}
+      {/* ── Progreso ── */}
       {total>0&&(
         <div style={{marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
@@ -2447,12 +2514,13 @@ function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12,gap:8}}>
+      {/* ── Toolbar ── */}
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:12,gap:8,alignItems:"center"}}>
+        {isAdmin&&<button onClick={()=>openModal("newTipo")} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva categoría</button>}
         {total>0&&<button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>}
       </div>
 
-      {/* Lista por tipo */}
+      {/* ── Lista ── */}
       {uniformes.map((u,i)=>{
         const items = u.uniforme_items||[];
         const bg = ["#EEF2FF","#F0FDF4","#FFF7ED"][i%3];
@@ -2463,7 +2531,8 @@ function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
               <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
               {isAdmin&&(
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{setModal(u);setItemForm("");}} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
+                  <button onClick={()=>openModal("newItem",u)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
+                  <button onClick={()=>openModal("editTipo",u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
                   <button onClick={()=>eliminarTipo(u.id)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
                 </div>
               )}
@@ -2477,28 +2546,22 @@ function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
                       {adq?"✓":""}
                     </button>
                     <span style={{fontSize:13,flex:1,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{it.item}</span>
-                    {isAdmin&&<button onClick={()=>eliminarItem(it.id)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444",flexShrink:0}}>🗑</button>}
+                    {isAdmin&&(
+                      <div style={{display:"flex",gap:4,flexShrink:0}}>
+                        <button onClick={()=>openModal("editItem",u,it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
+                        <button onClick={()=>eliminarItem(it.id)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
-              {items.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems. Agregá uno con + Ítem.</div>}
+              {items.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems cargados aún.</div>}
             </div>
           </Card>
         );
       })}
 
-      {/* Nuevo tipo (admin) */}
-      {isAdmin&&(
-        <Card style={{padding:"14px 16px",marginTop:4}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8,textTransform:"uppercase",letterSpacing:0.8}}>Nuevo tipo de uniforme</div>
-          <div style={{display:"flex",gap:8}}>
-            <input value={tipoForm} onChange={e=>setTipoForm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&guardarTipo()} placeholder="Ej: Deportivo, Formal..." style={{...inp,flex:1}}/>
-            <button onClick={guardarTipo} disabled={savingTipo} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0}}>{savingTipo?"...":"Agregar"}</button>
-          </div>
-        </Card>
-      )}
-
-      {uniformes.length===0&&!isAdmin&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin uniformes cargados</div>}
+      {uniformes.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>{isAdmin?"Creá la primera categoría con + Nueva categoría":"Sin uniformes cargados"}</div>}
     </div>
   );
 }
