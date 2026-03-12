@@ -1903,7 +1903,10 @@ function Libros({ cursoId, userId, isAdmin }) {
           <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
           {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
         </div>
-        {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>exportarExcel(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link descarga":l.url_descarga||""})),"libros.xlsx")} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -1953,34 +1956,208 @@ function Libros({ cursoId, userId, isAdmin }) {
   );
 }
 
+// ── Export helper ─────────────────────────────────────────────────────────────
+function exportarExcel(rows, nombreArchivo) {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Datos");
+  XLSX.writeFile(wb, nombreArchivo);
+}
+
+// ── Útiles component ──────────────────────────────────────────────────────────
+function Utiles({ cursoId, userId, isAdmin }) {
+  const [utiles,    setUtiles]    = useState([]);
+  const [adquiridos,setAdquiridos]= useState(new Set());
+  const [modal,     setModal]     = useState(null);
+  const [form,      setForm]      = useState({});
+  const [busqueda,  setBusqueda]  = useState("");
+  const [filtroCat, setFiltroCat] = useState("all");
+  const [togglingId,setTogglingId]= useState(null);
+
+  const cargar = async () => {
+    const [ut, adq] = await Promise.all([
+      supabase.from("utiles").select("*").eq("curso_id", cursoId).order("categoria").order("item"),
+      userId ? supabase.from("util_adquirido").select("util_id").eq("usuario_id", Number(userId)) : Promise.resolve({data:[]}),
+    ]);
+    setUtiles(ut.data||[]);
+    setAdquiridos(new Set((adq.data||[]).map(r=>r.util_id)));
+  };
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const toggleAdquirido = async (id) => {
+    if(!userId) return;
+    setTogglingId(id);
+    if(adquiridos.has(id)) {
+      await supabase.from("util_adquirido").delete().eq("util_id",id).eq("usuario_id",Number(userId));
+      setAdquiridos(p=>{ const n=new Set(p); n.delete(id); return n; });
+    } else {
+      await supabase.from("util_adquirido").insert({util_id:id, usuario_id:Number(userId)});
+      setAdquiridos(p=>new Set([...p,id]));
+    }
+    setTogglingId(null);
+  };
+
+  const guardar = async () => {
+    if(!form.item?.trim()) return;
+    const payload = {item:form.item.trim(), categoria:form.categoria||null, cantidad:form.cantidad||null, comentario:form.comentario||null, curso_id:cursoId};
+    if(modal?.id) await supabase.from("utiles").update(payload).eq("id",modal.id);
+    else          await supabase.from("utiles").insert(payload);
+    setModal(null); setForm({}); cargar();
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("util_adquirido").delete().eq("util_id",id);
+    await supabase.from("utiles").delete().eq("id",id);
+    cargar();
+  };
+
+  const categorias = [...new Set(utiles.map(u=>u.categoria).filter(Boolean))].sort();
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const filtrados = utiles.filter(u=>{
+    const q = busqueda.toLowerCase();
+    if(q && !u.item?.toLowerCase().includes(q) && !(u.categoria||"").toLowerCase().includes(q)) return false;
+    if(filtroCat!=="all" && u.categoria!==filtroCat) return false;
+    return true;
+  });
+
+  const agrupados = filtrados.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push(u); return acc; },{});
+  const adquiridosCount = utiles.filter(u=>adquiridos.has(u.id)).length;
+
+  const exportar = () => exportarExcel(
+    utiles.map(u=>({ Nombre:u.item, Categoría:u.categoria||"", Cantidad:u.cantidad||"", Comentario:u.comentario||"" })),
+    "utiles.xlsx"
+  );
+
+  return (
+    <div style={{maxWidth:600}}>
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar útil":"Nuevo útil"}</div>
+            {[{l:"Nombre",k:"item",ph:"Ej: Cartuchera"},{l:"Categoría",k:"categoria",ph:"Ej: Papelería"},{l:"Cantidad",k:"cantidad",ph:"Ej: 2 unidades"},{l:"Comentario",k:"comentario",ph:"Ej: Con cierre doble"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                {f.k==="comentario"
+                  ? <textarea value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} rows={2} style={{...inp,resize:"none"}}/>
+                  : <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
+                }
+              </div>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar útil"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
+          {utiles.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/utiles.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+        <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar por nombre o categoría..." style={{flex:2,minWidth:160,padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",background:"white",boxSizing:"border-box"}}/>
+        <select value={filtroCat} onChange={e=>setFiltroCat(e.target.value)} style={{flex:1,minWidth:120,padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white"}}>
+          <option value="all">Todas las categorías</option>
+          {categorias.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+        {(busqueda||filtroCat!=="all")&&<button onClick={()=>{setBusqueda("");setFiltroCat("all");}} style={{padding:"8px 12px",borderRadius:10,border:"1px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:"#EF4444"}}>Limpiar</button>}
+      </div>
+      <div style={{fontSize:11,color:"#94A3B8",marginBottom:12}}>{filtrados.length} ítem{filtrados.length!==1?"s":""}</div>
+
+      {filtrados.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin útiles para mostrar</div>}
+
+      {Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b,"es")).map(([cat,items])=>(
+        <div key={cat} style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:2}}>{cat}</div>
+          {items.map(u=>{
+            const adq = adquiridos.has(u.id);
+            return (
+              <Card key={u.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
+                <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                  {adq?"✓":""}
+                </button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
+                    {u.cantidad&&<span style={{fontSize:11,color:"#64748B",background:"#F1F5F9",padding:"2px 8px",borderRadius:10}}>{u.cantidad}</span>}
+                  </div>
+                  {u.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{u.comentario}</div>}
+                </div>
+                {isAdmin&&(
+                  <div style={{display:"flex",gap:5,flexShrink:0}}>
+                    <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                    <button onClick={()=>eliminar(u.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── InfoUtil ──────────────────────────────────────────────────────────────────
 function InfoUtil({ cursoId, isAdmin, userId }) {
-  const [sec,setSec]=useState("utiles");
-  const [utiles,setUtiles]=useState([]);
-  const [uniformes,setUniformes]=useState([]);
+  const [sec,setSec] = useState("utiles");
+  const [uniformes,setUniformes] = useState([]);
+
   useEffect(()=>{
-    supabase.from("utiles").select("*").eq("curso_id",cursoId).then(r=>setUtiles(r.data||[]));
     supabase.from("uniformes").select("*, uniforme_items(item)").eq("curso_id",cursoId).then(r=>setUniformes(r.data||[]));
   },[cursoId]);
+
+  const exportarUniformes = () => exportarExcel(
+    uniformes.flatMap(u=>(u.uniforme_items||[]).map(it=>({Tipo:u.tipo, Item:it.item}))),
+    "uniformes.xlsx"
+  );
+
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Info Útil</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Listas y uniformes del curso</div>
-      <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:400}}>
+      <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:440}}>
         {[{id:"utiles",l:"Útiles"},{id:"uniformes",l:"Uniformes"},{id:"libros",l:"Libros"},{id:"alumnos",l:"Alumnos"}].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
-      {sec==="utiles"&&["Obligatorios","Opcionales"].map(tipo=>{
-        const items=utiles.filter(u=>tipo==="Obligatorios"?u.obligatorio:!u.obligatorio);
-        if(!items.length) return null;
-        return(<div key={tipo}><div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,marginTop:tipo==="Opcionales"?16:0}}>{tipo}</div>{items.map((u,i)=><Card key={i} style={{padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,maxWidth:560}}><span style={{fontSize:16}}>{tipo==="Obligatorios"?"✏️":"📐"}</span><span style={{fontSize:13,fontWeight:600,flex:1}}>{u.item}</span>{tipo==="Obligatorios"&&<Pill label="Obligatorio" color="#3B82F6" bg="#EFF6FF"/>}</Card>)}</div>);
-      })}
-      {sec==="uniformes"&&uniformes.map((u,i)=>(
-        <Card key={i} style={{padding:"14px 16px",marginBottom:12,maxWidth:560}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{width:38,height:38,borderRadius:10,background:["#EEF2FF","#F0FDF4","#FFF7ED"][i%3],display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{u.emoji}</div><div style={{fontSize:14,fontWeight:800}}>Uniforme {u.tipo}</div></div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>{(u.uniforme_items||[]).map((it,j)=><div key={j} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",background:"#F8FAFC",borderRadius:9}}><div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/><span style={{fontSize:13}}>{it.item}</span></div>)}</div>
-        </Card>
-      ))}
+
+      {sec==="utiles"&&<Utiles cursoId={cursoId} userId={userId} isAdmin={isAdmin}/>}
+
+      {sec==="uniformes"&&(
+        <div style={{maxWidth:600}}>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+            <button onClick={exportarUniformes} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          </div>
+          {uniformes.map((u,i)=>(
+            <Card key={i} style={{padding:"14px 16px",marginBottom:12,maxWidth:560}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <div style={{width:38,height:38,borderRadius:10,background:["#EEF2FF","#F0FDF4","#FFF7ED"][i%3],display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{u.emoji}</div>
+                <div style={{fontSize:14,fontWeight:800}}>Uniforme {u.tipo}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                {(u.uniforme_items||[]).map((it,j)=>(
+                  <div key={j} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",background:"#F8FAFC",borderRadius:9}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/>
+                    <span style={{fontSize:13}}>{it.item}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+          {uniformes.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin uniformes cargados</div>}
+        </div>
+      )}
+
       {sec==="libros"&&<Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin}/>}
       {sec==="alumnos"&&<Alumnos cursoId={cursoId} isAdmin={isAdmin}/>}
     </div>
