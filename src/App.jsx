@@ -1237,7 +1237,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
   return (
     <div>
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>{ setFestejoDetalle(null); cargar(); }} onUpdate={cargar}/>}
-      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} onClose={()=>setEventoDetalle(null)}/>}
+      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} onClose={()=>setEventoDetalle(null)} misHijos={misHijos} userId={userId}/>}
       <div style={{marginBottom:18}}>
         <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
@@ -1673,13 +1673,29 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     url_ubicacion: evento?.url_ubicacion || "",
     descripcion: evento?.descripcion || "",
     todo_el_dia: evento?.todo_el_dia !== false,
+    confirma_asistencia: evento?.confirma_asistencia ?? false,
   });
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   const guardar = async () => {
     if(!form.titulo || !form.fecha) return;
     const payload = { ...form, curso_id: cursoId, creado_por: userId };
-    if(esNuevo) await supabase.from("eventos").insert(payload);
-    else        await supabase.from("eventos").update(payload).eq("id", evento.id);
+    let eventoId = evento?.id;
+    if(esNuevo) {
+      const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
+      eventoId = ev?.id;
+    } else {
+      await supabase.from("eventos").update(payload).eq("id", evento.id);
+    }
+    // Si confirma_asistencia: crear filas pendientes para todos los apoderados del curso
+    if(form.confirma_asistencia && eventoId) {
+      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+      const hijosIds = (hijos||[]).map(h=>h.id);
+      if(hijosIds.length) {
+        const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
+        const rows = (uh||[]).map(r=>({ evento_id:eventoId, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
+        if(rows.length) await supabase.from("evento_asistencia").upsert(rows,{onConflict:"evento_id,usuario_id"});
+      }
+    }
     onSave();
   };
   return (
@@ -1690,7 +1706,7 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo").map(([k,v])=>(
-              <button key={k} onClick={()=>setForm(p=>({...p,tipo:k}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
+              <button key={k} onClick={()=>setForm(p=>({...p,tipo:k,confirma_asistencia:["paseo","acto","reunion"].includes(k)?p.confirma_asistencia:false}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
             ))}
           </div>
         </div>
@@ -1712,6 +1728,19 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             <button onClick={()=>setForm(p=>({...p,todo_el_dia:!p.todo_el_dia}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.todo_el_dia?"#3B82F6":"#E2E8F0"}`,background:form.todo_el_dia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.todo_el_dia?"#3B82F6":"#94A3B8"}}>Todo el día</button>
             {!form.todo_el_dia&&<input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))} style={{...inp,width:"auto",flex:1}}/>}
           </div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Confirmar asistencia</div>
+          <button onClick={()=>setForm(p=>({...p,confirma_asistencia:!p.confirma_asistencia}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.confirma_asistencia?"#3B82F6":"#E2E8F0"}`,background:form.confirma_asistencia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.confirma_asistencia?"#3B82F6":"#94A3B8"}}>
+            {form.confirma_asistencia?"✓ Solicitar confirmación de asistencia":"Sin confirmación de asistencia"}
+          </button>
+          <div style={{fontSize:11,color:"#94A3B8",marginTop:5}}>Si está activo, las familias podrán confirmar si van o no.</div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Confirmación de asistencia</div>
+          <button onClick={()=>setForm(p=>({...p,confirma_asistencia:!p.confirma_asistencia}))} style={{padding:"7px 16px",borderRadius:20,border:`2px solid ${form.confirma_asistencia?"#3B82F6":"#E2E8F0"}`,background:form.confirma_asistencia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.confirma_asistencia?"#3B82F6":"#94A3B8"}}>
+            {form.confirma_asistencia?"✓ Los apoderados deben confirmar asistencia":"Sin confirmación de asistencia"}
+          </button>
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
@@ -1843,6 +1872,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
   return (
     <div>
       {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
+      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
       {confirm && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,maxWidth:340,width:"100%"}}>
@@ -1924,7 +1954,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
                         </div>
                         {e.tipo==="festejo"
                         ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
-                        : <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>
+                        : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button> : null)
                       }
                         {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&(
                           <div style={{display:"flex",gap:4}}>
@@ -2009,6 +2039,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
                     {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
+                    {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
                     {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&(
                       <div style={{display:"flex",gap:4}}>
                         <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
@@ -3289,12 +3320,11 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
   );
 }
 
-function EventoAsistenciaModal({ evento, onClose }) {
+function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
   const [asistencia, setAsistencia] = useState([]);
   const [alumnos,    setAlumnos]    = useState({});
 
-  useEffect(()=>{
-    const cargar = async () => {
+  const cargar = async () => {
       const { data: asist } = await supabase.from("evento_asistencia")
         .select("*").eq("evento_id", evento.id);
       const rows = asist||[];
@@ -3306,9 +3336,18 @@ function EventoAsistenciaModal({ evento, onClose }) {
       }
       setAlumnos(alumnosMap);
       setAsistencia(rows);
-    };
+  };
+
+  useEffect(()=>{ cargar(); },[evento.id]);
+
+  const confirmar = async (alumnoId, asiste) => {
+    if(!userId) return;
+    await supabase.from("evento_asistencia").upsert(
+      { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
+      { onConflict:"evento_id,usuario_id" }
+    );
     cargar();
-  },[evento.id]);
+  };
 
   const dedupAsistencia = (rows) => {
     const PRIO = {"si":2,"no":1,"pendiente":0};
@@ -3331,7 +3370,26 @@ function EventoAsistenciaModal({ evento, onClose }) {
           </div>
           <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8"}}>✕</button>
         </div>
-        {asistencia.length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:24}}>Sin respuestas registradas</div>}
+        {/* Mis hijos — confirmar */}
+        {misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
+          const fila = asistencia.find(a=>a.alumno_invitado_id===hid);
+          const al   = alumnos[hid];
+          const confirmar = async (val) => {
+            await supabase.from("evento_asistencia").upsert({evento_id:evento.id,usuario_id:Number(userId),alumno_invitado_id:hid,asiste:val},{onConflict:"evento_id,usuario_id"});
+            const {data} = await supabase.from("evento_asistencia").select("*").eq("evento_id",evento.id);
+            setAsistencia(data||[]);
+          };
+          return (
+            <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:"12px 14px",marginBottom:10,border:"1.5px solid #E2E8F0"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?`${al.nombre} ${al.apellido}`:"Tu hijo/a"}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>confirmar("si")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="si"?"#10B981":"#E2E8F0"}`,background:fila?.asiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
+                <button onClick={()=>confirmar("no")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="no"?"#EF4444":"#E2E8F0"}`,background:fila?.asiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
+              </div>
+            </div>
+          );
+        })}
+        {asistencia.length===0&&misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:24}}>Sin respuestas registradas</div>}
         {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
           list.length>0&&(
             <div key={label} style={{marginBottom:12}}>
