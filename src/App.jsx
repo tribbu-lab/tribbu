@@ -4608,21 +4608,37 @@ export default function App() {
   };
 
   const TABS_ORDER = TABS.map(t=>t.id);
-  const handleSwipe = (() => {
-    let x0 = null;
-    return {
-      onTouchStart: e => { x0 = e.touches[0].clientX; },
-      onTouchEnd:   e => {
-        if(x0===null) return;
-        const dx = e.changedTouches[0].clientX - x0;
-        x0 = null;
-        if(Math.abs(dx) < 50) return;
-        const idx = TABS_ORDER.indexOf(tab);
-        if(dx < 0 && idx < TABS_ORDER.length-1) setTab(TABS_ORDER[idx+1]);
-        if(dx > 0 && idx > 0) setTab(TABS_ORDER[idx-1]);
-      }
+
+  // Swipe via useEffect con listener nativo (captura antes que elementos hijos)
+  const swipeRef = React.useRef(null);
+  const tabRef   = React.useRef(tab);
+  React.useEffect(()=>{ tabRef.current = tab; },[tab]);
+  React.useEffect(()=>{
+    if(!isMobile) return;
+    const el = swipeRef.current;
+    if(!el) return;
+    let x0=null, y0=null, blocked=false;
+    const onStart = e => { x0=e.touches[0].clientX; y0=e.touches[0].clientY; blocked=false; };
+    const onMove  = e => {
+      if(x0===null) return;
+      const dx=Math.abs(e.touches[0].clientX-x0);
+      const dy=Math.abs(e.touches[0].clientY-y0);
+      if(dy>dx) blocked=true;
     };
-  })();
+    const onEnd = e => {
+      if(x0===null||blocked) { x0=null; return; }
+      const dx = e.changedTouches[0].clientX - x0;
+      x0=null;
+      if(Math.abs(dx)<60) return;
+      const idx = TABS_ORDER.indexOf(tabRef.current);
+      if(dx < 0 && idx < TABS_ORDER.length-1) setTab(TABS_ORDER[idx+1]);
+      if(dx > 0 && idx > 0) setTab(TABS_ORDER[idx-1]);
+    };
+    el.addEventListener("touchstart", onStart, {passive:true});
+    el.addEventListener("touchmove",  onMove,  {passive:true});
+    el.addEventListener("touchend",   onEnd,   {passive:true});
+    return ()=>{ el.removeEventListener("touchstart",onStart); el.removeEventListener("touchmove",onMove); el.removeEventListener("touchend",onEnd); };
+  },[isMobile]);
 
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
@@ -4652,7 +4668,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      <div style={{padding:"20px 16px",color:"#0F172A"}} onTouchStart={handleSwipe.onTouchStart} onTouchEnd={handleSwipe.onTouchEnd}>{renderTab()}</div>
+      <div ref={swipeRef} style={{padding:"20px 16px",color:"#0F172A",touchAction:"pan-y"}}>{renderTab()}</div>
     </div>
   );
 
