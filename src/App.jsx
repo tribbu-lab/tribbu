@@ -4893,7 +4893,7 @@ export default function App() {
               <div key={i} style={{position:"relative",marginBottom:2}}>
                 <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
                   {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                  <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
+                  <span style={{flex:1,color:"white",fontWeight:"inherit"}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
                   {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
                 </button>
 
