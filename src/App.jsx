@@ -3146,30 +3146,14 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
 }
 
 // ── Festejo Modal (apoderado crea/edita su festejo) ──────────────────────────
-function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", cursoId, onClose, onSave }) {
+function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", usuarios=[], onClose, onSave }) {
   const [titulo,      setTitulo]      = useState(`Regalo cumpleaños ${maestroNombre}`);
   const [monto,       setMonto]       = useState(montoDefault ? String(montoDefault) : "");
   const [moneda,      setMoneda]      = useState(monedaDefault||"$");
   const [fechaLimite, setFechaLimite] = useState("");
   const [responsableId, setResponsableId] = useState("");
-  const [usuarios,    setUsuarios]    = useState([]);
   const [saving,      setSaving]      = useState(false);
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
-  useEffect(()=>{
-    if(!cursoId) return;
-    // Traer apoderados via join embebido — sin query directa a usuarios
-    supabase.from("usuario_hijos")
-      .select("usuarios(id,nombre,apellido), hijos!inner(curso_id)")
-      .eq("hijos.curso_id", cursoId)
-      .then(({data})=>{
-        const vistos = new Set();
-        const lista = (data||[])
-          .map(x=>x.usuarios).filter(Boolean)
-          .filter(u=>{ if(vistos.has(u.id)) return false; vistos.add(u.id); return true; })
-          .sort((a,b)=>a.nombre.localeCompare(b.nombre));
-        setUsuarios(lista);
-      });
-  },[cursoId]);
   const guardar = async () => {
     if(!titulo.trim()) return;
     setSaving(true);
@@ -3609,6 +3593,8 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
   const [montoRegalo,setMontoRegalo]   = useState(null);
   const [monedaRegalo,setMonedaRegalo] = useState("$");
 
+  const [apoderados, setApoderados] = useState([]);
+
   const cargar = async () => {
     const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
@@ -3665,6 +3651,16 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     };
     unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setLista(unified);
+    // Cargar apoderados del curso (via hijos — misma ruta que funciona en Finanzas)
+    const alumnosIds = (al.data||[]).map(a=>a.id);
+    if(alumnosIds.length) {
+      const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
+      const uids = [...new Set((uhData||[]).map(r=>r.usuario_id).filter(Boolean))];
+      if(uids.length) {
+        const { data: usData } = await supabase.from("usuarios").select("id,nombre,apellido").in("id", uids);
+        setApoderados((usData||[]).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
+      }
+    }
     // Map cumples by alumno_id or maestro_id_ref
     const map = {};
     (cu.data||[]).forEach(c=>{
@@ -3793,7 +3789,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?.responsable_id, comprado:cumpleMap[editando.id]?.comprado||false, monto_regalo:cumpleMap[editando.id]?.monto_regalo}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
-      {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} cursoId={cursoId} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
+      {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños en el curso</div>
