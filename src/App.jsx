@@ -3157,10 +3157,12 @@ function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", cu
       .then(async ({data:hijos})=>{
         if(!hijos?.length) return;
         const hijoIds = hijos.map(h=>h.id);
-        const {data:uh} = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hijoIds);
-        const uids = [...new Set((uh||[]).map(x=>x.usuario_id).filter(Boolean))];
+        // fetch usuario_hijos individually to avoid .in() issues
+        const uhResults = await Promise.all(hijoIds.map(hid=>
+          supabase.from("usuario_hijos").select("usuario_id").eq("hijo_id",hid)
+        ));
+        const uids = [...new Set(uhResults.flatMap(r=>(r.data||[]).map(x=>x.usuario_id)).filter(Boolean))];
         if(!uids.length) return;
-        // fetch each user individually to avoid .in() 400 bug
         const results = await Promise.all(uids.map(uid=>
           supabase.from("usuarios").select("id,nombre,apellido").eq("id",uid).single()
         ));
@@ -4725,9 +4727,15 @@ export default function App() {
     if(!usuario||usuario.rol==="super") return;
     const rolEfectivo = perfilElegido || usuario.rol;
     if(rolEfectivo==="padre") {
-      supabase.from("hijos").select("*, cursos(nombre,color,avatar)").in("id",usuario.hijos).then(r=>setItems(r.data||[]));
+      const ids = usuario.hijos||[];
+      if(!ids.length) return;
+      Promise.all(ids.map(id=>supabase.from("hijos").select("*, cursos(nombre,color,avatar)").eq("id",id).single()))
+        .then(results=>setItems(results.map(r=>r.data).filter(Boolean)));
     } else {
-      supabase.from("cursos").select("*").in("id",usuario.cursos).then(r=>setItems(r.data||[]));
+      const ids = usuario.cursos||[];
+      if(!ids.length) return;
+      Promise.all(ids.map(id=>supabase.from("cursos").select("*").eq("id",id).single()))
+        .then(results=>setItems(results.map(r=>r.data).filter(Boolean)));
     }
   },[usuario,perfilElegido]);
 
