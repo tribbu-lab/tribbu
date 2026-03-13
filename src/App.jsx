@@ -11,7 +11,8 @@ const T = {
 
 const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
 const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
-const HIJO_COLORS = [null,"#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"]; // null = color por defecto del alumno
+const HIJO_COLORS_CUSTOM = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"]; // colores custom
+const HIJO_COLOR_DEFAULT = "#0F172A"; // color original del sitio
 const getHijoColor = (userId, hijoId) => { try { const k=`hcolor_${userId}_${hijoId}`; return localStorage.getItem(k)||null; } catch{ return null; } };
 const setHijoColor = (userId, hijoId, color) => { try { localStorage.setItem(`hcolor_${userId}_${hijoId}`,color); } catch{} };
 const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
@@ -1210,7 +1211,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
     const leidosIds = new Set((leidosData.data||[]).map(l=>Number(l.recordatorio_id)));
     setLeidosMuro(new Set([...leidosIds].map(Number)));
     const hoyStr = new Date().toISOString().split("T")[0];
-    const recsNoLeidos = (recordatorios.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr);
+    const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId)));
     // colectas pendientes para mis hijos — solo hijos del curso actual
     const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
     const hijosDelCurso = (hijosData.data||[]).map(h=>h.id);
@@ -1326,7 +1327,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Recordatorios</div>
           {datos.recordatorios.map(r=>{
-            const prioColor = {alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"];
+            const prioColor = r.tipo==="regalo_cumple" ? "#8B5CF6" : {alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"];
             return (
               <div key={r.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,border:"1px solid #E2E8F0",borderLeft:`3px solid ${r.urgente?"#EF4444":prioColor}`}}>
                 <div style={{flex:1}}>
@@ -1336,7 +1337,14 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
                     {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                   </div>
                 </div>
-                <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${leidosMuro.has(r.id)?"#10B981":"#E2E8F0"}`,background:leidosMuro.has(r.id)?"#F0FDF4":"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:leidosMuro.has(r.id)?"#10B981":"#64748B",flexShrink:0}}>{leidosMuro.has(r.id)?"✓ Leído":"Leído"}</button>
+                {r.tipo==="regalo_cumple"&&!leidosMuro.has(r.id) ? (
+                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                    <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>✅ Sí</button>
+                    <button onClick={()=>{}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 No</button>
+                  </div>
+                ) : (
+                  <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${leidosMuro.has(r.id)?"#10B981":"#E2E8F0"}`,background:leidosMuro.has(r.id)?"#F0FDF4":"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:leidosMuro.has(r.id)?"#10B981":"#64748B",flexShrink:0}}>{leidosMuro.has(r.id)?"✓ Leído":"Leído"}</button>
+                )}
               </div>
             );
           })}
@@ -1799,7 +1807,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
-    setRecordatorios((recs.data||[]).filter(r=> !r.fecha || r.fecha >= hoyStr));
+    setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId))));
     setLeidosSet(new Set((leidos.data||[]).map(l=>l.recordatorio_id)));
   };
 
@@ -3631,7 +3639,45 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       if(c.maestro_id_ref) map[`m-${c.maestro_id_ref}`] = c;
     });
     setCumpleMap(map);
+    await verificarRecordatoriosRegalo(map, unified);
   };
+  const verificarRecordatoriosRegalo = async (cumpleMapActual, listaActual) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    for(const item of listaActual) {
+      const cumple = cumpleMapActual[item.id];
+      if(!cumple?.responsable_id) continue; // sin responsable asignado
+      // Calcular días hasta cumple
+      const d = new Date(item.fecha_nacimiento+"T00:00:00");
+      let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+      if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
+      const dias = Math.round((next - hoy) / (1000*60*60*24));
+      if(dias > 7 || dias < 0) continue; // solo si falta 7 días o menos
+      // Verificar si ya existe recordatorio para este cumple+responsable este año
+      const { data: existe } = await supabase
+        .from("recordatorios")
+        .select("id")
+        .eq("curso_id", cursoId)
+        .eq("tipo", "regalo_cumple")
+        .eq("ref_id", cumple.id)
+        .eq("para_usuario_id", cumple.responsable_id)
+        .limit(1);
+      if(existe && existe.length > 0) continue; // ya existe
+      // Crear recordatorio
+      const nombreCumpleaniero = item.nombre.split(" ")[0];
+      await supabase.from("recordatorios").insert({
+        curso_id: cursoId,
+        tipo: "regalo_cumple",
+        ref_id: cumple.id,
+        para_usuario_id: cumple.responsable_id,
+        texto: `🎁 El cumple de ${nombreCumpleaniero} es en ${dias===0?"hoy":dias===1?"1 día":`${dias} días`}. ¿Ya compraste el regalo?`,
+        emoji: "🎁",
+        urgente: dias <= 2,
+        prioridad: dias <= 2 ? "alta" : "media",
+        fecha: next.toISOString().slice(0,10),
+      });
+    }
+  };
+
   useEffect(()=>{ cargar(); },[cursoId]);
 
   const guardarResponsable = async ({responsable_id, comprado}) => {
@@ -4244,17 +4290,27 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
+                {r.tipo==="regalo_cumple"
+                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>🎁 Regalo</span>
+                  : <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
+                }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
             </div>
             {/* acciones */}
-            <div style={{display:"flex",gap:5,flexShrink:0,marginLeft:8}}>
-              <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"✓ Leído":"Leído"}</button>
-              {isAdmin&&<>
+            <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,marginLeft:8,alignItems:"flex-end"}}>
+              {r.tipo==="regalo_cumple"&&!esLeido ? (
+                <div style={{display:"flex",gap:4}}>
+                  <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>✅ Sí</button>
+                  <button onClick={()=>{}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 No</button>
+                </div>
+              ) : (
+                <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"✓ Leído":"Leído"}</button>
+              )}
+              {isAdmin&&r.tipo!=="regalo_cumple"&&<div style={{display:"flex",gap:4}}>
                 <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-              </>}
+              </div>}
             </div>
           </div>
         );
@@ -4668,7 +4724,8 @@ export default function App() {
   const isAdmin    = rolEfectivo==="admin";
   // Color personalizado por apoderado/hijo — derivado aquí (hooks ya declarados arriba)
   const hijoColorKey = esPadre && itemActual ? `${usuario?.id}_${itemActual.id}` : null;
-  const hijoColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id) || itemActual?.color || "#3B82F6") : null;
+  const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
+  const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
   const headerBg  = hijoColor || "#0F172A";
 
   const cambiarColorHijo = (idx, color) => {
@@ -4717,7 +4774,7 @@ export default function App() {
 
   // Global color picker overlay
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
-  const pickerCurrentColor = pickerItem ? (hijoColorsMap[`${usuario?.id}_${pickerItem.id}`]||getHijoColor(usuario?.id,pickerItem.id)||pickerItem.color||null) : null;
+  const pickerCurrentColor = pickerItem ? (hijoColorsMap[`${usuario?.id}_${pickerItem.id}`]||getHijoColor(usuario?.id,pickerItem.id)||null) : null;
 
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
@@ -4733,7 +4790,8 @@ export default function App() {
         {items.length>1&&(
           <div style={{display:"flex",gap:6,padding:"0 16px 8px",overflowX:"auto"}}>
             {items.map((item,i)=>{
-              const col = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||item.color||"#3B82F6") : null;
+              const _sc = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null) : null;
+              const col = (_sc && _sc!==HIJO_COLOR_DEFAULT) ? _sc : (esPadre ? null : null);
               return (
                 <div key={i} style={{position:"relative",flexShrink:0}}>
                   <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 10px",borderRadius:20,border:`2px solid ${i===cursoIdx?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.15)"}`,background:i===cursoIdx?"rgba(255,255,255,0.2)":"transparent",cursor:"pointer",fontSize:11,fontWeight:700,color:i===cursoIdx?"white":"rgba(255,255,255,0.5)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
@@ -4761,13 +4819,14 @@ export default function App() {
           <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {HIJO_COLORS.map((clr,ci)=>(
-                <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr||pickerItem.color||"#3B82F6",border:(pickerCurrentColor===clr||(clr===null&&pickerCurrentColor===null))?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0}}>
-                  {clr===null&&<span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>}
+              <button onClick={()=>cambiarColorHijo(colorPickerIdx,HIJO_COLOR_DEFAULT)} style={{width:32,height:32,borderRadius:"50%",background:HIJO_COLOR_DEFAULT,border:(!pickerCurrentColor||pickerCurrentColor===HIJO_COLOR_DEFAULT)?"3px solid #3B82F6":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0,title:"Color original"}}>
+                  <span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>
                 </button>
-              ))}
-            </div>
-            <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = restaurar color original</div>
+                {HIJO_COLORS_CUSTOM.map((clr,ci)=>(
+                  <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr,border:pickerCurrentColor===clr?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,flexShrink:0}}/>
+                ))}
+              </div>
+              <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = volver al color del sitio</div>
           </div>
         </div>
       )}
@@ -4787,7 +4846,7 @@ export default function App() {
             {items.map((item,i)=>(
               <div key={i} style={{position:"relative",marginBottom:2}}>
                 <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:i===cursoIdx?"white":"rgba(255,255,255,0.5)",fontSize:12,fontWeight:i===cursoIdx?700:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
-                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||item.color||"#3B82F6",flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
+                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:HIJO_COLOR_DEFAULT; })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
                   <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
                   {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
                 </button>
@@ -4820,13 +4879,14 @@ export default function App() {
           <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {HIJO_COLORS.map((clr,ci)=>(
-                <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr||pickerItem.color||"#3B82F6",border:(pickerCurrentColor===clr||(clr===null&&pickerCurrentColor===null))?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0}}>
-                  {clr===null&&<span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>}
+              <button onClick={()=>cambiarColorHijo(colorPickerIdx,HIJO_COLOR_DEFAULT)} style={{width:32,height:32,borderRadius:"50%",background:HIJO_COLOR_DEFAULT,border:(!pickerCurrentColor||pickerCurrentColor===HIJO_COLOR_DEFAULT)?"3px solid #3B82F6":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0,title:"Color original"}}>
+                  <span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>
                 </button>
-              ))}
-            </div>
-            <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = restaurar color original</div>
+                {HIJO_COLORS_CUSTOM.map((clr,ci)=>(
+                  <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr,border:pickerCurrentColor===clr?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,flexShrink:0}}/>
+                ))}
+              </div>
+              <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = volver al color del sitio</div>
           </div>
         </div>
       )}
