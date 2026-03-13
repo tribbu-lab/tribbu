@@ -2935,19 +2935,24 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevoEstado = estadoActual==="pagado" ? "pendiente" : "pagado";
     const fecha_pago  = nuevoEstado==="pagado" ? new Date().toISOString().slice(0,10) : null;
-    // check if row exists first
+    // Actualización optimista — UI responde inmediatamente
+    setPagos(prev => {
+      const idx = prev.findIndex(p=>Number(p.colecta_id)===Number(colectaId)&&Number(p.alumno_id)===Number(alumnoId));
+      if(idx>=0) {
+        const updated = [...prev];
+        updated[idx] = {...updated[idx], estado:nuevoEstado, fecha_pago};
+        return updated;
+      }
+      return [...prev, {colecta_id:colectaId, alumno_id:alumnoId, estado:nuevoEstado, fecha_pago, pagado_por:userId}];
+    });
+    // Sync con Supabase en background
     const { data: existe } = await supabase.from("colecta_pagos")
       .select("id").eq("colecta_id",colectaId).eq("alumno_id",alumnoId).maybeSingle();
-    let err;
     if(existe?.id) {
-      const r = await supabase.from("colecta_pagos").update({estado:nuevoEstado,fecha_pago,pagado_por:userId}).eq("id",existe.id);
-      err = r.error;
+      await supabase.from("colecta_pagos").update({estado:nuevoEstado,fecha_pago,pagado_por:userId}).eq("id",existe.id);
     } else {
-      const r = await supabase.from("colecta_pagos").insert({colecta_id:colectaId,alumno_id:alumnoId,estado:nuevoEstado,fecha_pago,pagado_por:userId});
-      err = r.error;
+      await supabase.from("colecta_pagos").insert({colecta_id:colectaId,alumno_id:alumnoId,estado:nuevoEstado,fecha_pago,pagado_por:userId});
     }
-    if(err) { console.error("togglePago error:", JSON.stringify(err)); return; }
-    cargar();
   };
 
   const getPago = (colectaId, alumnoId) =>
@@ -3152,21 +3157,15 @@ function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", cu
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   useEffect(()=>{
     if(!cursoId) return;
-    // Traer apoderados: primero hijos del curso, luego usuario_hijos, luego usuarios uno a uno
-    supabase.from("hijos").select("id").eq("curso_id", cursoId)
-      .then(async ({data:hijos})=>{
-        if(!hijos?.length) return;
-        const hijoIds = hijos.map(h=>h.id);
-        // fetch usuario_hijos individually to avoid .in() issues
-        const uhResults = await Promise.all(hijoIds.map(hid=>
-          supabase.from("usuario_hijos").select("usuario_id").eq("hijo_id",hid)
-        ));
-        const uids = [...new Set(uhResults.flatMap(r=>(r.data||[]).map(x=>x.usuario_id)).filter(Boolean))];
-        if(!uids.length) return;
-        const results = await Promise.all(uids.map(uid=>
-          supabase.from("usuarios").select("id,nombre,apellido").eq("id",uid).single()
-        ));
-        const lista = results.map(r=>r.data).filter(Boolean)
+    // Traer apoderados via join embebido — sin query directa a usuarios
+    supabase.from("usuario_hijos")
+      .select("usuarios(id,nombre,apellido), hijos!inner(curso_id)")
+      .eq("hijos.curso_id", cursoId)
+      .then(({data})=>{
+        const vistos = new Set();
+        const lista = (data||[])
+          .map(x=>x.usuarios).filter(Boolean)
+          .filter(u=>{ if(vistos.has(u.id)) return false; vistos.add(u.id); return true; })
           .sort((a,b)=>a.nombre.localeCompare(b.nombre));
         setUsuarios(lista);
       });
