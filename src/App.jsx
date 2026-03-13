@@ -1743,7 +1743,10 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
       if(hijosIds.length) {
         const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
         const rows = (uh||[]).map(r=>({ evento_id:eventoId, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
-        if(rows.length) await supabase.from("evento_asistencia").upsert(rows,{onConflict:"evento_id,alumno_invitado_id"});
+        if(rows.length) {
+          await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+          await supabase.from("evento_asistencia").upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+        }
       }
     }
     onSave();
@@ -3248,30 +3251,30 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
 
     // 1. Crear o actualizar evento
     if(eventoId) {
-      const r = await supabase.from("eventos").update({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).eq("id", eventoId);
-      console.log("update evento:", r.error||"ok");
+      await supabase.from("eventos").update({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).eq("id", eventoId);
     } else {
-      const r = await supabase.from("eventos").insert({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).select().single();
-      console.log("insert evento:", r.error||"ok", "id:", r.data?.id);
-      eventoId = r.data?.id;
+      const { data, error } = await supabase.from("eventos").insert({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).select("id").single();
+      if(error || !data?.id) { console.error("Error creando evento:", error); setGuardando(false); return; }
+      eventoId = data.id;
     }
 
-    if(!eventoId) { console.error("No se obtuvo eventoId"); setGuardando(false); return; }
+    // 2. Borrar asistencias existentes del evento y verificar
+    const delRes = await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+    if(delRes.error) console.error("Error borrando asistencias:", delRes.error);
 
-    // 2. Borrar asistencias viejas
-    await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
-
-    // 3. Insertar nuevas si hay invitados
+    // 3. Crear nuevas asistencias para cada invitado
     if(invitados.length) {
-      const results = await Promise.all(
+      const uhResults = await Promise.all(
         invitados.map(hid => supabase.from("usuario_hijos").select("usuario_id,hijo_id").eq("hijo_id", hid))
       );
-      const rows = results.flatMap(r =>
+      const rows = uhResults.flatMap(r =>
         (r.data||[]).map(v => ({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }))
       );
       if(rows.length) {
-        // ignoreDuplicates por si el delete no limpió todo (RLS)
-        await supabase.from("evento_asistencia").upsert(rows, { onConflict:"evento_id,alumno_invitado_id", ignoreDuplicates:false });
+        // upsert en lugar de insert — si el delete falló parcialmente, actualiza en lugar de chocar
+        const insRes = await supabase.from("evento_asistencia")
+          .upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+        if(insRes.error) console.error("Error guardando asistencias:", insRes.error);
       }
     }
     setGuardando(false);
@@ -3342,14 +3345,11 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
     const { data: asist } = await supabase.from("evento_asistencia")
       .select("*").eq("evento_id", evento.id);
     const rows = asist||[];
-    // fetch alumnos en paralelo
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
     let alumnosMap = {};
     if(aids.length) {
-      const alsResults = await Promise.all(
-        aids.map(aid => supabase.from("hijos").select("id,nombre,apellido").eq("id",aid).single())
-      );
-      alsResults.forEach(r=>{ if(r.data) alumnosMap[r.data.id]=r.data; });
+      const { data: als } = await supabase.from("hijos").select("id,nombre,apellido").in("id", aids);
+      (als||[]).forEach(a=>{ alumnosMap[a.id]=a; });
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
@@ -3360,17 +3360,15 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
   };
 
   const responder = async (alumnoId, asiste) => {
-    setGuardando(true);
-    // update optimista inmediato
+    // Update optimista inmediato
     setAsistencia(prev => prev.map(r =>
       r.alumno_invitado_id===alumnoId ? {...r, asiste} : r
     ));
+    // Actualizar en BD — la fila única es por (evento_id, alumno_invitado_id)
     await supabase.from("evento_asistencia")
       .update({ asiste, comentario: comentarios[alumnoId]||null, hermanos: hermanos[alumnoId]||null })
       .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId)
-      .eq("usuario_id", Number(userId));
-    setGuardando(false);
+      .eq("alumno_invitado_id", alumnoId);
     onUpdate?.();
   };
 
@@ -3495,11 +3493,14 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
 
   const responder = async (alumnoId, asiste) => {
     if(!userId) return;
-    await supabase.from("evento_asistencia").upsert(
-      { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
-      { onConflict:"evento_id,alumno_invitado_id" }
-    );
-    cargar();
+    // Update optimista
+    setAsistencia(prev => prev.map(r =>
+      r.alumno_invitado_id===alumnoId ? {...r, asiste} : r
+    ));
+    await supabase.from("evento_asistencia")
+      .update({ asiste })
+      .eq("evento_id", evento.id)
+      .eq("alumno_invitado_id", alumnoId);
   };
 
   const dedupAsistencia = (rows) => {
@@ -3656,31 +3657,14 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       })),
     ];
     // Sort by next birthday
-    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
-    const payload = {
-      titulo: titulo.trim(),
-      tipo: "colecta",
-      descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
-      monto_sugerido: monto ? Number(monto) : null,
-      moneda: moneda||"$",
-      fecha_limite: fecha_limite||null,
-      vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
-      curso_id: cursoId,
-      activa: true,
-      responsable_id: responsable_id||null,
-    };
-    await supabase.from("colectas").insert(payload);
-    setColectaRegaloModal(null);
-  };
-
-  const nextBday = (fecha) => {
+    const tmpNextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const d = new Date(fecha+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
       if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
       return (next - hoy) / (1000*60*60*24);
     };
-    unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
+    unified.sort((a,b)=>tmpNextBday(a.fecha_nacimiento)-tmpNextBday(b.fecha_nacimiento));
     setLista(unified);
     // Cargar apoderados
     const { data: hijosDelCurso } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
