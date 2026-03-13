@@ -3267,11 +3267,14 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
       const uhResults = await Promise.all(
         invitados.map(hid => supabase.from("usuario_hijos").select("usuario_id,hijo_id").eq("hijo_id", hid))
       );
-      const rows = uhResults.flatMap(r =>
+      const allRows = uhResults.flatMap(r =>
         (r.data||[]).map(v => ({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }))
       );
+      // Deduplicar por alumno_invitado_id — un alumno puede tener 2 apoderados
+      const rowsMap = {};
+      allRows.forEach(r => { rowsMap[r.alumno_invitado_id] = r; });
+      const rows = Object.values(rowsMap);
       if(rows.length) {
-        // upsert en lugar de insert — si el delete falló parcialmente, actualiza en lugar de chocar
         const insRes = await supabase.from("evento_asistencia")
           .upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
         if(insRes.error) console.error("Error guardando asistencias:", insRes.error);
