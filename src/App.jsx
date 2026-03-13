@@ -3152,15 +3152,19 @@ function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", cu
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   useEffect(()=>{
     if(!cursoId) return;
-    // Traer apoderados via hijos del curso -> usuario_hijos -> usuarios (join embebido)
-    supabase.from("hijos")
-      .select("id, usuario_hijos(usuario_id, usuarios(id,nombre,apellido))")
-      .eq("curso_id", cursoId)
-      .then(r=>{
-        const vistos = new Set();
-        const lista = (r.data||[])
-          .flatMap(h=>(h.usuario_hijos||[]).map(uh=>uh.usuarios).filter(Boolean))
-          .filter(u=>{ if(!u||vistos.has(u.id)) return false; vistos.add(u.id); return true; })
+    // Traer apoderados: primero hijos del curso, luego usuario_hijos, luego usuarios uno a uno
+    supabase.from("hijos").select("id").eq("curso_id", cursoId)
+      .then(async ({data:hijos})=>{
+        if(!hijos?.length) return;
+        const hijoIds = hijos.map(h=>h.id);
+        const {data:uh} = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hijoIds);
+        const uids = [...new Set((uh||[]).map(x=>x.usuario_id).filter(Boolean))];
+        if(!uids.length) return;
+        // fetch each user individually to avoid .in() 400 bug
+        const results = await Promise.all(uids.map(uid=>
+          supabase.from("usuarios").select("id,nombre,apellido").eq("id",uid).single()
+        ));
+        const lista = results.map(r=>r.data).filter(Boolean)
           .sort((a,b)=>a.nombre.localeCompare(b.nombre));
         setUsuarios(lista);
       });
@@ -4757,7 +4761,7 @@ export default function App() {
   const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
   const headerBg  = hijoColor || "#0F172A";
   // Color del punto identificador — siempre visible (usa color supabase si no hay custom)
-  const hijoDotColor = (hijoColor && hijoColor !== "#FFFFFF") ? hijoColor : (esPadre && itemActual?.color) || "#3B82F6";
+  const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || "#3B82F6";
 
 
   const cambiarColorHijo = (idx, color) => {
