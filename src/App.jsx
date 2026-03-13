@@ -3252,12 +3252,20 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
       const { data } = await supabase.from("eventos").insert({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).select().single();
       eventoId = data?.id;
     }
-    if(eventoId && invitados.length) {
-      // Para cada alumno invitado, buscar sus apoderados y crear asistencia pendiente
-      const { data: vinculos } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id", invitados);
-      if(vinculos?.length) {
-        const rows = vinculos.map(v=>({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }));
-        await supabase.from("evento_asistencia").upsert(rows, {onConflict:"evento_id,usuario_id"});
+    if(eventoId) {
+      // Borrar invitaciones existentes
+      await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+      if(invitados.length) {
+        // Traer todos los vinculos en paralelo
+        const results = await Promise.all(
+          invitados.map(hid => supabase.from("usuario_hijos").select("usuario_id,hijo_id").eq("hijo_id", hid))
+        );
+        const rows = results.flatMap(r =>
+          (r.data||[]).map(v => ({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }))
+        );
+        if(rows.length) {
+          await supabase.from("evento_asistencia").insert(rows);
+        }
       }
     }
     setGuardando(false);
@@ -3328,12 +3336,14 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
     const { data: asist } = await supabase.from("evento_asistencia")
       .select("*").eq("evento_id", evento.id);
     const rows = asist||[];
-    // fetch alumnos
+    // fetch alumnos en paralelo
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
     let alumnosMap = {};
     if(aids.length) {
-      const { data: als } = await supabase.from("hijos").select("id,nombre,apellido").in("id",aids);
-      (als||[]).forEach(a=>{ alumnosMap[a.id]=a; });
+      const alsResults = await Promise.all(
+        aids.map(aid => supabase.from("hijos").select("id,nombre,apellido").eq("id",aid).single())
+      );
+      alsResults.forEach(r=>{ if(r.data) alumnosMap[r.data.id]=r.data; });
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
@@ -3345,11 +3355,15 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
 
   const responder = async (alumnoId, asiste) => {
     setGuardando(true);
+    // update optimista inmediato
+    setAsistencia(prev => prev.map(r =>
+      r.alumno_invitado_id===alumnoId ? {...r, asiste} : r
+    ));
     await supabase.from("evento_asistencia")
       .update({ asiste, comentario: comentarios[alumnoId]||null, hermanos: hermanos[alumnoId]||null })
       .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId);
-    await cargarDatos();
+      .eq("alumno_invitado_id", alumnoId)
+      .eq("usuario_id", Number(userId));
     setGuardando(false);
     onUpdate?.();
   };
@@ -3462,10 +3476,10 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const rows = asist||[];
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
-    let alumnosMap = {};
-    if(aids.length) {
-      const { data: als } = await supabase.from("hijos").select("id,nombre,apellido,color").in("id",aids);
-      (als||[]).forEach(a=>{ alumnosMap[a.id]=a; });
+    const alumnosMap = {};
+    for(const aid of aids) {
+      const { data: a } = await supabase.from("hijos").select("id,nombre,apellido,color").eq("id",aid).single();
+      if(a) alumnosMap[a.id] = a;
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
@@ -3662,23 +3676,20 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     };
     unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setLista(unified);
-    // Cargar apoderados del curso via join embebido (nunca query directa a usuarios — RLS activo)
-    const alumnosIds = (al.data||[]).map(a=>a.id);
-    if(alumnosIds.length) {
-      const apods = [];
-      const vistos = new Set();
-      for(const hid of alumnosIds) {
-        const { data: uhData } = await supabase
-          .from("usuario_hijos")
-          .select("usuario_id, usuarios(id,nombre,apellido)")
-          .eq("hijo_id", hid);
-        for(const row of (uhData||[])) {
-          const u = row.usuarios;
-          if(u && !vistos.has(u.id)) { vistos.add(u.id); apods.push(u); }
-        }
+    // Cargar apoderados — mismo join que usa SuperAdmin (funciona)
+    const { data: hijosConUsuarios } = await supabase
+      .from("hijos")
+      .select("id, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido))")
+      .eq("curso_id", cursoId);
+    const vistos = new Set();
+    const apods = [];
+    for(const h of (hijosConUsuarios||[])) {
+      for(const uh of (h.usuarios||[])) {
+        const u = uh.usuarios;
+        if(u && !vistos.has(u.id)) { vistos.add(u.id); apods.push(u); }
       }
-      setApoderados(apods.sort((a,b)=>a.nombre.localeCompare(b.nombre)));
     }
+    setApoderados(apods.sort((a,b)=>a.nombre.localeCompare(b.nombre)));
     // Map cumples by alumno_id or maestro_id_ref
     const map = {};
     (cu.data||[]).forEach(c=>{
