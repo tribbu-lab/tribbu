@@ -11,7 +11,7 @@ const T = {
 
 const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
 const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
-const HIJO_COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"];
+const HIJO_COLORS = [null,"#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"]; // null = color por defecto del alumno
 const getHijoColor = (userId, hijoId) => { try { const k=`hcolor_${userId}_${hijoId}`; return localStorage.getItem(k)||null; } catch{ return null; } };
 const setHijoColor = (userId, hijoId, color) => { try { localStorage.setItem(`hcolor_${userId}_${hijoId}`,color); } catch{} };
 const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
@@ -59,6 +59,7 @@ function SeleccionPerfil({ usuario, onElegir }) {
           <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Ver el curso de tus hijos, invitaciones y novedades</div>
         </button>
       </div>
+      
     </div>
   );
 }
@@ -124,6 +125,7 @@ function Login({ onLogin }) {
           </div>
         </div>
       </div>
+      
     </div>
   );
 }
@@ -1139,6 +1141,7 @@ function AlertaModal({ onClose, onEnviar }) {
           </>
         )}
       </div>
+      
     </div>
   );
 }
@@ -4018,6 +4021,7 @@ function Alumnos({ cursoId, isAdmin }) {
         {ctrl.items.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No se encontraron alumnos</div>}
         <Paginador pagina={ctrl.pagina} totalPag={ctrl.totalPag} setPagina={ctrl.setPagina}/>
       </div>
+      
     </div>
   );
 }
@@ -4421,6 +4425,7 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
           )}
         </Card>
       </div>
+      
     </div>
   );
 }
@@ -4669,8 +4674,13 @@ export default function App() {
   const cambiarColorHijo = (idx, color) => {
     const item = items[idx];
     if(!item) return;
-    setHijoColor(usuario?.id, item.id, color);
-    setHijoColorsMap(p=>({...p,[`${usuario?.id}_${item.id}`]:color}));
+    if(color===null) {
+      try { localStorage.removeItem(`hcolor_${usuario?.id}_${item.id}`); } catch{}
+      setHijoColorsMap(p=>{ const n={...p}; delete n[`${usuario?.id}_${item.id}`]; return n; });
+    } else {
+      setHijoColor(usuario?.id, item.id, color);
+      setHijoColorsMap(p=>({...p,[`${usuario?.id}_${item.id}`]:color}));
+    }
     setColorPickerIdx(null);
   };
 
@@ -4705,6 +4715,10 @@ export default function App() {
     }
   };
 
+  // Global color picker overlay
+  const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
+  const pickerCurrentColor = pickerItem ? (hijoColorsMap[`${usuario?.id}_${pickerItem.id}`]||getHijoColor(usuario?.id,pickerItem.id)||pickerItem.color||null) : null;
+
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
       <div style={{background:headerBg,position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
@@ -4727,13 +4741,7 @@ export default function App() {
                     {esPadre?item.nombre?.split(" ")[0]:item.nombre}
                   </button>
                   {esPadre&&i===cursoIdx&&<button onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",border:"2px solid white",background:col,cursor:"pointer",padding:0,fontSize:0}}/>}
-                  {esPadre&&colorPickerIdx===i&&(
-                    <div style={{position:"absolute",top:"110%",left:0,zIndex:300,background:"white",borderRadius:12,padding:8,boxShadow:"0 4px 20px rgba(0,0,0,0.15)",display:"flex",gap:6,flexWrap:"wrap",width:148}}>
-                      {HIJO_COLORS.map(clr=>(
-                        <button key={clr} onClick={e=>{e.stopPropagation();cambiarColorHijo(i,clr);}} style={{width:24,height:24,borderRadius:"50%",background:clr,border:col===clr?"3px solid #0F172A":"2px solid transparent",cursor:"pointer",padding:0,flexShrink:0}}/>
-                      ))}
-                    </div>
-                  )}
+
                 </div>
               );
             })}
@@ -4748,6 +4756,21 @@ export default function App() {
         </div>
       </div>
       <div style={{padding:"20px 16px",color:"#0F172A"}}>{renderTab()}</div>
+      {colorPickerIdx!==null&&pickerItem&&(
+        <div onClick={()=>setColorPickerIdx(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {HIJO_COLORS.map((clr,ci)=>(
+                <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr||pickerItem.color||"#3B82F6",border:(pickerCurrentColor===clr||(clr===null&&pickerCurrentColor===null))?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0}}>
+                  {clr===null&&<span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = restaurar color original</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -4768,14 +4791,7 @@ export default function App() {
                   <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
                   {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
                 </button>
-                {esPadre&&colorPickerIdx===i&&(
-                  <div style={{position:"absolute",left:"100%",top:0,zIndex:300,background:"white",borderRadius:12,padding:8,boxShadow:"0 4px 20px rgba(0,0,0,0.15)",display:"flex",gap:6,flexWrap:"wrap",width:148,marginLeft:8}}>
-                    {HIJO_COLORS.map(clr=>{
-                      const cur = hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||"#3B82F6";
-                      return <button key={clr} onClick={e=>{e.stopPropagation();cambiarColorHijo(i,clr);}} style={{width:24,height:24,borderRadius:"50%",background:clr,border:cur===clr?"3px solid #0F172A":"2px solid transparent",cursor:"pointer",padding:0,flexShrink:0}}/>;
-                    })}
-                  </div>
-                )}
+
               </div>
             ))}
           </div>
@@ -4799,6 +4815,21 @@ export default function App() {
       <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
         <div style={{maxWidth:800}}>{renderTab()}</div>
       </div>
+      {colorPickerIdx!==null&&pickerItem&&(
+        <div onClick={()=>setColorPickerIdx(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {HIJO_COLORS.map((clr,ci)=>(
+                <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr||pickerItem.color||"#3B82F6",border:(pickerCurrentColor===clr||(clr===null&&pickerCurrentColor===null))?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0}}>
+                  {clr===null&&<span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = restaurar color original</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
