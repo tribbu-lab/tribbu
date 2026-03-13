@@ -2890,7 +2890,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
       const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
       const uids = [...new Set((uhData||[]).map(r=>r.usuario_id).filter(Boolean))];
       if(uids.length) {
-        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,activo").in("id", uids);
+        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,apellido,activo").in("id", uids);
         setUsuarios(usData||[]);
       }
     }
