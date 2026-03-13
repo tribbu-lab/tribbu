@@ -74,7 +74,7 @@ function Login({ onLogin }) {
   const go = async () => {
     setErr(""); setLd(true);
     const { data, error } = await supabase
-      .from("usuarios")
+      .from("usuarios_publico")
       .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)")
       .eq("email", email)
       .eq("pass", pass)
@@ -251,7 +251,7 @@ function UploadApoderadosExcel({ onDone }) {
       if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, email, pass, telefono");
 
       // Delete existing padres and their relations
-      const { data: padres } = await supabase.from("usuarios").select("id").eq("rol","padre");
+      const { data: padres } = await supabase.from("usuarios_publico").select("id").eq("rol","padre");
       if(padres?.length) {
         const ids = padres.map(p=>p.id);
         await supabase.from("usuario_hijos").delete().in("usuario_id",ids);
@@ -505,7 +505,7 @@ function SuperAdmin() {
   const cargar = async () => {
     setLoading(true);
     const [u,c,h,m,mc] = await Promise.all([
-      supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)").order("id"),
+      supabase.from("usuarios_publico").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)").order("id"),
       supabase.from("cursos").select("*").order("id"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
@@ -2878,7 +2878,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // responsables: via join embebido para evitar query directa a usuarios (RLS)
+    // responsables del curso via usuarios_publico
     const [alum, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
       colIds.length
@@ -2886,20 +2886,16 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
         : Promise.resolve({data:[]}),
     ]);
     const alumnosIds = (alum.data||[]).map(a=>a.id);
-    const usuMap = new Map();
-    for(const hid of alumnosIds) {
-      const { data: uhRows } = await supabase
-        .from("usuario_hijos")
-        .select("usuarios(id,nombre,activo)")
-        .eq("hijo_id", hid);
-      for(const row of (uhRows||[])) {
-        const u = row.usuarios;
-        if(u && !usuMap.has(u.id)) usuMap.set(u.id, u);
+    if(alumnosIds.length) {
+      const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
+      const uids = [...new Set((uhData||[]).map(r=>r.usuario_id).filter(Boolean))];
+      if(uids.length) {
+        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,activo").in("id", uids);
+        setUsuarios(usData||[]);
       }
     }
     setColectas(colData||[]);
     setAlumnos(alum.data||[]);
-    setUsuarios([...usuMap.values()]);
     setPagos(pag.data||[]);
   };
 
@@ -3245,27 +3241,33 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
     if(!form.fecha || !form.titulo) return;
     setGuardando(true);
     let eventoId = festejoExistente?.id;
+
+    // 1. Crear o actualizar evento
     if(eventoId) {
-      await supabase.from("eventos").update({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).eq("id", eventoId);
-      await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId).not("usuario_id","is",null);
+      const r = await supabase.from("eventos").update({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).eq("id", eventoId);
+      console.log("update evento:", r.error||"ok");
     } else {
-      const { data } = await supabase.from("eventos").insert({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).select().single();
-      eventoId = data?.id;
+      const r = await supabase.from("eventos").insert({...form, tipo:"festejo", alumno_id:alumnoId, curso_id:cursoId, creado_por:userId}).select().single();
+      console.log("insert evento:", r.error||"ok", "id:", r.data?.id);
+      eventoId = r.data?.id;
     }
-    if(eventoId) {
-      // Borrar invitaciones existentes
-      await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
-      if(invitados.length) {
-        // Traer todos los vinculos en paralelo
-        const results = await Promise.all(
-          invitados.map(hid => supabase.from("usuario_hijos").select("usuario_id,hijo_id").eq("hijo_id", hid))
-        );
-        const rows = results.flatMap(r =>
-          (r.data||[]).map(v => ({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }))
-        );
-        if(rows.length) {
-          await supabase.from("evento_asistencia").insert(rows);
-        }
+
+    if(!eventoId) { console.error("No se obtuvo eventoId"); setGuardando(false); return; }
+
+    // 2. Borrar asistencias viejas
+    await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+
+    // 3. Insertar nuevas si hay invitados
+    if(invitados.length) {
+      const results = await Promise.all(
+        invitados.map(hid => supabase.from("usuario_hijos").select("usuario_id,hijo_id").eq("hijo_id", hid))
+      );
+      const rows = results.flatMap(r =>
+        (r.data||[]).map(v => ({ evento_id:eventoId, usuario_id:v.usuario_id, alumno_invitado_id:v.hijo_id, asiste:"pendiente" }))
+      );
+      if(rows.length) {
+        // ignoreDuplicates por si el delete no limpió todo (RLS)
+        await supabase.from("evento_asistencia").upsert(rows, { onConflict:"evento_id,alumno_invitado_id", ignoreDuplicates:false });
       }
     }
     setGuardando(false);
@@ -3624,7 +3626,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
-      supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido,color)").eq("curso_id",cursoId),
+      supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").eq("curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
       userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
@@ -3676,20 +3678,17 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     };
     unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setLista(unified);
-    // Cargar apoderados — mismo join que usa SuperAdmin (funciona)
-    const { data: hijosConUsuarios } = await supabase
-      .from("hijos")
-      .select("id, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido))")
-      .eq("curso_id", cursoId);
-    const vistos = new Set();
-    const apods = [];
-    for(const h of (hijosConUsuarios||[])) {
-      for(const uh of (h.usuarios||[])) {
-        const u = uh.usuarios;
-        if(u && !vistos.has(u.id)) { vistos.add(u.id); apods.push(u); }
+    // Cargar apoderados — hijos del curso → usuario_hijos → usuarios_publico
+    const { data: hijosDelCurso } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+    const hids = (hijosDelCurso||[]).map(h=>h.id);
+    if(hids.length) {
+      const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hids);
+      const uids = [...new Set((uhData||[]).map(x=>x.usuario_id).filter(Boolean))];
+      if(uids.length) {
+        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,apellido").in("id", uids);
+        setApoderados((usData||[]).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
       }
     }
-    setApoderados(apods.sort((a,b)=>a.nombre.localeCompare(b.nombre)));
     // Map cumples by alumno_id or maestro_id_ref
     const map = {};
     (cu.data||[]).forEach(c=>{
@@ -3936,7 +3935,7 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   const cargar = async () => {
     const [v,t] = await Promise.all([
       supabase.from("usuario_hijos").select("*, usuarios(id,nombre,email,telefono)").eq("hijo_id",alumno.id),
-      supabase.from("usuarios").select("id,nombre,email,telefono,rol").eq("activo",true).order("nombre"),
+      supabase.from("usuarios_publico").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
     ]);
     // Exclude only super admins — room parents can also be apoderados
     const aptos = (t.data||[]).filter(u => u.rol !== "super");
