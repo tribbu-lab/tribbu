@@ -1167,7 +1167,23 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
     // Build unified birthday list sorted by next occurrence
-    const nextBday = (fecha) => {
+    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+    const payload = {
+      titulo: titulo.trim(),
+      tipo: "colecta",
+      descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
+      monto_sugerido: monto ? Number(monto) : null,
+      moneda: moneda||"$",
+      fecha_limite: fecha_limite||null,
+      vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
+      curso_id: cursoId,
+      activa: true,
+    };
+    await supabase.from("colectas").insert(payload);
+    setColectaRegaloModal(null);
+  };
+
+  const nextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const d = new Date(fecha+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
@@ -3108,6 +3124,52 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
 }
 
 // ── Festejo Modal (apoderado crea/edita su festejo) ──────────────────────────
+function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", onClose, onSave }) {
+  const [titulo,      setTitulo]      = useState(`Regalo cumpleaños ${maestroNombre}`);
+  const [monto,       setMonto]       = useState(montoDefault ? String(montoDefault) : "");
+  const [moneda,      setMoneda]      = useState(monedaDefault||"$");
+  const [fechaLimite, setFechaLimite] = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const guardar = async () => {
+    if(!titulo.trim()) return;
+    setSaving(true);
+    await onSave({maestroNombre, titulo, monto, moneda, fecha_limite: fechaLimite||null});
+    setSaving(false);
+  };
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:420}}>
+        <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🎁 Colecta regalo</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Cumpleaños de {maestroNombre}</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TÍTULO</div>
+          <input value={titulo} onChange={e=>setTitulo(e.target.value)} style={inp}/>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO SUGERIDO</div>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <div style={{display:"flex",gap:4}}>
+              {["$","USD"].map(m=>(
+                <button key={m} type="button" onClick={()=>setMoneda(m)} style={{padding:"8px 14px",borderRadius:8,border:`2px solid ${moneda===m?"#3B82F6":"#E2E8F0"}`,background:moneda===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:moneda===m?"#3B82F6":"#94A3B8"}}>{m}</button>
+              ))}
+            </div>
+            <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="Ej: 5000" style={{...inp,flex:1}}/>
+          </div>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA LÍMITE</div>
+          <input type="date" value={fechaLimite} onChange={e=>setFechaLimite(e.target.value)} style={inp}/>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+          <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Creando...":"Crear colecta"}</button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistente, onClose, onSave }) {
   const [form, setForm] = useState({
     titulo:      festejoExistente?.titulo      || `🎉 Festejo de ${alumnoNombre}`,
@@ -3493,6 +3555,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
   const [editando,setEditando]         = useState(null);
   const [festejoModal,setFestejoModal] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
+  const [colectaRegaloModal,setColectaRegaloModal] = useState(null); // {maestroNombre, maestroId}
   const [invitaciones,setInvitaciones] = useState([]);
 
   const [montoRegalo,setMontoRegalo]   = useState(null);
@@ -3528,7 +3591,23 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       })),
     ];
     // Sort by next birthday
-    const nextBday = (fecha) => {
+    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+    const payload = {
+      titulo: titulo.trim(),
+      tipo: "colecta",
+      descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
+      monto_sugerido: monto ? Number(monto) : null,
+      moneda: moneda||"$",
+      fecha_limite: fecha_limite||null,
+      vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
+      curso_id: cursoId,
+      activa: true,
+    };
+    await supabase.from("colectas").insert(payload);
+    setColectaRegaloModal(null);
+  };
+
+  const nextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const d = new Date(fecha+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
@@ -3573,6 +3652,22 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     await cargar();
   };
 
+  const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+    const payload = {
+      titulo: titulo.trim(),
+      tipo: "colecta",
+      descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
+      monto_sugerido: monto ? Number(monto) : null,
+      moneda: moneda||"$",
+      fecha_limite: fecha_limite||null,
+      vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
+      curso_id: cursoId,
+      activa: true,
+    };
+    await supabase.from("colectas").insert(payload);
+    setColectaRegaloModal(null);
+  };
+
   const nextBday = (fecha) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     const d = new Date(fecha+"T00:00:00");
@@ -3610,6 +3705,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?.responsable_id, comprado:cumpleMap[editando.id]?.comprado||false, monto_regalo:cumpleMap[editando.id]?.monto_regalo}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
+      {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños en el curso</div>
@@ -3641,6 +3737,11 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
                       <div style={{fontSize:12,color:"#64748B",marginBottom:6}}>
                         🎂 {new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}
                       </div>
+                      {!isAlumno&&isAdmin&&(
+                        <div style={{marginBottom:4}}>
+                          <button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId})} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",color:"#10B981"}}>🎁 Crear colecta regalo</button>
+                        </div>
+                      )}
                       {isAlumno&&(
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                           {fest
@@ -3942,13 +4043,11 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   const hoyStr = new Date().toISOString().split("T")[0];
 
   const cargar = async () => {
-    console.log("RecordatoriosTab cargar cursoId:", cursoId, "userId:", userId);
     const [recs, leidos, al] = await Promise.all([
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
-    console.log("recs data:", recs.data, "error:", recs.error);
     setRecordatorios(recs.data||[]);
     setLeidosSet(new Set((leidos.data||[]).map(r=>Number(r.recordatorio_id))));
     setAlerta((al.data||[])[0]||null);
