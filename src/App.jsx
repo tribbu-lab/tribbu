@@ -450,6 +450,12 @@ function SuperAdmin() {
     filterOptions: [
       {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
+      {key:"curso", label:"Curso", options:[], match:(u,v)=>{
+        const cid=Number(v);
+        if(u.rol==="admin") return (u.cursos||[]).includes(cid);
+        if(u.rol==="padre") return (u.hijos||[]).some(hid=>hijos.find(h=>h.id===hid&&h.curso_id===cid));
+        return false;
+      }},
     ],
     pageSize:12,
   });
@@ -856,11 +862,14 @@ function SuperAdmin() {
         <>
           <UploadApoderadosExcel onDone={cargar}/>
           <button onClick={()=>{ setForm({nombre:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
-          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          {(() => {
+            const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
+            return <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>;
+          })()}
           {ctrlUsuarios.items.map(u=>(
             <Card key={u.id} style={{padding:"14px 16px",marginBottom:10,opacity:u.activo?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:12,background:ROL_BG[u.rol],display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:ROL_COLOR[u.rol],flexShrink:0}}>{u.avatar}</div>
+
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                     <div style={{fontSize:14,fontWeight:700}}>{u.nombre}</div>
@@ -2869,26 +2878,28 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // responsables: solo apoderados cuyos hijos están en este curso
-    const alumnosDelCurso = (await supabase.from("hijos").select("id").eq("curso_id",cursoId)).data||[];
-    const alumnosIds = alumnosDelCurso.map(a=>a.id);
-    const { data: uhData } = alumnosIds.length
-      ? await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id",alumnosIds)
-      : {data:[]};
-    const todosIds = [...new Set((uhData||[]).map(r=>r.usuario_id))];
-
-    const [alum, usu, pag] = await Promise.all([
+    // responsables: via join embebido para evitar query directa a usuarios (RLS)
+    const [alum, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
-      todosIds.length
-        ? supabase.from("usuarios").select("id,nombre,activo").in("id",todosIds)
-        : Promise.resolve({data:[]}),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
         : Promise.resolve({data:[]}),
     ]);
+    const alumnosIds = (alum.data||[]).map(a=>a.id);
+    const usuMap = new Map();
+    for(const hid of alumnosIds) {
+      const { data: uhRows } = await supabase
+        .from("usuario_hijos")
+        .select("usuarios(id,nombre,activo)")
+        .eq("hijo_id", hid);
+      for(const row of (uhRows||[])) {
+        const u = row.usuarios;
+        if(u && !usuMap.has(u.id)) usuMap.set(u.id, u);
+      }
+    }
     setColectas(colData||[]);
     setAlumnos(alum.data||[]);
-    setUsuarios(usu.data||[]);
+    setUsuarios([...usuMap.values()]);
     setPagos(pag.data||[]);
   };
 
@@ -3651,15 +3662,22 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     };
     unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setLista(unified);
-    // Cargar apoderados del curso (via hijos — misma ruta que funciona en Finanzas)
+    // Cargar apoderados del curso via join embebido (nunca query directa a usuarios — RLS activo)
     const alumnosIds = (al.data||[]).map(a=>a.id);
     if(alumnosIds.length) {
-      const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
-      const uids = [...new Set((uhData||[]).map(r=>r.usuario_id).filter(Boolean))];
-      if(uids.length) {
-        const { data: usData } = await supabase.from("usuarios").select("id,nombre,apellido").in("id", uids);
-        setApoderados((usData||[]).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
+      const apods = [];
+      const vistos = new Set();
+      for(const hid of alumnosIds) {
+        const { data: uhData } = await supabase
+          .from("usuario_hijos")
+          .select("usuario_id, usuarios(id,nombre,apellido)")
+          .eq("hijo_id", hid);
+        for(const row of (uhData||[])) {
+          const u = row.usuarios;
+          if(u && !vistos.has(u.id)) { vistos.add(u.id); apods.push(u); }
+        }
       }
+      setApoderados(apods.sort((a,b)=>a.nombre.localeCompare(b.nombre)));
     }
     // Map cumples by alumno_id or maestro_id_ref
     const map = {};
