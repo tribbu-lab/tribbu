@@ -12,7 +12,7 @@ const T = {
 const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
 const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
 const HIJO_COLORS_CUSTOM = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"]; // colores custom
-const HIJO_COLOR_DEFAULT = "#0F172A"; // color original del sitio
+const HIJO_COLOR_DEFAULT = "#0F172A"; // color oscuro del sitio
 const getHijoColor = (userId, hijoId) => { try { const k=`hcolor_${userId}_${hijoId}`; return localStorage.getItem(k)||null; } catch{ return null; } };
 const setHijoColor = (userId, hijoId, color) => { try { localStorage.setItem(`hcolor_${userId}_${hijoId}`,color); } catch{} };
 const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
@@ -1174,7 +1174,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
     ]);
     // Build unified birthday list sorted by next occurrence
-    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
       titulo: titulo.trim(),
       tipo: "colecta",
@@ -1185,6 +1185,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
       curso_id: cursoId,
       activa: true,
+      responsable_id: responsable_id||null,
     };
     await supabase.from("colectas").insert(payload);
     setColectaRegaloModal(null);
@@ -2879,7 +2880,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const [alum, usu, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
       todosIds.length
-        ? supabase.from("usuarios").select("id,nombre").in("id",todosIds).eq("activo",true).order("nombre")
+        ? supabase.from("usuarios").select("id,nombre,activo").in("id",todosIds)
         : Promise.resolve({data:[]}),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
@@ -3140,17 +3141,34 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
 }
 
 // ── Festejo Modal (apoderado crea/edita su festejo) ──────────────────────────
-function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", onClose, onSave }) {
+function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", cursoId, onClose, onSave }) {
   const [titulo,      setTitulo]      = useState(`Regalo cumpleaños ${maestroNombre}`);
   const [monto,       setMonto]       = useState(montoDefault ? String(montoDefault) : "");
   const [moneda,      setMoneda]      = useState(monedaDefault||"$");
   const [fechaLimite, setFechaLimite] = useState("");
+  const [responsableId, setResponsableId] = useState("");
+  const [usuarios,    setUsuarios]    = useState([]);
   const [saving,      setSaving]      = useState(false);
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  useEffect(()=>{
+    if(!cursoId) return;
+    // Traer apoderados via hijos del curso -> usuario_hijos -> usuarios (join embebido)
+    supabase.from("hijos")
+      .select("id, usuario_hijos(usuario_id, usuarios(id,nombre,apellido))")
+      .eq("curso_id", cursoId)
+      .then(r=>{
+        const vistos = new Set();
+        const lista = (r.data||[])
+          .flatMap(h=>(h.usuario_hijos||[]).map(uh=>uh.usuarios).filter(Boolean))
+          .filter(u=>{ if(!u||vistos.has(u.id)) return false; vistos.add(u.id); return true; })
+          .sort((a,b)=>a.nombre.localeCompare(b.nombre));
+        setUsuarios(lista);
+      });
+  },[cursoId]);
   const guardar = async () => {
     if(!titulo.trim()) return;
     setSaving(true);
-    await onSave({maestroNombre, titulo, monto, moneda, fecha_limite: fechaLimite||null});
+    await onSave({maestroNombre, titulo, monto, moneda, fecha_limite: fechaLimite||null, responsable_id: responsableId ? Number(responsableId) : null});
     setSaving(false);
   };
   return (
@@ -3172,6 +3190,15 @@ function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault="$", on
             </div>
             <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="Ej: 5000" style={{...inp,flex:1}}/>
           </div>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>RESPONSABLE</div>
+          <select value={responsableId} onChange={e=>setResponsableId(e.target.value)} style={inp}>
+            <option value="">Sin asignar</option>
+            {usuarios.map(u=>(
+              <option key={u.id} value={u.id}>{u.nombre} {u.apellido||""}</option>
+            ))}
+          </select>
         </div>
         <div style={{marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA LÍMITE</div>
@@ -3607,7 +3634,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       })),
     ];
     // Sort by next birthday
-    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+    const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
       titulo: titulo.trim(),
       tipo: "colecta",
@@ -3618,6 +3645,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
       curso_id: cursoId,
       activa: true,
+      responsable_id: responsable_id||null,
     };
     await supabase.from("colectas").insert(payload);
     setColectaRegaloModal(null);
@@ -3706,7 +3734,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     await cargar();
   };
 
-  const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite}) => {
+  const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
       titulo: titulo.trim(),
       tipo: "colecta",
@@ -3717,6 +3745,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
       curso_id: cursoId,
       activa: true,
+      responsable_id: responsable_id||null,
     };
     await supabase.from("colectas").insert(payload);
     setColectaRegaloModal(null);
@@ -3759,7 +3788,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?.responsable_id, comprado:cumpleMap[editando.id]?.comprado||false, monto_regalo:cumpleMap[editando.id]?.monto_regalo}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
-      {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
+      {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} cursoId={cursoId} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños en el curso</div>
@@ -4727,6 +4756,9 @@ export default function App() {
   const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
   const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
   const headerBg  = hijoColor || "#0F172A";
+  // Color del punto identificador — siempre visible (usa color supabase si no hay custom)
+  const hijoDotColor = (hijoColor && hijoColor !== "#FFFFFF") ? hijoColor : (esPadre && itemActual?.color) || "#3B82F6";
+
 
   const cambiarColorHijo = (idx, color) => {
     const item = items[idx];
@@ -4780,7 +4812,7 @@ export default function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
       <div style={{background:headerBg,position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
         <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:hijoColor?"rgba(255,255,255,0.7)":"#3B82F6"}}>.</span></div>
+          <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {cursoNombre&&<div style={{fontSize:12,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{cursoNombre}</div>}
             {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,marginRight:6}}>Cambiar perfil</button>}
@@ -4791,11 +4823,12 @@ export default function App() {
           <div style={{display:"flex",gap:6,padding:"0 16px 8px",overflowX:"auto"}}>
             {items.map((item,i)=>{
               const _sc = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null) : null;
-              const col = (_sc && _sc!==HIJO_COLOR_DEFAULT) ? _sc : (esPadre ? null : null);
+              const colHeader = (_sc && _sc!==HIJO_COLOR_DEFAULT) ? _sc : null; // color aplicado al header
+              const col = colHeader || (esPadre ? (item.color||"#3B82F6") : null); // punto visual siempre visible
               return (
                 <div key={i} style={{position:"relative",flexShrink:0}}>
-                  <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 10px",borderRadius:20,border:`2px solid ${i===cursoIdx?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.15)"}`,background:i===cursoIdx?"rgba(255,255,255,0.2)":"transparent",cursor:"pointer",fontSize:11,fontWeight:700,color:i===cursoIdx?"white":"rgba(255,255,255,0.5)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
-                    {esPadre&&<span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0,display:"inline-block",border:"1.5px solid rgba(255,255,255,0.4)"}}/>}
+                  <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 10px",borderRadius:20,border:`2px solid ${i===cursoIdx?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.2)"}`,background:i===cursoIdx?"rgba(255,255,255,0.18)":"transparent",cursor:"pointer",fontSize:11,fontWeight:i===cursoIdx?800:500,color:"white",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
+                    {esPadre&&<span style={{width:9,height:9,borderRadius:"50%",background:col,flexShrink:0,display:"inline-block",border:"2px solid rgba(255,255,255,0.7)"}}/>}
                     {esPadre?item.nombre?.split(" ")[0]:item.nombre}
                   </button>
                   {esPadre&&i===cursoIdx&&<button onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",border:"2px solid white",background:col,cursor:"pointer",padding:0,fontSize:0}}/>}
@@ -4807,7 +4840,7 @@ export default function App() {
         )}
         <div style={{display:"flex",overflowX:"auto",padding:"0 16px 10px",gap:4,scrollbarWidth:"none"}}>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===t.id?"rgba(255,255,255,0.2)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.5)",whiteSpace:"nowrap"}}>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===t.id?"rgba(255,255,255,0.2)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",whiteSpace:"nowrap"}}>
               {t.emoji} {t.label}
             </button>
           ))}
@@ -4838,15 +4871,16 @@ export default function App() {
       <div style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
           <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
+
         </div>
         {items.length>0&&(
           <div style={{padding:"0 12px 16px"}}>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
             {items.map((item,i)=>(
               <div key={i} style={{position:"relative",marginBottom:2}}>
-                <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:i===cursoIdx?"white":"rgba(255,255,255,0.5)",fontSize:12,fontWeight:i===cursoIdx?700:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
-                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:HIJO_COLOR_DEFAULT; })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
+                <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
                   <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
                   {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
                 </button>
@@ -4856,9 +4890,9 @@ export default function App() {
           </div>
         )}
         <div style={{padding:"0 12px",flex:1}}>
-          <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menú</div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menú</div>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.5)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:16}}>{t.emoji}</span>{t.label}
             </button>
           ))}
