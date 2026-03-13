@@ -74,7 +74,7 @@ function Login({ onLogin }) {
   const go = async () => {
     setErr(""); setLd(true);
     const { data, error } = await supabase
-      .from("usuarios_publico")
+      .from("usuarios")
       .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)")
       .eq("email", email)
       .eq("pass", pass)
@@ -251,7 +251,7 @@ function UploadApoderadosExcel({ onDone }) {
       if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, email, pass, telefono");
 
       // Delete existing padres and their relations
-      const { data: padres } = await supabase.from("usuarios_publico").select("id").eq("rol","padre");
+      const { data: padres } = await supabase.from("usuarios").select("id").eq("rol","padre");
       if(padres?.length) {
         const ids = padres.map(p=>p.id);
         await supabase.from("usuario_hijos").delete().in("usuario_id",ids);
@@ -505,7 +505,7 @@ function SuperAdmin() {
   const cargar = async () => {
     setLoading(true);
     const [u,c,h,m,mc] = await Promise.all([
-      supabase.from("usuarios_publico").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)").order("id"),
+      supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)").order("id"),
       supabase.from("cursos").select("*").order("id"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
@@ -516,7 +516,7 @@ function SuperAdmin() {
     setHijos(h.data||[]);
     const mcData = mc.data||[];
     setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
-    const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,email,telefono))").order("nombre");
+    const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))").order("nombre");
     setAlumnos(al.data||[]);
     setLoading(false);
   };
@@ -935,7 +935,7 @@ function SuperAdmin() {
                       {curso&&<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>}
                     </div>
                     {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
-                    {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}</div>}
+                    {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", ")}</div>}
                   </div>
                   <div style={{display:"flex",gap:6,flexShrink:0}}>
                     <button onClick={()=>setVerApodSA(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
@@ -2878,7 +2878,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // responsables del curso via usuarios_publico
+    // responsables del curso
     const [alum, pag] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
       colIds.length
@@ -2886,13 +2886,17 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
         : Promise.resolve({data:[]}),
     ]);
     const alumnosIds = (alum.data||[]).map(a=>a.id);
+    const uidsSet = new Set();
+    // Siempre incluir al usuario logueado (room parent puede asignarse a sí mismo)
+    if(userId) uidsSet.add(Number(userId));
     if(alumnosIds.length) {
       const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
-      const uids = [...new Set((uhData||[]).map(r=>r.usuario_id).filter(Boolean))];
-      if(uids.length) {
-        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,apellido,activo").in("id", uids);
-        setUsuarios(usData||[]);
-      }
+      (uhData||[]).forEach(r=>{ if(r.usuario_id) uidsSet.add(r.usuario_id); });
+    }
+    const uids = [...uidsSet];
+    if(uids.length) {
+      const { data: usData } = await supabase.from("usuarios").select("id,nombre,apellido,activo").in("id", uids);
+      setUsuarios(usData||[]);
     }
     setColectas(colData||[]);
     setAlumnos(alum.data||[]);
@@ -3678,14 +3682,14 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     };
     unified.sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setLista(unified);
-    // Cargar apoderados — hijos del curso → usuario_hijos → usuarios_publico
+    // Cargar apoderados
     const { data: hijosDelCurso } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
     const hids = (hijosDelCurso||[]).map(h=>h.id);
     if(hids.length) {
       const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hids);
       const uids = [...new Set((uhData||[]).map(x=>x.usuario_id).filter(Boolean))];
       if(uids.length) {
-        const { data: usData } = await supabase.from("usuarios_publico").select("id,nombre,apellido").in("id", uids);
+        const { data: usData } = await supabase.from("usuarios").select("id,nombre,apellido").in("id", uids);
         setApoderados((usData||[]).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
       }
     }
@@ -3934,12 +3938,16 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
 
   const cargar = async () => {
     const [v,t] = await Promise.all([
-      supabase.from("usuario_hijos").select("*, usuarios(id,nombre,email,telefono)").eq("hijo_id",alumno.id),
-      supabase.from("usuarios_publico").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
+      supabase.from("usuario_hijos").select("usuario_id, relacion").eq("hijo_id",alumno.id),
+      supabase.from("usuarios").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
     ]);
-    // Exclude only super admins — room parents can also be apoderados
     const aptos = (t.data||[]).filter(u => u.rol !== "super");
-    setVinculados(v.data||[]);
+    // Enriquecer vinculados con datos de usuarios
+    const vinculadosEnriquecidos = (v.data||[]).map(row => ({
+      ...row,
+      usuarios: aptos.find(u=>u.id===row.usuario_id) || null
+    }));
+    setVinculados(vinculadosEnriquecidos);
     setTodos(aptos);
   };
 
@@ -4019,7 +4027,7 @@ function Alumnos({ cursoId, isAdmin }) {
 
   const cargar = async () => {
     const { data } = await supabase.from("hijos")
-      .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,email,telefono))")
+      .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))")
       .eq("curso_id",cursoId).order("nombre");
     setAlumnos(data||[]);
   };
@@ -4109,7 +4117,7 @@ function Alumnos({ cursoId, isAdmin }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
                   {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
-                  {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>p.nombre).join(", ")}{apoderados[0]?.telefono&&` · ${apoderados[0].telefono}`}</div>}
+                  {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", ")}{apoderados[0]?.telefono&&` · ${apoderados[0].telefono}`}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
                   <button onClick={()=>setVerApoderados(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
