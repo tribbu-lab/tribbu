@@ -1213,8 +1213,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       const { data: pagosData } = colIds.length
         ? await supabase.from("colecta_pagos").select("*").in("colecta_id",colIds).in("alumno_id",misHijosIds)
         : {data:[]};
-      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${p.colecta_id}-${p.alumno_id}`));
-      colectasPend = (cuotas.data||[]).filter(c=>c.activa&&misHijosIds.some(hid=>!pagados.has(`${c.id}-${hid}`)));
+      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${Number(p.colecta_id)}-${Number(p.alumno_id)}`));
+      colectasPend = (cuotas.data||[]).filter(c=>c.activa&&misHijosIds.some(hid=>!pagados.has(`${Number(c.id)}-${Number(hid)}`)));
     }
     setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
   };
@@ -1336,7 +1336,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       )}
       {(datos.colectasPend||[]).length>0&&(
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Colectas pendientes</div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pendiente de pago</div>
           {datos.colectasPend.map(c=>(
             <div key={c.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:"1px solid #E2E8F0",borderLeft:"3px solid #F59E0B",cursor:"pointer"}} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})}>
               <div style={{flex:1}}>
