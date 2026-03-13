@@ -3942,11 +3942,13 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   const hoyStr = new Date().toISOString().split("T")[0];
 
   const cargar = async () => {
+    console.log("RecordatoriosTab cargar cursoId:", cursoId, "userId:", userId);
     const [recs, leidos, al] = await Promise.all([
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
+    console.log("recs data:", recs.data, "error:", recs.error);
     setRecordatorios(recs.data||[]);
     setLeidosSet(new Set((leidos.data||[]).map(r=>Number(r.recordatorio_id))));
     setAlerta((al.data||[])[0]||null);
