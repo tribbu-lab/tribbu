@@ -526,13 +526,13 @@ function SuperAdmin() {
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_usuario") {
-      const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,email:form.email,pass:form.pass,rol:form.rol,avatar,activo:form.activo}).select().single();
+      const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:form.pass,rol:form.rol,avatar,activo:form.activo}).select().single();
       if(data) {
         if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:data.id,curso_id:cid})));
         if(form.rol==="padre"&&form.hijos.length)  await supabase.from("usuario_hijos").insert(form.hijos.map(hid=>({usuario_id:data.id,hijo_id:hid})));
       }
     } else {
-      await supabase.from("usuarios").update({nombre:form.nombre,email:form.email,pass:form.pass,rol:form.rol,activo:form.activo}).eq("id",form.id);
+      await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:form.pass,rol:form.rol,activo:form.activo}).eq("id",form.id);
       await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id);
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
       if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:form.id,curso_id:cid})));
@@ -635,7 +635,7 @@ function SuperAdmin() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo usuario":"Editar usuario"}</div>
-            {[{label:"Nombre completo",key:"nombre",type:"text",ph:"Ej: María García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"},{label:"Contraseña",key:"pass",type:"text",ph:"Contraseña de acceso"}].map(f=>(
+            {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"},{label:"Contraseña",key:"pass",type:"text",ph:"Contraseña de acceso"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
                 <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
@@ -861,7 +861,7 @@ function SuperAdmin() {
       {sec==="usuarios" && (
         <>
           <UploadApoderadosExcel onDone={cargar}/>
-          <button onClick={()=>{ setForm({nombre:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
+          <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",rol:"padre",cursos:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
           {(() => {
             const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
             return <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>;
@@ -872,7 +872,7 @@ function SuperAdmin() {
 
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <div style={{fontSize:14,fontWeight:700}}>{u.nombre}</div>
+                    <div style={{fontSize:14,fontWeight:700}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
                     <Pill label={ROL_LABEL[u.rol]} color={ROL_COLOR[u.rol]} bg={ROL_BG[u.rol]}/>
                     {!u.activo && <Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                   </div>
@@ -883,7 +883,7 @@ function SuperAdmin() {
                 <div style={{display:"flex",gap:6,flexShrink:0}}>
                   <button onClick={()=>{ setForm({...u,cursos:[...(u.cursos||[])],hijos:[...(u.hijos||[])]}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                   <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
-                  {u.rol!=="super"&&<button onClick={()=>setConfirm({msg:`¿Eliminar a ${u.nombre}?`,action:()=>eliminarUsuario(u.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
+                  {u.rol!=="super"&&<button onClick={()=>setConfirm({msg:`¿Eliminar a ${u.nombre}${u.apellido?` ${u.apellido}`:""}`,action:()=>eliminarUsuario(u.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
                 </div>
               </div>
             </Card>
@@ -3012,7 +3012,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>RESPONSABLE</div>
               <select value={form.responsable_id||""} onChange={e=>setForm(p=>({...p,responsable_id:e.target.value}))} style={inp}>
                 <option value="">— Sin asignar —</option>
-                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</option>)}
               </select>
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -3089,7 +3089,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
                   </div>
                   {c.descripcion&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{c.descripcion}</div>}
                   <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
-                    {resp&&<span style={{fontSize:11,color:"#64748B"}}>Responsable: {resp.nombre}</span>}
+                    {resp&&<span style={{fontSize:11,color:"#64748B"}}>Responsable: {resp.nombre}{resp.apellido?` ${resp.apellido}`:""}</span>}
                     {c.fecha_limite&&<span style={{fontSize:11,color:"#64748B"}}>Límite: {fmtF(c.fecha_limite)}</span>}
                     {c.monto_sugerido&&<span style={{fontSize:11,color:"#64748B"}}>Monto sugerido: {fmtM(c.monto_sugerido, c.moneda||"$")}</span>}
                   </div>
@@ -3975,9 +3975,9 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
             <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Vinculados</div>
             {vinculados.map(v=>(
               <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F0FDF4",border:"1px solid #BBF7D0",marginBottom:7}}>
-                <div style={{width:34,height:34,borderRadius:10,background:"#10B981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{v.usuarios?.nombre?.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                <div style={{width:34,height:34,borderRadius:10,background:"#10B981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{`${v.usuarios?.nombre||""} ${v.usuarios?.apellido||""}`.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{v.usuarios?.nombre}</div>
+                  <div style={{fontSize:13,fontWeight:700}}>{v.usuarios?.nombre}{v.usuarios?.apellido?` ${v.usuarios.apellido}`:""}</div>
                   <div style={{fontSize:11,color:"#94A3B8"}}>{v.usuarios?.email}{v.usuarios?.telefono&&` · ${v.usuarios.telefono}`}</div>
                 </div>
                 {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",fontSize:11,fontWeight:700,color:"#EF4444",flexShrink:0}}>Quitar</button>}
@@ -3995,7 +3995,7 @@ function ApoderadosModal({ alumno, onClose, canEdit=true }) {
               <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>
                 <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#3B82F6",flexShrink:0}}>{u.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{u.nombre}</div>
+                  <div style={{fontSize:13,fontWeight:700}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
                   <div style={{fontSize:11,color:"#94A3B8"}}>{u.email}{u.telefono&&` · ${u.telefono}`}</div>
                 </div>
                 <button onClick={()=>vincular(u.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6",flexShrink:0}}>Vincular</button>
@@ -4934,7 +4934,7 @@ export default function App() {
         </div>
         <div style={{padding:"16px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{usuario.nombre}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{usuario.nombre}{usuario.apellido?` ${usuario.apellido}`:""}</div>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[usuario.rol]}</div>
           </div>
           <button onClick={()=>setUsuario(null)} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>← Cerrar sesión</button>
