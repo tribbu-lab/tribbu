@@ -3616,81 +3616,61 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
         {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
       </div>
 
-      <div style={{maxWidth:700}}>
+      <div>
           <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Próximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
-          <Card style={{overflow:"hidden",padding:0}}>
-            <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead>
-                <tr style={{background:"#F8FAFC"}}>
-                  {["Nombre","Tipo","Fecha","Festejo","Responsable regalo","Faltan"].map(h=>(
-                    <th key={h} style={{padding:"10px 14px",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,textAlign:"left",borderBottom:"1px solid #E2E8F0"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {listaFiltrada.length===0&&(
-                  <tr><td colSpan={7} style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin cumpleaños para mostrar</td></tr>
-                )}
-                {listaFiltrada.map((a,i)=>{
-                  const dias    = nextBday(a.fecha_nacimiento);
-                  const badge   = bdayLabel(dias);
-                  const cumple  = cumpleMap[a.id];
-                  const resp    = cumple?.responsable;
-                  const isAlumno = a.tipo==="Alumno";
-                  return (
-                    <tr key={a.id} style={{borderBottom:"1px solid #F1F5F9",background:i%2===0?"white":"#FAFAFA"}}>
-                      <td style={{padding:"11px 14px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10}}>
-
-                          <span style={{fontSize:13,fontWeight:700}}>{a.nombre}</span>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {listaFiltrada.length===0&&(
+              <Card style={{padding:32,textAlign:"center",color:"#94A3B8",fontSize:13}}>Sin cumpleaños para mostrar</Card>
+            )}
+            {listaFiltrada.map((a)=>{
+              const dias     = nextBday(a.fecha_nacimiento);
+              const badge    = bdayLabel(dias);
+              const cumple   = cumpleMap[a.id];
+              const resp     = cumple?.responsable;
+              const isAlumno = a.tipo==="Alumno";
+              const fest     = isAlumno ? festejoMap[a.rawId] : null;
+              const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
+              return (
+                <Card key={a.id} style={{padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+                        <span style={{fontSize:14,fontWeight:700}}>{a.nombre}</span>
+                        <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:isAlumno?"#EFF6FF":"#F5F3FF",color:isAlumno?"#3B82F6":"#8B5CF6",flexShrink:0}}>{isAlumno?"Alumno":"Maestro"}</span>
+                      </div>
+                      <div style={{fontSize:12,color:"#64748B",marginBottom:6}}>
+                        🎂 {new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}
+                      </div>
+                      {isAlumno&&(
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                          {fest
+                            ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
+                               {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{fontSize:10,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>✏️</button>}</>
+                            : esMiHijo
+                              ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
+                              : null
+                          }
                         </div>
-                      </td>
-                      <td style={{padding:"11px 14px"}}>
-                        <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:isAlumno?"#EFF6FF":"#F5F3FF",color:isAlumno?"#3B82F6":"#8B5CF6"}}>
-                          {isAlumno?"Alumno":"Maestro"}
-                        </span>
-                      </td>
-                      <td style={{padding:"11px 14px",fontSize:13,color:"#0F172A"}}>
-                        {new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}
-                      </td>
-                      <td style={{padding:"11px 14px"}}>
-                        {isAlumno&&(()=>{
-                          const fest = festejoMap[a.rawId];
-                          const esMiHijo = misHijosUniq.includes(a.rawId);
-                          if(fest) return (
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
-                              {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{fontSize:10,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>✏️</button>}
+                      )}
+                      {resp
+                        ? <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+                            <div style={{width:22,height:22,borderRadius:6,background:(resp.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:resp.color||"#3B82F6",flexShrink:0}}>{fmtNombre(resp).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                            <span style={{fontSize:12,color:"#64748B"}}>🎁 {fmtNombre(resp)}</span>
+                            {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#94A3B8"}}>✏️</button>}
+                          </div>
+                        : isAdmin&&(
+                            <div style={{marginTop:6}}>
+                              <button onClick={()=>setEditando(a)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6",fontWeight:600}}>+ Asignar responsable</button>
                             </div>
-                          );
-                          if(esMiHijo) return (
-                            <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
-                          );
-                          return <span style={{fontSize:12,color:"#CBD5E1"}}>—</span>;
-                        })()}
-                      </td>
-                      <td style={{padding:"11px 14px"}}>
-                        {resp
-                          ? <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <div style={{width:26,height:26,borderRadius:7,background:(resp.color||"#3B82F6")+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:resp.color||"#3B82F6",flexShrink:0}}>{fmtNombre(resp).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
-                              <span style={{fontSize:12,fontWeight:600}}>{fmtNombre(resp)}</span>
-                              {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#94A3B8"}}>✏️</button>}
-                            </div>
-                          : <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:12,color:"#CBD5E1"}}>Sin asignar</span>
-                              {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:10,color:"#3B82F6",fontWeight:600}}>+ Asignar</button>}
-                            </div>
-                        }
-                      </td>
-                      <td style={{padding:"11px 14px"}}>
-                        <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:badge.bg,color:badge.c}}>{badge.l}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
+                          )
+                      }
+                    </div>
+                    <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:badge.bg,color:badge.c,flexShrink:0,whiteSpace:"nowrap"}}>{badge.l}</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
           <Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>
         </div>
 
@@ -4554,37 +4534,6 @@ export default function App() {
 
   const handleLogin = (u) => { setUsuario(u); setPerfilElegido(null); setTab("muro"); setCursoIdx(0); setItems([]); };
 
-  // Swipe hooks — deben estar antes de cualquier return condicional
-  const TABS_ORDER_REF = useRef([]);
-  const swipeRef = useRef(null);
-  const tabRef   = useRef(tab);
-  useEffect(()=>{ tabRef.current = tab; },[tab]);
-  useEffect(()=>{
-    const el = swipeRef.current;
-    if(!el || !isMobile) return;
-    let x0=null, y0=null, blocked=false;
-    const onStart = e => { x0=e.touches[0].clientX; y0=e.touches[0].clientY; blocked=false; };
-    const onMove  = e => {
-      if(x0===null) return;
-      const dx=Math.abs(e.touches[0].clientX-x0);
-      const dy=Math.abs(e.touches[0].clientY-y0);
-      if(dy>dx) blocked=true;
-    };
-    const onEnd = e => {
-      if(x0===null||blocked) { x0=null; return; }
-      const dx = e.changedTouches[0].clientX - x0;
-      x0=null;
-      if(Math.abs(dx)<60) return;
-      const order = TABS_ORDER_REF.current;
-      const idx = order.indexOf(tabRef.current);
-      if(dx < 0 && idx < order.length-1) setTab(order[idx+1]);
-      if(dx > 0 && idx > 0) setTab(order[idx-1]);
-    };
-    el.addEventListener("touchstart", onStart, {passive:true});
-    el.addEventListener("touchmove",  onMove,  {passive:true});
-    el.addEventListener("touchend",   onEnd,   {passive:true});
-    return ()=>{ el.removeEventListener("touchstart",onStart); el.removeEventListener("touchmove",onMove); el.removeEventListener("touchend",onEnd); };
-  },[isMobile]);
   if(!usuario) return <Login onLogin={handleLogin}/>;
   // Admin con hijos → elegir perfil
   if(usuario.rol==="admin" && usuario.hijos?.length>0 && !perfilElegido) {
@@ -4667,7 +4616,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      <div ref={el=>{ swipeRef.current=el; TABS_ORDER_REF.current=TABS.map(t=>t.id); }} style={{padding:"20px 16px",color:"#0F172A",touchAction:"pan-y"}}>{renderTab()}</div>
+      <div style={{padding:"20px 16px",color:"#0F172A"}}>{renderTab()}</div>
     </div>
   );
 
