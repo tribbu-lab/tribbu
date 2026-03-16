@@ -3642,7 +3642,7 @@ function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
   );
 }
 
-function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
+function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null }) {
   const misHijosUniq = [...new Set(misHijos)];
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
@@ -3669,7 +3669,9 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[] }) {
     const curso = await supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single();
     setMontoRegalo(curso.data?.monto_regalo||null);
     setMonedaRegalo(curso.data?.moneda_regalo||"$");
-    setInvitaciones((inv.data||[]).filter(i=>i.evento));
+    // Si hay hijo activo, solo mostrar invitaciones de ese hijo
+    const invFiltradas = (inv.data||[]).filter(i=>i.evento && (hijoActivo===null || i.alumno_invitado_id===hijoActivo));
+    setInvitaciones(invFiltradas);
     const fmap = {};
     (fest.data||[]).forEach(f=>{ if(f.alumno_id) fmap[f.alumno_id]=f; });
     setFestejoMap(fmap);
@@ -4857,7 +4859,7 @@ export default function App() {
 
       case "finanzas":      return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} active={tab==="recordatorios"}/>;
-      case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]}/>;
+      case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} hijoActivo={esPadre ? itemActual?.id : null}/>;
 
       case "contacto":      return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
