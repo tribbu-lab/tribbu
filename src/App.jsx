@@ -3364,19 +3364,19 @@ function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoExistent
   );
 }
 
-// ── Festejo Detalle Modal (todos ven el festejo y confirman asistencia) ────────
+// Festejo Detalle Modal
 function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate }) {
   const [asistencia, setAsistencia] = useState([]);
-  const [alumnos,    setAlumnos]    = useState({}); // id→alumno
+  const [alumnos,    setAlumnos]    = useState({});
   const [guardando,  setGuardando]  = useState(false);
-  const [comentarios, setComentarios] = useState({}); // alumnoId→string
-  const [hermanos,    setHermanos]    = useState({}); // alumnoId→string
+  const [comentarios, setComentarios] = useState({});
+  const [hermanos,    setHermanos]    = useState({});
+  const [adultos,     setAdultos]     = useState({});
 
   useEffect(()=>{ cargarDatos(); },[evento.id]);
 
   const cargarDatos = async () => {
-    const { data: asist } = await supabase.from("evento_asistencia")
-      .select("*").eq("evento_id", evento.id);
+    const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const rows = asist||[];
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
     let alumnosMap = {};
@@ -3386,37 +3386,39 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
-    // pre-fill comentarios/hermanos para mis hijos
-    const coms = {}, herm = {};
-    rows.forEach(r=>{ if(misHijos.includes(r.alumno_invitado_id)){ coms[r.alumno_invitado_id]=r.comentario||""; herm[r.alumno_invitado_id]=r.hermanos||""; } });
-    setComentarios(coms); setHermanos(herm);
+    const coms={}, herm={}, adul={};
+    rows.forEach(r=>{
+      if(misHijos.includes(r.alumno_invitado_id)){
+        coms[r.alumno_invitado_id]  = r.comentario||"";
+        herm[r.alumno_invitado_id]  = r.hermanos!=null ? Number(r.hermanos)||0 : 0;
+        adul[r.alumno_invitado_id]  = r.adultos!=null  ? Number(r.adultos)||0  : 0;
+      }
+    });
+    setComentarios(coms); setHermanos(herm); setAdultos(adul);
   };
 
   const responder = async (alumnoId, asiste) => {
-    // Update optimista inmediato
-    setAsistencia(prev => prev.map(r =>
-      r.alumno_invitado_id===alumnoId ? {...r, asiste} : r
-    ));
-    // Actualizar en BD — la fila única es por (evento_id, alumno_invitado_id)
+    setAsistencia(prev => prev.map(r => r.alumno_invitado_id===alumnoId ? {...r, asiste} : r));
     await supabase.from("evento_asistencia")
-      .update({ asiste, comentario: comentarios[alumnoId]||null, hermanos: hermanos[alumnoId]||null })
-      .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId);
+      .update({ asiste, comentario:comentarios[alumnoId]||null, hermanos:hermanos[alumnoId]??0, adultos:adultos[alumnoId]??0 })
+      .eq("evento_id", evento.id).eq("alumno_invitado_id", alumnoId);
     onUpdate?.();
   };
 
-  const guardarComentario = async (alumnoId) => {
+  const guardarExtras = async (alumnoId) => {
     setGuardando(true);
-    const actual = asistencia.find(a=>a.alumno_invitado_id===alumnoId);
     await supabase.from("evento_asistencia")
-      .update({ comentario: comentarios[alumnoId]||null, hermanos: hermanos[alumnoId]||null })
-      .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId);
+      .update({ comentario:comentarios[alumnoId]||null, hermanos:hermanos[alumnoId]??0, adultos:adultos[alumnoId]??0 })
+      .eq("evento_id", evento.id).eq("alumno_invitado_id", alumnoId);
     await cargarDatos();
     setGuardando(false);
   };
 
-  // Dedup por alumno: si un alumno tiene 2 apoderados, priorizar "si" > "no" > "pendiente"
+  const setNumero = (setter, alumnoId, val) => {
+    const n = Math.max(0, parseInt(val)||0);
+    setter(p=>({...p,[alumnoId]:n}));
+  };
+
   const dedupAsistencia = (rows) => {
     const PRIO = {"si":2,"no":1,"pendiente":0};
     const map = {};
@@ -3428,7 +3430,12 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
   const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
   const pendientes  = asistenciaDedup.filter(a=>a.asiste==="pendiente"||!a.asiste);
 
-  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const totalAlumnos  = confirmados.length;
+  const totalHermanos = confirmados.reduce((s,a)=>s+(Number(a.hermanos)||0),0);
+  const totalAdultos  = confirmados.reduce((s,a)=>s+(Number(a.adultos)||0),0);
+
+  const inp    = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const inpNum = {...inp,width:60,textAlign:"center",padding:"7px 4px"};
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -3440,47 +3447,70 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
               {new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
               {evento.hora?` · ${evento.hora}`:""}
             </div>
-            {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2,display:"flex",alignItems:"center",gap:4}}>
-              📍 {evento.lugar}
+            {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>
+              {String.fromCodePoint(0x1F4CD)} {evento.lugar}
               {evento.url_ubicacion&&<a href={evento.url_ubicacion} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
             </div>}
             {evento.descripcion&&<div style={{fontSize:12,color:"#64748B",marginTop:4}}>{evento.descripcion}</div>}
           </div>
-          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>✕</button>
+          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>x</button>
         </div>
 
-        {/* Mi respuesta — por cada hijo mío invitado */}
         {misHijos.filter(hid=>hid!==evento.alumno_id&&asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
           const fila    = asistencia.find(a=>a.alumno_invitado_id===hid);
           const alumno  = alumnos[hid];
           const miAsiste = fila?.asiste;
+          const hVal = hermanos[hid]??0;
+          const aVal = adultos[hid]??0;
           return (
             <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:14,marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>
-                Respuesta de {alumno ? `${alumno.nombre} ${alumno.apellido}` : "tu hijo/a"}
+                {alumno ? `${alumno.nombre} ${alumno.apellido}` : "Tu hijo/a"}
               </div>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"9px 0",borderRadius:10,border:`2px solid ${miAsiste==="si"?"#10B981":"#E2E8F0"}`,background:miAsiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:miAsiste==="si"?"#10B981":"#94A3B8"}}>Sí va</button>
+              <div style={{display:"flex",gap:8,marginBottom:12}}>
+                <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"9px 0",borderRadius:10,border:`2px solid ${miAsiste==="si"?"#10B981":"#E2E8F0"}`,background:miAsiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:miAsiste==="si"?"#10B981":"#94A3B8"}}>Si va</button>
                 <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"9px 0",borderRadius:10,border:`2px solid ${miAsiste==="no"?"#EF4444":"#E2E8F0"}`,background:miAsiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:miAsiste==="no"?"#EF4444":"#94A3B8"}}>No va</button>
               </div>
-              <div style={{marginBottom:8}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>Hermanos que asisten</div>
-                <input value={hermanos[hid]||""} onChange={e=>setHermanos(p=>({...p,[hid]:e.target.value}))} placeholder="Ej: Martina (4 años)" style={inp}/>
+              <div style={{display:"flex",gap:16,marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>Hermanos</div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <button onClick={()=>setNumero(setHermanos,hid,hVal-1)} style={{width:28,height:28,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748B",lineHeight:1}}>-</button>
+                    <input type="number" min="0" value={hVal} onChange={e=>setNumero(setHermanos,hid,e.target.value)} style={inpNum}/>
+                    <button onClick={()=>setNumero(setHermanos,hid,hVal+1)} style={{width:28,height:28,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748B",lineHeight:1}}>+</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>Adultos</div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <button onClick={()=>setNumero(setAdultos,hid,aVal-1)} style={{width:28,height:28,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748B",lineHeight:1}}>-</button>
+                    <input type="number" min="0" value={aVal} onChange={e=>setNumero(setAdultos,hid,e.target.value)} style={inpNum}/>
+                    <button onClick={()=>setNumero(setAdultos,hid,aVal+1)} style={{width:28,height:28,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748B",lineHeight:1}}>+</button>
+                  </div>
+                </div>
               </div>
-              <div style={{marginBottom:8}}>
+              <div style={{marginBottom:10}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>Comentario</div>
                 <input value={comentarios[hid]||""} onChange={e=>setComentarios(p=>({...p,[hid]:e.target.value}))} placeholder="Alergias, restricciones, etc." style={inp}/>
               </div>
-              {(hermanos[hid]||comentarios[hid])&&<button onClick={()=>guardarComentario(hid)} disabled={guardando} style={{width:"100%",padding:"8px 0",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando...":"Guardar"}</button>}
+              <button onClick={()=>guardarExtras(hid)} disabled={guardando} style={{width:"100%",padding:"8px 0",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando...":"Guardar"}</button>
             </div>
           );
         })}
 
-        {/* Lista de asistencia */}
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>
-          Lista de asistencia · {confirmados.length} confirman
-        </div>
-        {asistencia.length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin respuestas aún</div>}
+        {confirmados.length>0&&(
+          <div style={{display:"flex",gap:8,marginBottom:14}}>
+            {[{l:"Alumnos",v:totalAlumnos,c:"#3B82F6",bg:"#EFF6FF"},{l:"Hermanos",v:totalHermanos,c:"#8B5CF6",bg:"#F5F3FF"},{l:"Adultos",v:totalAdultos,c:"#F59E0B",bg:"#FFFBEB"}].map(({l,v,c,bg})=>(
+              <div key={l} style={{flex:1,background:bg,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
+                <div style={{fontSize:10,fontWeight:700,color:c,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Lista de asistencia</div>
+        {asistencia.length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin respuestas aun</div>}
         {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
           list.length>0&&(
             <div key={label} style={{marginBottom:10}}>
@@ -3488,11 +3518,12 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
               {list.map((a,i)=>{
                 const al = alumnos[a.alumno_invitado_id];
                 return (
-                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600}}>{al?`${al.nombre} ${al.apellido}`:"—"}</div>
-                      {a.hermanos&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>Hermanos: {a.hermanos}</div>}
-                      {a.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{a.comentario}</div>}
+                  <div key={i} style={{padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{al?`${al.nombre} ${al.apellido}`:"--"}</div>
+                    <div style={{display:"flex",gap:10,marginTop:3,flexWrap:"wrap"}}>
+                      {(Number(a.hermanos)||0)>0&&<span style={{fontSize:11,color:"#8B5CF6",fontWeight:600}}>{Number(a.hermanos)} herm.</span>}
+                      {(Number(a.adultos)||0)>0&&<span style={{fontSize:11,color:"#F59E0B",fontWeight:600}}>{Number(a.adultos)} adultos</span>}
+                      {a.comentario&&<span style={{fontSize:11,color:"#94A3B8"}}>{a.comentario}</span>}
                     </div>
                   </div>
                 );
@@ -3506,28 +3537,23 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
 }
 
 function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
-  const [asistencia, setAsistencia] = useState({}); // alumnoId → "si"|"no"|"pendiente"
-  const [hijosInfo,  setHijosInfo]  = useState({}); // alumnoId → {nombre,apellido,color}
-  const [todosHijos, setTodosHijos] = useState([]); // todos los hijos del curso (para admin)
+  const [asistencia, setAsistencia] = useState({});
+  const [hijosInfo,  setHijosInfo]  = useState({});
+  const [todosHijos, setTodosHijos] = useState([]);
   const [isAdmin,    setIsAdmin]    = useState(false);
   const [cargando,   setCargando]   = useState(true);
 
   const cargar = async () => {
     setCargando(true);
-    // Traer todas las respuestas existentes
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const mapaAsist = {};
     (asist||[]).forEach(r=>{ if(r.alumno_invitado_id) mapaAsist[r.alumno_invitado_id] = r.asiste||"pendiente"; });
     setAsistencia(mapaAsist);
-
-    // Traer info de todos los hijos del curso
     const { data: hijos } = await supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id", evento.curso_id);
     const hijosMap = {};
     (hijos||[]).forEach(h=>{ hijosMap[h.id]=h; });
     setHijosInfo(hijosMap);
     setTodosHijos(hijos||[]);
-
-    // Verificar rol del usuario
     if(userId) {
       const { data: u } = await supabase.from("usuarios").select("rol").eq("id",Number(userId)).single();
       setIsAdmin(u?.rol==="admin"||u?.rol==="super");
@@ -3539,19 +3565,14 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
 
   const responder = async (alumnoId, asiste) => {
     if(!userId) return;
-    // Update optimista
     setAsistencia(prev=>({...prev,[alumnoId]:asiste}));
-    // Upsert — crea la fila si no existe, actualiza si existe
     await supabase.from("evento_asistencia").upsert(
       { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
       { onConflict:"evento_id,alumno_invitado_id" }
     );
   };
 
-  // Mis hijos en este curso (intersección de misHijos con hijos del curso)
   const misHijosEnCurso = misHijos.filter(hid=>hijosInfo[hid]);
-
-  // Listas para vista admin
   const confirmados = todosHijos.filter(h=>asistencia[h.id]==="si");
   const noVan       = todosHijos.filter(h=>asistencia[h.id]==="no");
   const pendientes  = todosHijos.filter(h=>!asistencia[h.id]||asistencia[h.id]==="pendiente");
@@ -3568,14 +3589,13 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
             </div>
             {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>📍 {evento.lugar}</div>}
           </div>
-          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>✕</button>
+          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>x</button>
         </div>
 
         {cargando&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Cargando...</div>}
 
         {!cargando&&(
           <>
-            {/* Sección apoderado: confirmar asistencia de sus hijos */}
             {misHijosEnCurso.length>0&&(
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Tu asistencia</div>
@@ -3586,8 +3606,8 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
                     <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1.5px solid #E2E8F0"}}>
                       {misHijosEnCurso.length>1&&<div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?.nombre} {al?.apellido}</div>}
                       <div style={{display:"flex",gap:8}}>
-                        <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="si"?"#10B981":"#E2E8F0"}`,background:est==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
-                        <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="no"?"#EF4444":"#E2E8F0"}`,background:est==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
+                        <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="si"?"#10B981":"#E2E8F0"}`,background:est==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="si"?"#10B981":"#94A3B8"}}>Voy</button>
+                        <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="no"?"#EF4444":"#E2E8F0"}`,background:est==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="no"?"#EF4444":"#94A3B8"}}>No voy</button>
                       </div>
                     </div>
                   );
@@ -3595,7 +3615,7 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
               </div>
             )}
 
-            {/* Resumen de asistencia de todo el curso — visible para todos */}
+            {/* Resumen del curso visible para todos */}
             {todosHijos.length>0&&(
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>
@@ -3619,9 +3639,8 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
               </div>
             )}
 
-            {/* Sin hijos en este curso y no es admin */}
             {misHijosEnCurso.length===0&&!isAdmin&&(
-              <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>No tenés hijos en este curso</div>
+              <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>No tenes hijos en este curso</div>
             )}
           </>
         )}
@@ -3655,9 +3674,8 @@ function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
               const sel = responsableId===a.rawId;
               return (
                 <div key={a.rawId} onClick={()=>setResponsableId(a.rawId)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:10,border:`2px solid ${sel?a.color:"#E2E8F0"}`,background:sel?a.color+"18":"white",cursor:"pointer"}}>
-
                   <span style={{fontSize:13,fontWeight:sel?700:500}}>{a.nombre}</span>
-                  {sel&&<span style={{marginLeft:"auto",fontSize:14,color:a.color}}>✓</span>}
+                  {sel&&<span style={{marginLeft:"auto",fontSize:14,color:a.color}}>check</span>}
                 </div>
               );
             })}
@@ -3665,7 +3683,7 @@ function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
         </div>
         <div style={{marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Estado del regalo</div>
-          <button onClick={()=>setComprado(p=>!p)} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${comprado?"#10B981":"#E2E8F0"}`,background:comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:comprado?"#10B981":"#94A3B8"}}>{comprado?"✓ Comprado":"Pendiente"}</button>
+          <button onClick={()=>setComprado(p=>!p)} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${comprado?"#10B981":"#E2E8F0"}`,background:comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:comprado?"#10B981":"#94A3B8"}}>{comprado?"Comprado":"Pendiente"}</button>
         </div>
         <div style={{display:"flex",gap:10}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
@@ -3680,16 +3698,14 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
   const misHijosUniq = [...new Set(misHijos)];
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
-  const [festejoMap,setFestejoMap]     = useState({});  // alumno_id → evento festejo
+  const [festejoMap,setFestejoMap]     = useState({});
   const [editando,setEditando]         = useState(null);
   const [festejoModal,setFestejoModal] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
-  const [colectaRegaloModal,setColectaRegaloModal] = useState(null); // {maestroNombre, maestroId}
+  const [colectaRegaloModal,setColectaRegaloModal] = useState(null);
   const [invitaciones,setInvitaciones] = useState([]);
-
   const [montoRegalo,setMontoRegalo]   = useState(null);
   const [monedaRegalo,setMonedaRegalo] = useState("$");
-
   const [apoderados, setApoderados] = useState([]);
 
   const cargar = async () => {
@@ -3703,14 +3719,11 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
     const curso = await supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single();
     setMontoRegalo(curso.data?.monto_regalo||null);
     setMonedaRegalo(curso.data?.moneda_regalo||"$");
-    // Si hay hijo activo, solo mostrar invitaciones de ese hijo
     const invFiltradas = (inv.data||[]).filter(i=>i.evento && (hijoActivo===null || i.alumno_invitado_id===hijoActivo));
     setInvitaciones(invFiltradas);
     const fmap = {};
     (fest.data||[]).forEach(f=>{ if(f.alumno_id) fmap[f.alumno_id]=f; });
     setFestejoMap(fmap);
-    // Build unified list
-    // deduplicate alumnos by id before building list
     const alumnosUniq = Object.values((al.data||[]).reduce((acc,a)=>{ acc[a.id]=a; return acc; },{}));
     const maestrosUniq = Object.values((ma.data||[]).reduce((acc,m)=>{ acc[m.id]=m; return acc; },{}));
     const unified = [
@@ -3723,7 +3736,6 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ];
-    // Sort by next birthday
     const tmpNextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const d = new Date(fecha+"T00:00:00");
@@ -3733,7 +3745,6 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
     };
     unified.sort((a,b)=>tmpNextBday(a.fecha_nacimiento)-tmpNextBday(b.fecha_nacimiento));
     setLista(unified);
-    // Cargar apoderados
     const { data: hijosDelCurso } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
     const hids = (hijosDelCurso||[]).map(h=>h.id);
     if(hids.length) {
@@ -3744,7 +3755,6 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
         setApoderados((usData||[]).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
       }
     }
-    // Map cumples by alumno_id or maestro_id_ref
     const map = {};
     (cu.data||[]).forEach(c=>{
       if(c.alumno_id)      map[`a-${c.alumno_id}`]      = c;
@@ -3753,38 +3763,27 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
     setCumpleMap(map);
     await verificarRecordatoriosRegalo(map, unified);
   };
+
   const verificarRecordatoriosRegalo = async (cumpleMapActual, listaActual) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     for(const item of listaActual) {
       const cumple = cumpleMapActual[item.id];
-      if(!cumple?.responsable_id) continue; // sin responsable asignado
-      // Calcular días hasta cumple
+      if(!cumple?.responsable_id) continue;
       const d = new Date(item.fecha_nacimiento+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
       if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
       const dias = Math.round((next - hoy) / (1000*60*60*24));
-      if(dias > 7 || dias < 0) continue; // solo si falta 7 días o menos
-      // Verificar si ya existe recordatorio para este cumple+responsable este año
-      const { data: existe } = await supabase
-        .from("recordatorios")
-        .select("id")
-        .eq("curso_id", cursoId)
-        .eq("tipo", "regalo_cumple")
-        .eq("ref_id", cumple.id)
-        .eq("para_usuario_id", cumple.responsable_id)
-        .limit(1);
-      if(existe && existe.length > 0) continue; // ya existe
-      // Crear recordatorio
+      if(dias > 7 || dias < 0) continue;
+      const { data: existe } = await supabase.from("recordatorios").select("id")
+        .eq("curso_id", cursoId).eq("tipo", "regalo_cumple")
+        .eq("ref_id", cumple.id).eq("para_usuario_id", cumple.responsable_id).limit(1);
+      if(existe && existe.length > 0) continue;
       const nombreCumpleaniero = item.nombre.split(" ")[0];
       await supabase.from("recordatorios").insert({
-        curso_id: cursoId,
-        tipo: "regalo_cumple",
-        ref_id: cumple.id,
+        curso_id: cursoId, tipo: "regalo_cumple", ref_id: cumple.id,
         para_usuario_id: cumple.responsable_id,
-        texto: `🎁 El cumple de ${nombreCumpleaniero} es en ${dias===0?"hoy":dias===1?"1 día":`${dias} días`}. ¿Ya compraste el regalo?`,
-        emoji: "🎁",
-        urgente: dias <= 2,
-        prioridad: dias <= 2 ? "alta" : "media",
+        texto: `El cumple de ${nombreCumpleaniero} es en ${dias===0?"hoy":dias===1?"1 dia":`${dias} dias`}. Ya compraste el regalo?`,
+        emoji: "🎁", urgente: dias <= 2, prioridad: dias <= 2 ? "alta" : "media",
         fecha: next.toISOString().slice(0,10),
       });
     }
@@ -3795,23 +3794,15 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
   const guardarResponsable = async ({responsable_id, comprado}) => {
     const isAlumno = editando.tipo==="Alumno";
     const campo = isAlumno ? "alumno_id" : "maestro_id_ref";
-    const { data: rows } = await supabase
-      .from("cumples")
-      .select("id")
-      .eq(campo, editando.rawId)
-      .limit(1);
+    const { data: rows } = await supabase.from("cumples").select("id").eq(campo, editando.rawId).limit(1);
     const existente = rows && rows.length > 0 ? rows[0] : null;
     if(existente) {
-      await supabase.from("cumples")
-        .update({ responsable_id: responsable_id || null, comprado })
-        .eq("id", existente.id);
+      await supabase.from("cumples").update({ responsable_id: responsable_id || null, comprado }).eq("id", existente.id);
     } else {
       await supabase.from("cumples").insert({
-        curso_id: cursoId,
-        alumno_id: isAlumno ? editando.rawId : null,
+        curso_id: cursoId, alumno_id: isAlumno ? editando.rawId : null,
         maestro_id_ref: !isAlumno ? editando.rawId : null,
-        responsable_id: responsable_id || null,
-        comprado,
+        responsable_id: responsable_id || null, comprado,
       });
     }
     setEditando(null);
@@ -3820,16 +3811,12 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
 
   const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
-      titulo: titulo.trim(),
-      tipo: "colecta",
+      titulo: titulo.trim(), tipo: "colecta",
       descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
-      monto_sugerido: monto ? Number(monto) : null,
-      moneda: moneda||"$",
+      monto_sugerido: monto ? Number(monto) : null, moneda: moneda||"$",
       fecha_limite: fecha_limite||null,
       vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
-      curso_id: cursoId,
-      activa: true,
-      responsable_id: responsable_id||null,
+      curso_id: cursoId, activa: true, responsable_id: responsable_id||null,
     };
     await supabase.from("colectas").insert(payload);
     setColectaRegaloModal(null);
@@ -3845,7 +3832,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
 
   const bdayLabel = (dias) => {
     if(dias===0) return {l:"Hoy",     c:"#EF4444", bg:"#FEE2E2"};
-    if(dias===1) return {l:"Mañana",  c:"#F59E0B", bg:"#FEF3C7"};
+    if(dias===1) return {l:"Manana",  c:"#F59E0B", bg:"#FEF3C7"};
     if(dias<=7)  return {l:`${dias}d`, c:"#F59E0B", bg:"#FEF3C7"};
     return              {l:`${dias}d`, c:"#94A3B8", bg:"#F1F5F9"};
   };
@@ -3855,7 +3842,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
   const ctrlCumple = useListControls(lista, {
     searchFn: (a,q)=> a.nombre.toLowerCase().includes(q),
     sortOptions:[
-      {key:"proximo",  label:"Próximo cumpleaños", val:a=>nextBday(a.fecha_nacimiento)},
+      {key:"proximo",  label:"Proximo cumpleaños", val:a=>nextBday(a.fecha_nacimiento)},
       {key:"nombre",   label:"Nombre",              val:a=>a.nombre},
       {key:"mes",      label:"Mes",                 val:a=>new Date(a.fecha_nacimiento+"T00:00:00").getMonth()},
     ],
@@ -3871,7 +3858,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
     <div>
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?.responsable_id, comprado:cumpleMap[editando.id]?.comprado||false, monto_regalo:cumpleMap[editando.id]?.monto_regalo}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
-      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
+      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijosUniq||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
@@ -3879,316 +3866,79 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
         {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
       </div>
 
-      <div>
-          <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Próximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {listaFiltrada.length===0&&(
-              <Card style={{padding:32,textAlign:"center",color:"#94A3B8",fontSize:13}}>Sin cumpleaños para mostrar</Card>
-            )}
-            {listaFiltrada.map((a)=>{
-              const dias     = nextBday(a.fecha_nacimiento);
-              const badge    = bdayLabel(dias);
-              const cumple   = cumpleMap[a.id];
-              const resp     = cumple?.responsable;
-              const isAlumno = a.tipo==="Alumno";
-              const fest     = isAlumno ? festejoMap[a.rawId] : null;
-              const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
-              return (
-                <Card key={a.id} style={{padding:"10px 14px"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      {/* Fila 1: nombre + tipo + badge días */}
-                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,fontWeight:700}}>{a.nombre}</span>
-                        <span style={{padding:"1px 6px",borderRadius:20,fontSize:10,fontWeight:700,background:isAlumno?"#EFF6FF":"#F5F3FF",color:isAlumno?"#3B82F6":"#8B5CF6",flexShrink:0}}>{isAlumno?"Alumno":"Maestro"}</span>
-                        <span style={{padding:"1px 7px",borderRadius:20,fontSize:10,fontWeight:700,background:badge.bg,color:badge.c,flexShrink:0}}>{badge.l}</span>
-                      </div>
-                      {/* Fila 2: fecha + responsable en la misma línea */}
-                      <div style={{display:"flex",alignItems:"center",gap:10,marginTop:3,flexWrap:"wrap"}}>
-                        <span style={{fontSize:11,color:"#64748B"}}>🎂 {new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>
-                        {resp&&<>
-                          <span style={{color:"#E2E8F0",fontSize:10}}>·</span>
-                          <span style={{fontSize:11,color:"#64748B"}}>🎁 {fmtNombre(resp)}</span>
-                          {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"1px 5px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#94A3B8"}}>✏️</button>}
-                        </>}
-                        {!resp&&isAdmin&&<button onClick={()=>setEditando(a)} style={{fontSize:10,fontWeight:600,padding:"1px 7px",borderRadius:6,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Responsable</button>}
-                      </div>
-                      {/* Fila 3: festejo / colecta (solo si aplica) */}
-                      {isAlumno&&(
-                        <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center",marginTop:4}}>
-                          {fest
-                            ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
-                               {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>✏️</button>}</>
-                            : esMiHijo
-                              ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
-                              : null
-                          }
-                        </div>
-                      )}
-                      {!isAlumno&&isAdmin&&(
-                        <div style={{marginTop:4}}>
-                          <button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",color:"#10B981"}}>🎁 Crear colecta regalo</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-          <Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>
-        </div>
-
-      {/* Mis invitaciones a festejos */}
       {invitaciones.length>0&&(
-        <div style={{marginTop:24,maxWidth:700}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🎉 Mis invitaciones</div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Mis invitaciones</div>
           {invitaciones.map(inv=>{
-            const e   = inv.evento;
-            const d   = new Date(e.fecha+"T00:00:00");
-            const hoyD = new Date(); hoyD.setHours(0,0,0,0);
-            const dias = Math.round((d-hoyD)/86400000);
-            const badge = inv.asiste==="si"  ? {l:"✓ Voy",    c:"#10B981",bg:"#F0FDF4"}
-                        : inv.asiste==="no"  ? {l:"✗ No voy", c:"#EF4444",bg:"#FEF2F2"}
-                        :                     {l:"Pendiente", c:"#F59E0B",bg:"#FFFBEB"};
+            const ev = inv.evento;
+            if(!ev) return null;
             return (
-              <Card key={inv.id} style={{padding:"13px 15px",marginBottom:10,borderLeft:`3px solid ${inv.asiste==="si"?"#10B981":inv.asiste==="no"?"#EF4444":"#F59E0B"}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:40,height:40,borderRadius:12,background:"#FFFBEB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🎉</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                      {d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}
-                      {e.hora?` · ${e.hora}`:""}
-                      {e.lugar?` · 📍${e.lugar}`:""}
-                    </div>
-                    {inv.hermanos&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>👨‍👩‍👧 {inv.hermanos}</div>}
-                    {inv.comentario&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>💬 {inv.comentario}</div>}
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:badge.bg,color:badge.c}}>{badge.l}</span>
-                    <span style={{fontSize:10,color:dias<0?"#CBD5E1":dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8",fontWeight:600}}>{dias<0?"Pasado":dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
-                    <button onClick={()=>setFestejoDetalle(e)} style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>Ver / Responder</button>
-                  </div>
+              <div key={inv.id} style={{background:"#FFFBEB",border:"1.5px solid #FCD34D",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
+                  <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
+                  {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
+                  {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
+                  {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}
                 </div>
-              </Card>
+                <button onClick={()=>setFestejoDetalle(ev)} style={{padding:"6px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Ver / Responder</button>
+              </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
 
-function ApoderadosModal({ alumno, onClose, canEdit=true }) {
-  const [vinculados,setVinculados] = useState([]);
-  const [todos,setTodos]           = useState([]);
-  const [busqueda,setBusqueda]     = useState("");
-
-  useEffect(()=>{ cargar(); },[alumno.id]);
-
-  const cargar = async () => {
-    const [v,t] = await Promise.all([
-      supabase.from("usuario_hijos").select("usuario_id, relacion").eq("hijo_id",alumno.id),
-      supabase.from("usuarios").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
-    ]);
-    const aptos = (t.data||[]).filter(u => u.rol !== "super");
-    // Enriquecer vinculados con datos de usuarios
-    const vinculadosEnriquecidos = (v.data||[]).map(row => ({
-      ...row,
-      usuarios: aptos.find(u=>u.id===row.usuario_id) || null
-    }));
-    setVinculados(vinculadosEnriquecidos);
-    setTodos(aptos);
-  };
-
-  const vincular = async (userId) => {
-    await supabase.from("usuario_hijos").insert({usuario_id:userId, hijo_id:alumno.id});
-    cargar();
-  };
-
-  const desvincular = async (userId) => {
-    await supabase.from("usuario_hijos").delete().eq("usuario_id",userId).eq("hijo_id",alumno.id);
-    cargar();
-  };
-
-  const vinculadosIds = vinculados.map(v=>v.usuario_id);
-  const disponibles = todos.filter(u=>
-    !vinculadosIds.includes(u.id) &&
-    (u.nombre.toLowerCase().includes(busqueda.toLowerCase()) || u.email.toLowerCase().includes(busqueda.toLowerCase()))
-  );
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:17,fontWeight:900}}>Apoderados</div>
-            <div style={{fontSize:12,color:"#94A3B8"}}>{alumno.nombre}</div>
-          </div>
-          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>✕</button>
-        </div>
-
-        {vinculados.length>0&&(
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Vinculados</div>
-            {vinculados.map(v=>(
-              <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F0FDF4",border:"1px solid #BBF7D0",marginBottom:7}}>
-                <div style={{width:34,height:34,borderRadius:10,background:"#10B981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>{`${v.usuarios?.nombre||""} ${v.usuarios?.apellido||""}`.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+      <div>
+        <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Proximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {listaFiltrada.map(a=>{
+            const dias = nextBday(a.fecha_nacimiento);
+            const bl   = bdayLabel(dias);
+            const cumple = cumpleMap[a.id]||{};
+            const isAlumno = a.tipo==="Alumno";
+            const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
+            const fest     = isAlumno ? festejoMap[a.rawId] : null;
+            const resp = cumple.responsable;
+            return (
+              <div key={a.id} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:14,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:44,height:44,borderRadius:12,background:a.color+"18",border:`2px solid ${a.color}44`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:20}}>{a.tipo==="Maestro"?"👨‍🏫":"🎒"}</span>
+                </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{v.usuarios?.nombre}{v.usuarios?.apellido?` ${v.usuarios.apellido}`:""}</div>
-                  <div style={{fontSize:11,color:"#94A3B8"}}>{v.usuarios?.email}{v.usuarios?.telefono&&` · ${v.usuarios.telefono}`}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>{a.nombre}</div>
+                  <div style={{fontSize:11,color:"#94A3B8"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>
+                  {resp&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>Responsable regalo: {fmtNombre(resp)}</div>}
+                  {cumple.comprado&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:2,display:"inline-block"}}>Regalo comprado</span>}
                 </div>
-                {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",fontSize:11,fontWeight:700,color:"#EF4444",flexShrink:0}}>Quitar</button>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {canEdit&&<>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Agregar apoderado</div>
-          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar por nombre o email..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",marginBottom:10,boxSizing:"border-box",background:"#F8FAFC"}}/>
-          <div style={{maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-            {disponibles.length===0&&<div style={{textAlign:"center",padding:20,fontSize:12,color:"#94A3B8"}}>No hay apoderados disponibles</div>}
-            {disponibles.map(u=>(
-              <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>
-                <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#3B82F6",flexShrink:0}}>{u.nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
-                  <div style={{fontSize:11,color:"#94A3B8"}}>{u.email}{u.telefono&&` · ${u.telefono}`}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
+                  <span style={{fontSize:11,fontWeight:800,padding:"3px 8px",borderRadius:20,background:bl.bg,color:bl.c}}>{bl.l}</span>
+                  {isAlumno&&(
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                      {fest
+                        ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
+                           {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>Editar</button>}</>
+                        : esMiHijo
+                          ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
+                          : null
+                      }
+                    </div>
+                  )}
+                  {isAdmin&&(
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>setEditando(a)} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>🎁 Regalo</button>
+                      {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
+                    </div>
+                  )}
                 </div>
-                <button onClick={()=>vincular(u.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6",flexShrink:0}}>Vincular</button>
               </div>
-            ))}
-          </div>
-        </>}
-      </Card>
-    </div>
-  );
-}
-
-function Alumnos({ cursoId, isAdmin }) {
-  const [alumnos,setAlumnos]   = useState([]);
-  const [modal,setModal]       = useState(null);
-  const [form,setForm]         = useState({});
-  const [confirm,setConfirm]   = useState(null);
-  const [verApoderados,setVerApoderados] = useState(null);
-
-  useEffect(()=>{ cargar(); },[cursoId]);
-
-  const cargar = async () => {
-    const { data } = await supabase.from("hijos")
-      .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))")
-      .eq("curso_id",cursoId).order("nombre");
-    setAlumnos(data||[]);
-  };
-
-  const guardar = async () => {
-    if(!form.nombre) return;
-    const apellido = form.apellido||"";
-    const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
-    const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
-    const color = form.color||colors[Math.floor(Math.random()*colors.length)];
-    if(modal==="nuevo") {
-      await supabase.from("hijos").insert({nombre:form.nombre,apellido:form.apellido||null,curso_id:cursoId,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null});
-    } else {
-      await supabase.from("hijos").update({nombre:form.nombre,apellido:form.apellido||null,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
-    }
-    setModal(null); cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("usuario_hijos").delete().eq("hijo_id",id);
-    await supabase.from("hijos").delete().eq("id",id);
-    setConfirm(null); cargar();
-  };
-
-  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
-  const ctrl = useListControls(alumnos, {
-    searchFn: (a,q)=>(`${a.nombre} ${a.apellido||""}`).toLowerCase().includes(q),
-    sortOptions:[
-      {key:"nombre",  label:"Nombre",     val:a=>a.nombre},
-      {key:"apellido",label:"Apellido",   val:a=>a.apellido||""},
-      {key:"nacimiento",label:"Cumpleaños",val:a=>a.fecha_nacimiento||"z"},
-    ],
-    pageSize:15,
-  });
-
-  return (
-    <div>
-      {verApoderados&&<ApoderadosModal alumno={verApoderados} onClose={()=>setVerApoderados(null)} canEdit={isAdmin}/>}
-      {confirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,maxWidth:340,width:"100%"}}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>¿Estás segura?</div>
-            <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>{confirm.msg}</div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
-              <button onClick={confirm.action} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Eliminar</button>
-            </div>
-          </Card>
+            );
+          })}
         </div>
-      )}
-      {(modal==="nuevo"||modal==="editar")&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo"?"Nuevo alumno":"Editar alumno"}</div>
-            <div style={{display:"flex",gap:10,marginBottom:12}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre</div>
-                <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía" style={inp}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Apellido</div>
-                <input value={form.apellido||""} onChange={e=>setForm(p=>({...p,apellido:e.target.value}))} placeholder="Ej: García" style={inp}/>
-              </div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
-              <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo"?"Crear":"Guardar cambios"}</button>
-            </div>
-          </Card>
-        </div>
-      )}
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Alumnos 🎒</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{alumnos.length} alumnos en el curso</div>
-      {isAdmin&&<button onClick={()=>{ setForm({nombre:"",fecha_nacimiento:""}); setModal("nuevo"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno</button>}
-      <ListToolbar busqueda={ctrl.busqueda} setBusqueda={ctrl.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrl.sortKey} sortAsc={ctrl.sortAsc} toggleSort={ctrl.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrl.resetFiltros} total={ctrl.total} placeholder="Buscar alumno..."/>
-      <div style={{maxWidth:560}}>
-        {ctrl.items.map(a=>{
-          const apoderados=(a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
-          return (
-            <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
-                  {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
-                  {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", ")}{apoderados[0]?.telefono&&` · ${apoderados[0].telefono}`}</div>}
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>setVerApoderados(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
-                  {isAdmin&&<>
-                    <button onClick={()=>{ setForm({...a}); setModal("editar"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({msg:`¿Eliminar a ${fmtNombre(a)}?`,action:()=>eliminar(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
-                  </>}
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-        {ctrl.items.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No se encontraron alumnos</div>}
-        <Paginador pagina={ctrl.pagina} totalPag={ctrl.totalPag} setPagina={ctrl.setPagina}/>
+        {lista.length>20&&<Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>}
       </div>
-      
     </div>
   );
 }
-
 
 function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   const [recordatorios, setRecordatorios] = useState([]);
@@ -4196,10 +3946,8 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   const [modal,         setModal]         = useState(null);
   const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false});
   const [saving,        setSaving]        = useState(false);
-  // alerta
   const [alerta,        setAlerta]        = useState(null);
   const [alertaModal,   setAlertaModal]   = useState(false);
-  // filtros
   const [filtroRango,   setFiltroRango]   = useState("all");
   const [filtroDesde,   setFiltroDesde]   = useState("");
   const [filtroHasta,   setFiltroHasta]   = useState("");
@@ -4267,7 +4015,6 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
     if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
   };
 
-  // filtros
   const filtrados = recordatorios.filter(r=>{
     if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
     if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
@@ -4293,7 +4040,6 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Recordatorios</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos y recordatorios del curso</div>
 
-      {/* Alerta comunidad — solo room parent */}
       {isAdmin&&(
         <div style={{marginBottom:16}}>
           {alerta?(
@@ -4305,7 +4051,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
               </div>
               <div style={{display:"flex",gap:6}}>
                 <button onClick={()=>setAlertaModal(true)} style={{padding:"5px 10px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.2)",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>Editar</button>
-                <button onClick={dismissAlerta} style={{padding:"5px 10px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>✕</button>
+                <button onClick={dismissAlerta} style={{padding:"5px 10px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>x</button>
               </div>
             </div>
           ):(
@@ -4321,14 +4067,13 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
         </div>
       )}
 
-      {/* Modal nuevo/editar */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:420}}>
             <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
-              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunión de padres el viernes" rows={3} style={{...inp,resize:"vertical"}}/>
+              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunion de padres el viernes" rows={3} style={{...inp,resize:"vertical"}}/>
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
@@ -4344,7 +4089,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
             </div>
             <div style={{marginBottom:14}}>
               <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
-                {form.urgente?"🚨 Urgente":"Marcar urgente"}
+                {form.urgente?"Urgente":"Marcar urgente"}
               </button>
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -4355,13 +4100,12 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
         </div>
       )}
 
-      {/* Filtros */}
       <div style={{display:"flex",gap:8,marginBottom:filtroRango==="personalizado"?8:12,flexWrap:"wrap",alignItems:"center"}}>
         <select value={filtroRango} onChange={e=>{setFiltroRango(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todos</option>
-          <option value="proximos">Próximos</option>
+          <option value="proximos">Proximos</option>
           <option value="pasados">Pasados</option>
-          <option value="personalizado">📅 Personalizado</option>
+          <option value="personalizado">Personalizado</option>
         </select>
         <select value={filtroPrio} onChange={e=>{setFiltroPrio(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todas las prioridades</option>
@@ -4381,20 +4125,18 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
             <span style={{fontSize:11,color:"#64748B",fontWeight:600}}>Hasta</span>
             <input type="date" value={filtroHasta} onChange={e=>{setFiltroHasta(e.target.value);setPagina(1);}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",fontFamily:"inherit",background:"white"}}/>
           </div>
-          {(filtroDesde||filtroHasta)&&<button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#94A3B8"}}>✕ Limpiar</button>}
+          {(filtroDesde||filtroHasta)&&<button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#94A3B8"}}>Limpiar</button>}
         </div>
       )}
 
-      {/* Lista */}
       {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios</div>}
       {visible.map(r=>{
         const prio = PRIO[r.prioridad||"media"];
         const esLeido = leidosSet.has(r.id);
         const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
-        const diasLabel = dias===null ? null : dias===0 ? "hoy" : dias===1 ? "mañana" : dias<0 ? `hace ${Math.abs(dias)}d` : `en ${dias}d`;
+        const diasLabel = dias===null ? null : dias===0 ? "hoy" : dias===1 ? "manana" : dias<0 ? `hace ${Math.abs(dias)}d` : `en ${dias}d`;
         return (
           <div key={r.id} style={{display:"flex",alignItems:"center",gap:0,padding:"11px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",opacity:esLeido?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
-            {/* fecha columna */}
             <div style={{width:72,flexShrink:0,marginRight:12,textAlign:"center"}}>
               {r.fecha?(
                 <>
@@ -4403,58 +4145,54 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
                   {diasLabel&&<div style={{fontSize:9,fontWeight:700,marginTop:2,color:dias<0?"#94A3B8":dias<=3?"#EF4444":"#10B981",background:dias<0?"#F8FAFC":dias<=3?"#FEF2F2":"#F0FDF4",borderRadius:6,padding:"1px 4px"}}>{diasLabel}</div>}
                 </>
               ):(
-                <div style={{fontSize:10,color:"#CBD5E1",fontWeight:600}}>—</div>
+                <div style={{fontSize:10,color:"#CBD5E1",fontWeight:600}}>--</div>
               )}
             </div>
-            {/* contenido */}
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {r.tipo==="regalo_cumple"
-                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>🎁 Regalo</span>
+                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
                   : <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
                 }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
             </div>
-            {/* acciones */}
             <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,marginLeft:8,alignItems:"flex-end"}}>
               {r.tipo==="regalo_cumple"&&!esLeido ? (
                 <div style={{display:"flex",gap:4}}>
-                  <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>✅ Sí</button>
-                  <button onClick={()=>{}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 No</button>
+                  <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>Si</button>
+                  <button onClick={()=>{}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94A3B8",whiteSpace:"nowrap"}}>No</button>
                 </div>
               ) : (
-                <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"✓ Leído":"Leído"}</button>
+                <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"Leido":"Leido"}</button>
               )}
               {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&<div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
+                <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
               </div>}
             </div>
           </div>
         );
       })}
 
-      {/* Paginación */}
       {totalPags>1&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:16}}>
-          <button onClick={()=>setPagina(p=>Math.max(1,p-1))} disabled={pagina_===1} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===1?"default":"pointer",fontSize:12,color:pagina_===1?"#CBD5E1":"#0F172A"}}>‹ Ant</button>
-          <span style={{fontSize:12,color:"#64748B"}}>Pág {pagina_} de {totalPags}</span>
-          <button onClick={()=>setPagina(p=>Math.min(totalPags,p+1))} disabled={pagina_===totalPags} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===totalPags?"default":"pointer",fontSize:12,color:pagina_===totalPags?"#CBD5E1":"#0F172A"}}>Sig ›</button>
+          <button onClick={()=>setPagina(p=>Math.max(1,p-1))} disabled={pagina_===1} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===1?"default":"pointer",fontSize:12,color:pagina_===1?"#CBD5E1":"#0F172A"}}>Ant</button>
+          <span style={{fontSize:12,color:"#64748B"}}>Pag {pagina_} de {totalPags}</span>
+          <button onClick={()=>setPagina(p=>Math.min(totalPags,p+1))} disabled={pagina_===totalPags} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:pagina_===totalPags?"default":"pointer",fontSize:12,color:pagina_===totalPags?"#CBD5E1":"#0F172A"}}>Sig</button>
         </div>
       )}
     </div>
   );
 }
 
-
 function Contacto({ cursoId, isSuperAdmin=false }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
   const [editColegio,setEditColegio]= useState(false);
   const [colegioForm,setColegioForm]= useState({});
-  const [modal,      setModal]      = useState(null); // null | {} | {id,...}
+  const [modal,      setModal]      = useState(null);
   const [form,       setForm]       = useState({nombre:"",rol:"",telefono:"",email:"",orden:0});
   const [saving,     setSaving]     = useState(false);
 
@@ -4481,13 +4219,7 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
   const guardarContacto = async () => {
     if(!form.nombre?.trim()) return;
     setSaving(true);
-    // only send known columns
-    const payload = {
-      nombre:   form.nombre?.trim()||null,
-      rol:      form.rol?.trim()||null,
-      telefono: form.telefono?.trim()||null,
-      email:    form.email?.trim()||null,
-    };
+    const payload = { nombre:form.nombre?.trim()||null, rol:form.rol?.trim()||null, telefono:form.telefono?.trim()||null, email:form.email?.trim()||null };
     let err;
     if(modal?.id) { const r = await supabase.from("contactos").update(payload).eq("id",modal.id); err=r.error; }
     else          { const r = await supabase.from("contactos").insert(payload); err=r.error; }
@@ -4500,258 +4232,285 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
     cargar();
   };
 
-  const openModal = (c=null) => {
-    setModal(c||{});
-    setForm(c ? {nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""}
-              : {nombre:"",rol:"",telefono:"",email:""});
-  };
-
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Contacto</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Directorio del colegio</div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:16}}>Contacto</div>
 
-      {/* ── Modal editar colegio ── */}
-      {editColegio&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>Datos del colegio</div>
-            {[{l:"Nombre del colegio",k:"nombre"},{l:"Teléfono",k:"telefono"},{l:"Email",k:"email"},{l:"Dirección",k:"direccion"},{l:"URL Google Maps",k:"url_maps"},{l:"Horario de clases",k:"horario_clases",ph:"Ej: 8:00 — 16:00"},{l:"Horario secretaría",k:"horario_secretaria",ph:"Ej: 8:00 — 17:00"},{l:"Sitio web",k:"sitio_web"}].map(f=>(
+      {/* Info colegio */}
+      <Card style={{padding:18,marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontSize:14,fontWeight:800}}>{colegio?.nombre||"Colegio"}</div>
+          {isSuperAdmin&&!editColegio&&<button onClick={()=>{setColegioForm({...colegio});setEditColegio(true);}} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:600}}>Editar</button>}
+        </div>
+        {editColegio?(
+          <div>
+            {[{l:"Nombre del colegio",k:"nombre"},{l:"Telefono",k:"telefono"},{l:"Email",k:"email"},{l:"Direccion",k:"direccion"},{l:"URL Google Maps",k:"url_maps"},{l:"Horario de clases",k:"horario_clases",ph:"Ej: 8:00 - 16:00"},{l:"Horario secretaria",k:"horario_secretaria",ph:"Ej: 8:00 - 17:00"},{l:"Sitio web",k:"sitio_web"}].map(f=>(
               <div key={f.k} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>{f.l.toUpperCase()}</div>
                 <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
               </div>
             ))}
-            <div style={{display:"flex",gap:8,marginTop:4}}>
-              <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardarColegio} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
-          </Card>
-        </div>
-      )}
+          </div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {[{l:"Telefono",v:colegio?.telefono},{l:"Email",v:colegio?.email},{l:"Direccion",v:colegio?.direccion},{l:"Horario clases",v:colegio?.horario_clases},{l:"Secretaria",v:colegio?.horario_secretaria},{l:"Sitio web",v:colegio?.sitio_web}].filter(x=>x.v).map(x=>(
+              <div key={x.l} style={{display:"flex",gap:10,fontSize:13}}>
+                <span style={{color:"#94A3B8",fontWeight:600,minWidth:100}}>{x.l}</span>
+                <span style={{color:"#0F172A"}}>{x.v}</span>
+              </div>
+            ))}
+            {colegio?.url_maps&&<a href={colegio.url_maps} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:4}}>Ver en mapa</a>}
+            {!colegio?.horario_clases&&!colegio?.telefono&&!colegio?.email&&!colegio?.direccion&&(
+              <div style={{fontSize:13,color:"#94A3B8"}}>Sin informacion cargada.</div>
+            )}
+          </div>
+        )}
+      </Card>
 
-      {/* ── Modal contacto ── */}
+      {/* Contactos */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{fontSize:14,fontWeight:800}}>Contactos</div>
+        {isSuperAdmin&&<button onClick={()=>{setModal({});setForm({nombre:"",rol:"",telefono:"",email:""});}} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+      </div>
+      {contactos.map(c=>(
+        <Card key={c.id} style={{padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+            {c.rol&&<div style={{fontSize:11,color:"#94A3B8"}}>{c.rol}</div>}
+            <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
+              {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>Tel: {c.telefono}</a>}
+              {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>{c.email}</a>}
+            </div>
+          </div>
+          {isSuperAdmin&&<div style={{display:"flex",gap:6}}>
+            <button onClick={()=>{setModal(c);setForm({nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>Editar</button>
+            <button onClick={()=>eliminarContacto(c.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:12,color:"#EF4444"}}>Borrar</button>
+          </div>}
+        </Card>
+      ))}
+      {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
+
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar contacto":"Nuevo contacto"}</div>
-            {[{l:"Nombre",k:"nombre",ph:"Ej: Secretaría"},{l:"Rol / Cargo",k:"rol",ph:"Ej: Directora, Secretaria"},{l:"Teléfono",k:"telefono",ph:"Ej: +54 11 1234-5678"},{l:"Email",k:"email",ph:"Ej: secretaria@colegio.edu"}].map(f=>(
+            <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar contacto":"Nuevo contacto"}</div>
+            {[{l:"Nombre",k:"nombre"},{l:"Rol",k:"rol"},{l:"Telefono",k:"telefono"},{l:"Email",k:"email"}].map(f=>(
               <div key={f.k} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
-                <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>{f.l.toUpperCase()}</div>
+                <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
               </div>
             ))}
-            <div style={{display:"flex",gap:8,marginTop:4}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarContacto} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarContacto} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
           </Card>
         </div>
       )}
+    </div>
+  );
+}
 
-      <div style={{maxWidth:560}}>
+function ApoderadosModal({ alumno, onClose, canEdit=true }) {
+  const [vinculados,setVinculados] = useState([]);
+  const [todos,setTodos]           = useState([]);
+  const [busqueda,setBusqueda]     = useState("");
 
-        {/* ── Directorio ── */}
-        {contactos.map(c=>(
-          <Card key={c.id} style={{padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+  useEffect(()=>{ cargar(); },[alumno.id]);
 
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:700}}>{c.nombre}</div>
-              {c.rol&&<div style={{fontSize:12,color:"#94A3B8",marginTop:1}}>{c.rol}</div>}
-              {c.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{c.email}</div>}
+  const cargar = async () => {
+    const [v,t] = await Promise.all([
+      supabase.from("usuario_hijos").select("*, usuarios(id,nombre,apellido,email,telefono)").eq("hijo_id",alumno.id),
+      supabase.from("usuarios").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
+    ]);
+    const aptos = (t.data||[]).filter(u => u.rol !== "super");
+    setVinculados(v.data||[]);
+    setTodos(aptos);
+  };
+
+  const vincular = async (userId) => {
+    await supabase.from("usuario_hijos").insert({usuario_id:userId, hijo_id:alumno.id});
+    cargar();
+  };
+
+  const desvincular = async (userId) => {
+    await supabase.from("usuario_hijos").delete().eq("usuario_id",userId).eq("hijo_id",alumno.id);
+    cargar();
+  };
+
+  const vinculadosIds = vinculados.map(v=>v.usuario_id);
+  const disponibles = todos.filter(u=>!vinculadosIds.includes(u.id)&&(fmtNombre(u).toLowerCase().includes(busqueda.toLowerCase())||u.email?.toLowerCase().includes(busqueda.toLowerCase())));
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <div style={{fontSize:15,fontWeight:900}}>Apoderados de {alumno.nombre}</div>
+          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8"}}>x</button>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>VINCULADOS ({vinculados.length})</div>
+          {vinculados.length===0&&<div style={{fontSize:13,color:"#94A3B8"}}>Sin apoderados vinculados</div>}
+          {vinculados.map(v=>{
+            const u = v.usuarios||{};
+            return (
+              <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#F0FDF4",borderRadius:10,marginBottom:6,border:"1px solid #BBF7D0"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(u)}</div>
+                  {u.email&&<div style={{fontSize:11,color:"#94A3B8"}}>{u.email}</div>}
+                  {u.telefono&&<div style={{fontSize:11,color:"#94A3B8"}}>{u.telefono}</div>}
+                </div>
+                {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"4px 10px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444",fontWeight:700}}>Quitar</button>}
+              </div>
+            );
+          })}
+        </div>
+        {canEdit&&(
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>AGREGAR APODERADO</div>
+            <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar por nombre o email..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box",marginBottom:8}}/>
+            <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:5}}>
+              {disponibles.slice(0,20).map(u=>(
+                <div key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"white",borderRadius:10,border:"1px solid #E2E8F0"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600}}>{fmtNombre(u)}</div>
+                    {u.email&&<div style={{fontSize:11,color:"#94A3B8"}}>{u.email}</div>}
+                  </div>
+                  <button onClick={()=>vincular(u.id)} style={{padding:"4px 10px",borderRadius:8,border:"none",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6",fontWeight:700}}>Vincular</button>
+                </div>
+              ))}
+              {disponibles.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:8}}>Sin resultados</div>}
             </div>
-            <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-              {c.telefono&&<a href={`tel:${c.telefono}`} style={{padding:"7px 14px",borderRadius:20,background:"#3B82F6",color:"white",fontSize:12,fontWeight:700,textDecoration:"none"}}>Llamar</a>}
-              {isSuperAdmin&&<>
-                <button onClick={()=>openModal(c)} style={{padding:"6px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-                <button onClick={()=>eliminarContacto(c.id)} style={{padding:"6px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-              </>}
-            </div>
-          </Card>
-        ))}
-        {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
-
-        {isSuperAdmin&&(
-          <button onClick={()=>openModal()} style={{width:"100%",padding:"10px",borderRadius:10,border:"2px dashed #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8",marginBottom:18}}>+ Agregar contacto</button>
-        )}
-
-        {/* ── Info general ── */}
-        <Card style={{padding:"16px 18px",background:"#F8FAFC"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8}}>Info general</div>
-            {isSuperAdmin&&<button onClick={()=>{setColegioForm(colegio||{});setEditColegio(true);}} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontWeight:600,color:"#64748B"}}>Editar</button>}
           </div>
-          {[
-            {l:"Horario clases",  v:colegio?.horario_clases},
-            {l:"Secretaría",      v:colegio?.horario_secretaria},
-            {l:"Dirección",       v:colegio?.direccion, href:colegio?.url_maps},
-            {l:"Teléfono",        v:colegio?.telefono,  href:`tel:${colegio?.telefono}`},
-            {l:"Email",           v:colegio?.email,     href:`mailto:${colegio?.email}`},
-            {l:"Sitio web",       v:colegio?.sitio_web, href:colegio?.sitio_web},
-          ].filter(r=>r.v).map((r,i,arr)=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<arr.length-1?"1px solid #E2E8F0":"none"}}>
-              <span style={{fontSize:12,color:"#94A3B8"}}>{r.l}</span>
-              {r.href
-                ? <a href={r.href} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:600,color:"#3B82F6",textAlign:"right",maxWidth:"65%",wordBreak:"break-all",textDecoration:"none"}}>{r.v}</a>
-                : <span style={{fontSize:12,fontWeight:600,textAlign:"right"}}>{r.v}</span>}
-            </div>
-          ))}
-          {!colegio?.horario_clases&&!colegio?.telefono&&!colegio?.email&&!colegio?.direccion&&(
-            <div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"4px 0"}}>Sin datos cargados{isSuperAdmin?" — presioná Editar para completar":""}</div>
-          )}
-        </Card>
-      </div>
-      
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Alumnos({ cursoId, isAdmin }) {
+  const [hijos,    setHijos]    = useState([]);
+  const [modal,    setModal]    = useState(null); // null | alumno
+  const [busqueda, setBusqueda] = useState("");
+
+  const cargar = async () => {
+    const { data } = await supabase.from("hijos").select("*").eq("curso_id",cursoId).order("apellido").order("nombre");
+    setHijos(data||[]);
+  };
+
+  useEffect(()=>{ cargar(); },[cursoId]);
+
+  const filtrados = hijos.filter(h=>fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase()));
+
+  return (
+    <div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:16}}>Alumnos</div>
+      <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar alumno..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"white",boxSizing:"border-box",marginBottom:12}}/>
+      <div style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>{filtrados.length} alumnos</div>
+      {filtrados.map(h=>(
+        <div key={h.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"white",borderRadius:12,marginBottom:6,border:"1px solid #E2E8F0"}}>
+          <div style={{width:36,height:36,borderRadius:10,background:(h.color||"#3B82F6")+"18",border:`2px solid ${(h.color||"#3B82F6")}44`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:16}}>🎒</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(h)}</div>
+            {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
+          </div>
+          <button onClick={()=>setModal(h)} style={{padding:"5px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:600,color:"#64748B"}}>Apoderados</button>
+        </div>
+      ))}
+      {modal&&<ApoderadosModal alumno={modal} onClose={()=>{ setModal(null); cargar(); }} canEdit={isAdmin}/>}
     </div>
   );
 }
 
 function AdminPanel({ cursoId, cursoNombre }) {
-  const [stats,setStats]       = useState({cuotasOk:0,sinPagar:0,regalos:0});
-  const [monto,setMonto]             = useState("");
-  const [monedaRegalo,setMonedaRegalo]   = useState("$");
-  const [montoGuardado,setMontoGuardado] = useState(null);
-  const [savingMonto,setSavingMonto]     = useState(false);
-  const [solapa,setSolapa] = useState("general"); // general | horarios
+  const [tab, setTab]   = useState("general");
+  const [curso, setCurso] = useState(null);
+  const [form, setForm]   = useState({monto_regalo:"",moneda_regalo:"$"});
+  const [saving, setSaving] = useState(false);
   const [horarios,setHorarios] = useState([]);
-  const [maestrosHor,setMaestrosHor] = useState([]);
-  const [horForm,setHorForm]   = useState(null); // null | {} | {id,...}
-  const [savingHor,setSavingHor] = useState(false);
+  const [maestros,setMaestros] = useState([]);
+  const [horForm,setHorForm]   = useState(null);
+  const [horSaving,setHorSaving] = useState(false);
 
-  const EMOJIS = ["📌","📢","⚠️","✅","📅","💰","🎒","📝","🏥","🚌"];
-  const DIAS   = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  const COLORS_HOR = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"];
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const cargar = async () => {
-    Promise.all([
-      supabase.from("colectas").select("*").eq("curso_id",cursoId),
-      supabase.from("cumples").select("*").eq("curso_id",cursoId),
-      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single(),
-
+    const [c, hor, mae] = await Promise.all([
+      supabase.from("cursos").select("*").eq("id",cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
-        .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cursoId)).data?.map(r=>r.maestro_id)||[]),
-    ]).then(([c,cu,curso,hor,mae])=>{
-      const cuotas=c.data||[],cumples=cu.data||[];
-      setStats({cuotasOk:cuotas.filter(x=>x.pagado).length,sinPagar:cuotas.filter(x=>!x.pagado).length,regalos:cumples.filter(x=>!x.comprado).length});
-      const m = curso.data?.monto_regalo;
-      setMontoGuardado(m);
-      setMonto(m ? String(m) : "");
-      setMonedaRegalo(curso.data?.moneda_regalo||"$");
-      setHorarios(hor.data||[]);
-      setMaestrosHor(mae.data||[]);
-    });
+      supabase.from("maestros").select("id,nombre,materia").eq("activo",true),
+    ]);
+    setCurso(c.data);
+    setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
+    setHorarios(hor.data||[]);
+    setMaestros(mae.data||[]);
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
 
-  const guardarHor = async () => {
-    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin) return;
-    setSavingHor(true);
-    const payload = { materia:horForm.materia.trim(), dia:horForm.dia, hora_inicio:horForm.hora_inicio, hora_fin:horForm.hora_fin, docente:horForm.docente||null, color:horForm.color||"#3B82F6", curso_id:cursoId };
-    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
-    else           await supabase.from("horarios").insert(payload);
-    setSavingHor(false); setHorForm(null); cargar();
+  const guardarGeneral = async () => {
+    setSaving(true);
+    await supabase.from("cursos").update({monto_regalo:form.monto_regalo?Number(form.monto_regalo):null,moneda_regalo:form.moneda_regalo||"$"}).eq("id",cursoId);
+    setSaving(false); cargar();
   };
 
-  const eliminarHor = async (id) => {
+  const guardarHorario = async () => {
+    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin) return;
+    setHorSaving(true);
+    const payload = {materia:horForm.materia.trim(),dia:horForm.dia,hora_inicio:horForm.hora_inicio,hora_fin:horForm.hora_fin,docente:horForm.docente||null,color:horForm.color||"#3B82F6",curso_id:cursoId};
+    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
+    else           await supabase.from("horarios").insert(payload);
+    setHorSaving(false); setHorForm(null); cargar();
+  };
+
+  const eliminarHorario = async (id) => {
     await supabase.from("horarios").delete().eq("id",id);
     cargar();
   };
 
-  const guardarMonto = async () => {
-    setSavingMonto(true);
-    await supabase.from("cursos").update({monto_regalo: monto ? Number(monto) : null, moneda_regalo: monedaRegalo}).eq("id",cursoId);
-    setMontoGuardado(monto ? Number(monto) : null);
-    setSavingMonto(false);
-  };
-
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin Panel ⚙️</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>{cursoNombre}</div>
-
-      {/* Solapas */}
-      <div style={{display:"flex",gap:6,marginBottom:20,borderBottom:"2px solid #E2E8F0",paddingBottom:0}}>
-        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios de clases"}].map(s=>(
-          <button key={s.id} onClick={()=>setSolapa(s.id)} style={{padding:"8px 16px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:700,color:solapa===s.id?"#3B82F6":"#94A3B8",borderBottom:`2px solid ${solapa===s.id?"#3B82F6":"transparent"}`,marginBottom:-2}}>
-            {s.l}
-          </button>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:tab===t.id?"#0F172A":"#F1F5F9",color:tab===t.id?"white":"#64748B"}}>{t.l}</button>
         ))}
       </div>
 
-      {solapa==="general"&&<>
-
-      <Card style={{padding:"16px 18px",marginBottom:20,maxWidth:400}}>
-        <div style={{fontSize:13,fontWeight:800,marginBottom:12}}>🎁 Monto regalo por alumno</div>
-        <div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>Este monto se muestra a todos los apoderados del curso en la sección Cumpleaños.</div>
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-          {["$","USD"].map(m=>(
-            <button key={m} type="button" onClick={()=>setMonedaRegalo(m)} style={{padding:"7px 14px",borderRadius:8,border:`2px solid ${monedaRegalo===m?"#3B82F6":"#E2E8F0"}`,background:monedaRegalo===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:monedaRegalo===m?"#3B82F6":"#94A3B8"}}>{m}</button>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <input
-            type="number"
-            value={monto}
-            onChange={e=>setMonto(e.target.value)}
-            placeholder="Ej: 5000"
-            style={{flex:1,padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:14,fontWeight:600,outline:"none",background:"#F8FAFC",color:"#0F172A"}}
-          />
-          <button onClick={guardarMonto} disabled={savingMonto} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>
-            {savingMonto?"Guardando...":"Guardar"}
-          </button>
-        </div>
-        {montoGuardado&&<div style={{fontSize:11,color:"#10B981",fontWeight:600,marginTop:8}}>✓ Monto actual: {monedaRegalo} {Number(montoGuardado).toLocaleString("es-AR")} por familia</div>}
-      </Card>
-
-      </>
-      }
-
-      {solapa==="horarios"&&
-      <Card style={{padding:"16px 18px",marginTop:20}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1}}>Horario de clases</div>
-          <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer"}}>+ Nuevo</button>
-        </div>
-        {horarios.length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:"8px 0"}}>Sin horarios cargados</div>}
-        {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(dia=>{
-          const items = horarios.filter(h=>h.dia===dia);
-          if(!items.length) return null;
-          return (
-            <div key={dia} style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{dia}</div>
-              {items.map(h=>(
-                <div key={h.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#F8FAFC",borderRadius:9,marginBottom:5}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:h.color||"#3B82F6",flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <span style={{fontSize:13,fontWeight:600}}>{h.materia}</span>
-                    {h.docente&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{h.docente}</span>}
-                  </div>
-                  <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} – {h.hora_fin?.slice(0,5)}</span>
-                  <button onClick={()=>setHorForm({...h})} style={{padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                  <button onClick={()=>eliminarHor(h.id)} style={{padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                </div>
+      {tab==="general"&&(
+        <Card style={{padding:20}}>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:14}}>Configuracion de regalos</div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONEDA</div>
+            <div style={{display:"flex",gap:8}}>
+              {["$","USD"].map(m=>(
+                <button key={m} onClick={()=>setForm(p=>({...p,moneda_regalo:m}))} style={{padding:"7px 20px",borderRadius:10,border:`2px solid ${form.moneda_regalo===m?"#3B82F6":"#E2E8F0"}`,background:form.moneda_regalo===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:form.moneda_regalo===m?"#3B82F6":"#94A3B8"}}>{m}</button>
               ))}
             </div>
-          );
-        })}
-      </Card>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO SUGERIDO POR FAMILIA</div>
+            <input type="number" value={form.monto_regalo} onChange={e=>setForm(p=>({...p,monto_regalo:e.target.value}))} placeholder="Ej: 2000" style={inp}/>
+          </div>
+          <button onClick={guardarGeneral} disabled={saving} style={{width:"100%",padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+        </Card>
+      )}
 
-      }
-
-      {/* Modal horario */}
-      {horForm!==null&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"}</div>
-            {(()=>{
-              const inp={width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
-              return(<>
+      {tab==="horarios"&&(
+        <div>
+          {horForm!==null&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+              <Card style={{padding:24,width:"100%",maxWidth:400}}>
+                <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"}</div>
                 <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DÍA</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DIA</div>
                   <select value={horForm.dia||"Lunes"} onChange={e=>setHorForm(p=>({...p,dia:e.target.value}))} style={inp}>
-                    {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(d=><option key={d} value={d}>{d}</option>)}
+                    {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(d=><option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div style={{display:"flex",gap:10,marginBottom:10}}>
@@ -4766,13 +4525,13 @@ function AdminPanel({ cursoId, cursoNombre }) {
                 </div>
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MATERIA</div>
-                  <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matemáticas" style={inp}/>
+                  <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matematicas" style={inp}/>
                 </div>
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
                   <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
-                    <option value="">— Sin asignar —</option>
-                    {maestrosHor.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" · "+m.materia:""}</option>)}
+                    <option value="">-- Sin asignar --</option>
+                    {maestros.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" - "+m.materia:""}</option>)}
                   </select>
                 </div>
                 <div style={{marginBottom:16}}>
@@ -4785,28 +4544,58 @@ function AdminPanel({ cursoId, cursoNombre }) {
                 </div>
                 <div style={{display:"flex",gap:10}}>
                   <button onClick={()=>setHorForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-                  <button onClick={guardarHor} disabled={savingHor} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingHor?"Guardando...":"Guardar clase"}</button>
+                  <button onClick={guardarHorario} disabled={horSaving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{horSaving?"Guardando...":"Guardar clase"}</button>
                 </div>
-              </>);
-            })()}
-          </Card>
+              </Card>
+            </div>
+          )}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div style={{fontSize:14,fontWeight:700}}>Horario de clases</div>
+            <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva clase</button>
+          </div>
+          {horarios.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin clases cargadas</div>}
+          {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(dia=>{
+            const items = horarios.filter(h=>h.dia===dia);
+            if(!items.length) return null;
+            return (
+              <div key={dia} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{dia}</div>
+                {items.map(h=>(
+                  <div key={h.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F8FAFC",borderRadius:9,marginBottom:5,border:"1px solid #E2E8F0"}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:h.color||"#3B82F6",flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:13,fontWeight:600}}>{h.materia}</span>
+                      {h.docente&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{h.docente}</span>}
+                    </div>
+                    <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} - {h.hora_fin?.slice(0,5)}</span>
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>setHorForm(h)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
+                      <button onClick={()=>eliminarHorario(h.id)} style={{padding:"3px 8px",borderRadius:6,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-export default function App() {
-  const isMobile = useIsMobile();
-  const [usuario,setUsuario]       = useState(null);
-  const [perfilElegido,setPerfilElegido] = useState(null); // null | "admin" | "padre"
-  const [tab,setTab]               = useState("muro");
-  const [openColecta,setOpenColecta]   = useState(null);
-  const [openFecha,setOpenFecha]         = useState(null);
-  const [cursoIdx,setCursoIdx]     = useState(0);
-  const [items,setItems]           = useState([]);
+const HIJO_COLOR_DEFAULT = "#0F172A";
+const HIJO_COLORS_CUSTOM = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"];
+
+function App() {
+  const [usuario,       setUsuario]       = useState(null);
+  const [perfilElegido, setPerfilElegido] = useState(null);
+  const [tab,           setTab]           = useState("muro");
+  const [openColecta,   setOpenColecta]   = useState(null);
+  const [openFecha,     setOpenFecha]     = useState(null);
+  const [cursoIdx,      setCursoIdx]      = useState(0);
+  const [items,         setItems]         = useState([]);
   const [hijoColorsMap, setHijoColorsMap] = useState({});
-  const [colorPickerIdx, setColorPickerIdx] = useState(null);
+  const [colorPickerIdx,setColorPickerIdx]= useState(null);
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super") return;
@@ -4827,7 +4616,6 @@ export default function App() {
   const handleLogin = (u) => { setUsuario(u); setPerfilElegido(null); setTab("muro"); setCursoIdx(0); setItems([]); };
 
   if(!usuario) return <Login onLogin={handleLogin}/>;
-  // Admin con hijos → elegir perfil
   if(usuario.rol==="admin" && usuario.hijos?.length>0 && !perfilElegido) {
     return <SeleccionPerfil usuario={usuario} onElegir={(p)=>{ setPerfilElegido(p); setTab("muro"); setCursoIdx(0); setItems([]); }}/>;
   }
@@ -4848,14 +4636,12 @@ export default function App() {
   const cursoId    = esPadre ? itemActual?.curso_id    : itemActual?.id;
   const cursoNombre= esPadre ? itemActual?.cursos?.nombre : itemActual?.nombre;
   const isAdmin    = rolEfectivo==="admin";
-  // Color personalizado por apoderado/hijo — derivado aquí (hooks ya declarados arriba)
+
   const hijoColorKey = esPadre && itemActual ? `${usuario?.id}_${itemActual.id}` : null;
   const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
   const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
   const headerBg  = hijoColor || "#0F172A";
-  // Color del punto identificador — siempre visible (usa color supabase si no hay custom)
   const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || "#3B82F6";
-
 
   const cambiarColorHijo = (idx, color) => {
     const item = items[idx];
@@ -4876,7 +4662,7 @@ export default function App() {
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
     {id:"recordatorios", label:"Recordatorios", emoji:"📌"},
-    {id:"info",          label:"Info Útil",     emoji:"📋"},
+    {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
     ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
@@ -4889,138 +4675,75 @@ export default function App() {
       case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
-
-      case "finanzas":      return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
+      case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} active={tab==="recordatorios"}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} hijoActivo={esPadre ? itemActual?.id : null}/>;
-
-      case "contacto":      return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
+      case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
     }
   };
 
-  // Global color picker overlay
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
-  const pickerCurrentColor = pickerItem ? (hijoColorsMap[`${usuario?.id}_${pickerItem.id}`]||getHijoColor(usuario?.id,pickerItem.id)||null) : null;
-
-  if(isMobile) return (
-    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",paddingBottom:80,colorScheme:"light"}}>
-      <div style={{background:headerBg,position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
-        <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {cursoNombre&&<div style={{fontSize:12,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{cursoNombre}</div>}
-            {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,marginRight:6}}>Cambiar perfil</button>}
-            <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
-          </div>
-        </div>
-        {items.length>1&&(
-          <div style={{display:"flex",gap:6,padding:"0 16px 8px",overflowX:"auto"}}>
-            {items.map((item,i)=>{
-              const _sc = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null) : null;
-              const colHeader = (_sc && _sc!==HIJO_COLOR_DEFAULT) ? _sc : null; // color aplicado al header
-              const col = colHeader || (esPadre ? (item.color||"#3B82F6") : null); // punto visual siempre visible
-              return (
-                <div key={i} style={{position:"relative",flexShrink:0}}>
-                  <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 10px",borderRadius:20,border:`2px solid ${i===cursoIdx?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.2)"}`,background:i===cursoIdx?"rgba(255,255,255,0.18)":"transparent",cursor:"pointer",fontSize:11,fontWeight:i===cursoIdx?800:500,color:"white",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
-                    {esPadre&&<span style={{width:9,height:9,borderRadius:"50%",background:col,flexShrink:0,display:"inline-block",border:"2px solid rgba(255,255,255,0.7)"}}/>}
-                    {esPadre?item.nombre?.split(" ")[0]:item.nombre}
-                  </button>
-                  {esPadre&&i===cursoIdx&&<button onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",border:"2px solid white",background:col,cursor:"pointer",padding:0,fontSize:0}}/>}
-
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{display:"flex",overflowX:"auto",padding:"0 16px 10px",gap:4,scrollbarWidth:"none"}}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:tab===t.id?"rgba(255,255,255,0.2)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",whiteSpace:"nowrap"}}>
-              {t.emoji} {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{padding:"20px 16px",color:"#0F172A"}}>{renderTab()}</div>
-      {colorPickerIdx!==null&&pickerItem&&(
-        <div onClick={()=>setColorPickerIdx(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <button onClick={()=>cambiarColorHijo(colorPickerIdx,HIJO_COLOR_DEFAULT)} style={{width:32,height:32,borderRadius:"50%",background:HIJO_COLOR_DEFAULT,border:(!pickerCurrentColor||pickerCurrentColor===HIJO_COLOR_DEFAULT)?"3px solid #3B82F6":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0,title:"Color original"}}>
-                  <span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>
-                </button>
-                {HIJO_COLORS_CUSTOM.map((clr,ci)=>(
-                  <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr,border:pickerCurrentColor===clr?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,flexShrink:0}}/>
-                ))}
-              </div>
-              <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = volver al color del sitio</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 
   return (
-    <div style={{display:"flex",minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
-      <div style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
-        <div style={{padding:"24px 20px 16px"}}>
-          <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
-
-        </div>
-        {items.length>0&&(
-          <div style={{padding:"0 12px 16px"}}>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
-            {items.map((item,i)=>(
-              <div key={i} style={{position:"relative",marginBottom:2}}>
-                <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
-                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                  <span style={{flex:1,color:"white",fontWeight:"inherit"}}>{esPadre?item.nombre:`${item.avatar} ${item.nombre}`}</span>
-                  {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
-                </button>
-
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{padding:"0 12px",flex:1}}>
-          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menú</div>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:16}}>{t.emoji}</span>{t.label}
-            </button>
-          ))}
-        </div>
-        <div style={{padding:"16px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-          <div style={{padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{usuario.nombre}{usuario.apellido?` ${usuario.apellido}`:""}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[usuario.rol]}</div>
-          </div>
-          <button onClick={()=>setUsuario(null)} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>← Cerrar sesión</button>
-        </div>
-      </div>
-      <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
-        <div style={{maxWidth:800}}>{renderTab()}</div>
-      </div>
-      {colorPickerIdx!==null&&pickerItem&&(
-        <div onClick={()=>setColorPickerIdx(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:16,padding:20,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",width:220}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12,color:"#0F172A"}}>Color de {pickerItem.nombre?.split(" ")[0]}</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <button onClick={()=>cambiarColorHijo(colorPickerIdx,HIJO_COLOR_DEFAULT)} style={{width:32,height:32,borderRadius:"50%",background:HIJO_COLOR_DEFAULT,border:(!pickerCurrentColor||pickerCurrentColor===HIJO_COLOR_DEFAULT)?"3px solid #3B82F6":"2px solid #E2E8F0",cursor:"pointer",padding:0,position:"relative",flexShrink:0,title:"Color original"}}>
-                  <span style={{fontSize:9,position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:"white",pointerEvents:"none"}}>↩</span>
-                </button>
-                {HIJO_COLORS_CUSTOM.map((clr,ci)=>(
-                  <button key={ci} onClick={()=>cambiarColorHijo(colorPickerIdx,clr)} style={{width:32,height:32,borderRadius:"50%",background:clr,border:pickerCurrentColor===clr?"3px solid #0F172A":"2px solid #E2E8F0",cursor:"pointer",padding:0,flexShrink:0}}/>
-                ))}
-              </div>
-              <div style={{fontSize:10,color:"#94A3B8",marginTop:8}}>↩ = volver al color del sitio</div>
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
+      {/* Color picker overlay */}
+      {pickerItem&&(
+        <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
+          <div style={{position:"absolute",top:0,left:0,width:260,background:"#1E293B",borderRadius:"0 0 16px 0",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+              {HIJO_COLORS_CUSTOM.map(c=>(
+                <button key={c} onClick={()=>cambiarColorHijo(colorPickerIdx,c)} style={{width:32,height:32,borderRadius:8,background:c,border:_savedColor===c?"3px solid white":"2px solid transparent",cursor:"pointer"}}/>
+              ))}
+            </div>
+            <button onClick={()=>cambiarColorHijo(colorPickerIdx,null)} style={{width:"100%",padding:"6px 0",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,fontWeight:700}}>Restablecer</button>
           </div>
         </div>
       )}
+
+      {/* Header / Sidebar */}
+      <div style={{background:headerBg,padding:"0 0 0 0",position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
+        <div style={{padding:"12px 16px 0",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-0.5,fontFamily:"Georgia,serif",flex:1}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+          {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,marginRight:6}}>Cambiar perfil</button>}
+          <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
+        </div>
+        {/* Items selector */}
+        <div style={{display:"flex",gap:6,padding:"10px 16px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          {items.map((item,i)=>{
+            const active = i===cursoIdx;
+            const iColor = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||item.color||"#3B82F6") : (item.color||"#3B82F6");
+            return (
+              <div key={item.id} style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                <button onClick={()=>{ setCursoIdx(i); setTab("muro"); }} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:active?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.07)",color:active?"white":"rgba(255,255,255,0.6)",display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:active?iColor:"rgba(255,255,255,0.3)",display:"inline-block",flexShrink:0}}/>
+                  {esPadre ? (item.nombre||"Hijo") : (item.avatar?" "+item.nombre:item.nombre)}
+                </button>
+                {esPadre&&active&&<button onClick={()=>setColorPickerIdx(colorPickerIdx===i?null:i)} style={{width:22,height:22,borderRadius:6,border:"none",background:"rgba(255,255,255,0.12)",cursor:"pointer",fontSize:11,color:"rgba(255,255,255,0.7)"}}>🎨</button>}
+              </div>
+            );
+          })}
+        </div>
+        {/* Tabs nav */}
+        <div style={{display:"flex",overflowX:"auto",WebkitOverflowScrolling:"touch",gap:0,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"0 0 auto",padding:"10px 14px",border:"none",background:"transparent",cursor:"pointer",fontSize:11,fontWeight:700,color:tab===t.id?"white":"rgba(255,255,255,0.45)",borderBottom:tab===t.id?`2px solid ${hijoDotColor}`:"2px solid transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"color 0.15s"}}>
+              <span style={{fontSize:16}}>{t.emoji}</span>
+              <span style={{whiteSpace:"nowrap"}}>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div style={{flex:1,padding:"20px 16px 40px",maxWidth:680,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>
+        {renderTab()}
+      </div>
     </div>
   );
 }
+
+export default App;
