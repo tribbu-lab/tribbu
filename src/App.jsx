@@ -3977,7 +3977,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
   );
 }
 
-function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
+function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -4039,6 +4039,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
     } else {
       await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
       setLeidosSet(p=>new Set([...p,nid]));
+      onBadgeChange?.();
     }
   };
 
@@ -4632,6 +4633,7 @@ function App() {
   const [items,         setItems]         = useState([]);
   const [hijoColorsMap, setHijoColorsMap] = useState({});
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
+  const [badgeCount,    setBadgeCount]    = useState(0);
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super") return;
@@ -4648,6 +4650,30 @@ function App() {
         .then(results=>setItems(results.map(r=>r.data).filter(Boolean)));
     }
   },[usuario,perfilElegido]);
+
+  // Badge: recarga cada vez que cambia tab, curso o usuario, y cada 30s
+  const cargarBadge = (usr, itmList, idx, perfil) => {
+    if(!usr) return;
+    const rol_ = perfil || usr.rol;
+    const itm_ = itmList[idx];
+    const cid_ = rol_==="padre" ? itm_?.curso_id : itm_?.id;
+    if(!cid_) return;
+    const hoy = new Date().toISOString().split("T")[0];
+    Promise.all([
+      supabase.from("recordatorios").select("id").eq("curso_id", cid_)
+        .or("para_usuario_id.is.null,para_usuario_id.eq."+usr.id)
+        .gte("fecha", hoy),
+      supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", usr.id),
+    ]).then(([recs, leidos]) => {
+      const leidosIds = new Set((leidos.data||[]).map(r=>r.recordatorio_id));
+      setBadgeCount((recs.data||[]).filter(r=>!leidosIds.has(r.id)).length);
+    });
+  };
+  useEffect(()=>{
+    cargarBadge(usuario, items, cursoIdx, perfilElegido);
+    const iv = setInterval(()=>cargarBadge(usuario, items, cursoIdx, perfilElegido), 30000);
+    return ()=>clearInterval(iv);
+  },[usuario, items, cursoIdx, perfilElegido, tab]);
 
   const handleLogin = (u) => { setUsuario(u); setPerfilElegido(null); setTab("muro"); setCursoIdx(0); setItems([]); };
 
@@ -4712,7 +4738,7 @@ function App() {
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} active={tab==="recordatorios"}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} active={tab==="recordatorios"} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx,perfilElegido)}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={usuario.hijos||[]} hijoActivo={esPadre ? itemActual?.id : null}/>;
       case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
@@ -4772,8 +4798,12 @@ function App() {
         <div style={{padding:"0 12px",flex:1}}>
           <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menu</div>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:16}}>{t.emoji}</span>{t.label}
+            <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:16}}>{t.emoji}</span>
+              <span style={{flex:1}}>{t.label}</span>
+              {t.id==="recordatorios"&&badgeCount>0&&(
+                <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:800,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>
+              )}
             </button>
           ))}
         </div>
