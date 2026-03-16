@@ -2934,6 +2934,43 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     setColectas(colData||[]);
     setAlumnos(alum.data||[]);
     setPagos(pag.data||[]);
+    if(userId && misHijos.length) {
+      await verificarRecordatoriosColecta(colData||[], pag.data||[]);
+    }
+  };
+
+  const verificarRecordatoriosColecta = async (colectasData, pagosData) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    for(const col of colectasData) {
+      if(!col.activa || !col.vencimiento) continue;
+      const venc = new Date(col.vencimiento+"T00:00:00");
+      const dias = Math.round((venc - hoy) / (1000*60*60*24));
+      if(dias < 0 || dias > 3) continue; // solo si vence en 0-3 días
+      // Verificar por cada hijo mío si debe
+      for(const hijoId of misHijos) {
+        const pago = pagosData.find(p=>p.colecta_id===col.id && p.alumno_id===hijoId);
+        if(pago?.estado==="pagado") continue; // ya pagó
+        // Verificar si ya existe recordatorio para esta colecta+usuario
+        const { data: existe } = await supabase.from("recordatorios").select("id")
+          .eq("curso_id", cursoId).eq("tipo", "colecta_vence")
+          .eq("ref_id", col.id).eq("para_usuario_id", Number(userId)).limit(1);
+        if(existe && existe.length > 0) continue;
+        const diasLabel = dias===0?"hoy":dias===1?"mañana":`en ${dias} días`;
+        await supabase.from("recordatorios").insert({
+          curso_id:    cursoId,
+          tipo:        "colecta_vence",
+          ref_id:      col.id,
+          para_usuario_id: Number(userId),
+          texto:       `Colecta "${col.titulo}" vence ${diasLabel}. Todavía no registramos tu pago.`,
+          emoji:       "💳",
+          urgente:     dias <= 1,
+          prioridad:   dias <= 1 ? "alta" : "media",
+          fecha:       col.vencimiento,
+          creado_por:  null,
+        });
+        break; // un recordatorio por colecta es suficiente (aunque tenga 2 hijos)
+      }
+    }
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -4153,6 +4190,8 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
+                  : r.tipo==="colecta_vence"
+                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>💳 Colecta</span>
                   : <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
                 }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
@@ -4167,7 +4206,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
               ) : (
                 <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"Leido":"Leido"}</button>
               )}
-              {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&<div style={{display:"flex",gap:4}}>
+              {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&r.tipo!=="colecta_vence"&&<div style={{display:"flex",gap:4}}>
                 <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
               </div>}
