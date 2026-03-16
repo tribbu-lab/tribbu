@@ -1920,6 +1920,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
     <div>
       {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
       {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
+      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {confirm && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,maxWidth:340,width:"100%"}}>
