@@ -1221,7 +1221,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
     const leidosIds = new Set((leidosData.data||[]).map(l=>Number(l.recordatorio_id)));
     setLeidosMuro(new Set([...leidosIds].map(Number)));
     const hoyStr = new Date().toISOString().split("T")[0];
-    const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId)));
+    const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId)))
+      .sort((a,b)=>{ if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha); if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1; return 0; });
     // colectas pendientes para mis hijos — solo hijos del curso actual
     const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
     const hijosDelCurso = (hijosData.data||[]).map(h=>h.id);
@@ -3505,20 +3506,33 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
 }
 
 function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
-  const [asistencia, setAsistencia] = useState([]);
-  const [alumnos,    setAlumnos]    = useState({});
+  const [asistencia, setAsistencia] = useState({}); // alumnoId → "si"|"no"|"pendiente"
+  const [hijosInfo,  setHijosInfo]  = useState({}); // alumnoId → {nombre,apellido,color}
+  const [todosHijos, setTodosHijos] = useState([]); // todos los hijos del curso (para admin)
+  const [isAdmin,    setIsAdmin]    = useState(false);
+  const [cargando,   setCargando]   = useState(true);
 
   const cargar = async () => {
+    setCargando(true);
+    // Traer todas las respuestas existentes
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
-    const rows = asist||[];
-    const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
-    const alumnosMap = {};
-    for(const aid of aids) {
-      const { data: a } = await supabase.from("hijos").select("id,nombre,apellido,color").eq("id",aid).single();
-      if(a) alumnosMap[a.id] = a;
+    const mapaAsist = {};
+    (asist||[]).forEach(r=>{ if(r.alumno_invitado_id) mapaAsist[r.alumno_invitado_id] = r.asiste||"pendiente"; });
+    setAsistencia(mapaAsist);
+
+    // Traer info de todos los hijos del curso
+    const { data: hijos } = await supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id", evento.curso_id);
+    const hijosMap = {};
+    (hijos||[]).forEach(h=>{ hijosMap[h.id]=h; });
+    setHijosInfo(hijosMap);
+    setTodosHijos(hijos||[]);
+
+    // Verificar rol del usuario
+    if(userId) {
+      const { data: u } = await supabase.from("usuarios").select("rol").eq("id",Number(userId)).single();
+      setIsAdmin(u?.rol==="admin"||u?.rol==="super");
     }
-    setAlumnos(alumnosMap);
-    setAsistencia(rows);
+    setCargando(false);
   };
 
   useEffect(()=>{ cargar(); },[evento.id]);
@@ -3526,71 +3540,90 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
   const responder = async (alumnoId, asiste) => {
     if(!userId) return;
     // Update optimista
-    setAsistencia(prev => prev.map(r =>
-      r.alumno_invitado_id===alumnoId ? {...r, asiste} : r
-    ));
-    await supabase.from("evento_asistencia")
-      .update({ asiste })
-      .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId);
+    setAsistencia(prev=>({...prev,[alumnoId]:asiste}));
+    // Upsert — crea la fila si no existe, actualiza si existe
+    await supabase.from("evento_asistencia").upsert(
+      { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
+      { onConflict:"evento_id,alumno_invitado_id" }
+    );
   };
 
-  const dedupAsistencia = (rows) => {
-    const PRIO = {"si":2,"no":1,"pendiente":0};
-    const map = {};
-    rows.forEach(r=>{ const k=r.alumno_invitado_id; if(!k) return; if(!map[k]||(PRIO[r.asiste]||0)>(PRIO[map[k].asiste]||0)) map[k]=r; });
-    return Object.values(map);
-  };
+  // Mis hijos en este curso (intersección de misHijos con hijos del curso)
+  const misHijosEnCurso = misHijos.filter(hid=>hijosInfo[hid]);
 
-  const asistenciaDedup = dedupAsistencia(asistencia);
-  const confirmados = asistenciaDedup.filter(a=>a.asiste==="si");
-  const noVan       = asistenciaDedup.filter(a=>a.asiste==="no");
-  const pendientes  = asistenciaDedup.filter(a=>a.asiste==="pendiente"||!a.asiste);
+  // Listas para vista admin
+  const confirmados = todosHijos.filter(h=>asistencia[h.id]==="si");
+  const noVan       = todosHijos.filter(h=>asistencia[h.id]==="no");
+  const pendientes  = todosHijos.filter(h=>!asistencia[h.id]||asistencia[h.id]==="pendiente");
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
           <div>
             <div style={{fontSize:15,fontWeight:900}}>{evento.titulo}</div>
-            <div style={{fontSize:12,color:"#94A3B8"}}>{new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}{evento.hora?` · ${evento.hora}`:""}</div>
+            <div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>
+              {new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+              {evento.hora?` · ${evento.hora}`:""}
+            </div>
+            {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>📍 {evento.lugar}</div>}
           </div>
-          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8"}}>✕</button>
+          <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0}}>✕</button>
         </div>
 
-        {/* Apoderado: confirmar por cada hijo */}
-        {misHijos.filter(hid=>asistencia.some(a=>a.alumno_invitado_id===hid)).map(hid=>{
-          const fila = asistencia.find(a=>a.alumno_invitado_id===hid);
-          const al   = alumnos[hid];
-          return (
-            <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:"12px 14px",marginBottom:10,border:"1.5px solid #E2E8F0"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?`${al.nombre} ${al.apellido}`:"Tu hijo/a"}</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="si"?"#10B981":"#E2E8F0"}`,background:fila?.asiste==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
-                <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"7px 0",borderRadius:10,border:`2px solid ${fila?.asiste==="no"?"#EF4444":"#E2E8F0"}`,background:fila?.asiste==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:fila?.asiste==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
+        {cargando&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Cargando...</div>}
+
+        {!cargando&&(
+          <>
+            {/* Sección apoderado: confirmar asistencia de sus hijos */}
+            {misHijosEnCurso.length>0&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Tu asistencia</div>
+                {misHijosEnCurso.map(hid=>{
+                  const al  = hijosInfo[hid];
+                  const est = asistencia[hid]||"pendiente";
+                  return (
+                    <div key={hid} style={{background:"#F8FAFC",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1.5px solid #E2E8F0"}}>
+                      {misHijosEnCurso.length>1&&<div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?.nombre} {al?.apellido}</div>}
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="si"?"#10B981":"#E2E8F0"}`,background:est==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="si"?"#10B981":"#94A3B8"}}>✓ Voy</button>
+                        <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="no"?"#EF4444":"#E2E8F0"}`,background:est==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="no"?"#EF4444":"#94A3B8"}}>✗ No voy</button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          );
-        })}
+            )}
 
-        {asistenciaDedup.length===0&&<div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:24}}>Sin respuestas registradas</div>}
+            {/* Resumen de asistencia de todo el curso — visible para todos */}
+            {todosHijos.length>0&&(
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>
+                  Resumen del curso · {confirmados.length} van · {noVan.length} no van · {pendientes.length} pendiente
+                </div>
+                {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
+                  list.length>0&&(
+                    <div key={label} style={{marginBottom:10}}>
+                      <div style={{fontSize:11,fontWeight:700,color,marginBottom:5}}>{label} ({list.length})</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {list.map(h=>(
+                          <div key={h.id} style={{padding:"7px 10px",background:bg,borderRadius:9,display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{width:7,height:7,borderRadius:"50%",background:h.color||color,flexShrink:0}}/>
+                            <div style={{fontSize:13,fontWeight:600}}>{h.nombre} {h.apellido}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
-        {/* Room parent: lista completa por alumno */}
-        {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
-          list.length>0&&(
-            <div key={label} style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color,marginBottom:6}}>{label} ({list.length})</div>
-              {list.map((a,i)=>{
-                const al = alumnos[a.alumno_invitado_id];
-                return (
-                  <div key={i} style={{padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5,display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:al?.color||color,flexShrink:0}}/>
-                    <div style={{fontSize:13,fontWeight:600}}>{al?`${al.nombre} ${al.apellido}`:"—"}</div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+            {/* Sin hijos en este curso y no es admin */}
+            {misHijosEnCurso.length===0&&!isAdmin&&(
+              <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>No tenés hijos en este curso</div>
+            )}
+          </>
         )}
       </Card>
     </div>
@@ -4246,7 +4279,6 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
     if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
     return true;
   }).sort((a,b)=>{
-    if(a.urgente&&!b.urgente) return -1; if(!a.urgente&&b.urgente) return 1;
     if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
     if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1;
     return 0;
