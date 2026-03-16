@@ -4583,9 +4583,6 @@ function AdminPanel({ cursoId, cursoNombre }) {
   );
 }
 
-const HIJO_COLOR_DEFAULT = "#0F172A";
-const HIJO_COLORS_CUSTOM = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"];
-
 function App() {
   const [usuario,       setUsuario]       = useState(null);
   const [perfilElegido, setPerfilElegido] = useState(null);
@@ -4687,60 +4684,76 @@ function App() {
 
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
 
-  return (
-    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
-      {/* Color picker overlay */}
-      {pickerItem&&(
-        <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
-          <div style={{position:"absolute",top:0,left:0,width:260,background:"#1E293B",borderRadius:"0 0 16px 0",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
-              {HIJO_COLORS_CUSTOM.map(c=>(
-                <button key={c} onClick={()=>cambiarColorHijo(colorPickerIdx,c)} style={{width:32,height:32,borderRadius:8,background:c,border:_savedColor===c?"3px solid white":"2px solid transparent",cursor:"pointer"}}/>
-              ))}
-            </div>
-            <button onClick={()=>cambiarColorHijo(colorPickerIdx,null)} style={{width:"100%",padding:"6px 0",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,fontWeight:700}}>Restablecer</button>
-          </div>
-        </div>
-      )}
+  const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" };
 
-      {/* Header / Sidebar */}
-      <div style={{background:headerBg,padding:"0 0 0 0",position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
-        <div style={{padding:"12px 16px 0",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{fontSize:20,fontWeight:900,color:"white",letterSpacing:-0.5,fontFamily:"Georgia,serif",flex:1}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-          {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,marginRight:6}}>Cambiar perfil</button>}
-          <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"5px 10px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
-        </div>
-        {/* Items selector */}
-        <div style={{display:"flex",gap:6,padding:"10px 16px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-          {items.map((item,i)=>{
-            const active = i===cursoIdx;
-            const iColor = esPadre ? (hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||item.color||"#3B82F6") : (item.color||"#3B82F6");
-            return (
-              <div key={item.id} style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-                <button onClick={()=>{ setCursoIdx(i); setTab("muro"); }} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:active?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.07)",color:active?"white":"rgba(255,255,255,0.6)",display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{width:8,height:8,borderRadius:"50%",background:active?iColor:"rgba(255,255,255,0.3)",display:"inline-block",flexShrink:0}}/>
-                  {esPadre ? (item.nombre||"Hijo") : (item.avatar?" "+item.nombre:item.nombre)}
-                </button>
-                {esPadre&&active&&<button onClick={()=>setColorPickerIdx(colorPickerIdx===i?null:i)} style={{width:22,height:22,borderRadius:6,border:"none",background:"rgba(255,255,255,0.12)",cursor:"pointer",fontSize:11,color:"rgba(255,255,255,0.7)"}}>🎨</button>}
+  return (
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
+      <style>{`.tribbu-sidebar, .tribbu-sidebar button, .tribbu-sidebar span, .tribbu-sidebar div { color: white !important; }`}</style>
+      {/* Color picker overlay */}
+      {pickerItem&&(()=>{
+        const pickerSavedColor = hijoColorsMap[`${usuario?.id}_${pickerItem.id}`] || getHijoColor(usuario?.id, pickerItem.id) || null;
+        const pickerActiveColor = (pickerSavedColor && pickerSavedColor !== HIJO_COLOR_DEFAULT) ? pickerSavedColor : null;
+        return (
+          <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
+            <div style={{position:"absolute",top:0,left:0,width:220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                {HIJO_COLORS_CUSTOM.map(c=>(
+                  <button key={c} onClick={()=>cambiarColorHijo(colorPickerIdx,c)} style={{width:32,height:32,borderRadius:8,background:c,border:pickerActiveColor===c?"3px solid white":"2px solid transparent",cursor:"pointer"}}/>
+                ))}
               </div>
-            );
-          })}
+              <button onClick={()=>cambiarColorHijo(colorPickerIdx,null)} style={{width:"100%",padding:"6px 0",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,fontWeight:700}}>Restablecer color</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Sidebar izquierdo fijo */}
+      <div className="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
+        <div style={{padding:"24px 20px 16px"}}>
+          <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
         </div>
-        {/* Tabs nav */}
-        <div style={{display:"flex",overflowX:"auto",WebkitOverflowScrolling:"touch",gap:0,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+
+        {items.length>0&&(
+          <div style={{padding:"0 12px 16px"}}>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
+            {items.map((item,i)=>(
+              <div key={i} style={{position:"relative",marginBottom:2}}>
+                <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
+                  <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                  {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{padding:"0 12px",flex:1}}>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menu</div>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:"0 0 auto",padding:"10px 14px",border:"none",background:"transparent",cursor:"pointer",fontSize:11,fontWeight:700,color:tab===t.id?"white":"rgba(255,255,255,0.45)",borderBottom:tab===t.id?`2px solid ${hijoDotColor}`:"2px solid transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"color 0.15s"}}>
-              <span style={{fontSize:16}}>{t.emoji}</span>
-              <span style={{whiteSpace:"nowrap"}}>{t.label}</span>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:16}}>{t.emoji}</span>{t.label}
             </button>
           ))}
         </div>
+
+        <div style={{padding:"16px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:"white"}}>{usuario.nombre} {usuario.apellido||""}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>
+          </div>
+          {usuario.rol==="admin"&&usuario.hijos?.length>0&&(
+            <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>Cambiar perfil</button>
+          )}
+          <button onClick={()=>setUsuario(null)} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
+        </div>
       </div>
 
-      {/* Contenido */}
-      <div style={{flex:1,padding:"20px 16px 40px",maxWidth:680,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>
-        {renderTab()}
+      {/* Contenido principal */}
+      <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
+        <div style={{maxWidth:800}}>{renderTab()}</div>
       </div>
     </div>
   );
