@@ -1798,6 +1798,7 @@ function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
 function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha }) {
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
+  const [horarioColegio, setHorarioColegio] = useState(null);
   const [filtroTipo,   setFiltroTipo]   = useState("todos");
   const [filtroRango,  setFiltroRango]  = useState("90"); // "7"|"30"|"90"|"custom"
   const [filtroDesde,  setFiltroDesde]  = useState("");
@@ -1830,14 +1831,16 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
   };
 
   const cargar = async () => {
-    const [ev, al, ma, hor] = await Promise.all([
+    const [ev, al, ma, hor, col] = await Promise.all([
       supabase.from("eventos").select("*").eq("curso_id", cursoId).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id", cursoId),
       supabase.from("horarios").select("*").eq("curso_id", cursoId).order("hora_inicio"),
+      supabase.from("colegio").select("horario_clases").eq("id",1).single(),
     ]);
     setEventos(ev.data||[]);
     setHorarios(hor.data||[]);
+    setHorarioColegio(col.data?.horario_clases||null);
     // Armamos cumples como eventos virtuales (próxima ocurrencia)
     const todos = [
       ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
@@ -2103,10 +2106,35 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
         const DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
         const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444"];
         const fmtHora = t => t ? t.slice(0,5) : "";
-        // Collect all unique time slots sorted
-        const allSlots = [...new Set(
-          horarios.map(h=>h.hora_inicio)
-        )].sort();
+
+        // Parsear horario del colegio para obtener hora de inicio y fin
+        // Formato esperado: "08:00 — 16:00" o "8:00 - 16:00"
+        const parsearHorarioColegio = (str) => {
+          if(!str) return { inicio: null, fin: null };
+          const m = str.match(/(\d{1,2}:\d{2})\s*[—\-–]\s*(\d{1,2}:\d{2})/);
+          if(!m) return { inicio: null, fin: null };
+          const pad = t => t.length===4 ? "0"+t : t;
+          return { inicio: pad(m[1]), fin: pad(m[2]) };
+        };
+        const { inicio: colegioInicio, fin: colegioFin } = parsearHorarioColegio(horarioColegio);
+
+        // Slots base: todos los existentes en horarios
+        const slotsExistentes = [...new Set(horarios.map(h=>h.hora_inicio))].sort();
+
+        // Si hay horario de colegio, agregar slots vacíos cada hora hasta el fin
+        let allSlots = [...slotsExistentes];
+        if(colegioInicio && colegioFin && slotsExistentes.length > 0) {
+          const primerSlot = slotsExistentes[0];
+          const slotInicio = colegioInicio < primerSlot ? colegioInicio : primerSlot;
+          // Generar slots cada 1h desde inicio hasta fin del colegio
+          const [hIni] = slotInicio.split(":").map(Number);
+          const [hFin] = colegioFin.split(":").map(Number);
+          for(let h = hIni; h < hFin; h++) {
+            const slot = String(h).padStart(2,"0")+":00";
+            if(!allSlots.includes(slot)) allSlots.push(slot);
+          }
+          allSlots.sort();
+        }
 
         return (
           <div>
@@ -4161,12 +4189,18 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
   useEffect(()=>{ cargar(); },[cursoId]);
   useEffect(()=>{ if(active) cargar(); },[active]);
 
+  const esPropio = (r) => r.creado_por === Number(userId);
+  const puedeEditar = (r) => isAdmin || esPropio(r);
+
   const guardar = async () => {
     if(!form.texto?.trim()) return;
     setSaving(true);
     const payload = { texto:form.texto.trim(), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, curso_id:cursoId };
-    if(modal?.id) await supabase.from("recordatorios").update(payload).eq("id",modal.id);
-    else          await supabase.from("recordatorios").insert(payload);
+    if(modal?.id) {
+      await supabase.from("recordatorios").update(payload).eq("id",modal.id);
+    } else {
+      await supabase.from("recordatorios").insert({...payload, creado_por:Number(userId)});
+    }
     setSaving(false); setModal(null); cargar();
   };
 
@@ -4300,9 +4334,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
           <option value="media">Media</option>
           <option value="baja">Baja</option>
         </select>
-        {isAdmin&&(
-          <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
-        )}
+        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
       </div>
       {filtroRango==="personalizado"&&(
         <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
@@ -4360,7 +4392,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active }) {
               ) : (
                 <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"✓ Leído":"Leído"}</button>
               )}
-              {isAdmin&&r.tipo!=="regalo_cumple"&&<div style={{display:"flex",gap:4}}>
+              {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&<div style={{display:"flex",gap:4}}>
                 <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
               </div>}
