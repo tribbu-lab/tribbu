@@ -4634,6 +4634,7 @@ function App() {
   const [hijoColorsMap, setHijoColorsMap] = useState({});
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
   const [badgeCount,    setBadgeCount]    = useState(0);
+  const isMobile = useIsMobile();
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super") return;
@@ -4749,7 +4750,6 @@ function App() {
 
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
 
-  const isMobile = useIsMobile();
   const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" };
 
   // Sidebar items compartido entre mobile y desktop
