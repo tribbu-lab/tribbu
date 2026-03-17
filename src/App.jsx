@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 
 const T = {
@@ -73,15 +74,17 @@ function Login({ onLogin }) {
 
   const go = async () => {
     setErr(""); setLd(true);
+    // Buscar por email primero, luego verificar contraseña con bcrypt
     const { data, error } = await supabase
       .from("usuarios")
       .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)")
       .eq("email", email)
-      .eq("pass", pass)
       .eq("activo", true)
       .single();
     setLd(false);
     if(error || !data) { setErr("Correo o contraseña incorrectos"); return; }
+    const passOk = await bcrypt.compare(pass, data.pass);
+    if(!passOk) { setErr("Correo o contraseña incorrectos"); return; }
     onLogin({
       ...data,
       hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
@@ -451,7 +454,7 @@ function SuperAdmin() {
       {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
       {key:"curso", label:"Curso", options:[], match:(u,v)=>{
-        const cid=Number(v);
+        const cid=v;
         if(u.rol==="admin") return (u.cursos||[]).includes(cid);
         if(u.rol==="padre") return (u.hijos||[]).some(hid=>hijos.find(h=>h.id===hid&&h.curso_id===cid));
         return false;
@@ -477,7 +480,7 @@ function SuperAdmin() {
       {key:"nacimiento",label:"Cumpleaños", val:a=>a.fecha_nacimiento||"z"},
     ],
     filterOptions: [
-      {key:"curso", label:"Curso", options:[], match:(a,v)=>a.curso_id===Number(v)},
+      {key:"curso", label:"Curso", options:[], match:(a,v)=>a.curso_id===v},
     ],
     pageSize:12,
   });
@@ -485,7 +488,7 @@ function SuperAdmin() {
   ctrlAlumnos.filterOptions = [{
     key:"curso", label:"Curso",
     options: cursos.map(c=>({value:String(c.id), label:c.nombre})),
-    match:(a,v)=>a.curso_id===Number(v)
+    match:(a,v)=>a.curso_id===v
   }];
 
   const ctrlMaestros = useListControls(maestros, {
@@ -526,13 +529,15 @@ function SuperAdmin() {
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_usuario") {
-      const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:form.pass,rol:form.rol,avatar,activo:form.activo}).select().single();
+      const passHash = form.pass ? await bcrypt.hash(form.pass, 10) : null;
+      const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:passHash,rol:form.rol,avatar,activo:form.activo}).select().single();
       if(data) {
         if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:data.id,curso_id:cid})));
         if(form.rol==="padre"&&form.hijos.length)  await supabase.from("usuario_hijos").insert(form.hijos.map(hid=>({usuario_id:data.id,hijo_id:hid})));
       }
     } else {
-      await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:form.pass,rol:form.rol,activo:form.activo}).eq("id",form.id);
+      const passEditar = form.pass?.startsWith('$2b$') ? form.pass : (form.pass ? await bcrypt.hash(form.pass, 10) : null);
+      await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:passEditar,rol:form.rol,activo:form.activo}).eq("id",form.id);
       await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id);
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
       if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:form.id,curso_id:cid})));
@@ -1179,8 +1184,8 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).gte("fecha",mesInicio).lte("fecha",mesFin).order("fecha"),
-      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",Number(userId)).eq("asiste","pendiente") : Promise.resolve({data:[]}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,alumno_id)").eq("usuario_id",userId).eq("asiste","pendiente") : Promise.resolve({data:[]}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
     ]);
     // Build unified birthday list sorted by next occurrence
     const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
@@ -1218,10 +1223,10 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
-    const leidosIds = new Set((leidosData.data||[]).map(l=>Number(l.recordatorio_id)));
+    const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
     setLeidosMuro(new Set([...leidosIds].map(Number)));
     const hoyStr = new Date().toISOString().split("T")[0];
-    const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId)))
+    const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId))
       .sort((a,b)=>{ if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha); if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1; return 0; });
     // colectas pendientes para mis hijos — solo hijos del curso actual
     const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
@@ -1233,21 +1238,21 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       const { data: pagosData } = colIds.length
         ? await supabase.from("colecta_pagos").select("*").in("colecta_id",colIds).in("alumno_id",misHijosEnCurso)
         : {data:[]};
-      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${Number(p.colecta_id)}-${Number(p.alumno_id)}`));
-      colectasPend = (cuotas.data||[]).filter(c=>c.activa&&misHijosEnCurso.some(hid=>!pagados.has(`${Number(c.id)}-${Number(hid)}`)));
+      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${p.colecta_id}-${p.alumno_id}`));
+      colectasPend = (cuotas.data||[]).filter(c=>c.activa&&misHijosEnCurso.some(hid=>!pagados.has(`${c.id}-${hid}`)));
     }
     setDatos({ alerta:alerta.data?.[0]||null, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento) });
   };
 
   const marcarLeidoMuro = async (recId) => {
     if(!userId) return;
-    const nid = Number(recId);
+    const nid = recId;
     if(leidosMuro.has(nid)) {
-      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",Number(userId));
+      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",userId);
       if(error) { console.error("desmarcarLeido error:", error); return; }
       setLeidosMuro(p=>{ const n=new Set(p); n.delete(nid); return n; });
     } else {
-      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid, usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
       if(error) { console.error("marcarLeido error:", error); return; }
       setLeidosMuro(p=> new Set([...p, nid]));
     }
@@ -1820,14 +1825,14 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
     const hoyStr = new Date().toISOString().split("T")[0];
     const [recs, leidos] = await Promise.all([
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
     ]);
-    setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||Number(r.para_usuario_id)===Number(userId))));
+    setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId)));
     setLeidosSet(new Set((leidos.data||[]).map(l=>l.recordatorio_id)));
   };
 
   const marcarLeido = async (recId) => {
-    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
     setLeidosSet(p=> new Set([...p, recId]));
   };
 
@@ -2223,7 +2228,7 @@ function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const cargar = async () => {
     const [lb, adq] = await Promise.all([
       supabase.from("libros").select("*").eq("curso_id", cursoId).order("materia").order("nombre"),
-      userId ? supabase.from("libro_adquirido").select("libro_id").eq("usuario_id", Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("libro_adquirido").select("libro_id").eq("usuario_id", userId) : Promise.resolve({data:[]}),
     ]);
     setLibros(lb.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.libro_id)));
@@ -2235,10 +2240,10 @@ function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
     if(!userId) return;
     setTogglingId(libroId);
     if(adquiridos.has(libroId)) {
-      await supabase.from("libro_adquirido").delete().eq("libro_id",libroId).eq("usuario_id",Number(userId));
+      await supabase.from("libro_adquirido").delete().eq("libro_id",libroId).eq("usuario_id",userId);
       setAdquiridos(p=>{ const n=new Set(p); n.delete(libroId); return n; });
     } else {
-      await supabase.from("libro_adquirido").insert({libro_id:libroId, usuario_id:Number(userId)});
+      await supabase.from("libro_adquirido").insert({libro_id:libroId, usuario_id:userId});
       setAdquiridos(p=>new Set([...p,libroId]));
     }
     setTogglingId(null);
@@ -2477,7 +2482,7 @@ function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const cargar = async () => {
     const [ut, adq] = await Promise.all([
       supabase.from("utiles").select("*").eq("curso_id", cursoId).order("categoria").order("item"),
-      userId ? supabase.from("util_adquirido").select("util_id").eq("usuario_id", Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("util_adquirido").select("util_id").eq("usuario_id", userId) : Promise.resolve({data:[]}),
     ]);
     setUtiles(ut.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.util_id)));
@@ -2488,10 +2493,10 @@ function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
     if(!userId) return;
     setTogglingId(id);
     if(adquiridos.has(id)) {
-      await supabase.from("util_adquirido").delete().eq("util_id",id).eq("usuario_id",Number(userId));
+      await supabase.from("util_adquirido").delete().eq("util_id",id).eq("usuario_id",userId);
       setAdquiridos(p=>{ const n=new Set(p); n.delete(id); return n; });
     } else {
-      await supabase.from("util_adquirido").insert({util_id:id, usuario_id:Number(userId)});
+      await supabase.from("util_adquirido").insert({util_id:id, usuario_id:userId});
       setAdquiridos(p=>new Set([...p,id]));
     }
     setTogglingId(null);
@@ -2921,7 +2926,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const alumnosIds = (alum.data||[]).map(a=>a.id);
     const uidsSet = new Set();
     // Siempre incluir al usuario logueado (room parent puede asignarse a sí mismo)
-    if(userId) uidsSet.add(Number(userId));
+    if(userId) uidsSet.add(userId);
     if(alumnosIds.length) {
       const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
       (uhData||[]).forEach(r=>{ if(r.usuario_id) uidsSet.add(r.usuario_id); });
@@ -2953,14 +2958,14 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
         // Verificar si ya existe recordatorio para esta colecta+usuario
         const { data: existe } = await supabase.from("recordatorios").select("id")
           .eq("curso_id", cursoId).eq("tipo", "colecta_vence")
-          .eq("ref_id", col.id).eq("para_usuario_id", Number(userId)).limit(1);
+          .eq("ref_id", col.id).eq("para_usuario_id", userId).limit(1);
         if(existe && existe.length > 0) continue;
         const diasLabel = dias===0?"hoy":dias===1?"mañana":`en ${dias} días`;
         await supabase.from("recordatorios").insert({
           curso_id:    cursoId,
           tipo:        "colecta_vence",
           ref_id:      col.id,
-          para_usuario_id: Number(userId),
+          para_usuario_id: userId,
           texto:       `Colecta "${col.titulo}" vence ${diasLabel}. Todavía no registramos tu pago.`,
           emoji:       "💳",
           urgente:     dias <= 1,
@@ -2990,7 +2995,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
       descripcion:    form.descripcion?.trim()||null,
       monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
       moneda:         form.moneda||"$",
-      responsable_id: form.responsable_id ? Number(form.responsable_id) : null,
+      responsable_id: form.responsable_id ? form.responsable_id : null,
       fecha_limite:   form.fecha_limite||null,
       vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
       curso_id:       cursoId,
@@ -3018,7 +3023,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
     const fecha_pago  = nuevoEstado==="pagado" ? new Date().toISOString().slice(0,10) : null;
     // Actualización optimista — UI responde inmediatamente
     setPagos(prev => {
-      const idx = prev.findIndex(p=>Number(p.colecta_id)===Number(colectaId)&&Number(p.alumno_id)===Number(alumnoId));
+      const idx = prev.findIndex(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
       if(idx>=0) {
         const updated = [...prev];
         updated[idx] = {...updated[idx], estado:nuevoEstado, fecha_pago};
@@ -3108,7 +3113,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
             {alumnos.map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
-              const esResponsable = isAdmin || Number(userId)===Number(vistaAdmin.responsable_id);
+              const esResponsable = isAdmin || userId===vistaAdmin.responsable_id;
               return (
                 <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid #F1F5F9"}}>
                   <div style={{flex:1}}>
@@ -3199,7 +3204,7 @@ function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, o
                 {misAlumnos.map(a=>{
                   const pago        = getPago(c.id,a.id);
                   const pagado      = pago?.estado==="pagado";
-                  const esResponsable = isAdmin || Number(userId)===Number(c.responsable_id);
+                  const esResponsable = isAdmin || userId===c.responsable_id;
                   return (
                     <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
                       <div style={{flex:1}}>
@@ -3592,7 +3597,7 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
     setHijosInfo(hijosMap);
     setTodosHijos(hijos||[]);
     if(userId) {
-      const { data: u } = await supabase.from("usuarios").select("rol").eq("id",Number(userId)).single();
+      const { data: u } = await supabase.from("usuarios").select("rol").eq("id",userId).single();
       setIsAdmin(u?.rol==="admin"||u?.rol==="super");
     }
     setCargando(false);
@@ -3604,7 +3609,7 @@ function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
     if(!userId) return;
     setAsistencia(prev=>({...prev,[alumnoId]:asiste}));
     await supabase.from("evento_asistencia").upsert(
-      { evento_id:evento.id, usuario_id:Number(userId), alumno_invitado_id:alumnoId, asiste },
+      { evento_id:evento.id, usuario_id:userId, alumno_invitado_id:alumnoId, asiste },
       { onConflict:"evento_id,alumno_invitado_id" }
     );
   };
@@ -3751,7 +3756,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").eq("curso_id",cursoId),
       supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
-      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,lugar,tipo)").eq("usuario_id",userId) : Promise.resolve({data:[]}),
     ]);
     const curso = await supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single();
     setMontoRegalo(curso.data?.monto_regalo||null);
@@ -3999,18 +4004,18 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
   const cargar = async () => {
     const [recs, leidos, al] = await Promise.all([
       supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",Number(userId)) : Promise.resolve({data:[]}),
+      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
     setRecordatorios(recs.data||[]);
-    setLeidosSet(new Set((leidos.data||[]).map(r=>Number(r.recordatorio_id))));
+    setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
     setAlerta((al.data||[])[0]||null);
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
   useEffect(()=>{ if(active) cargar(); },[active]);
 
-  const esPropio = (r) => r.creado_por === Number(userId);
+  const esPropio = (r) => r.creado_por === userId;
   const puedeEditar = (r) => isAdmin || esPropio(r);
 
   const guardar = async () => {
@@ -4020,7 +4025,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
     if(modal?.id) {
       await supabase.from("recordatorios").update(payload).eq("id",modal.id);
     } else {
-      await supabase.from("recordatorios").insert({...payload, creado_por:Number(userId)});
+      await supabase.from("recordatorios").insert({...payload, creado_por:userId});
     }
     setSaving(false); setModal(null); cargar();
   };
@@ -4032,12 +4037,12 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
 
   const marcarLeido = async (id) => {
     if(!userId) return;
-    const nid = Number(id);
+    const nid = id;
     if(leidosSet.has(nid)) {
-      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",Number(userId));
+      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",userId);
       setLeidosSet(p=>{ const n=new Set(p); n.delete(nid); return n; });
     } else {
-      await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid,usuario_id:Number(userId)},{onConflict:"recordatorio_id,usuario_id"});
+      await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid,usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
       setLeidosSet(p=>new Set([...p,nid]));
       onBadgeChange?.();
     }
