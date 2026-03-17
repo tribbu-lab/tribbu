@@ -4760,10 +4760,10 @@ function App() {
           <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
           {items.map((item,i)=>(
             <div key={i} style={{position:"relative",marginBottom:2}}>
-              <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8,WebkitTextFillColor:"white"}}>
                 {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
-                {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer"}}>🎨</span>}
+                <span style={{flex:1,color:"white"}}>{esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer",color:"white"}}>🎨</span>}
               </button>
             </div>
           ))}
@@ -4841,7 +4841,7 @@ function App() {
 
       {/* Barra de navegacion inferior */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:100,display:"flex",transition:"background 0.3s"}}>
-        {TABS.slice(0,isAdmin?6:5).map(t=>(
+        {TABS.slice(0,5).map(t=>(
           <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:1,padding:"8px 4px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
             <span style={{fontSize:18}}>{t.emoji}</span>
             <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
@@ -4849,12 +4849,16 @@ function App() {
             {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
           </button>
         ))}
-        {isAdmin&&TABS.length>5&&(
-          <button onClick={()=>{ const next = TABS.slice(5).find(t=>t.id===tab) ? tab : TABS[5].id; setTab(next); }} style={{flex:1,padding:"8px 4px",border:"none",background:"transparent",cursor:"pointer",color:TABS.slice(5).some(t=>t.id===tab)?"white":"rgba(255,255,255,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-            <span style={{fontSize:18}}>⋯</span>
-            <span style={{fontSize:9,fontWeight:400}}>Mas</span>
-          </button>
-        )}
+        {TABS.length>5&&(()=>{
+          const masActivo = TABS.slice(5).some(t=>t.id===tab);
+          return (
+            <button onClick={()=>{ const next = TABS.slice(5).find(t=>t.id===tab) ? TABS[0].id : TABS[5].id; setTab(next); }} style={{flex:1,padding:"8px 4px",border:"none",background:masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",color:masActivo?"white":"rgba(255,255,255,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+              <span style={{fontSize:18}}>☰</span>
+              <span style={{fontSize:9,fontWeight:masActivo?700:400,whiteSpace:"nowrap"}}>{masActivo?TABS.find(t=>t.id===tab)?.label?.slice(0,5)||"Mas":"Mas"}</span>
+              {masActivo&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
+            </button>
+          );
+        })()}
       </div>
     </div>
   );
@@ -4865,7 +4869,8 @@ function App() {
       <ColorPicker/>
 
       {/* Sidebar izquierdo fijo */}
-      <div style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
+      <style>{`#tribbu-sidebar button, #tribbu-sidebar span, #tribbu-sidebar div { color: white !important; -webkit-text-fill-color: white !important; }`}</style>
+      <div id="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
           <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
