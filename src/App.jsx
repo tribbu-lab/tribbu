@@ -4634,6 +4634,7 @@ function App() {
   const [hijoColorsMap, setHijoColorsMap] = useState({});
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
   const [badgeCount,    setBadgeCount]    = useState(0);
+  const [menuMas,       setMenuMas]       = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(()=>{
@@ -4725,8 +4726,8 @@ function App() {
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
     {id:"recordatorios", label:"Recordatorios", emoji:"📌"},
-    {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
+    {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
     ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
@@ -4840,26 +4841,42 @@ function App() {
       </div>
 
       {/* Barra de navegacion inferior */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:100,display:"flex",transition:"background 0.3s"}}>
-        {TABS.slice(0,5).map(t=>(
-          <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:1,padding:"8px 4px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
-            <span style={{fontSize:18}}>{t.emoji}</span>
-            <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
-            {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:800,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
-            {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
-          </button>
-        ))}
-        {TABS.length>5&&(()=>{
-          const masActivo = TABS.slice(5).some(t=>t.id===tab);
-          return (
-            <button onClick={()=>{ const next = TABS.slice(5).find(t=>t.id===tab) ? TABS[0].id : TABS[5].id; setTab(next); }} style={{flex:1,padding:"8px 4px",border:"none",background:masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",color:masActivo?"white":"rgba(255,255,255,0.5)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
-              <span style={{fontSize:18}}>☰</span>
-              <span style={{fontSize:9,fontWeight:masActivo?700:400,whiteSpace:"nowrap"}}>{masActivo?TABS.find(t=>t.id===tab)?.label?.slice(0,5)||"Mas":"Mas"}</span>
-              {masActivo&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
-            </button>
-          );
-        })()}
-      </div>
+      {/* Barra inferior mobile: 4 tabs fijos + Más */}
+      {(()=>{
+        const TAB_FIJOS = ["muro","clases","cumples","recordatorios"];
+        const tabsFijos = TABS.filter(t=>TAB_FIJOS.includes(t.id));
+        const tabsExtra = TABS.filter(t=>!TAB_FIJOS.includes(t.id));
+        const masActivo = tabsExtra.some(t=>t.id===tab);
+        return (
+          <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200}}>
+            {menuMas&&(
+              <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.15)",padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}} onClick={()=>setMenuMas(false)}>
+                {tabsExtra.map(t=>(
+                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tab===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                    <span style={{fontSize:20}}>{t.emoji}</span>
+                    <span style={{fontSize:10,fontWeight:tab===t.id?700:400,color:"white"}}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",transition:"background 0.3s"}}>
+              {tabsFijos.map(t=>(
+                <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                  <span style={{fontSize:18}}>{t.emoji}</span>
+                  <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap",color:tab===t.id?"white":"rgba(255,255,255,0.45)"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
+                  {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:800,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
+                  {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
+                </button>
+              ))}
+              <button onClick={()=>setMenuMas(p=>!p)} style={{flex:1,padding:"8px 4px 10px",border:"none",background:menuMas||masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",color:menuMas||masActivo?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                <span style={{fontSize:18}}>☰</span>
+                <span style={{fontSize:9,fontWeight:menuMas||masActivo?700:400,color:menuMas||masActivo?"white":"rgba(255,255,255,0.45)"}}>Mas</span>
+                {masActivo&&!menuMas&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 
