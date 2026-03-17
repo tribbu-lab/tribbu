@@ -4749,51 +4749,129 @@ function App() {
 
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
 
+  const isMobile = useIsMobile();
   const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" };
 
+  // Sidebar items compartido entre mobile y desktop
+  const SidebarItems = () => (
+    <>
+      {items.length>0&&(
+        <div style={{padding:"0 12px 12px"}}>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
+          {items.map((item,i)=>(
+            <div key={i} style={{position:"relative",marginBottom:2}}>
+              <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+                {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
+                <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer"}}>🎨</span>}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  // Color picker overlay (compartido)
+  const ColorPicker = () => {
+    if(!pickerItem) return null;
+    const pickerSavedColor = hijoColorsMap[`${usuario?.id}_${pickerItem.id}`] || getHijoColor(usuario?.id, pickerItem.id) || null;
+    const pickerActiveColor = (pickerSavedColor && pickerSavedColor !== HIJO_COLOR_DEFAULT) ? pickerSavedColor : null;
+    return (
+      <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
+        <div style={{position:"absolute",top:isMobile?60:0,left:0,width:isMobile?"100%":220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)",borderRadius:isMobile?"0 0 16px 16px":"0 0 16px 0"}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+            {HIJO_COLORS_CUSTOM.map(col=>(
+              <button key={col} onClick={()=>cambiarColorHijo(colorPickerIdx,col)} style={{width:36,height:36,borderRadius:8,background:col,border:pickerActiveColor===col?"3px solid white":"2px solid transparent",cursor:"pointer"}}/>
+            ))}
+          </div>
+          <button onClick={()=>cambiarColorHijo(colorPickerIdx,null)} style={{width:"100%",padding:"8px 0",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12,fontWeight:700}}>Restablecer color</button>
+        </div>
+      </div>
+    );
+  };
+
+  if(isMobile) return (
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
+      <ColorPicker/>
+
+      {/* Header mobile */}
+      <div style={{background:headerBg,position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
+        {/* Barra superior: logo + usuario */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
+          <div style={{fontSize:22,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
+            {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Cambiar</button>}
+            <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
+          </div>
+        </div>
+        {/* Selector de hijos/cursos */}
+        {items.length>1&&(
+          <div style={{display:"flex",gap:6,padding:"0 16px 10px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+            {items.map((item,i)=>{
+              const active = i===cursoIdx;
+              const sc = hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null;
+              const iColor = esPadre ? ((sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6")) : (item.color||"#3B82F6");
+              return (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                  <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",background:active?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.07)",color:"white",fontSize:12,fontWeight:active?700:400,display:"flex",alignItems:"center",gap:5}}>
+                    {esPadre&&<span style={{width:8,height:8,borderRadius:"50%",background:active?iColor:"rgba(255,255,255,0.3)",display:"inline-block",flexShrink:0}}/>}
+                    {esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}
+                  </button>
+                  {esPadre&&active&&<button onClick={()=>setColorPickerIdx(colorPickerIdx===i?null:i)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:12}}>🎨</button>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {items.length===1&&esPadre&&(
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"0 16px 10px"}}>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{items[0]?.nombre}</span>
+            <button onClick={()=>setColorPickerIdx(colorPickerIdx===0?null:0)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:12}}>🎨</button>
+          </div>
+        )}
+      </div>
+
+      {/* Contenido */}
+      <div style={{flex:1,padding:"16px 16px 80px",boxSizing:"border-box",overflowY:"auto"}}>
+        {renderTab()}
+      </div>
+
+      {/* Barra de navegacion inferior */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:100,display:"flex",transition:"background 0.3s"}}>
+        {TABS.slice(0,isAdmin?6:5).map(t=>(
+          <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:1,padding:"8px 4px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+            <span style={{fontSize:18}}>{t.emoji}</span>
+            <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
+            {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:800,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
+            {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
+          </button>
+        ))}
+        {isAdmin&&TABS.length>5&&(
+          <button onClick={()=>{ const next = TABS.slice(5).find(t=>t.id===tab) ? tab : TABS[5].id; setTab(next); }} style={{flex:1,padding:"8px 4px",border:"none",background:"transparent",cursor:"pointer",color:TABS.slice(5).some(t=>t.id===tab)?"white":"rgba(255,255,255,0.4)",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+            <span style={{fontSize:18}}>⋯</span>
+            <span style={{fontSize:9,fontWeight:400}}>Mas</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // Desktop layout
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
-      <style>{`.tribbu-sidebar, .tribbu-sidebar button, .tribbu-sidebar span, .tribbu-sidebar div { color: white !important; }`}</style>
-      {/* Color picker overlay */}
-      {pickerItem&&(()=>{
-        const pickerSavedColor = hijoColorsMap[`${usuario?.id}_${pickerItem.id}`] || getHijoColor(usuario?.id, pickerItem.id) || null;
-        const pickerActiveColor = (pickerSavedColor && pickerSavedColor !== HIJO_COLOR_DEFAULT) ? pickerSavedColor : null;
-        return (
-          <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
-            <div style={{position:"absolute",top:0,left:0,width:220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
-              <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
-                {HIJO_COLORS_CUSTOM.map(c=>(
-                  <button key={c} onClick={()=>cambiarColorHijo(colorPickerIdx,c)} style={{width:32,height:32,borderRadius:8,background:c,border:pickerActiveColor===c?"3px solid white":"2px solid transparent",cursor:"pointer"}}/>
-                ))}
-              </div>
-              <button onClick={()=>cambiarColorHijo(colorPickerIdx,null)} style={{width:"100%",padding:"6px 0",borderRadius:8,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11,fontWeight:700}}>Restablecer color</button>
-            </div>
-          </div>
-        );
-      })()}
+      <ColorPicker/>
 
       {/* Sidebar izquierdo fijo */}
-      <div className="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
+      <div style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
           <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
         </div>
 
-        {items.length>0&&(
-          <div style={{padding:"0 12px 16px"}}>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>{esPadre?"Mis hijos":"Mis cursos"}</div>
-            {items.map((item,i)=>(
-              <div key={i} style={{position:"relative",marginBottom:2}}>
-                <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
-                  {esPadre&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                  <span style={{flex:1}}>{esPadre?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
-                  {esPadre&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:10,opacity:0.5,cursor:"pointer"}}>🎨</span>}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <SidebarItems/>
 
         <div style={{padding:"0 12px",flex:1}}>
           <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8,paddingLeft:8}}>Menu</div>
