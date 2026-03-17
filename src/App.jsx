@@ -4868,8 +4868,8 @@ function App() {
                   {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
                 </button>
               ))}
-              <button onClick={()=>setMenuMas(p=>!p)} style={{flex:1,padding:"8px 4px 10px",border:"none",background:menuMas||masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",color:menuMas||masActivo?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
-                <span style={{fontSize:18}}>☰</span>
+              <button onClick={()=>setMenuMas(p=>!p)} style={{flex:1,padding:"8px 4px 10px",border:"none",background:menuMas||masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                <span style={{fontSize:20,color:"white",lineHeight:1,letterSpacing:2,fontWeight:900}}>···</span>
                 <span style={{fontSize:9,fontWeight:menuMas||masActivo?700:400,color:menuMas||masActivo?"white":"rgba(255,255,255,0.45)"}}>Mas</span>
                 {masActivo&&!menuMas&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
               </button>
