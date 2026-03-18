@@ -4784,7 +4784,6 @@ function App() {
   const [badgeCount,    setBadgeCount]    = useState(0);
   const [menuMas,       setMenuMas]       = useState(false);
   const [cambiarPass,   setCambiarPass]   = useState(false);
-  const [cambiarPass,   setCambiarPass]   = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(()=>{
@@ -5090,7 +5089,6 @@ function App() {
           {usuario.rol==="admin"&&usuario.hijos?.length>0&&(
             <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>Cambiar perfil</button>
           )}
-          <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
         </div>
