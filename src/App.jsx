@@ -14,6 +14,18 @@ const fmtM   = m => `$${Math.abs(m).toLocaleString("es-AR")}`;
 const fmtF   = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
 const HIJO_COLORS_CUSTOM = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6"]; // colores custom
 const HIJO_COLOR_DEFAULT = "#0F172A"; // color oscuro del sitio
+// Sanitizar URLs — previene javascript: y data: URIs maliciosos
+const safeUrl = (url) => {
+  if(!url || typeof url !== "string") return null;
+  const u = url.trim();
+  if(!u) return null;
+  // Solo permitir http, https, tel, mailto
+  if(/^(https?:\/\/|tel:|mailto:)/i.test(u)) return u;
+  // Si no tiene protocolo y parece una URL, agregar https
+  if(/^[a-zA-Z0-9]/.test(u) && !u.includes("javascript:")) return "https://" + u;
+  return null;
+};
+
 const getHijoColor = (userId, hijoId) => { try { const k=`hcolor_${userId}_${hijoId}`; return localStorage.getItem(k)||null; } catch{ return null; } };
 const setHijoColor = (userId, hijoId, color) => { try { localStorage.setItem(`hcolor_${userId}_${hijoId}`,color); } catch{} };
 const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
@@ -2097,7 +2109,7 @@ function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onC
                     </div>
                     {e.lugar&&<div style={{fontSize:11,color:"#94A3B8",display:"flex",alignItems:"center",gap:4}}>
                       📍 {e.lugar}
-                      {e.url_ubicacion&&<a href={e.url_ubicacion} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
+                      {e.url_ubicacion&&<a href={safeUrl(e.url_ubicacion)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
                     </div>}
                     {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
                   </div>
@@ -2396,7 +2408,7 @@ function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
                   {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
-                  {l.url_descarga&&<a href={l.url_descarga} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
+                  {l.url_descarga&&<a href={safeUrl(l.url_descarga)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
                 </div>
                 {l.imagen_url&&(
                   <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
@@ -3502,7 +3514,7 @@ function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate })
             </div>
             {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>
               {String.fromCodePoint(0x1F4CD)} {evento.lugar}
-              {evento.url_ubicacion&&<a href={evento.url_ubicacion} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
+              {evento.url_ubicacion&&<a href={safeUrl(evento.url_ubicacion)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
             </div>}
             {evento.descripcion&&<div style={{fontSize:12,color:"#64748B",marginTop:4}}>{evento.descripcion}</div>}
           </div>
@@ -4388,7 +4400,7 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
                 <span style={{color:"#0F172A"}}>{x.v}</span>
               </div>
             ))}
-            {colegio?.url_maps&&<a href={colegio.url_maps} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:4}}>Ver en mapa</a>}
+            {colegio?.url_maps&&<a href={safeUrl(colegio.url_maps)||"#"} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:4}}>Ver en mapa</a>}
             {!colegio?.horario_clases&&!colegio?.telefono&&!colegio?.email&&!colegio?.direccion&&(
               <div style={{fontSize:13,color:"#94A3B8"}}>Sin informacion cargada.</div>
             )}
