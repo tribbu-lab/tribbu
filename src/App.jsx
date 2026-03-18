@@ -19,6 +19,7 @@ const setHijoColor = (userId, hijoId, color) => { try { localStorage.setItem(`hc
 const fmtDM  = s => new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"});
 const dHasta = s => { const h=new Date();h.setHours(0,0,0,0);const f=new Date(s+"T00:00:00");f.setHours(0,0,0,0);return Math.ceil((f-h)/86400000); };
 const fmtNombre = (a) => a ? `${a.nombre||""} ${a.apellido||""}`.trim() : "";
+const sanitize = (s) => typeof s === "string" ? s.replace(/[<>]/g, "").trim() : s;
 const MESES  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const ROL_LABEL = { padre:"Apoderado", admin:"Room Parent", super:"Super Admin" };
 const ROL_COLOR = { padre:"#3B82F6", admin:"#10B981", super:"#8B5CF6" };
@@ -539,14 +540,14 @@ function SuperAdmin() {
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_usuario") {
       const passHash = form.pass ? await bcrypt.hash(form.pass, 10) : null;
-      const { data } = await supabase.from("usuarios").insert({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:passHash,rol:form.rol,avatar,activo:form.activo}).select().single();
+      const { data } = await supabase.from("usuarios").insert({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,email:sanitize(form.email).toLowerCase(),pass:passHash,rol:form.rol,avatar,activo:form.activo}).select().single();
       if(data) {
         if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:data.id,curso_id:cid})));
         if(form.rol==="padre"&&form.hijos.length)  await supabase.from("usuario_hijos").insert(form.hijos.map(hid=>({usuario_id:data.id,hijo_id:hid})));
       }
     } else {
       const passEditar = form.pass?.startsWith('$2b$') ? form.pass : (form.pass ? await bcrypt.hash(form.pass, 10) : null);
-      await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido||null,email:form.email,pass:passEditar,rol:form.rol,activo:form.activo}).eq("id",form.id);
+      await supabase.from("usuarios").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,email:sanitize(form.email).toLowerCase(),pass:passEditar,rol:form.rol,activo:form.activo}).eq("id",form.id);
       await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id);
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
       if(form.rol==="admin"&&form.cursos.length) await supabase.from("usuario_cursos").insert(form.cursos.map(cid=>({usuario_id:form.id,curso_id:cid})));
@@ -589,10 +590,10 @@ function SuperAdmin() {
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_maestro") {
-      const { data } = await supabase.from("maestros").insert({nombre:form.nombre,materia:form.materia||null,email:form.email||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
+      const { data } = await supabase.from("maestros").insert({nombre:sanitize(form.nombre),materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
       if(data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:data.id,curso_id:cid})));
     } else {
-      await supabase.from("maestros").update({nombre:form.nombre,materia:form.materia||null,email:form.email||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+      await supabase.from("maestros").update({nombre:sanitize(form.nombre),materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
       await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
       if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
     }
@@ -1200,7 +1201,7 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
     // Build unified birthday list sorted by next occurrence
     const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
-      titulo: titulo.trim(),
+      titulo: sanitize(titulo),
       tipo: "colecta",
       descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
       monto_sugerido: monto ? Number(monto) : null,
@@ -3863,7 +3864,7 @@ function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null })
 
   const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     const payload = {
-      titulo: titulo.trim(), tipo: "colecta",
+      titulo: sanitize(titulo), tipo: "colecta",
       descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
       monto_sugerido: monto ? Number(monto) : null, moneda: moneda||"$",
       fecha_limite: fecha_limite||null,
@@ -4031,7 +4032,7 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
   const guardar = async () => {
     if(!form.texto?.trim()) return;
     setSaving(true);
-    const payload = { texto:form.texto.trim(), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, curso_id:cursoId };
+    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, curso_id:cursoId };
     if(modal?.id) {
       await supabase.from("recordatorios").update(payload).eq("id",modal.id);
     } else {
@@ -4343,7 +4344,7 @@ function Contacto({ cursoId, isSuperAdmin=false }) {
   const guardarContacto = async () => {
     if(!form.nombre?.trim()) return;
     setSaving(true);
-    const payload = { nombre:form.nombre?.trim()||null, rol:form.rol?.trim()||null, telefono:form.telefono?.trim()||null, email:form.email?.trim()||null };
+    const payload = { nombre:sanitize(form.nombre)||null, rol:sanitize(form.rol)||null, telefono:sanitize(form.telefono)||null, email:sanitize(form.email)||null };
     let err;
     if(modal?.id) { const r = await supabase.from("contactos").update(payload).eq("id",modal.id); err=r.error; }
     else          { const r = await supabase.from("contactos").insert(payload); err=r.error; }
@@ -4862,9 +4863,13 @@ function App() {
 
   if(usuario.rol==="super") return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
+      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       <div style={{background:"#0F172A",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{fontSize:22,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-        <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>🔑 Contraseña</button>
+          <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
+        </div>
       </div>
       <div style={{padding:"24px 20px",maxWidth:800,margin:"0 auto"}}><SuperAdmin/></div>
     </div>
@@ -5093,7 +5098,7 @@ function App() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>
           </div>
           {usuario.rol==="admin"&&usuario.hijos?.length>0&&(
-            <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>Cambiar perfil</button>
+            <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>👤 Cambiar perfil</button>
           )}
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
