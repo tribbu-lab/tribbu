@@ -72,11 +72,13 @@ function Login({ onLogin }) {
   const [err,setErr]     = useState("");
   const [ld,setLd]       = useState(false);
 
-  const go = async () => {
+  const go = async (emailArg, passArg) => {
+    const loginEmail = emailArg || email;
+    const loginPass  = passArg  || pass;
     setErr(""); setLd(true);
     // 1. Autenticar con Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email, password: pass
+      email: loginEmail, password: loginPass
     });
     if(authError || !authData?.user) {
       setLd(false);
@@ -121,14 +123,14 @@ function Login({ onLogin }) {
           <input value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} type="password" style={{width:"100%",padding:"12px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"white",fontSize:14,boxSizing:"border-box",outline:"none"}}/>
         </div>
         {err && <div style={{fontSize:12,color:"#FCA5A5",marginBottom:12,textAlign:"center"}}>{err}</div>}
-        <button onClick={go} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:ld?"rgba(255,255,255,0.1)":"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800,marginBottom:18}}>
+        <button id="btn-login" onClick={go} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:ld?"rgba(255,255,255,0.1)":"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800,marginBottom:18}}>
           {ld?"Ingresando...":"Ingresar"}
         </button>
         <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:16}}>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textAlign:"center",marginBottom:10,textTransform:"uppercase",letterSpacing:0.8}}>Accesos demo</div>
           <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             {demos.map(d=>(
-              <button key={d.label} onClick={()=>{setEmail(d.e);setPass(d.p);}} style={{flex:1,minWidth:90,padding:"9px 6px",borderRadius:11,border:"1px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.05)",cursor:"pointer",textAlign:"center"}}>
+              <button key={d.label} onClick={()=>go(d.e, d.p)} style={{flex:1,minWidth:90,padding:"9px 6px",borderRadius:11,border:"1px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.05)",cursor:"pointer",textAlign:"center"}}>
                 <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.85)"}}>{d.label}</div>
                 <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",marginTop:2}}>{d.hint}</div>
               </button>
@@ -4239,6 +4241,75 @@ function RecordatoriosTab({ cursoId, userId, isAdmin, active, onBadgeChange }) {
   );
 }
 
+function CambiarPassword({ onClose }) {
+  const [actual,   setActual]   = useState("");
+  const [nueva,    setNueva]    = useState("");
+  const [confirma, setConfirma] = useState("");
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState("");
+  const [ok,       setOk]       = useState(false);
+
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const guardar = async () => {
+    setErr("");
+    if(!actual||!nueva||!confirma) { setErr("Completá todos los campos"); return; }
+    if(nueva.length < 6) { setErr("La nueva contraseña debe tener al menos 6 caracteres"); return; }
+    if(nueva !== confirma) { setErr("Las contraseñas no coinciden"); return; }
+    setSaving(true);
+    // Verificar contraseña actual re-autenticando
+    const { data: { user } } = await supabase.auth.getUser();
+    if(!user) { setErr("Sesión expirada, volvé a ingresar"); setSaving(false); return; }
+    // Re-autenticar con contraseña actual
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: user.email, password: actual
+    });
+    if(signInErr) { setErr("La contraseña actual es incorrecta"); setSaving(false); return; }
+    // Cambiar contraseña en Supabase Auth
+    const { error: updateErr } = await supabase.auth.updateUser({ password: nueva });
+    if(updateErr) { setErr("Error al cambiar: " + updateErr.message); setSaving(false); return; }
+    // Actualizar hash en nuestra tabla
+    const passHash = await bcrypt.hash(nueva, 10);
+    await supabase.from("usuarios").update({ pass: passHash }).eq("auth_id", user.id);
+    setSaving(false);
+    setOk(true);
+    setTimeout(onClose, 2000);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:380}}>
+        <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Cambiar contraseña</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Ingresa tu contraseña actual y la nueva</div>
+        {ok ? (
+          <div style={{textAlign:"center",padding:"20px 0"}}>
+            <div style={{fontSize:32,marginBottom:8}}>✅</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#10B981"}}>Contraseña actualizada</div>
+          </div>
+        ) : (
+          <>
+            {[
+              {l:"Contraseña actual", v:actual, s:setActual},
+              {l:"Nueva contraseña",  v:nueva,  s:setNueva},
+              {l:"Confirmar nueva",   v:confirma,s:setConfirma},
+            ].map(f=>(
+              <div key={f.l} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input type="password" value={f.v} onChange={e=>f.s(e.target.value)} style={inp}/>
+              </div>
+            ))}
+            {err&&<div style={{fontSize:12,color:"#EF4444",marginBottom:10}}>{err}</div>}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={onClose} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Cambiar contraseña"}</button>
+            </div>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function Contacto({ cursoId, isSuperAdmin=false }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
@@ -4635,6 +4706,70 @@ function AdminPanel({ cursoId, cursoNombre }) {
   );
 }
 
+
+function CambiarPasswordModal({ onClose }) {
+  const [actual,   setActual]   = useState("");
+  const [nueva,    setNueva]    = useState("");
+  const [confirma, setConfirma] = useState("");
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState("");
+  const [ok,       setOk]       = useState(false);
+
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const guardar = async () => {
+    setErr("");
+    if(!actual || !nueva || !confirma) { setErr("Completá todos los campos"); return; }
+    if(nueva.length < 6) { setErr("La nueva contraseña debe tener al menos 6 caracteres"); return; }
+    if(nueva !== confirma) { setErr("Las contraseñas no coinciden"); return; }
+    setSaving(true);
+    // Verificar contraseña actual re-autenticando
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: user.email, password: actual
+    });
+    if(signInErr) { setErr("La contraseña actual es incorrecta"); setSaving(false); return; }
+    // Cambiar contraseña en Supabase Auth
+    const { error } = await supabase.auth.updateUser({ password: nueva });
+    if(error) { setErr("Error al cambiar la contraseña"); setSaving(false); return; }
+    // Actualizar hash en nuestra tabla usuarios
+    const hash = await bcrypt.hash(nueva, 10);
+    await supabase.from("usuarios").update({ pass: hash }).eq("auth_id", user.id);
+    setSaving(false);
+    setOk(true);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:380}}>
+        <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Cambiar contraseña</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:20}}>Ingresa tu contraseña actual y la nueva</div>
+        {ok ? (
+          <div style={{textAlign:"center",padding:"20px 0"}}>
+            <div style={{fontSize:32,marginBottom:8}}>✅</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#10B981",marginBottom:16}}>Contraseña actualizada</div>
+            <button onClick={onClose} style={{padding:"10px 24px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Cerrar</button>
+          </div>
+        ) : (
+          <>
+            {[{l:"Contraseña actual",v:actual,fn:setActual},{l:"Nueva contraseña",v:nueva,fn:setNueva},{l:"Confirmar nueva",v:confirma,fn:setConfirma}].map(f=>(
+              <div key={f.l} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                <input type="password" value={f.v} onChange={e=>f.fn(e.target.value)} style={inp}/>
+              </div>
+            ))}
+            {err&&<div style={{fontSize:12,color:"#EF4444",marginBottom:12,textAlign:"center"}}>{err}</div>}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Cambiar contraseña"}</button>
+            </div>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function App() {
   const [usuario,       setUsuario]       = useState(null);
   const [authLoading,   setAuthLoading]   = useState(true);
@@ -4648,6 +4783,8 @@ function App() {
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
   const [badgeCount,    setBadgeCount]    = useState(0);
   const [menuMas,       setMenuMas]       = useState(false);
+  const [cambiarPass,   setCambiarPass]   = useState(false);
+  const [cambiarPass,   setCambiarPass]   = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(()=>{
@@ -4830,6 +4967,7 @@ function App() {
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
       <ColorPicker/>
+      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
 
       {/* Header mobile */}
       <div style={{background:headerBg,position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
@@ -4839,6 +4977,7 @@ function App() {
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
             {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Cambiar</button>}
+            <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>🔑</button>
             <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
           </div>
         </div>
@@ -4918,6 +5057,7 @@ function App() {
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
       <ColorPicker/>
+      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
 
       {/* Sidebar izquierdo fijo */}
       <style>{`#tribbu-sidebar button, #tribbu-sidebar span, #tribbu-sidebar div { color: white !important; -webkit-text-fill-color: white !important; }`}</style>
@@ -4950,6 +5090,8 @@ function App() {
           {usuario.rol==="admin"&&usuario.hijos?.length>0&&(
             <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>Cambiar perfil</button>
           )}
+          <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
+          <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
         </div>
       </div>
