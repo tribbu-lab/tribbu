@@ -74,17 +74,24 @@ function Login({ onLogin }) {
 
   const go = async () => {
     setErr(""); setLd(true);
-    // Buscar por email primero, luego verificar contraseña con bcrypt
+    // 1. Autenticar con Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email, password: pass
+    });
+    if(authError || !authData?.user) {
+      setLd(false);
+      setErr("Correo o contraseña incorrectos");
+      return;
+    }
+    // 2. Traer datos del usuario de nuestra tabla usando auth_id
     const { data, error } = await supabase
       .from("usuarios")
       .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)")
-      .eq("email", email)
+      .eq("auth_id", authData.user.id)
       .eq("activo", true)
       .single();
     setLd(false);
-    if(error || !data) { setErr("Correo o contraseña incorrectos"); return; }
-    const passOk = await bcrypt.compare(pass, data.pass);
-    if(!passOk) { setErr("Correo o contraseña incorrectos"); return; }
+    if(error || !data) { setErr("Usuario no encontrado o inactivo"); return; }
     onLogin({
       ...data,
       hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
@@ -4630,6 +4637,7 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
 function App() {
   const [usuario,       setUsuario]       = useState(null);
+  const [authLoading,   setAuthLoading]   = useState(true);
   const [perfilElegido, setPerfilElegido] = useState(null);
   const [tab,           setTab]           = useState("muro");
   const [openColecta,   setOpenColecta]   = useState(null);
@@ -4682,8 +4690,29 @@ function App() {
     return ()=>clearInterval(iv);
   },[usuario, items, cursoIdx, perfilElegido, tab]);
 
+  // Restaurar sesión al recargar la página
+  useEffect(()=>{
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if(session?.user) {
+        const { data } = await supabase
+          .from("usuarios")
+          .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id)")
+          .eq("auth_id", session.user.id)
+          .eq("activo", true)
+          .single();
+        if(data) setUsuario({
+          ...data,
+          hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
+          cursos: data.usuario_cursos.map(r=>r.curso_id),
+        });
+      }
+      setAuthLoading(false);
+    });
+  },[]);
+
   const handleLogin = (u) => { setUsuario(u); setPerfilElegido(null); setTab("muro"); setCursoIdx(0); setItems([]); };
 
+  if(authLoading) return <Spinner/>;
   if(!usuario) return <Login onLogin={handleLogin}/>;
   if(usuario.rol==="admin" && usuario.hijos?.length>0 && !perfilElegido) {
     return <SeleccionPerfil usuario={usuario} onElegir={(p)=>{ setPerfilElegido(p); setTab("muro"); setCursoIdx(0); setItems([]); }}/>;
@@ -4693,7 +4722,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
       <div style={{background:"#0F172A",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{fontSize:22,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
-        <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
+        <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
       </div>
       <div style={{padding:"24px 20px",maxWidth:800,margin:"0 auto"}}><SuperAdmin/></div>
     </div>
@@ -4810,7 +4839,7 @@ function App() {
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
             {usuario.rol==="admin"&&usuario.hijos?.length>0&&<button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Cambiar</button>}
-            <button onClick={()=>setUsuario(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
+            <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
           </div>
         </div>
         {/* Selector de hijos/cursos */}
@@ -4921,7 +4950,7 @@ function App() {
           {usuario.rol==="admin"&&usuario.hijos?.length>0&&(
             <button onClick={()=>{ setPerfilElegido(null); setItems([]); }} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>Cambiar perfil</button>
           )}
-          <button onClick={()=>setUsuario(null)} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
+          <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
         </div>
       </div>
 
