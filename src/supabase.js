@@ -1,6 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(
-  "https://gctymjhblvocvaenmdhr.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjdHltamhibHZvY3ZhZW5tZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNTA0ODEsImV4cCI6MjA4ODcyNjQ4MX0.K_uMF5Kdk7udR--D9t4SCoYadPZ8XaiUchu0oGl_BhY"
-)
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if(!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error('Faltan variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY');
+}
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
