@@ -4708,31 +4708,28 @@ function AdminPanel({ cursoId, cursoNombre }) {
 
 
 function CambiarPasswordModal({ onClose }) {
-  const [actual,   setActual]   = useState("");
   const [nueva,    setNueva]    = useState("");
   const [confirma, setConfirma] = useState("");
   const [saving,   setSaving]   = useState(false);
   const [err,      setErr]      = useState("");
   const [ok,       setOk]       = useState(false);
+  const [verNueva, setVerNueva] = useState(false);
+  const [verConf,  setVerConf]  = useState(false);
 
-  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const inp = {flex:1,padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const btnVer = {padding:"0 12px",borderRadius:10,border:"1.5px solid #E2E8F0",background:"#F8FAFC",cursor:"pointer",fontSize:14,color:"#94A3B8",flexShrink:0};
 
   const guardar = async () => {
     setErr("");
-    if(!actual || !nueva || !confirma) { setErr("Completá todos los campos"); return; }
-    if(nueva.length < 6) { setErr("La nueva contraseña debe tener al menos 6 caracteres"); return; }
+    if(!nueva || !confirma) { setErr("Completá todos los campos"); return; }
+    if(nueva.length < 6) { setErr("La contraseña debe tener al menos 6 caracteres"); return; }
     if(nueva !== confirma) { setErr("Las contraseñas no coinciden"); return; }
     setSaving(true);
-    // Verificar contraseña actual re-autenticando
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: user.email, password: actual
-    });
-    if(signInErr) { setErr("La contraseña actual es incorrecta"); setSaving(false); return; }
-    // Cambiar contraseña en Supabase Auth
+    // Cambiar contraseña directamente — el usuario ya está autenticado con sesión válida
     const { error } = await supabase.auth.updateUser({ password: nueva });
-    if(error) { setErr("Error al cambiar la contraseña"); setSaving(false); return; }
-    // Actualizar hash en nuestra tabla usuarios
+    if(error) { setErr("Error al cambiar la contraseña: " + error.message); setSaving(false); return; }
+    // Actualizar hash en nuestra tabla
+    const { data: { user } } = await supabase.auth.getUser();
     const hash = await bcrypt.hash(nueva, 10);
     await supabase.from("usuarios").update({ pass: hash }).eq("auth_id", user.id);
     setSaving(false);
@@ -4743,7 +4740,7 @@ function CambiarPasswordModal({ onClose }) {
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Card style={{padding:24,width:"100%",maxWidth:380}}>
         <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Cambiar contraseña</div>
-        <div style={{fontSize:12,color:"#94A3B8",marginBottom:20}}>Ingresa tu contraseña actual y la nueva</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:20}}>Ingresa tu nueva contraseña</div>
         {ok ? (
           <div style={{textAlign:"center",padding:"20px 0"}}>
             <div style={{fontSize:32,marginBottom:8}}>✅</div>
@@ -4752,14 +4749,22 @@ function CambiarPasswordModal({ onClose }) {
           </div>
         ) : (
           <>
-            {[{l:"Contraseña actual",v:actual,fn:setActual},{l:"Nueva contraseña",v:nueva,fn:setNueva},{l:"Confirmar nueva",v:confirma,fn:setConfirma}].map(f=>(
-              <div key={f.l} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
-                <input type="password" value={f.v} onChange={e=>f.fn(e.target.value)} style={inp}/>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>NUEVA CONTRASEÑA</div>
+              <div style={{display:"flex",gap:6}}>
+                <input type={verNueva?"text":"password"} value={nueva} onChange={e=>setNueva(e.target.value)} style={inp} placeholder="Mínimo 6 caracteres"/>
+                <button onClick={()=>setVerNueva(p=>!p)} style={btnVer}>{verNueva?"🙈":"👁"}</button>
               </div>
-            ))}
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>CONFIRMAR CONTRASEÑA</div>
+              <div style={{display:"flex",gap:6}}>
+                <input type={verConf?"text":"password"} value={confirma} onChange={e=>setConfirma(e.target.value)} style={inp} placeholder="Repetí la contraseña"/>
+                <button onClick={()=>setVerConf(p=>!p)} style={btnVer}>{verConf?"🙈":"👁"}</button>
+              </div>
+            </div>
             {err&&<div style={{fontSize:12,color:"#EF4444",marginBottom:12,textAlign:"center"}}>{err}</div>}
-            <div style={{display:"flex",gap:8,marginTop:4}}>
+            <div style={{display:"flex",gap:8}}>
               <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Cambiar contraseña"}</button>
             </div>
