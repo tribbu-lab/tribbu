@@ -123,7 +123,7 @@ function Login({ onLogin }) {
           <input value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} type="password" style={{width:"100%",padding:"12px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"white",fontSize:14,boxSizing:"border-box",outline:"none"}}/>
         </div>
         {err && <div style={{fontSize:12,color:"#FCA5A5",marginBottom:12,textAlign:"center"}}>{err}</div>}
-        <button id="btn-login" onClick={go} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:ld?"rgba(255,255,255,0.1)":"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800,marginBottom:18}}>
+        <button id="btn-login" onClick={()=>go()} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:ld?"rgba(255,255,255,0.1)":"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800,marginBottom:18}}>
           {ld?"Ingresando...":"Ingresar"}
         </button>
         <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:16}}>
@@ -1171,6 +1171,7 @@ function AlertaModal({ onClose, onEnviar }) {
 }
 
 function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate }) {
+  misHijos = (misHijos||[]).filter(h=>h && typeof h === "string");
   const [datos,setDatos] = useState(null);
   const [modal,setModal] = useState(false);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
@@ -1233,14 +1234,14 @@ function Muro({ cursoId, cursoNombre, isAdmin, userName, userId, misHijos=[], on
       })),
     ].sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
-    setLeidosMuro(new Set([...leidosIds].map(Number)));
+    setLeidosMuro(new Set([...leidosIds]));
     const hoyStr = new Date().toISOString().split("T")[0];
     const recsNoLeidos = (recordatorios.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId))
       .sort((a,b)=>{ if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha); if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1; return 0; });
     // colectas pendientes para mis hijos — solo hijos del curso actual
-    const misHijosIds = typeof misHijos !== "undefined" ? misHijos : [];
+    const misHijosIds = (typeof misHijos !== "undefined" ? misHijos : []).filter(h=>h && typeof h === "string");
     const hijosDelCurso = (hijosData.data||[]).map(h=>h.id);
-    const misHijosEnCurso = misHijosIds.map(Number).filter(hid=>hijosDelCurso.map(Number).includes(hid));
+    const misHijosEnCurso = misHijosIds.filter(hid=>hijosDelCurso.includes(hid));
     let colectasPend = [];
     if(misHijosEnCurso.length && (cuotas.data||[]).length) {
       const colIds = (cuotas.data||[]).filter(c=>c.activa).map(c=>c.id);
