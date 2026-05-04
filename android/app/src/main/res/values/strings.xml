@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">tribbu</string>
+    <string name="title_activity_main">tribbu</string>
+    <string name="package_name">com.tribbu.app</string>
+    <string name="custom_url_scheme">com.tribbu.app</string>
+    <string name="onesignal_notification_icon_name">ic_stat_tribbu</string>
+    <string name="onesignal_notification_accent_color">FF0F172A</string>
+</resources>

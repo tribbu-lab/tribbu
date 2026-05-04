@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Política de Privacidad — tribbu.</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #F8FAFC;
+      color: #1E293B;
+      line-height: 1.7;
+      font-size: 16px;
+    }
+
+    header {
+      background: #0F172A;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      font-family: Georgia, serif;
+      font-size: 24px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -1px;
+      text-decoration: none;
+    }
+
+    .logo span { color: #3B82F6; }
+
+    .logo-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #0F172A;
+      margin-bottom: 8px;
+    }
+
+    .fecha {
+      font-size: 13px;
+      color: #64748B;
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-top: 36px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      color: #334155;
+      margin-bottom: 14px;
+    }
+
+    ul {
+      padding-left: 20px;
+      margin-bottom: 14px;
+    }
+
+    li {
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .highlight {
+      background: #EFF6FF;
+      border-left: 3px solid #3B82F6;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+      font-size: 14px;
+      color: #1E40AF;
+    }
+
+    a { color: #3B82F6; }
+
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 13px;
+      color: #94A3B8;
+      border-top: 1px solid #E2E8F0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a href="/" class="logo">tribbu<span>.</span></a>
+    <div class="logo-sub">Comunidad escolar</div>
+  </div>
+</header>
+
+<main>
+  <h1>Política de Privacidad</h1>
+  <div class="fecha">Última actualización: enero de 2025</div>
+
+  <div class="highlight">
+    tribbu. es una aplicación para apoderados y comunidades escolares. Nos tomamos muy en serio la privacidad de los datos de los niños y las familias.
+  </div>
+
+  <h2>1. Quién somos</h2>
+  <p>
+    tribbu. es una plataforma de comunicación escolar que conecta a apoderados, docentes y administradores
+    de instituciones educativas. La aplicación es operada por tribbu y se rige por la
+    <strong>Ley 25.326 de Protección de Datos Personales</strong> de la República Argentina.
+  </p>
+
+  <h2>2. Qué datos recopilamos</h2>
+  <p>Recopilamos únicamente los datos necesarios para el funcionamiento de la aplicación:</p>
+  <ul>
+    <li><strong>Datos de apoderados:</strong> nombre, apellido, correo electrónico y teléfono (opcional).</li>
+    <li><strong>Datos de alumnos:</strong> nombre, apellido, fecha de nacimiento y curso. No recopilamos DNI salvo que sea ingresado manualmente por el administrador del colegio.</li>
+    <li><strong>Datos de uso:</strong> eventos, recordatorios, comunicados y respuestas a invitaciones dentro de la app.</li>
+    <li><strong>Imágenes:</strong> fotos de invitaciones a festejos, subidas voluntariamente por los usuarios.</li>
+  </ul>
+
+  <h2>3. Para qué usamos los datos</h2>
+  <ul>
+    <li>Facilitar la comunicación entre apoderados y la comunidad escolar.</li>
+    <li>Enviar notificaciones push sobre eventos, recordatorios y alertas del curso.</li>
+    <li>Mostrar información relevante del curso (calendario, comedor, colectas, cumpleaños).</li>
+    <li>Permitir la confirmación de asistencia a festejos y eventos.</li>
+  </ul>
+  <p>
+    <strong>No vendemos ni compartimos datos personales con terceros</strong> con fines comerciales o publicitarios.
+  </p>
+
+  <h2>4. Datos de menores</h2>
+  <p>
+    Los datos de alumnos menores de edad son ingresados exclusivamente por los administradores autorizados
+    de cada institución educativa (Room Parents o Super Admins). Estos datos se utilizan únicamente
+    para el funcionamiento de la plataforma dentro del contexto escolar.
+  </p>
+  <p>
+    Ningún dato de menores es compartido con terceros ni utilizado con fines distintos a los descritos en esta política.
+  </p>
+
+  <h2>5. Dónde guardamos los datos</h2>
+  <p>
+    Los datos se almacenan en <strong>Supabase</strong>, un servicio de base de datos con servidores
+    en la región de Estados Unidos (us-east-1). Supabase cumple con estándares de seguridad SOC 2 Tipo II.
+    Las conexiones son siempre cifradas con TLS/HTTPS.
+  </p>
+
+  <h2>6. Notificaciones push</h2>
+  <p>
+    Utilizamos <strong>OneSignal</strong> para el envío de notificaciones push en dispositivos Android.
+    Las notificaciones solo se envían cuando el apoderado las habilita en su dispositivo y
+    están relacionadas exclusivamente con actividad del curso al que pertenece.
+  </p>
+
+  <h2>7. Tus derechos</h2>
+  <p>De acuerdo con la Ley 25.326, tenés derecho a:</p>
+  <ul>
+    <li><strong>Acceder</strong> a los datos que tenemos sobre vos.</li>
+    <li><strong>Rectificar</strong> datos incorrectos o desactualizados.</li>
+    <li><strong>Eliminar</strong> tu cuenta y los datos asociados.</li>
+    <li><strong>Oponerte</strong> al tratamiento de tus datos en ciertos casos.</li>
+  </ul>
+  <p>
+    Para ejercer estos derechos, contactanos a través del administrador de tu institución
+    o escribinos a <a href="mailto:privacidad@tribbu.app">privacidad@tribbu.app</a>.
+  </p>
+
+  <h2>8. Seguridad</h2>
+  <p>
+    Implementamos medidas técnicas y organizativas para proteger tus datos, incluyendo:
+    autenticación segura vía Supabase Auth, acceso basado en roles (apoderado, Room Parent, administrador),
+    y conexiones cifradas en todo momento.
+  </p>
+
+  <h2>9. Retención de datos</h2>
+  <p>
+    Los datos se conservan mientras el usuario tenga una cuenta activa en la plataforma.
+    Al eliminar una cuenta, los datos asociados son eliminados de nuestros servidores
+    en un plazo máximo de 30 días.
+  </p>
+
+  <h2>10. Cambios a esta política</h2>
+  <p>
+    Podemos actualizar esta política ocasionalmente. Cuando lo hagamos, actualizaremos la fecha
+    al inicio de esta página. Te recomendamos revisarla periódicamente.
+  </p>
+
+  <h2>11. Contacto</h2>
+  <p>
+    Si tenés preguntas sobre esta política de privacidad, podés escribirnos a
+    <a href="mailto:privacidad@tribbu.app">privacidad@tribbu.app</a>.
+  </p>
+</main>
+
+<footer>
+  © 2025 tribbu. · <a href="/">Volver a la app</a>
+</footer>
+
+</body>
+</html>

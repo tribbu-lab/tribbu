@@ -28,3 +28,6 @@ dist-ssr
 .env.production
 tribbu_backup_*.json
 *.cjs
+
+.vercel
+.env*.local

@@ -10,14 +10,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor-community/safe-area": "^8.0.1",
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/keyboard": "^8.0.1",
+    "@capacitor/push-notifications": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.1",
     "@supabase/supabase-js": "^2.99.0",
     "bcryptjs": "^3.0.3",
     "node-fetch": "^3.3.2",
+    "onesignal-cordova-plugin": "^5.3.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

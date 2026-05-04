@@ -1,0 +1,59 @@
+// Helpers puros — sin efectos secundarios, sin imports de React ni Supabase
+// Antes: definidos sueltos en App.jsx líneas 130–155
+// Extraerlos acá permite testearlos de forma aislada
+
+/** "$1.234" */
+export const fmtM = (m) => `$${Math.abs(m).toLocaleString("es-AR")}`;
+
+/** "12 de marzo" */
+export const fmtF = (s) =>
+  new Date(s + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" });
+
+/** Igual que fmtF — alias usado en algunas secciones */
+export const fmtDM = fmtF;
+
+/** Días que faltan hasta una fecha (negativo = ya pasó) */
+export const dHasta = (s) => {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const fecha = new Date(s + "T00:00:00");
+  fecha.setHours(0, 0, 0, 0);
+  return Math.ceil((fecha - hoy) / 86_400_000);
+};
+
+/** "María García" — une nombre + apellido limpiamente */
+export const fmtNombre = (a) =>
+  a ? `${a.nombre || ""} ${a.apellido || ""}`.trim() : "";
+
+/** Elimina < y > para prevenir inyección HTML básica */
+export const sanitize = (s) =>
+  typeof s === "string" ? s.replace(/[<>]/g, "").trim() : s;
+
+/**
+ * Sanitiza URLs — previene javascript: y data: URIs maliciosos.
+ * Solo permite http, https, tel, mailto.
+ */
+export const safeUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+  const u = url.trim();
+  if (!u) return null;
+  if (/^(https?:\/\/|tel:|mailto:)/i.test(u)) return u;
+  if (/^[a-zA-Z0-9]/.test(u) && !u.includes("javascript:")) return "https://" + u;
+  return null;
+};
+
+/** Lee el color personalizado de un hijo desde localStorage */
+export const getHijoColor = (userId, hijoId) => {
+  try {
+    return localStorage.getItem(`hcolor_${userId}_${hijoId}`) || null;
+  } catch {
+    return null;
+  }
+};
+
+/** Guarda el color personalizado de un hijo en localStorage */
+export const setHijoColor = (userId, hijoId, color) => {
+  try {
+    localStorage.setItem(`hcolor_${userId}_${hijoId}`, color);
+  } catch {}
+};
