@@ -66,6 +66,8 @@ These skills are available locally — use them when a task matches. Load the sk
 - **web-design-guidelines** — reviews UI code against Web Interface Guidelines. Use when asked to **review UI/UX, audit design, or check accessibility**.
 - **agent-browser** — browser-automation CLI for AI agents. Use when a task needs to **drive a real browser**: navigate pages, fill forms, click, screenshot, scrape, or QA/test the running web app. Prefer it over built-in browser/web tools.
 - **spec** — generates a feature spec grounded in tribbu's architecture. Use when the user wants to **plan or specify a new feature before implementing it**. Reads `specs/_template.md` + this file, asks clarifying questions, then writes the spec to `specs/<name>.md`.
+- **implement** — full plan → implement → validate → document workflow for a **new feature** end-to-end. Use when the user wants to **build a feature** (not just spec it): asks clarifying questions, implements following tribbu conventions, validates with lint + build + manual QA, and updates `CLAUDE.md`/the spec. Pairs with **spec** (run `/spec` first for non-trivial features).
+- **fix-bug** — investigate → root-cause → minimal fix → self-validate workflow. Use when the user **reports a bug or regression to fix**. Traces the real code path (App shell / feature / lib / Supabase), presents the root cause before changing code, and **must self-validate the fix** (lint + build + manual QA in the running app via agent-browser) before claiming it works — tribbu has no test suite.
 
 ## Repository hygiene
 
