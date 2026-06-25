@@ -1,10 +1,14 @@
-import { supabase } from "../supabase";
-import { getRuntimeConfig } from "./runtimeConfig";
+// Helpers de push para mobile — mismo contrato que src/lib/push.js de la web,
+// pero importando el cliente Supabase de RN. Es glue acoplado a plataforma
+// (cliente + env), no lógica de negocio compartible.
+
+import { supabase } from "./supabase";
+import { getRuntimeConfig } from "@shared/runtimeConfig";
 
 /**
- * Envía una push notification via Edge Function.
- * La lógica de autorización vive en el servidor — la anon key
- * solo puede invocar la función, no acceder a la DB directamente.
+ * Dispara una push via Edge Function `send-push` (adaptada a la Expo Push API,
+ * ver mobile/supabase/send-push.reference.ts). El `payload.type` se conserva
+ * para el deep-link al tocar la notificación.
  */
 export const sendPush = async ({ type, payload }) => {
   const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
@@ -12,8 +16,8 @@ export const sendPush = async ({ type, payload }) => {
     const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
-        "Content-Type":  "application/json",
-        "Authorization": `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${supabaseAnonKey}`,
       },
       body: JSON.stringify({ type, payload }),
     });
@@ -25,8 +29,8 @@ export const sendPush = async ({ type, payload }) => {
 };
 
 /**
- * Devuelve todos los usuario_id vinculados a un curso:
- * admins directos + padres de hijos de ese curso.
+ * Todos los usuario_id vinculados a un curso: admins directos + padres de hijos
+ * del curso. (Idéntico a la web.)
  */
 export const getUserIdsByCurso = async (cursoId) => {
   const { data: adminRows } = await supabase

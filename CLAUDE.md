@@ -40,8 +40,9 @@ A single ~520-line component that owns nearly all top-level state and routing. T
 Each feature is one self-contained file exporting its component(s) (e.g. `Muro`, `Calendario`, `Finanzas`, `SuperAdmin`). They receive `cursoId`, `userId`, `isAdmin`, etc. as props and do their own Supabase queries directly — there is no shared data/store layer. `features/shared/index.jsx` holds cross-feature widgets (`EmojiPicker`). The canonical `ListToolbar` lives in `src/components/ListToolbar.jsx`. `features/contacto` exports both `Contacto` and `Alumnos`.
 
 ### Shared modules
-- `src/lib/theme.js` — design tokens (`T` color palette, `ROL_LABEL`/`ROL_COLOR`, `HIJO_COLORS_CUSTOM`, `MESES`). Import these instead of hardcoding colors.
-- `src/lib/helpers.js` — pure helpers: `fmtM` (money, es-AR), `fmtF`/`fmtDM` (dates), `dHasta` (days-until), `sanitize`/`safeUrl` (basic XSS guards — use `safeUrl` for any user-supplied link), `getHijoColor`/`setHijoColor` (localStorage).
+- `src/lib/theme.js` — design tokens (`T` color palette, `ROL_LABEL`/`ROL_COLOR`, `HIJO_COLORS_CUSTOM`, `MESES`). Import these instead of hardcoding colors. **Pure & cross-platform** — also consumed by the mobile app via the `@shared` alias.
+- `src/lib/helpers.js` — pure helpers: `fmtM` (money, es-AR), `fmtF`/`fmtDM` (dates), `dHasta` (days-until), `sanitize`/`safeUrl` (basic XSS guards — use `safeUrl` for any user-supplied link), `getHijoColor`/`setHijoColor`. The color helpers delegate to a **pluggable storage backend** (`src/lib/storage.js`, default `localStorage`) so mobile can back them with AsyncStorage without changing the sync signature.
+- `src/lib/runtimeConfig.js` + `src/lib/storage.js` — **platform-injection seams**. `lib` no longer reads `import.meta.env` directly: the web injects config in `src/bootConfig.js` (imported first in `main.jsx`); mobile injects `EXPO_PUBLIC_*` + an AsyncStorage backend. `supabase.js`, `lib/push.js`, `lib/authAdmin.js` read URL/anon from `getRuntimeConfig()` — keep new env reads going through there, not `import.meta.env`.
 - `src/hooks/useListControls.js` + `src/components/ListToolbar.jsx` + `Paginador.jsx` — the standard pattern for any searchable/sortable/filtered/paginated list. Wire `const ctrl = useListControls(items, {...})` then `<ListToolbar {...ctrl}/>` and map `ctrl.items`.
 - `src/components/` — `Card`, `Pill`, `Spinner`, etc., re-exported via `components/index.js` barrel.
 
@@ -54,7 +55,19 @@ Each feature is one self-contained file exporting its component(s) (e.g. `Muro`,
 - **Push** is sent via a `send-push` Edge Function (not in this repo) called from `src/lib/push.js` (`sendPush`, `getUserIdsByCurso`) — the single source for push helpers, imported by every feature as `../../lib/push`.
 
 ### Core data model (Supabase tables)
-`usuarios`, `cursos`, `hijos`, `usuario_hijos` (parent↔child), `usuario_cursos` (user↔course with `rol`), `cumples`, `eventos` (+`evento_asistencia`), `recordatorios` (+`recordatorio_leidos`), `colectas` (+`colecta_pagos`), `menu`, `alertas`, `contactos`, plus útiles/libros/uniformes tables. The full list is in `backup_tribbu.cjs`'s `TABLES`.
+`usuarios`, `cursos`, `hijos`, `usuario_hijos` (parent↔child), `usuario_cursos` (user↔course with `rol`), `cumples`, `eventos` (+`evento_asistencia`), `recordatorios` (+`recordatorio_leidos`), `colectas` (+`colecta_pagos`), `menu`, `alertas`, `contactos`, plus útiles/libros/uniformes tables. `push_tokens` (Expo push tokens per device, used by the mobile app). The full list is in `backup_tribbu.cjs`'s `TABLES`.
+
+## Mobile app — `mobile/` (Expo · iOS + Android)
+
+A separate **React Native (Expo, managed)** app living in `mobile/`. It does **not** touch the web app (`src/`) beyond the env/storage-injection refactor described above. See `mobile/README.md` for setup/EAS/backend steps.
+
+- **Shared logic, not copied**: Metro `watchFolders` + a Babel `@shared` alias point at `../src/lib`, so `theme.js` and the pure helpers feed both web and mobile from one source. Env and storage are injected per platform (`mobile/lib/config.js` → `EXPO_PUBLIC_*` + AsyncStorage). The Supabase client (`mobile/lib/supabase.js`) uses AsyncStorage + `AppState` auto-refresh; the session persists across restarts. `mobile/lib/push.js` / `authAdmin.js` are thin client-coupled wrappers of the same Edge Functions.
+- **Navigation = Expo Router**: `mobile/app/` — root `_layout.jsx` is the auth gate (login / `(tabs)` / `(super)`). The web's three layouts collapse into one mobile layout; Super Admin gets its own stack. `(tabs)/_layout.jsx` renders the persistent `AppHeader` (child/course selector + notifications bell + color picker) above a native bottom-tab navigator. Admin tabs (Alumnos/Admin) are gated on `rolEfectivo==="admin"` via the "Más" screen. Notification deep-links (`mobile/push/useNotificationRouting.js`, `TAB_MAP`) cover foreground/background/cold-start.
+- **Role model**: `mobile/context/Session.jsx` is the RN equivalent of the web `App.jsx` bootstrap — loads the `usuarios` row, derives `items` (hijos + admin cursos), `cursoIdx`, `rolEfectivo`, and exposes them via `useSession()`.
+- **Push**: `expo-notifications` (replaces OneSignal on mobile). Tokens are stored in `push_tokens`; the `send-push` Edge Function must be migrated to the Expo Push API (reference: `mobile/supabase/send-push.reference.ts`; table SQL: `mobile/supabase/push_tokens.sql`).
+- **UI**: RN primitives + `StyleSheet` only (no DOM/web styles). Colors come from `T`. Lists use `FlatList`. Conditionals must avoid bare `cond && <X/>` when `cond` can be `0`/`""` (renders stray text) — use ternaries returning `null`.
+- **Status (milestone 1)**: foundation + auth + session/role model + navigation + push + **Muro and Recordatorios** are ported; the other features (Calendario, Comedor, Cumpleaños, Colectas, Info Útil, Contacto, Alumnos, Admin, Super Admin) are navigable **placeholders** awaiting their RN ports.
+- **Validation here**: `cd mobile && npm run lint` (expo lint) + `npx expo export -p ios` (Metro bundle gate). No simulator/emulator in this environment — device QA is manual.
 
 ## Skills (`.claude/skills/`)
 

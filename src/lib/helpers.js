@@ -1,6 +1,12 @@
 // Helpers puros — sin efectos secundarios, sin imports de React ni Supabase
 // Antes: definidos sueltos en App.jsx líneas 130–155
 // Extraerlos acá permite testearlos de forma aislada
+//
+// Compartido entre web (Vite) y mobile (Expo). El único acoplamiento a
+// plataforma es el almacenamiento de colores por hijo, que se delega a un
+// backend inyectable (ver ./storage.js).
+
+import { getStorageBackend } from "./storage";
 
 /** "$1.234" */
 export const fmtM = (m) => `$${Math.abs(m).toLocaleString("es-AR")}`;
@@ -42,18 +48,22 @@ export const safeUrl = (url) => {
   return null;
 };
 
-/** Lee el color personalizado de un hijo desde localStorage */
+/** Lee el color personalizado de un hijo desde el storage de la plataforma */
 export const getHijoColor = (userId, hijoId) => {
+  const backend = getStorageBackend();
+  if (!backend) return null;
   try {
-    return localStorage.getItem(`hcolor_${userId}_${hijoId}`) || null;
+    return backend.getItem(`hcolor_${userId}_${hijoId}`) || null;
   } catch {
     return null;
   }
 };
 
-/** Guarda el color personalizado de un hijo en localStorage */
+/** Guarda el color personalizado de un hijo en el storage de la plataforma */
 export const setHijoColor = (userId, hijoId, color) => {
+  const backend = getStorageBackend();
+  if (!backend) return;
   try {
-    localStorage.setItem(`hcolor_${userId}_${hijoId}`, color);
-  } catch {}
+    backend.setItem(`hcolor_${userId}_${hijoId}`, color);
+  } catch { /* noop */ }
 };

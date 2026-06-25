@@ -1,8 +1,15 @@
 ---
 title: App móvil React Native (iOS + Android)
-status: draft
+status: in-progress
 priority: high
 ---
+
+> **Milestone 1 implementado** (`mobile/`): fundación + reutilización de `lib/` +
+> auth/sesión + modelo "Mi acceso" + navegación + push (cliente + deep-link) +
+> features **Muro** y **Recordatorios**. El resto de las features quedan como
+> placeholders navegables (puerto en sesiones de seguimiento). Pendiente de la
+> persona: correr `push_tokens.sql` y migrar `send-push` a Expo Push API.
+> Validación: `expo lint` + bundle Metro OK; QA en simulador/device es manual.
 
 ## Summary
 
@@ -22,54 +29,54 @@ directorio `mobile/` y no toca la app web existente.
 ## Acceptance Criteria
 
 ### Fundación del proyecto
-- [ ] Existe un proyecto Expo (managed) en `mobile/` con `app.json`/`app.config.js`,
+- [x] Existe un proyecto Expo (managed) en `mobile/` con `app.json`/`app.config.js`,
   `bundleIdentifier` iOS y `package` Android `com.tribbu.app`, configurado para
   **EAS Build** en ambas plataformas; `npx expo start` levanta el proyecto y
   `eas build` produce binarios iOS + Android.
-- [ ] Variables de entorno vía `EXPO_PUBLIC_SUPABASE_URL`,
+- [x] Variables de entorno vía `EXPO_PUBLIC_SUPABASE_URL`,
   `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_ONESIGNAL_APP_ID`→(reemplazado por
   config de push) en `.env`/`app.config.js`; **solo** la anon key llega al
   cliente — la service-role key nunca aparece en `mobile/`.
-- [ ] Navegación con **Expo Router** (o React Navigation): bottom-tab navigator
+- [x] Navegación con **Expo Router** (o React Navigation): bottom-tab navigator
   + native stack para modales/detalles. La lógica de los **tres layouts web**
   (super / mobile / desktop) colapsa en **un solo layout móvil**; el Super Admin
   ve su propia pila de pantallas, no las tabs de curso.
 
 ### Reutilización de lógica compartida (`lib/`)
-- [ ] Los módulos puros se comparten sin duplicar lógica: tokens de diseño (`T`,
+- [x] Los módulos puros se comparten sin duplicar lógica: tokens de diseño (`T`,
   `ROL_LABEL`, `ROL_COLOR`, `HIJO_COLORS_CUSTOM`, `MESES`) y helpers puros
   (`fmtM`, `fmtF`/`fmtDM`, `dHasta`, `fmtNombre`, `sanitize`, `safeUrl`) se
   consumen desde una fuente única (paquete/carpeta compartida vía Metro
   `watchFolders` o workspace), no se copian a mano.
-- [ ] El acceso a entorno se abstrae: `lib` deja de leer `import.meta.env`
+- [x] El acceso a entorno se abstrae: `lib` deja de leer `import.meta.env`
   directamente y recibe config inyectada, de modo que web (Vite) y mobile (Expo)
   la alimenten cada una a su manera.
-- [ ] `getHijoColor`/`setHijoColor` (hoy `localStorage`, síncrono) se reimplementan
+- [x] `getHijoColor`/`setHijoColor` (hoy `localStorage`, síncrono) se reimplementan
   sobre **AsyncStorage** en mobile sin romper la firma usada por la web.
 
 ### Auth y sesión
-- [ ] Login con `supabase.auth.signInWithPassword`, "olvidé mi contraseña"
+- [x] Login con `supabase.auth.signInWithPassword`, "olvidé mi contraseña"
   (`resetPasswordForEmail`), registro con código (`RegistroConCodigo`) y
   `CambiarPasswordModal` funcionan en RN.
-- [ ] El cliente Supabase usa **AsyncStorage** como `storage`, con
+- [x] El cliente Supabase usa **AsyncStorage** como `storage`, con
   `autoRefreshToken`, `persistSession`, `detectSessionInUrl:false`, y refresca el
   token según `AppState` (foreground/background); la sesión sobrevive al reinicio
   de la app.
-- [ ] Operaciones privilegiadas (crear usuario, cambiar email/clave de otro,
+- [x] Operaciones privilegiadas (crear usuario, cambiar email/clave de otro,
   buscar por email) siguen pasando por la Edge Function `manage-auth-user` vía
   `authAdmin.js`; no se agrega la service-role key al cliente.
 
 ### Modelo "Mi acceso" y rol efectivo
-- [ ] Al iniciar sesión se cargan los `items` = hijos del usuario + cursos donde
+- [x] Al iniciar sesión se cargan los `items` = hijos del usuario + cursos donde
   es Room Parent; un selector en el header permite cambiar de hijo/curso
   (equivalente al selector horizontal móvil web), incluyendo el color
   personalizado por hijo.
-- [ ] `rolEfectivo` se deriva por item (`padre`|`admin`); las tabs/acciones de
+- [x] `rolEfectivo` se deriva por item (`padre`|`admin`); las tabs/acciones de
   admin (Alumnos, Admin, botones de crear) solo aparecen cuando el item activo
   es `admin`. El Super Admin (`usuario.rol==="super"`) ve la experiencia Super.
 
 ### Features portadas (paridad funcional con la web)
-- [ ] **Muro/Inicio**: feed con accesos a colectas/fechas (deep-link interno a
+- [x] **Muro/Inicio**: feed con accesos a colectas/fechas (deep-link interno a
   Finanzas/Calendario), saludo, alertas; admin puede crear alerta.
 - [ ] **Calendario**: lista/agenda de `eventos`, alta/edición (`EventoModal`) para
   admin, asistencia (`evento_asistencia` / `EventoAsistenciaModal`).
@@ -78,7 +85,7 @@ directorio `mobile/` y no toca la app web existente.
 - [ ] **Cumpleaños**: `cumples`, festejos y sus modales (`FestejoModal`,
   `FestejoDetalleModal`, `ResponsableModal`, `ColectaRegaloModal`), incluida la
   colecta de regalo.
-- [ ] **Recordatorios**: lista de `recordatorios` con leídos/no-leídos
+- [x] **Recordatorios**: lista de `recordatorios` con leídos/no-leídos
   (`recordatorio_leidos`), badge de no-leídos, alta para admin.
 - [ ] **Colectas (Finanzas)**: `colectas` + `colecta_pagos`, apertura directa de
   una colecta por deep-link, montos con `fmtM`.
@@ -90,17 +97,17 @@ directorio `mobile/` y no toca la app web existente.
 - [ ] **Super Admin**: `SuperAdmin` y sub-pantallas (`AlertasAdmin`,
   `HorariosAdmin`, `UniformesAdmin`) y cargas Excel (`UploadAlumnosExcel`,
   `UploadApoderadosExcel`) vía document-picker + `xlsx`.
-- [ ] **Notificaciones (in-app)**: `useNotificaciones` + panel de notificaciones
+- [x] **Notificaciones (in-app)**: `useNotificaciones` + panel de notificaciones
   con marcar-leído y contador de no-leídos, accesible desde el header.
-- [ ] Las listas usan el equivalente RN de `useListControls` (búsqueda/orden/
+- [x] Las listas usan el equivalente RN de `useListControls` (búsqueda/orden/
   filtro/paginación) con `FlatList` (no `.map` sobre arrays largos). [skill:
   vercel-react-native-skills]
 
 ### Push (expo-notifications)
-- [ ] La app registra el **Expo push token** al loguear y lo persiste para el
+- [x] La app registra el **Expo push token** al loguear y lo persiste para el
   `usuario` (nueva columna/tabla, ver Notas técnicas); pide permisos en iOS y
   Android con canal de notificaciones Android configurado.
-- [ ] El click en una notificación navega a la pantalla correcta según su `type`
+- [x] El click en una notificación navega a la pantalla correcta según su `type`
   (equivalente a `TAB_MAP`: `recordatorio→Recordatorios`, `evento→Calendario`,
   `colecta→Finanzas`, `alerta→Muro`, `festejo→Cumpleaños`), tanto con la app en
   foreground/background como cerrada (cold start).
@@ -109,11 +116,11 @@ directorio `mobile/` y no toca la app web existente.
   deep-link; `getUserIdsByCurso` sigue resolviendo los destinatarios por curso.
 
 ### UI / calidad
-- [ ] Toda la UI usa primitivas RN (`View`/`Text`/`Pressable`/`TextInput`/
+- [x] Toda la UI usa primitivas RN (`View`/`Text`/`Pressable`/`TextInput`/
   `Image`/`FlatList`/`Modal`) y `StyleSheet`; los colores salen de `T`, no
   hardcodeados. No hay HTML/DOM ni estilos web (`position:fixed/sticky`,
   `cursor`, `overflowX`, `boxShadow`, `env(safe-area-inset)`).
-- [ ] Áreas seguras con `react-native-safe-area-context`; toques cómodos
+- [x] Áreas seguras con `react-native-safe-area-context`; toques cómodos
   (≥44pt); la app es usable en pantallas chicas y con notch/Dynamic Island.
 - [ ] Entrada de usuario saneada con `sanitize` y links con `safeUrl` antes de
   `Linking.openURL`.
