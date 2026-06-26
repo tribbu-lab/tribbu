@@ -1,4 +1,4 @@
-import { Placeholder } from "../../components/Placeholder";
+import { Alumnos } from "../../features/contacto";
 export default function AlumnosScreen() {
-  return <Placeholder emoji="🎒" title="Alumnos" />;
+  return <Alumnos />;
 }

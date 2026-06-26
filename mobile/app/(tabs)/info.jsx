@@ -1,4 +1,4 @@
-import { Placeholder } from "../../components/Placeholder";
+import { InfoUtil } from "../../features/info";
 export default function InfoScreen() {
-  return <Placeholder emoji="📋" title="Info Útil" />;
+  return <InfoUtil />;
 }

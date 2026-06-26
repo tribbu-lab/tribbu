@@ -4,12 +4,14 @@ status: in-progress
 priority: high
 ---
 
-> **Milestone 1 implementado** (`mobile/`): fundación + reutilización de `lib/` +
-> auth/sesión + modelo "Mi acceso" + navegación + push (cliente + deep-link) +
-> features **Muro** y **Recordatorios**. El resto de las features quedan como
-> placeholders navegables (puerto en sesiones de seguimiento). Pendiente de la
-> persona: correr `push_tokens.sql` y migrar `send-push` a Expo Push API.
-> Validación: `expo lint` + bundle Metro OK; QA en simulador/device es manual.
+> **En progreso** (`mobile/`): fundación + reutilización de `lib/` + auth/sesión +
+> modelo "Mi acceso" + navegación + push (cliente + deep-link). **Features
+> portadas a RN**: Muro, Recordatorios, Notificaciones in-app, **Calendario,
+> Comedor (con carga Excel), Colectas/Finanzas, Contacto/Alumnos e Info Útil**.
+> **Faltan**: Cumpleaños, Admin y Super Admin (placeholders navegables) y la
+> migración del backend `send-push` a Expo Push API. Pendiente de la persona:
+> correr `push_tokens.sql` y deployar `send-push`. Validación: `expo lint` +
+> bundle Metro OK; QA en simulador/device es manual.
 
 ## Summary
 
@@ -78,20 +80,20 @@ directorio `mobile/` y no toca la app web existente.
 ### Features portadas (paridad funcional con la web)
 - [x] **Muro/Inicio**: feed con accesos a colectas/fechas (deep-link interno a
   Finanzas/Calendario), saludo, alertas; admin puede crear alerta.
-- [ ] **Calendario**: lista/agenda de `eventos`, alta/edición (`EventoModal`) para
+- [x] **Calendario**: lista/agenda de `eventos`, alta/edición (`EventoModal`) para
   admin, asistencia (`evento_asistencia` / `EventoAsistenciaModal`).
-- [ ] **Comedor**: ver `menu`; admin carga menú por Excel (`UploadMenuExcel`) vía
+- [x] **Comedor**: ver `menu`; admin carga menú por Excel (`UploadMenuExcel`) vía
   `expo-document-picker` + parseo `xlsx`.
 - [ ] **Cumpleaños**: `cumples`, festejos y sus modales (`FestejoModal`,
   `FestejoDetalleModal`, `ResponsableModal`, `ColectaRegaloModal`), incluida la
   colecta de regalo.
 - [x] **Recordatorios**: lista de `recordatorios` con leídos/no-leídos
   (`recordatorio_leidos`), badge de no-leídos, alta para admin.
-- [ ] **Colectas (Finanzas)**: `colectas` + `colecta_pagos`, apertura directa de
+- [x] **Colectas (Finanzas)**: `colectas` + `colecta_pagos`, apertura directa de
   una colecta por deep-link, montos con `fmtM`.
-- [ ] **Info Útil**: `InfoUtil`, `Libros`, `Útiles`, `Uniformes`; links abren con
+- [x] **Info Útil**: `InfoUtil`, `Libros`, `Útiles`, `Uniformes`; links abren con
   `Linking.openURL` usando `safeUrl`.
-- [ ] **Contacto / Alumnos**: `Contacto`, `ApoderadosModal`, `Alumnos`; teléfonos
+- [x] **Contacto / Alumnos**: `Contacto`, `ApoderadosModal`, `Alumnos`; teléfonos
   y mails accionables (`tel:`/`mailto:` vía `Linking`).
 - [ ] **Admin**: `AdminPanel` + `AlertaModal` solo para `rolEfectivo==="admin"`.
 - [ ] **Super Admin**: `SuperAdmin` y sub-pantallas (`AlertasAdmin`,
@@ -122,7 +124,7 @@ directorio `mobile/` y no toca la app web existente.
   `cursor`, `overflowX`, `boxShadow`, `env(safe-area-inset)`).
 - [x] Áreas seguras con `react-native-safe-area-context`; toques cómodos
   (≥44pt); la app es usable en pantallas chicas y con notch/Dynamic Island.
-- [ ] Entrada de usuario saneada con `sanitize` y links con `safeUrl` antes de
+- [x] Entrada de usuario saneada con `sanitize` y links con `safeUrl` antes de
   `Linking.openURL`.
 - [ ] La app compila y corre en simulador iOS y emulador Android; el lint de
   `mobile/` pasa.

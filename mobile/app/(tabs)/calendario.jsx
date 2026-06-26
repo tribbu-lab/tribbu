@@ -1,4 +1,13 @@
-import { Placeholder } from "../../components/Placeholder";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Calendario } from "../../features/calendario";
+
 export default function CalendarioScreen() {
-  return <Placeholder emoji="📅" title="Calendario" />;
+  const { openFecha } = useLocalSearchParams();
+  const router = useRouter();
+  return (
+    <Calendario
+      openFecha={openFecha || null}
+      onClearOpenFecha={() => router.setParams({ openFecha: "" })}
+    />
+  );
 }

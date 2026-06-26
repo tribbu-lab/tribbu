@@ -247,7 +247,7 @@ export function Muro() {
           {datos.colectasPend.map((c) => (
             <Pressable
               key={c.id}
-              onPress={() => router.push("/(tabs)/finanzas")}
+              onPress={() => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } })}
               style={[styles.row, { borderLeftColor: "#F59E0B" }]}
             >
               <View style={styles.flex1}>
@@ -277,7 +277,7 @@ export function Muro() {
             return (
               <Pressable
                 key={e.id}
-                onPress={() => router.push("/(tabs)/calendario")}
+                onPress={() => router.push({ pathname: "/(tabs)/calendario", params: { openFecha: e.fecha } })}
                 style={[styles.card, { borderLeftColor: cfg.color }]}
               >
                 <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>

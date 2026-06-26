@@ -1,4 +1,4 @@
-import { Placeholder } from "../../components/Placeholder";
+import { Contacto } from "../../features/contacto";
 export default function ContactoScreen() {
-  return <Placeholder emoji="📞" title="Contacto" />;
+  return <Contacto />;
 }

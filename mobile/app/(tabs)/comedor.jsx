@@ -1,4 +1,4 @@
-import { Placeholder } from "../../components/Placeholder";
+import { Comedor } from "../../features/comedor";
 export default function ComedorScreen() {
-  return <Placeholder emoji="🍽️" title="Comedor" />;
+  return <Comedor />;
 }
