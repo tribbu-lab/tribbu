@@ -4,7 +4,7 @@
 // push se engancha acá.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
@@ -43,6 +43,14 @@ function useRecordatoriosBadge(cursoId, userId) {
   return count;
 }
 
+// Iconos de tab como emoji (la app usa emoji en <Text>, no hay librería de
+// vector-icons). Sin tabBarIcon, react-navigation muestra su placeholder (un
+// triángulo) en su lugar.
+const tabIcon = (emoji) =>
+  function TabIcon({ size }) {
+    return <Text style={{ fontSize: (size ?? 24) - 2 }}>{emoji}</Text>;
+  };
+
 export default function TabsLayout() {
   const { usuario, cursoId } = useSession();
   const badge = useRecordatoriosBadge(cursoId, usuario?.id);
@@ -63,14 +71,21 @@ export default function TabsLayout() {
     <View style={styles.root}>
       <AppHeader />
       <Tabs screenOptions={screenOptions}>
-        <Tabs.Screen name="muro" options={{ title: "Inicio", tabBarIcon: () => null }} />
-        <Tabs.Screen name="calendario" options={{ title: "Calendario" }} />
-        <Tabs.Screen name="cumples" options={{ title: "Cumpleaños" }} />
+        <Tabs.Screen name="muro" options={{ title: "Inicio", tabBarIcon: tabIcon("🏠") }} />
+        <Tabs.Screen
+          name="calendario"
+          options={{ title: "Calendario", tabBarIcon: tabIcon("📅") }}
+        />
+        <Tabs.Screen name="cumples" options={{ title: "Cumpleaños", tabBarIcon: tabIcon("🎂") }} />
         <Tabs.Screen
           name="recordatorios"
-          options={{ title: "Recordatorios", tabBarBadge: badge > 0 ? badge : undefined }}
+          options={{
+            title: "Recordatorios",
+            tabBarIcon: tabIcon("📌"),
+            tabBarBadge: badge > 0 ? badge : undefined,
+          }}
         />
-        <Tabs.Screen name="mas" options={{ title: "Más" }} />
+        <Tabs.Screen name="mas" options={{ title: "Más", tabBarIcon: tabIcon("☰") }} />
 
         {/* Secundarias: navegables desde "Más", fuera del bottom-bar */}
         <Tabs.Screen name="comedor" options={hidden} />
