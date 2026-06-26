@@ -7,11 +7,14 @@ priority: high
 > **En progreso** (`mobile/`): fundación + reutilización de `lib/` + auth/sesión +
 > modelo "Mi acceso" + navegación + push (cliente + deep-link). **Features
 > portadas a RN**: Muro, Recordatorios, Notificaciones in-app, **Calendario,
-> Comedor (con carga Excel), Colectas/Finanzas, Contacto/Alumnos e Info Útil**.
-> **Faltan**: Cumpleaños, Admin y Super Admin (placeholders navegables) y la
+> Comedor (con carga Excel), Colectas/Finanzas, Contacto/Alumnos, Info Útil,
+> Cumpleaños (+festejos, colecta de regalo, imagen de invitación, export Excel),
+> Admin (general + horarios) y Super Admin (usuarios/cursos/maestros/alumnos/
+> códigos/horarios/uniformes/alertas/menú + cargas Excel)**. **Falta**: la
 > migración del backend `send-push` a Expo Push API. Pendiente de la persona:
 > correr `push_tokens.sql` y deployar `send-push`. Validación: `expo lint` +
-> bundle Metro OK; QA en simulador/device es manual.
+> bundle Metro OK; QA en simulador/device es manual. (Pendiente menor: edición
+> de la info del colegio en Super Admin sigue siendo solo web.)
 
 ## Summary
 
@@ -84,9 +87,10 @@ directorio `mobile/` y no toca la app web existente.
   admin, asistencia (`evento_asistencia` / `EventoAsistenciaModal`).
 - [x] **Comedor**: ver `menu`; admin carga menú por Excel (`UploadMenuExcel`) vía
   `expo-document-picker` + parseo `xlsx`.
-- [ ] **Cumpleaños**: `cumples`, festejos y sus modales (`FestejoModal`,
+- [x] **Cumpleaños**: `cumples`, festejos y sus modales (`FestejoModal`,
   `FestejoDetalleModal`, `ResponsableModal`, `ColectaRegaloModal`), incluida la
-  colecta de regalo.
+  colecta de regalo. Imagen de invitación vía `expo-image-picker` + Supabase
+  Storage; export de asistencia a Excel vía `expo-sharing`.
 - [x] **Recordatorios**: lista de `recordatorios` con leídos/no-leídos
   (`recordatorio_leidos`), badge de no-leídos, alta para admin.
 - [x] **Colectas (Finanzas)**: `colectas` + `colecta_pagos`, apertura directa de
@@ -95,10 +99,12 @@ directorio `mobile/` y no toca la app web existente.
   `Linking.openURL` usando `safeUrl`.
 - [x] **Contacto / Alumnos**: `Contacto`, `ApoderadosModal`, `Alumnos`; teléfonos
   y mails accionables (`tel:`/`mailto:` vía `Linking`).
-- [ ] **Admin**: `AdminPanel` + `AlertaModal` solo para `rolEfectivo==="admin"`.
-- [ ] **Super Admin**: `SuperAdmin` y sub-pantallas (`AlertasAdmin`,
-  `HorariosAdmin`, `UniformesAdmin`) y cargas Excel (`UploadAlumnosExcel`,
-  `UploadApoderadosExcel`) vía document-picker + `xlsx`.
+- [x] **Admin**: `AdminPanel` (General + Horarios) solo para
+  `rolEfectivo==="admin"`. La `AlertaModal` de admin ya vive en el Muro.
+- [x] **Super Admin**: `SuperAdmin` y sub-pantallas (`AlertasAdmin`,
+  `HorariosAdmin`, `UniformesAdmin`, `CodigosInvitacion`) y cargas Excel
+  (`UploadAlumnosExcel`, `UploadApoderadosExcel`, `UploadMenuExcel`) vía
+  document-picker + `xlsx`. (Edición de info del colegio: pendiente, solo web.)
 - [x] **Notificaciones (in-app)**: `useNotificaciones` + panel de notificaciones
   con marcar-leído y contador de no-leídos, accesible desde el header.
 - [x] Las listas usan el equivalente RN de `useListControls` (búsqueda/orden/

@@ -73,6 +73,7 @@ export function useListControls(items, { searchFn, sortOptions, filterOptions, p
     filtered: sorted,
     items: paginados,
     total: sorted.length,
+    sortOptions,
     filterOptions,
   };
 }

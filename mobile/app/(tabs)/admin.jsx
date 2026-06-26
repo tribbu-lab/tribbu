@@ -1,4 +1,5 @@
-import { Placeholder } from "../../components/Placeholder";
+import { AdminPanel } from "../../features/admin";
+
 export default function AdminScreen() {
-  return <Placeholder emoji="⚙️" title="Admin" />;
+  return <AdminPanel />;
 }

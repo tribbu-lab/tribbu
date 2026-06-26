@@ -1,4 +1,5 @@
-import { Placeholder } from "../../components/Placeholder";
+import { Cumpleanios } from "../../features/cumples";
+
 export default function CumplesScreen() {
-  return <Placeholder emoji="🎂" title="Cumpleaños" />;
+  return <Cumpleanios />;
 }
