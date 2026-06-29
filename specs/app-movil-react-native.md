@@ -10,11 +10,12 @@ priority: high
 > Comedor (con carga Excel), Colectas/Finanzas, Contacto/Alumnos, Info Útil,
 > Cumpleaños (+festejos, colecta de regalo, imagen de invitación, export Excel),
 > Admin (general + horarios) y Super Admin (usuarios/cursos/maestros/alumnos/
-> códigos/horarios/uniformes/alertas/menú + cargas Excel)**. **Falta**: la
-> migración del backend `send-push` a Expo Push API. Pendiente de la persona:
-> correr `push_tokens.sql` y deployar `send-push`. Validación: `expo lint` +
-> bundle Metro OK; QA en simulador/device es manual. (Pendiente menor: edición
-> de la info del colegio en Super Admin sigue siendo solo web.)
+> códigos/horarios/uniformes/alertas/menú + cargas Excel)**. El backend
+> `send-push` (Expo Push API) ya está en el repo y **deployado**. Pendiente de la
+> persona: correr `push_tokens.sql` (si falta) y QA en simulador/device.
+> Validación: `expo lint` + bundle Metro OK; QA en simulador/device es manual.
+> (Pendiente menor: edición de la info del colegio en Super Admin sigue siendo
+> solo web.)
 
 ## Summary
 
@@ -119,9 +120,11 @@ directorio `mobile/` y no toca la app web existente.
   (equivalente a `TAB_MAP`: `recordatorio→Recordatorios`, `evento→Calendario`,
   `colecta→Finanzas`, `alerta→Muro`, `festejo→Cumpleaños`), tanto con la app en
   foreground/background como cerrada (cold start).
-- [ ] La Edge Function `send-push` se adapta para enviar a **Expo push tokens**
+- [x] La Edge Function `send-push` se adapta para enviar a **Expo push tokens**
   (Expo Push API) en lugar de OneSignal, conservando `type` + payload para el
   deep-link; `getUserIdsByCurso` sigue resolviendo los destinatarios por curso.
+  Vive en `supabase/functions/send-push/index.ts` (poda tokens inválidos). **Falta
+  deployarla** (`supabase functions deploy send-push`) — paso de la persona.
 
 ### UI / calidad
 - [x] Toda la UI usa primitivas RN (`View`/`Text`/`Pressable`/`TextInput`/
@@ -169,8 +172,9 @@ directorio `mobile/` y no toca la app web existente.
   para cold start). Persistir el Expo token por dispositivo: **nueva columna**
   `usuarios.expo_push_token` o **nueva tabla** `push_tokens(usuario_id, token,
   platform, updated_at)` (preferible para multi-dispositivo). La Edge Function
-  `send-push` (fuera de este repo) debe migrar a la **Expo Push API**; `payload`
-  debe seguir incluyendo `type` para el deep-link. Datos de notificación in-app
+  `send-push` ya vive en el repo (`supabase/functions/send-push/index.ts`, Expo
+  Push API; conserva `type` en `data` para el deep-link y poda tokens
+  `DeviceNotRegistered`); falta deployarla. Datos de notificación in-app
   (`useNotificaciones`) no cambian de esquema.
 - **Roles/navegación**: replicar `TABS` condicionando Alumnos/Admin a
   `rolEfectivo==="admin"`; Super Admin como flujo aparte. Selector de hijo/curso

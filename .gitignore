@@ -31,3 +31,6 @@ tribbu_backup_*.json
 
 .vercel
 .env*.local
+
+# Supabase CLI scratch
+supabase/.temp/

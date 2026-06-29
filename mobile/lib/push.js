@@ -7,7 +7,7 @@ import { getRuntimeConfig } from "@shared/runtimeConfig";
 
 /**
  * Dispara una push via Edge Function `send-push` (adaptada a la Expo Push API,
- * ver mobile/supabase/send-push.reference.ts). El `payload.type` se conserva
+ * ver supabase/functions/send-push/index.ts). El `payload.type` se conserva
  * para el deep-link al tocar la notificación.
  */
 export const sendPush = async ({ type, payload }) => {
