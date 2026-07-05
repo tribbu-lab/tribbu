@@ -23,6 +23,11 @@ export default {
       // el arte original trae esquinas redondeadas que dejarían bordes blancos.
       icon: "./assets/icon.png",
       supportsTablet: true,
+      infoPlist: {
+        // Solo HTTPS estándar → exenta de reportes de cifrado; evita el estado
+        // "Missing Compliance" en cada build de TestFlight.
+        ITSAppUsesNonExemptEncryption: false,
+      },
       // Team personal (Apple Development: nicolasalbani@gmail.com) para firmar
       // builds locales de desarrollo con `expo run:ios --device`.
       appleTeamId: "54M3L8C3D3",
@@ -36,6 +41,17 @@ export default {
     },
     plugins: [
       "expo-router",
+      [
+        // media.js pide permiso de fototeca (subida de invitaciones de cumples);
+        // sin este string en Info.plist, iOS crashea al pedirlo.
+        "expo-image-picker",
+        {
+          photosPermission:
+            "tribbu usa tus fotos para subir imágenes como la invitación de un festejo.",
+          cameraPermission:
+            "tribbu usa la cámara para adjuntar fotos en el curso.",
+        },
+      ],
       [
         "expo-notifications",
         {
