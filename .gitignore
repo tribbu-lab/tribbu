@@ -34,3 +34,7 @@ tribbu_backup_*.json
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# Proyectos nativos generados por expo prebuild (regenerables)
+mobile/ios/
+mobile/android/

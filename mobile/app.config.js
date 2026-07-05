@@ -18,6 +18,9 @@ export default {
     ios: {
       bundleIdentifier: "com.tribbu.app",
       supportsTablet: true,
+      // Team personal (Apple Development: nicolasalbani@gmail.com) para firmar
+      // builds locales de desarrollo con `expo run:ios --device`.
+      appleTeamId: "54M3L8C3D3",
     },
     android: {
       package: "com.tribbu.app",
