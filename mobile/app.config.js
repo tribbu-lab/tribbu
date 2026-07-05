@@ -6,6 +6,7 @@ export default {
   expo: {
     name: "tribbu",
     slug: "tribbu",
+    owner: "albatross-tech",
     scheme: "tribbu",
     version: "1.0.0",
     orientation: "portrait",
@@ -17,6 +18,10 @@ export default {
     },
     ios: {
       bundleIdentifier: "com.tribbu.app",
+      // Ícono de la app: versión full-bleed (cuadrado opaco #0F172A) derivada de
+      // assets/icon.png de la raíz — iOS aplica su propia máscara de esquinas, y
+      // el arte original trae esquinas redondeadas que dejarían bordes blancos.
+      icon: "./assets/icon.png",
       supportsTablet: true,
       // Team personal (Apple Development: nicolasalbani@gmail.com) para firmar
       // builds locales de desarrollo con `expo run:ios --device`.
@@ -34,14 +39,24 @@ export default {
       [
         "expo-notifications",
         {
-          // icon/color del ícono de notificación Android
+          // Small icon de notificación Android: OBLIGATORIO blanco sobre
+          // transparente (Android lo tiñe con `color`); sin él, la notificación
+          // muestra un cuadrado blanco. Derivado de assets/icon.png (raíz).
+          // iOS no tiene ícono de notificación configurable: usa el de la app.
+          icon: "./assets/notification-icon.png",
           color: "#0F172A",
         },
       ],
     ],
     extra: {
-      // EAS project id se completa al correr `eas init`
-      eas: { projectId: process.env.EAS_PROJECT_ID || undefined },
+      // EAS project id (@albatross-tech/tribbu). No es secreto; va hardcodeado
+      // porque EAS CLI NO lee .env al evaluar esta config (Expo CLI sí) — si solo
+      // viviera en .env, `eas credentials`/builds resolverían otro proyecto y el
+      // push token del device no matchearía las credenciales APNs.
+      eas: {
+        projectId:
+          process.env.EAS_PROJECT_ID || "2ea926f7-ce30-4104-a54c-2c5756902a52",
+      },
     },
     experiments: {
       typedRoutes: false,
