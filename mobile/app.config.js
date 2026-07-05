@@ -42,6 +42,13 @@ export default {
     plugins: [
       "expo-router",
       [
+        // Reemplaza el ícono single-size por el set multi-tamaño: sin las
+        // renditions chicas, iOS muestra un ícono en blanco en la notificación
+        // en builds de desarrollo (ver plugins/withMultiSizeAppIcon.js).
+        "./plugins/withMultiSizeAppIcon",
+        { icon: "./assets/icon.png" },
+      ],
+      [
         // media.js pide permiso de fototeca (subida de invitaciones de cumples);
         // sin este string en Info.plist, iOS crashea al pedirlo.
         "expo-image-picker",
