@@ -181,7 +181,7 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 
 **Estados.** Cargando → `SkeletonList` (o `Spinner`); vacío → `EmptyState` con CTA si el rol puede crear; error → mensaje en `t.danger` + botón "Reintentar".
 
-**Inicio (patrón A3).** Pendientes = carrusel horizontal de cards accionables (recordatorio sin leer · colecta sin pagar · invitación sin responder) con snap + dots; sin pendientes, el slot no desaparece: empty punteado "Estás al día ✨". Debajo, agenda unificada de 15 días (eventos + cumples por proximidad) con countdown por urgencia — ≤3 días lleno (`accent`), ≤7 teñido (`accentSoft`), resto neutro — y card de Comedor (hoy o próximo día con servicio). Implementación de referencia: `features/muro`.
+**Inicio (patrón A3).** Pendientes = carrusel horizontal de cards accionables (recordatorio sin leer · colecta sin pagar · invitación sin responder, con deep-link `openFestejo`) con snap + dots; sin pendientes, el slot no desaparece: empty punteado "Estás al día ✨". Debajo, agenda unificada de 15 días (eventos + cumples por proximidad) con countdown por urgencia — ≤3 días lleno (`accent`), ≤7 teñido (`accentSoft`), resto neutro — y card de Comedor (hoy o próximo día con servicio). Cargando: saludo inmediato + `SkeletonList` (no Spinner). Header A3: campana con punto de no-leídas + chip del hijo (dot de color, abre el color picker); cuenta (contraseña/salir) en "Más". Implementación de referencia: `features/muro`, `components/AppHeader`, `app/(tabs)/mas`.
 
 **Íconos.** UI = `@expo/vector-icons` (MaterialCommunityIcons, variantes `-outline`, trazo). El emoji queda reservado para contenido (tipos de evento, celebraciones, comida) — nunca para chrome de UI.
 

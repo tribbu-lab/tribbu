@@ -28,7 +28,7 @@ import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { useSession } from "../../context/Session";
-import { Spinner } from "../../components/Spinner";
+import { SkeletonList } from "../../components/Skeleton";
 
 const t = THEMES.light;
 
@@ -239,7 +239,16 @@ export function Muro() {
     }
   };
 
-  if (!datos) return <Spinner />;
+  // Cargando: el saludo es inmediato (dato local) y la lista llega como skeleton.
+  if (!datos)
+    return (
+      <View style={[styles.screen, styles.content]}>
+        <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
+        <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
+        <Text style={styles.label}>Pendientes</Text>
+        <SkeletonList rows={3} />
+      </View>
+    );
 
   const recsVisibles = datos.recordatorios.filter(
     (r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general"
@@ -276,7 +285,7 @@ export function Muro() {
       titulo: ev.titulo,
       meta: "Falta confirmar asistencia",
       accion: "Responder",
-      onAccion: () => router.push("/(tabs)/cumples"),
+      onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
     })),
   ];

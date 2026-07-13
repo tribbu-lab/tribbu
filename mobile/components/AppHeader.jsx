@@ -1,15 +1,16 @@
-// Header persistente de la app (sobre las tabs). Reemplaza el header móvil de la
-// web: logo, nombre del usuario, campana de notificaciones con badge, acciones
-// (cambiar contraseña / salir) y el selector horizontal de hijos/cursos con
-// color personalizado por hijo.
+// Header persistente de la app (sobre las tabs), patrón A3: logo, campana con
+// punto de no-leídas y chip del hijo activo (dot de color + nombre; tocar abre
+// el selector de color). Con múltiples hijos/cursos, el selector horizontal se
+// mantiene debajo. Las acciones de cuenta (contraseña / salir) viven en "Más".
+// Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
 import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
 import { useNotificaciones, NotificacionesPanel } from "../features/notificaciones";
-import { CambiarPasswordModal } from "../features/auth";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -26,16 +27,20 @@ export function AppHeader() {
   } = useSession();
 
   const [panelNotifs, setPanelNotifs] = useState(false);
-  const [cambiarPass, setCambiarPass] = useState(false);
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
-  const { notifs, leidos, cargando, noLeidos, marcarLeido } = useNotificaciones({
+  const { notifs, leidos, cargando, noLeidos, marcarLeido, recargar } = useNotificaciones({
     cursoId,
     userId: usuario?.id ?? null,
-    active: panelNotifs,
+    active: true,
   });
 
-  const firstName = usuario?.nombre?.split(" ")[0] || "";
+  const abrirNotifs = () => {
+    recargar();
+    setPanelNotifs(true);
+  };
+
+  const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
@@ -44,23 +49,27 @@ export function AppHeader() {
           tribbu<Text style={styles.logoDot}>.</Text>
         </Text>
         <View style={styles.actions}>
-          <Text style={styles.userName}>{firstName}</Text>
-          <Pressable onPress={() => setPanelNotifs(true)} style={styles.iconBtn} hitSlop={8}>
-            <Text style={styles.icon}>🔔</Text>
-            {noLeidos > 0 ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeTxt}>{noLeidos > 9 ? "9+" : noLeidos}</Text>
-              </View>
-            ) : null}
+          <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
+            <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />
+            {noLeidos > 0 ? <View style={styles.notifDot} /> : null}
           </Pressable>
-          <Pressable onPress={() => setCambiarPass(true)} style={styles.iconBtn} hitSlop={8}>
-            <Text style={styles.icon}>🔑</Text>
-          </Pressable>
-          <LogoutButton />
+          {unicoHijo ? (
+            <Pressable
+              onPress={() => setColorPickerItem(unicoHijo)}
+              style={styles.kidChip}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Color de ${unicoHijo.nombre}`}
+            >
+              <View style={[styles.kidDot, { backgroundColor: colorDeItem(unicoHijo) }]} />
+              <Text style={styles.kidName}>{unicoHijo.nombre?.split(" ")[0]}</Text>
+              <MaterialCommunityIcons name="palette-outline" size={13} color="rgba(255,255,255,0.55)" />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
-      {/* Selector de hijos/cursos */}
+      {/* Selector de hijos/cursos (solo con más de un acceso) */}
       {items.length > 1 ? (
         <ScrollView
           horizontal
@@ -89,21 +98,14 @@ export function AppHeader() {
                   </Text>
                 </Pressable>
                 {item._tipo === "hijo" && active ? (
-                  <Pressable onPress={() => setColorPickerItem(item)} style={styles.paintBtn} hitSlop={6}>
-                    <Text style={styles.icon}>🎨</Text>
+                  <Pressable onPress={() => setColorPickerItem(item)} style={styles.paintBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Color de ${item.nombre}`}>
+                    <MaterialCommunityIcons name="palette-outline" size={14} color="rgba(255,255,255,0.7)" />
                   </Pressable>
                 ) : null}
               </View>
             );
           })}
         </ScrollView>
-      ) : items.length === 1 && items[0]?._tipo === "hijo" ? (
-        <View style={styles.singleRow}>
-          <Text style={styles.singleName}>{items[0].nombre}</Text>
-          <Pressable onPress={() => setColorPickerItem(items[0])} style={styles.paintBtn} hitSlop={6}>
-            <Text style={styles.icon}>🎨</Text>
-          </Pressable>
-        </View>
       ) : null}
 
       <NotificacionesPanel
@@ -114,7 +116,6 @@ export function AppHeader() {
         onMarcarLeido={marcarLeido}
         onCerrar={() => setPanelNotifs(false)}
       />
-      <CambiarPasswordModal visible={cambiarPass} onClose={() => setCambiarPass(false)} />
       <ColorPicker
         item={colorPickerItem}
         currentColor={colorPickerItem ? colorDeItem(colorPickerItem) : null}
@@ -125,15 +126,6 @@ export function AppHeader() {
         onClose={() => setColorPickerItem(null)}
       />
     </View>
-  );
-}
-
-function LogoutButton() {
-  const { logout } = useSession();
-  return (
-    <Pressable onPress={logout} style={styles.iconBtn} hitSlop={8}>
-      <Text style={styles.salir}>Salir</Text>
-    </Pressable>
   );
 }
 
@@ -167,38 +159,43 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 }
 
 // El header es la superficie de marca: siempre dark, estilado con THEMES.dark
-// (el mismo set de tokens del login). `dk` se define arriba del componente.
+// (el mismo set de tokens del login).
 const styles = StyleSheet.create({
   header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   logo: { ...TYPE.h1, color: dk.textStrong, letterSpacing: -1 },
   logoDot: { color: dk.accent },
   actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
-  userName: { fontSize: 11, color: dk.textMuted, fontWeight: "600" },
   iconBtn: {
-    minWidth: 32,
-    minHeight: 32,
-    paddingHorizontal: 6,
-    borderRadius: RADIUS.sm,
+    minWidth: 34,
+    minHeight: 34,
+    borderRadius: RADIUS.md,
     backgroundColor: dk.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  hidden: { width: 0, height: 0 },
-  icon: { fontSize: 15 },
-  salir: { color: dk.textMuted, fontSize: 11, fontWeight: "600" },
-  badge: {
+  notifDot: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: STATUS.danger.main,
-    borderRadius: RADIUS.md,
-    minWidth: 16,
-    paddingHorizontal: 3,
-    alignItems: "center",
-    justifyContent: "center",
+    top: 7,
+    right: 7,
+    width: 7,
+    height: 7,
+    borderRadius: RADIUS.full,
+    backgroundColor: STATUS.danger.border,
+    borderWidth: 1.5,
+    borderColor: dk.bg,
   },
-  badgeTxt: { color: dk.textStrong, fontSize: 9, fontWeight: "800", lineHeight: 14 },
+  kidChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    minHeight: 34,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.full,
+    backgroundColor: dk.surface2,
+  },
+  kidDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  kidName: { ...TYPE.chip, fontWeight: "700", color: dk.textStrong },
   selector: { gap: 6, paddingTop: 10, alignItems: "center" },
   selItemWrap: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, marginRight: 6 },
   chip: {
@@ -221,8 +218,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  singleRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, paddingTop: 10 },
-  singleName: { ...TYPE.chip, color: dk.textMuted },
   pickerOverlay: { flex: 1, backgroundColor: dk.overlay, justifyContent: "flex-start" },
   pickerCard: {
     backgroundColor: dk.surfaceRaised,

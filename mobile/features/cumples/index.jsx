@@ -53,7 +53,7 @@ const bdayLabel = (dias) => {
 const fmtDiaMes = (fecha) =>
   new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" });
 
-export function Cumpleanios() {
+export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   const { cursoId, usuario, isAdmin, misHijos = [], hijoActivoId = null } = useSession();
   const userId = usuario?.id;
   const misHijosUniq = useMemo(() => [...new Set(misHijos)], [misHijos]);
@@ -262,6 +262,23 @@ export function Cumpleanios() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Deep-link desde el Muro (card de invitación del carrusel de Pendientes):
+  // abre el detalle del festejo apenas los datos lo contienen.
+  useEffect(() => {
+    if (!openFestejoId) return;
+    const deInvitacion = invitaciones.find(
+      (i) => i.evento && String(i.evento.id) === String(openFestejoId)
+    )?.evento;
+    const deFestejo = Object.values(festejoMap).find(
+      (f) => String(f.id) === String(openFestejoId)
+    );
+    const ev = deInvitacion || deFestejo;
+    if (ev) {
+      setFestejoDetalle(ev);
+      onClearOpenFestejo?.();
+    }
+  }, [openFestejoId, invitaciones, festejoMap, onClearOpenFestejo]);
 
   const guardarResponsable = async ({ responsable_id, comprado }) => {
     const isAlumno = editando.tipo === "Alumno";
