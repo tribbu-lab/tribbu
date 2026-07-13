@@ -1,26 +1,27 @@
-import { View, Text, StyleSheet } from "react-native";
-import { T } from "@shared/theme";
+// Etiqueta en cápsula — roles, estados, prioridades, etc.
+// API legacy estable (color/bg explícitos). Para tonos semánticos, dot y
+// tamaños usar <Badge/>; para roles, <RoleBadge/>.
 
-/** Etiqueta en cápsula — roles, estados, prioridades, etc. */
-export function Pill({ label, color, bg }) {
-  return (
-    <View style={[styles.pill, { backgroundColor: bg || "rgba(59,130,246,0.08)" }]}>
-      <Text style={[styles.text, { color: color || T.accent }]}>{label}</Text>
-    </View>
-  );
-}
+import { View, Text } from "react-native";
+import { TYPE, RADIUS, withAlpha } from "@shared/tokens";
+import { makeThemedStyles, useTheme } from "../context/Theme";
 
-const styles = StyleSheet.create({
+const useStyles = makeThemedStyles(() => ({
   pill: {
     paddingVertical: 4,
     paddingHorizontal: 12,
-    borderRadius: 100,
+    borderRadius: RADIUS.full,
     alignSelf: "flex-start",
   },
-  text: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-  },
-});
+  text: { ...TYPE.pill },
+}));
+
+export function Pill({ label, color, bg }) {
+  const s = useStyles();
+  const t = useTheme();
+  return (
+    <View style={[s.pill, { backgroundColor: bg || withAlpha(t.accent, 0.08) }]}>
+      <Text style={[s.text, { color: color || t.accent }]}>{label}</Text>
+    </View>
+  );
+}

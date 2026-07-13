@@ -1,24 +1,24 @@
-import { View, StyleSheet } from "react-native";
-import { T } from "@shared/theme";
+// Contenedor con sombra suave y bordes redondeados. Temable: en light es la
+// card blanca clásica; dentro de un <ThemeScope theme="dark"> adopta el
+// overlay del login. Estilos pre-creados por tema (seguro para FlatList).
 
-/** Contenedor con sombra suave y bordes redondeados (equivalente RN de la web). */
-export function Card({ children, style }) {
-  return <View style={[styles.card, style]}>{children}</View>;
-}
+import { View } from "react-native";
+import { RADIUS, SPACE, SHADOW } from "@shared/tokens";
+import { makeThemedStyles } from "../context/Theme";
 
-const styles = StyleSheet.create({
+const useStyles = makeThemedStyles((t) => ({
   card: {
-    backgroundColor: T.white,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: t.surface,
+    borderRadius: RADIUS.xxl,
+    padding: SPACE.xl,
+    marginBottom: SPACE.lg,
     borderWidth: 1,
-    borderColor: T.border,
-    // sombra: elevation (Android) + shadow* (iOS)
-    elevation: 2,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    borderColor: t.border,
+    ...SHADOW.card,
   },
-});
+}));
+
+export function Card({ children, style }) {
+  const s = useStyles();
+  return <View style={[s.card, style]}>{children}</View>;
+}

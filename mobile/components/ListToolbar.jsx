@@ -2,8 +2,59 @@
 // useListControls). Sin <select> nativo: el orden cicla con un botón y los
 // filtros se muestran como chips horizontales, idiomático en mobile.
 
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
-import { T } from "@shared/theme";
+import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import { TYPE, RADIUS, SPACE, MIN_TOUCH } from "@shared/tokens";
+import { makeThemedStyles, useTheme } from "../context/Theme";
+
+const useStyles = makeThemedStyles((t) => ({
+  wrap: { marginBottom: 14 },
+  row: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.sm },
+  search: {
+    flex: 2,
+    minHeight: MIN_TOUCH,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    fontSize: 13,
+    backgroundColor: t.surface,
+    color: t.text,
+  },
+  sortBtn: {
+    minHeight: MIN_TOUCH,
+    justifyContent: "center",
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+  },
+  sortTxt: { ...TYPE.chip, color: t.text },
+  clearBtn: {
+    minHeight: MIN_TOUCH,
+    justifyContent: "center",
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.dangerBorder,
+    backgroundColor: t.dangerSoft,
+  },
+  clearTxt: { fontSize: 12, color: t.danger, fontWeight: "700" },
+  chipsRow: { flexGrow: 0, marginBottom: 6 },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.full,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+    marginRight: 6,
+  },
+  chipActive: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  chipTxt: { ...TYPE.chip, color: t.textMuted },
+  chipTxtActive: { color: t.accent, fontWeight: "700" },
+  count: { fontSize: 11, color: t.textFaint, marginTop: 6 },
+}));
 
 export function ListToolbar({
   busqueda,
@@ -19,6 +70,8 @@ export function ListToolbar({
   total,
   placeholder = "Buscar...",
 }) {
+  const s = useStyles();
+  const t = useTheme();
   const hayFiltros = !!busqueda || Object.values(filtros).some((v) => v && v !== "all");
   const sortActual = sortOptions?.find((o) => o.key === sortKey);
 
@@ -35,25 +88,25 @@ export function ListToolbar({
   };
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.row}>
+    <View style={s.wrap}>
+      <View style={s.row}>
         <TextInput
           value={busqueda}
           onChangeText={setBusqueda}
           placeholder={placeholder}
-          placeholderTextColor="#94A3B8"
-          style={styles.search}
+          placeholderTextColor={t.placeholder}
+          style={s.search}
         />
         {sortOptions?.length > 0 && (
-          <Pressable onPress={cycleSort} style={styles.sortBtn}>
-            <Text style={styles.sortTxt} numberOfLines={1}>
+          <Pressable onPress={cycleSort} style={s.sortBtn}>
+            <Text style={s.sortTxt} numberOfLines={1}>
               {sortActual?.label || "Orden"} {sortAsc ? "↑" : "↓"}
             </Text>
           </Pressable>
         )}
         {hayFiltros && (
-          <Pressable onPress={resetFiltros} style={styles.clearBtn}>
-            <Text style={styles.clearTxt}>Limpiar</Text>
+          <Pressable onPress={resetFiltros} style={s.clearBtn}>
+            <Text style={s.clearTxt}>Limpiar</Text>
           </Pressable>
         )}
       </View>
@@ -64,7 +117,7 @@ export function ListToolbar({
             key={f.key}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.chipsRow}
+            style={s.chipsRow}
           >
             {[{ value: "all", label: "Todos" }, ...f.options].map((o) => {
               const active = (filtros[f.key] || "all") === o.value;
@@ -72,9 +125,9 @@ export function ListToolbar({
                 <Pressable
                   key={o.value}
                   onPress={() => setFiltro(f.key, o.value)}
-                  style={[styles.chip, active && styles.chipActive]}
+                  style={[s.chip, active && s.chipActive]}
                 >
-                  <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
+                  <Text style={[s.chipTxt, active && s.chipTxtActive]}>
                     {o.label}
                   </Text>
                 </Pressable>
@@ -83,59 +136,9 @@ export function ListToolbar({
           </ScrollView>
         ))}
 
-      <Text style={styles.count}>
+      <Text style={s.count}>
         {total} resultado{total !== 1 ? "s" : ""}
       </Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { marginBottom: 14 },
-  row: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  search: {
-    flex: 2,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    fontSize: 13,
-    backgroundColor: "white",
-    color: T.text,
-  },
-  sortBtn: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
-  },
-  sortTxt: { fontSize: 12, color: T.text, fontWeight: "600" },
-  clearBtn: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#FCA5A5",
-    backgroundColor: "#FEF2F2",
-  },
-  clearTxt: { fontSize: 12, color: "#EF4444", fontWeight: "700" },
-  chipsRow: { flexGrow: 0, marginBottom: 6 },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
-    marginRight: 6,
-  },
-  chipActive: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  chipTxt: { fontSize: 12, color: "#64748B", fontWeight: "600" },
-  chipTxtActive: { color: T.accent, fontWeight: "700" },
-  count: { fontSize: 11, color: "#94A3B8", marginTop: 6 },
-});

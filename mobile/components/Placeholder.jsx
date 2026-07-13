@@ -1,23 +1,26 @@
 // Pantalla provisional para features aún no portadas a RN (milestone 1).
 // La lógica web equivalente ya existe en src/features/<name>; el puerto RN es
-// trabajo de seguimiento.
+// trabajo de seguimiento. Para vacíos de datos dentro de una feature usar
+// <EmptyState/> (acepta CTA).
 
-import { View, Text, StyleSheet } from "react-native";
-import { T } from "@shared/theme";
+import { View, Text } from "react-native";
+import { TYPE, SPACE } from "@shared/tokens";
+import { makeThemedStyles } from "../context/Theme";
+
+const useStyles = makeThemedStyles((t) => ({
+  wrap: { flex: 1, backgroundColor: t.bg, alignItems: "center", justifyContent: "center", padding: SPACE.xxxl },
+  emoji: { fontSize: 44, marginBottom: SPACE.md },
+  title: { ...TYPE.h2, color: t.text, marginBottom: 6 },
+  note: { ...TYPE.body, color: t.textFaint, textAlign: "center" },
+}));
 
 export function Placeholder({ emoji = "🚧", title, note }) {
+  const s = useStyles();
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.emoji}>{emoji}</Text>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.note}>{note || "Esta sección se está portando a la app nativa."}</Text>
+    <View style={s.wrap}>
+      <Text style={s.emoji}>{emoji}</Text>
+      <Text style={s.title}>{title}</Text>
+      <Text style={s.note}>{note || "Esta sección se está portando a la app nativa."}</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: T.bg, alignItems: "center", justifyContent: "center", padding: 32 },
-  emoji: { fontSize: 44, marginBottom: 12 },
-  title: { fontSize: 18, fontWeight: "800", color: T.text, marginBottom: 6 },
-  note: { fontSize: 14, color: "#94A3B8", textAlign: "center", lineHeight: 20 },
-});

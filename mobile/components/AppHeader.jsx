@@ -6,10 +6,12 @@
 import { useState } from "react";
 import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { T, HIJO_COLORS_CUSTOM } from "@shared/theme";
+import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
 import { useNotificaciones, NotificacionesPanel } from "../features/notificaciones";
 import { CambiarPasswordModal } from "../features/auth";
+
+const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
 export function AppHeader() {
   const insets = useSafeAreaInsets();
@@ -78,7 +80,7 @@ export function AppHeader() {
                     <View
                       style={[
                         styles.dot,
-                        { backgroundColor: active ? dot : "rgba(255,255,255,0.3)" },
+                        { backgroundColor: active ? dot : dk.textFaint },
                       ]}
                     />
                   ) : null}
@@ -164,82 +166,82 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
   );
 }
 
+// El header es la superficie de marca: siempre dark, estilado con THEMES.dark
+// (el mismo set de tokens del login). `dk` se define arriba del componente.
 const styles = StyleSheet.create({
-  header: { backgroundColor: T.primary, paddingHorizontal: 16, paddingBottom: 10 },
+  header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  logo: { fontSize: 22, fontWeight: "900", color: "white", letterSpacing: -1 },
-  logoDot: { color: T.accent },
-  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  userName: { fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: "600" },
+  logo: { ...TYPE.h1, color: dk.textStrong, letterSpacing: -1 },
+  logoDot: { color: dk.accent },
+  actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
+  userName: { fontSize: 11, color: dk.textMuted, fontWeight: "600" },
   iconBtn: {
     minWidth: 32,
     minHeight: 32,
     paddingHorizontal: 6,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: RADIUS.sm,
+    backgroundColor: dk.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
   hidden: { width: 0, height: 0 },
   icon: { fontSize: 15 },
-  salir: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "600" },
+  salir: { color: dk.textMuted, fontSize: 11, fontWeight: "600" },
   badge: {
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: "#EF4444",
-    borderRadius: 10,
+    backgroundColor: STATUS.danger.main,
+    borderRadius: RADIUS.md,
     minWidth: 16,
     paddingHorizontal: 3,
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeTxt: { color: "white", fontSize: 9, fontWeight: "800", lineHeight: 14 },
+  badgeTxt: { color: dk.textStrong, fontSize: 9, fontWeight: "800", lineHeight: 14 },
   selector: { gap: 6, paddingTop: 10, alignItems: "center" },
-  selItemWrap: { flexDirection: "row", alignItems: "center", gap: 4, marginRight: 6 },
+  selItemWrap: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, marginRight: 6 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.full,
+    backgroundColor: dk.surface,
   },
-  chipActive: { backgroundColor: "rgba(255,255,255,0.2)" },
-  chipTxt: { color: "white", fontSize: 12, fontWeight: "600" },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  chipActive: { backgroundColor: dk.surfaceActive },
+  chipTxt: { ...TYPE.chip, color: dk.textStrong },
+  dot: { width: 8, height: 8, borderRadius: RADIUS.full },
   paintBtn: {
     width: 28,
     height: 28,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: RADIUS.sm,
+    backgroundColor: dk.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  singleRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10 },
-  singleName: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" },
-  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-start" },
-  pickerCard: { backgroundColor: "#1E293B", padding: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
-  pickerTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.5)",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 10,
+  singleRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, paddingTop: 10 },
+  singleName: { ...TYPE.chip, color: dk.textMuted },
+  pickerOverlay: { flex: 1, backgroundColor: dk.overlay, justifyContent: "flex-start" },
+  pickerCard: {
+    backgroundColor: dk.surfaceRaised,
+    padding: SPACE.lg,
+    borderBottomLeftRadius: RADIUS.xl,
+    borderBottomRightRadius: RADIUS.xl,
   },
-  swatches: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  swatch: { width: 40, height: 40, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
-  swatchActive: { borderColor: "white" },
+  pickerTitle: { ...TYPE.label, color: dk.textMuted, marginBottom: 10 },
+  swatches: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm, marginBottom: 10 },
+  swatch: { width: 40, height: 40, borderRadius: RADIUS.sm, borderWidth: 2, borderColor: "transparent" },
+  swatchActive: { borderColor: dk.textStrong },
   resetBtn: {
-    minHeight: 44,
-    borderRadius: 8,
+    minHeight: MIN_TOUCH,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.05)",
+    borderColor: dk.borderStrong,
+    backgroundColor: dk.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  resetTxt: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
+  resetTxt: { ...TYPE.chip, color: dk.textMuted, fontWeight: "700" },
 });

@@ -1,11 +1,14 @@
-import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { T } from "@shared/theme";
+// Indicador de carga centrado. Para listas con forma conocida preferir
+// <SkeletonList/> (percepción de carga más suave).
 
-/** Indicador de carga centrado. */
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useTheme } from "../context/Theme";
+
 export function Spinner({ style }) {
+  const t = useTheme();
   return (
     <View style={[styles.wrap, style]}>
-      <ActivityIndicator size="large" color={T.accent} />
+      <ActivityIndicator size="large" color={t.accent} />
     </View>
   );
 }
