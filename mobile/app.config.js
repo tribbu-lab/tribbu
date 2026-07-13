@@ -41,6 +41,9 @@ export default {
     },
     plugins: [
       "expo-router",
+      // Provee el módulo nativo ExpoFontLoader que @expo/vector-icons necesita
+      // para cargar las fuentes de íconos (MaterialCommunityIcons).
+      "expo-font",
       [
         // Reemplaza el ícono single-size por el set multi-tamaño: sin las
         // renditions chicas, iOS muestra un ícono en blanco en la notificación

@@ -144,6 +144,7 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 | `Sheet` | `visible, onClose, title, position` | modal estándar: bottom-sheet (default) o diálogo centrado; overlay tocable, safe-area, KeyboardAvoiding |
 | `Money` | `value, tone, size` | `fmtM` es-AR + tabular-nums; tonos `success` (pagado) / `danger` (deuda) / `muted` |
 | `ListToolbar` + `Paginador` | API de `useListControls` | patrón canónico de toda lista buscable/filtrable |
+| `FloatingTabBar` | `state, navigation, badge` | navegación del sistema (patrón A3): píldora flotante, íconos de trazo, cápsula activa `accentSoft`, badge de Recordatorios |
 | `Placeholder` | `emoji, title, note` | pantalla de feature no portada |
 
 ### Recetas
@@ -179,6 +180,10 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 **Import/export Excel.** Botón de export = `Button variant="outline" icon="📄" size="sm"`; durante el proceso `loading`. Flujos via `mobile/lib/media.js`.
 
 **Estados.** Cargando → `SkeletonList` (o `Spinner`); vacío → `EmptyState` con CTA si el rol puede crear; error → mensaje en `t.danger` + botón "Reintentar".
+
+**Inicio (patrón A3).** Pendientes = carrusel horizontal de cards accionables (recordatorio sin leer · colecta sin pagar · invitación sin responder) con snap + dots; sin pendientes, el slot no desaparece: empty punteado "Estás al día ✨". Debajo, agenda unificada de 15 días (eventos + cumples por proximidad) con countdown por urgencia — ≤3 días lleno (`accent`), ≤7 teñido (`accentSoft`), resto neutro — y card de Comedor (hoy o próximo día con servicio). Implementación de referencia: `features/muro`.
+
+**Íconos.** UI = `@expo/vector-icons` (MaterialCommunityIcons, variantes `-outline`, trazo). El emoji queda reservado para contenido (tipos de evento, celebraciones, comida) — nunca para chrome de UI.
 
 **Renderizado condicional.** Nunca `cond && <X/>` si `cond` puede ser `0`/`""` — usar ternario con `null` (regla RN del proyecto).
 
