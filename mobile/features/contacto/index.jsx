@@ -9,6 +9,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, safeUrl } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
@@ -212,7 +213,7 @@ export function Alumnos() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
   muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },

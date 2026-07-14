@@ -11,6 +11,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { MESES, T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 
@@ -342,7 +343,7 @@ export function UploadMenuExcel({ onDone }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },

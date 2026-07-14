@@ -268,7 +268,7 @@ export function AdminPanel() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 16, paddingBottom: 112 /* barra flotante */ },
   flex1: { flex: 1 },
   h1: { fontSize: 22, fontWeight: "900", color: T.text },
   subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },

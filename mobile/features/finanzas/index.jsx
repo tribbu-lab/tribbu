@@ -7,6 +7,7 @@ import { View, Text, Pressable, ScrollView, TextInput, Modal, StyleSheet } from 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
@@ -493,7 +494,7 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose })
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },

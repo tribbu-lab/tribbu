@@ -26,6 +26,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, fmtF, sanitize, safeUrl } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { SelectChip } from "../../components/SelectChip";
 import { Paginador } from "../../components/Paginador";
@@ -1314,7 +1315,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown por urgencia.
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },

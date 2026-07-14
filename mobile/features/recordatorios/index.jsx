@@ -11,6 +11,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
 import { SelectChip } from "../../components/SelectChip";
@@ -406,7 +407,7 @@ function HistorialComunicados({ cursoId }) {
 // Estilos A3: sin sombras, borde hairline, radio 16, dot de estado como ancla.
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   headerWrap: { marginBottom: SPACE.xs },
   flex1: { flex: 1 },
 

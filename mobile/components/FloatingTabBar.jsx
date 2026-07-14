@@ -13,6 +13,11 @@ import { THEMES, BLUE, RADIUS, SHADOW, TYPE } from "@shared/tokens";
 const t = THEMES.light;
 const ACTIVE = BLUE[600];
 
+// Espacio que cada pantalla debe reservar al final de su scroll para que el
+// último ítem pase por detrás de la barra y quede alcanzable
+// (alto de la píldora + safe area + respiro). Usar en contentContainerStyle.
+export const TAB_BAR_SPACE = 112;
+
 // "Recordatorios" se abrevia a "Avisos" solo en la barra (la pantalla conserva
 // su nombre completo): 5 slots de ~66pt no soportan 13 caracteres con el
 // escalado de fuente del sistema.
@@ -28,7 +33,7 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.wrap, { paddingBottom: insets.bottom + 8 }]}>
+    <View style={[styles.wrap, { paddingBottom: insets.bottom + 8 }]} pointerEvents="box-none">
       <View style={styles.bar}>
         {TABS.map((tab) => {
           const idx = state.routes.findIndex((r) => r.name === tab.name);
@@ -82,7 +87,16 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: t.bg, paddingHorizontal: 14, paddingTop: 6 },
+  // Overlay real: la barra flota sobre el contenido (que scrollea por detrás);
+  // el wrapper es transparente y no captura toques fuera de la píldora.
+  wrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    backgroundColor: "transparent",
+  },
   bar: {
     flexDirection: "row",
     backgroundColor: t.surface,

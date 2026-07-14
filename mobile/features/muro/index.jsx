@@ -27,6 +27,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { SkeletonList } from "../../components/Skeleton";
 
@@ -522,7 +523,7 @@ function AlertaModal({ visible, onClose, onEnviar }) {
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown protagonista.
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
 
   eyebrow: { ...TYPE.label, color: t.textFaint },

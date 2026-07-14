@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
+import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
 
@@ -69,7 +70,7 @@ export default function MasScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
