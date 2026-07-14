@@ -16,12 +16,15 @@ import {
   Linking,
   StyleSheet,
 } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { safeUrl } from "@shared/helpers";
-import { T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Alumnos } from "../contacto";
+
+const t = THEMES.light;
 
 const abrir = async (url) => {
   const safe = safeUrl(url);
@@ -164,7 +167,7 @@ function Utiles({ cursoId, userId, isAdmin }) {
         value={busqueda}
         onChangeText={setBusqueda}
         placeholder="Buscar por nombre o categoría..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={t.textFaint}
         autoCorrect={false}
         style={styles.search}
       />
@@ -186,7 +189,7 @@ function Utiles({ cursoId, userId, isAdmin }) {
               return (
                 <View key={u.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
                   <Pressable onPress={() => toggle(u.id)} style={[styles.check, adq && styles.checkOn]}>
-                    {adq ? <Text style={styles.checkMark}>✓</Text> : null}
+                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
                   </Pressable>
                   <View style={styles.flex1}>
                     <Text style={[styles.itemName, adq && styles.itemNameOn]}>{u.item}</Text>
@@ -202,10 +205,10 @@ function Utiles({ cursoId, userId, isAdmin }) {
                         }}
                         style={styles.miniBtn}
                       >
-                        <Text style={styles.miniTxt}>✏️</Text>
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
                       </Pressable>
                       <Pressable onPress={() => eliminar(u.id)} style={styles.miniBtn}>
-                        <Text style={[styles.miniTxt, { color: "#EF4444" }]}>🗑</Text>
+                        <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
                       </Pressable>
                     </View>
                   ) : null}
@@ -332,7 +335,7 @@ function Libros({ cursoId, userId, isAdmin }) {
         value={busqueda}
         onChangeText={setBusqueda}
         placeholder="Buscar por nombre, materia o editorial..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={t.textFaint}
         autoCorrect={false}
         style={styles.search}
       />
@@ -347,9 +350,9 @@ function Libros({ cursoId, userId, isAdmin }) {
             {items.map((l) => {
               const adq = adquiridos.has(l.id);
               return (
-                <Card key={l.id} style={[styles.libroCard, { borderLeftColor: adq ? T.green : "#E2E8F0" }]}>
+                <Card key={l.id} style={[styles.libroCard, { borderLeftColor: adq ? t.success : t.borderStrong }]}>
                   <Pressable onPress={() => toggle(l.id)} style={[styles.check, adq && styles.checkOn]}>
-                    {adq ? <Text style={styles.checkMark}>✓</Text> : null}
+                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
                   </Pressable>
                   <View style={styles.flex1}>
                     <Text style={[styles.itemName, adq && styles.itemNameOn]}>{l.nombre}</Text>
@@ -374,10 +377,10 @@ function Libros({ cursoId, userId, isAdmin }) {
                         }}
                         style={styles.miniBtn}
                       >
-                        <Text style={styles.miniTxt}>✏️</Text>
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
                       </Pressable>
                       <Pressable onPress={() => eliminar(l.id)} style={styles.miniBtn}>
-                        <Text style={[styles.miniTxt, { color: "#EF4444" }]}>🗑</Text>
+                        <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
                       </Pressable>
                     </View>
                   ) : null}
@@ -501,7 +504,7 @@ function Uniformes({ cursoId, userId }) {
                 return (
                   <View key={it.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
                     <Pressable onPress={() => toggle(it.id)} style={[styles.check, adq && styles.checkOn]}>
-                      {adq ? <Text style={styles.checkMark}>✓</Text> : null}
+                      {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
                     </Pressable>
                     <Text style={[styles.itemName, styles.flex1, adq && styles.itemNameOn]}>{it.item}</Text>
                   </View>
@@ -529,7 +532,7 @@ function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuard
                   value={form[f.k] || ""}
                   onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
                   placeholder={f.ph}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={t.textFaint}
                   style={styles.input}
                 />
               </View>
@@ -550,63 +553,61 @@ function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuard
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  headerWrap: { paddingHorizontal: 16, paddingTop: 16 },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  headerWrap: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.lg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 14 },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginBottom: 14 },
   subTabs: { gap: 7, paddingBottom: 4 },
-  subTab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", minHeight: 36, justifyContent: "center" },
-  subTabActive: { backgroundColor: T.primary, borderColor: T.primary },
-  subTabTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  subTabTxtActive: { color: "white" },
+  subTab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 36, justifyContent: "center" },
+  subTabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
+  subTabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  subTabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  progressTxt: { fontSize: 13, color: "#94A3B8" },
-  addBtn: { backgroundColor: T.accent, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
-  addTxt: { color: "white", fontSize: 12, fontWeight: "700" },
-  search: { minHeight: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white", fontSize: 13, color: T.text, marginBottom: 12 },
-  empty: { textAlign: "center", paddingVertical: 32, color: "#94A3B8", fontSize: 13 },
+  progressTxt: { fontSize: 13, color: t.textMuted },
+  addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
+  addTxt: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  search: { minHeight: 44, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, fontSize: 13, color: t.text, marginBottom: 12 },
+  empty: { textAlign: "center", paddingVertical: 32, color: t.textMuted, fontSize: 13 },
   group: { marginBottom: 14 },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: "#F1F5F9", borderRadius: 8 },
-  groupTitle: { flex: 1, fontSize: 11, fontWeight: "800", color: "#475569", textTransform: "uppercase", letterSpacing: 0.8 },
-  groupCount: { fontSize: 10, color: "#94A3B8" },
-  materiaLabel: { fontSize: 11, fontWeight: "700", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 },
-  itemRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9", backgroundColor: "white" },
-  itemRowOn: { backgroundColor: "#F0FDF4" },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: "#CBD5E1", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  checkOn: { borderColor: T.green, backgroundColor: T.green },
-  checkMark: { color: "white", fontSize: 13, fontWeight: "900" },
-  itemName: { fontSize: 13, fontWeight: "500", color: T.text },
-  itemNameOn: { color: "#94A3B8", textDecorationLine: "line-through" },
-  itemSub: { fontSize: 11, color: "#94A3B8", marginTop: 1 },
-  cantidad: { fontSize: 12, color: "#475569", fontWeight: "600" },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: t.surface2, borderRadius: RADIUS.sm },
+  groupTitle: { flex: 1, ...TYPE.label, color: t.textFaint },
+  groupCount: { fontSize: 10, color: t.textFaint },
+  materiaLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 6 },
+  itemRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: t.border, backgroundColor: t.surface },
+  itemRowOn: { backgroundColor: t.successSoft },
+  check: { width: 24, height: 24, borderRadius: RADIUS.xs, borderWidth: 2, borderColor: SLATE[300], backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  checkOn: { borderColor: t.success, backgroundColor: t.success },
+  itemName: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  itemNameOn: { color: t.textFaint, textDecorationLine: "line-through" },
+  itemSub: { fontSize: 12, color: t.textMuted, marginTop: 1 },
+  cantidad: { fontSize: 12, color: t.textMuted, fontWeight: "600" },
   itemActions: { flexDirection: "row", gap: 4 },
-  miniBtn: { padding: 6, borderRadius: 6 },
-  miniTxt: { fontSize: 13, color: "#64748B" },
-  link: { fontSize: 11, fontWeight: "700", color: T.accent, marginTop: 3 },
-  libroCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, marginBottom: 7, borderLeftWidth: 3 },
-  cover: { width: 44, height: 60, borderRadius: 7, borderWidth: 1, borderColor: "#E2E8F0" },
+  miniBtn: { padding: 6, borderRadius: RADIUS.xs },
+  link: { fontSize: 12, fontWeight: "700", color: BLUE[600], marginTop: 3 },
+  libroCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, marginBottom: 7, borderLeftWidth: 3, borderRadius: RADIUS.xl, borderColor: t.borderStrong, elevation: 0, shadowOpacity: 0 },
+  cover: { width: 44, height: 60, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong },
   previewOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
-  previewImg: { width: "100%", height: "70%", borderRadius: 12 },
-  previewName: { color: "white", fontSize: 14, fontWeight: "700", marginTop: 14 },
+  previewImg: { width: "100%", height: "70%", borderRadius: RADIUS.lg },
+  previewName: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", marginTop: 14 },
   uniProgress: { marginBottom: 14 },
   progressTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
-  progressLabel: { fontSize: 11, fontWeight: "700", color: "#64748B" },
-  bar: { height: 6, borderRadius: 10, backgroundColor: "#E2E8F0", overflow: "hidden" },
-  barFill: { height: "100%", backgroundColor: T.green, borderRadius: 10 },
-  uniCard: { padding: 0, marginBottom: 12, overflow: "hidden" },
-  uniHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#EEF2FF", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  progressLabel: { fontSize: 11, fontWeight: "700", color: t.textMuted },
+  bar: { height: 6, borderRadius: RADIUS.full, backgroundColor: SLATE[200], overflow: "hidden" },
+  barFill: { height: "100%", backgroundColor: t.success, borderRadius: RADIUS.full },
+  uniCard: { padding: 0, marginBottom: 12, overflow: "hidden", borderRadius: RADIUS.xl, borderColor: t.borderStrong, elevation: 0, shadowOpacity: 0 },
+  uniHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: t.accentSoft, borderBottomWidth: 1, borderBottomColor: t.border },
   uniEmoji: { fontSize: 18 },
-  uniTipo: { fontSize: 14, fontWeight: "800", color: T.text, flex: 1 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: "white", borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 12 },
-  label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 5, marginTop: 6 },
-  input: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", paddingHorizontal: 12, fontSize: 13, color: T.text },
+  uniTipo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, flex: 1 },
+  overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
+  modalCard: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
+  modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 12 },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 6 },
+  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 13, color: t.text },
   modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: "white", fontSize: 13, fontWeight: "700" },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textMuted, fontSize: 13, fontWeight: "700" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 });

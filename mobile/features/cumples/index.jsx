@@ -22,16 +22,33 @@ import {
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, fmtF, sanitize, safeUrl } from "@shared/helpers";
 import { T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { useSession } from "../../context/Session";
-import { ListToolbar } from "../../components/ListToolbar";
+import { SelectChip } from "../../components/SelectChip";
 import { Paginador } from "../../components/Paginador";
+import { Avatar } from "../../components/Avatar";
 import { useListControls } from "../../lib/useListControls";
+
+const t = THEMES.light;
 
 const MESES_NOMBRES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+// Opciones de los filtros colapsados (SelectChip): el chip muestra el nombre
+// corto del mes cuando hay filtro activo.
+const MES_OPTS = [
+  { value: "all", label: "Todos los meses" },
+  ...MESES_NOMBRES.map((m, i) => ({ value: String(i), label: m, short: m.slice(0, 3) })),
+];
+const TIPO_OPTS = [
+  { value: "all", label: "Todos" },
+  { value: "Alumno", label: "Alumnos" },
+  { value: "Maestro", label: "Maestros" },
 ];
 
 const nextBday = (fecha) => {
@@ -43,11 +60,13 @@ const nextBday = (fecha) => {
   return Math.round((next - hoy) / (1000 * 60 * 60 * 24));
 };
 
+// Countdown con urgencia (firma A3): ≤3 lleno, ≤7 teñido, resto neutro.
 const bdayLabel = (dias) => {
-  if (dias === 0) return { l: "Hoy", c: "#EF4444", bg: "#FEE2E2" };
-  if (dias === 1) return { l: "Mañana", c: "#F59E0B", bg: "#FEF3C7" };
-  if (dias <= 7) return { l: `${dias}d`, c: "#F59E0B", bg: "#FEF3C7" };
-  return { l: `${dias}d`, c: "#94A3B8", bg: "#F1F5F9" };
+  if (dias === 0) return { l: "Hoy", c: t.onAccent, bg: t.accent };
+  if (dias === 1) return { l: "Mañana", c: t.onAccent, bg: t.accent };
+  if (dias <= 3) return { l: `${dias} días`, c: t.onAccent, bg: t.accent };
+  if (dias <= 7) return { l: `${dias} días`, c: BLUE[600], bg: t.accentSoft };
+  return { l: `${dias} días`, c: t.textMuted, bg: SLATE[100] };
 };
 
 const fmtDiaMes = (fecha) =>
@@ -335,11 +354,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
 
   const ctrl = useListControls(lista, {
     searchFn: (a, q) => a.nombre.toLowerCase().includes(q),
-    sortOptions: [
-      { key: "proximo", label: "Próximo", val: (a) => nextBday(a.fecha_nacimiento) },
-      { key: "nombre", label: "Nombre", val: (a) => a.nombre },
-      { key: "mes", label: "Mes", val: (a) => new Date(a.fecha_nacimiento + "T00:00:00").getMonth() },
-    ],
+    // Orden fijo: próximo cumpleaños primero (sin control de orden en la UI).
+    sortOptions: [{ key: "proximo", label: "Próximo", val: (a) => nextBday(a.fecha_nacimiento) }],
     filterOptions: [
       {
         key: "mes",
@@ -364,106 +380,142 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     (a) => a.tipo === "Alumno" && misHijosUniq.includes(a.rawId)
   );
 
+  const esteMes = lista.filter(
+    (a) => new Date(a.fecha_nacimiento + "T00:00:00").getMonth() === new Date().getMonth()
+  ).length;
+
   const Header = (
     <View>
-      <Text style={styles.h1}>Cumpleaños 🎂</Text>
-      <View style={styles.subRow}>
-        <Text style={styles.subtitle}>{lista.length} cumpleaños en el curso</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.h1}>Cumpleaños</Text>
         {montoRegalo ? (
           <View style={styles.montoPill}>
             <Text style={styles.montoTxt}>
-              🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}
+              🎁 {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")} por familia
             </Text>
           </View>
         ) : null}
       </View>
+      <Text style={styles.subtitle}>
+        {lista.length} en el curso{esteMes ? ` · ${esteMes} este mes` : ""}
+      </Text>
 
-      {/* Banner: crear/ver festejo del propio hijo */}
+      {/* Tu festejo: crear/ver festejo del propio hijo (card A3 con barra del color del hijo) */}
+      {hijosConCumple.length > 0 ? <Text style={styles.label}>Tu festejo</Text> : null}
       {hijosConCumple.map((a) => {
         const fest = festejoMap[a.rawId];
         const bl = bdayLabel(nextBday(a.fecha_nacimiento));
+        const ct = childTheme(a.color);
         return (
-          <View key={`b-${a.rawId}`} style={[styles.banner, fest ? styles.bannerFest : styles.bannerNew]}>
-            <Text style={styles.bannerEmoji}>🎂</Text>
-            <View style={styles.flex1}>
-              <Text style={styles.bannerNombre}>{a.nombre}</Text>
-              <Text style={styles.bannerFecha}>
-                {fmtDiaMes(a.fecha_nacimiento)} <Text style={{ color: bl.c, fontWeight: "700" }}>{bl.l}</Text>
-              </Text>
-            </View>
-            {fest ? (
-              <View style={styles.bannerBtns}>
-                <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.verFestBtn}>
-                  <Text style={styles.verFestTxt}>🎉 Ver festejo</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, festejo: fest })}
-                  style={styles.editFestBtn}
-                >
-                  <Text style={styles.editFestTxt}>Editar</Text>
-                </Pressable>
+          <View key={`b-${a.rawId}`} style={[styles.banner, { borderLeftColor: ct.main }]}>
+            <View style={styles.bannerTop}>
+              <Avatar nombre={a.nombre} color={a.color} size={38} />
+              <View style={styles.flex1}>
+                <Text style={styles.bannerNombre}>
+                  {fest ? "Festejo de " : "Cumple de "}
+                  {a.nombre.split(" ")[0]}
+                </Text>
+                <Text style={styles.bannerFecha}>
+                  {fmtDiaMes(a.fecha_nacimiento)}
+                  {fest ? " · invitaciones enviadas" : " · todavía sin festejo"}
+                </Text>
               </View>
-            ) : (
-              <Pressable
-                onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre })}
-                style={styles.crearFestBtn}
-              >
-                <Text style={styles.crearFestTxt}>+ Crear festejo</Text>
-              </Pressable>
-            )}
+              <View style={[styles.diasPill, { backgroundColor: bl.bg }]}>
+                <Text style={[styles.diasTxt, { color: bl.c }]}>{bl.l}</Text>
+              </View>
+            </View>
+            <View style={styles.bannerBtns}>
+              {fest ? (
+                <>
+                  <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.verFestBtn}>
+                    <Text style={styles.verFestTxt}>Ver festejo</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, festejo: fest })}
+                    style={styles.editFestBtn}
+                  >
+                    <Text style={styles.editFestTxt}>Editar</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre })}
+                  style={styles.verFestBtn}
+                >
+                  <Text style={styles.verFestTxt}>+ Crear festejo</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         );
       })}
 
-      {/* Mis invitaciones */}
+      {/* Mis invitaciones: fila tocable con chip de estado (A3) */}
       {invitaciones.length > 0 ? (
         <View style={styles.invSection}>
-          <Text style={styles.invTitle}>MIS INVITACIONES</Text>
+          <Text style={styles.label}>Invitaciones</Text>
           {invitaciones.map((inv) => {
             const ev = inv.evento;
             if (!ev) return null;
             const estado =
               inv.asiste === "si"
-                ? { l: "Confirmado", c: "#10B981", bg: "#F0FDF4" }
+                ? { l: "✓ Confirmado", c: t.success, bg: t.successSoft }
                 : inv.asiste === "no"
-                ? { l: "No va", c: "#EF4444", bg: "#FEF2F2" }
-                : { l: "Pendiente", c: "#F59E0B", bg: "#FFFBEB" };
+                ? { l: "No va", c: t.danger, bg: t.dangerSoft }
+                : { l: "Responder", c: "#B45309", bg: t.warningSoft };
             return (
-              <View key={inv.id} style={styles.invCard}>
+              <Pressable key={inv.id} onPress={() => setFestejoDetalle(ev)} style={styles.invCard}>
+                <View style={styles.invTile}>
+                  <Text style={styles.invTileTxt}>🎉</Text>
+                </View>
                 <View style={styles.flex1}>
-                  <Text style={styles.invNombre}>{ev.titulo}</Text>
-                  <Text style={styles.invMeta}>
+                  <Text style={styles.invNombre} numberOfLines={1}>{ev.titulo}</Text>
+                  <Text style={styles.invMeta} numberOfLines={1}>
                     {fmtF(ev.fecha)}
                     {ev.hora ? ` · ${ev.hora}${ev.hora_fin ? ` – ${ev.hora_fin}` : ""}` : ""}
                     {ev.lugar ? ` · ${ev.lugar}` : ""}
                   </Text>
-                  <View style={[styles.estadoPill, { backgroundColor: estado.bg }]}>
-                    <Text style={[styles.estadoTxt, { color: estado.c }]}>{estado.l}</Text>
-                  </View>
                 </View>
-                <Pressable onPress={() => setFestejoDetalle(ev)} style={styles.invBtn}>
-                  <Text style={styles.invBtnTxt}>Ver / Responder</Text>
-                </Pressable>
-              </View>
+                <View style={[styles.estadoPill, { backgroundColor: estado.bg }]}>
+                  <Text style={[styles.estadoTxt, { color: estado.c }]}>{estado.l}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={17} color={SLATE[300]} />
+              </Pressable>
             );
           })}
         </View>
       ) : null}
 
-      <ListToolbar
-        busqueda={ctrl.busqueda}
-        setBusqueda={ctrl.setBusqueda}
-        sortOptions={ctrl.sortOptions}
-        sortKey={ctrl.sortKey}
-        sortAsc={ctrl.sortAsc}
-        toggleSort={ctrl.toggleSort}
-        filterOptions={ctrl.filterOptions}
-        filtros={ctrl.filtros}
-        setFiltro={ctrl.setFiltro}
-        resetFiltros={ctrl.resetFiltros}
-        total={ctrl.total}
-        placeholder="Buscar por nombre..."
-      />
+      {/* Toolbar A3: búsqueda + filtros colapsados en una sola fila (orden fijo por fecha) */}
+      <View style={styles.toolRow}>
+        <View style={styles.searchWrap}>
+          <MaterialCommunityIcons name="magnify" size={16} color={t.textFaint} />
+          <TextInput
+            value={ctrl.busqueda}
+            onChangeText={ctrl.setBusqueda}
+            placeholder="Buscar por nombre..."
+            placeholderTextColor={t.placeholder}
+            style={styles.searchInput}
+          />
+        </View>
+        <SelectChip
+          label="Mes"
+          prefix={false}
+          value={ctrl.filtros.mes || "all"}
+          options={MES_OPTS}
+          onChange={(v) => ctrl.setFiltro("mes", v)}
+        />
+        <SelectChip
+          label="Tipo"
+          prefix={false}
+          value={ctrl.filtros.tipo || "all"}
+          options={TIPO_OPTS}
+          onChange={(v) => ctrl.setFiltro("tipo", v)}
+        />
+      </View>
+      <Text style={styles.cnt}>
+        {ctrl.total} resultado{ctrl.total !== 1 ? "s" : ""}
+      </Text>
     </View>
   );
 
@@ -481,17 +533,16 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       : null;
     return (
       <View style={styles.row}>
+        <Avatar nombre={a.nombre} color={a.color} size={38} />
         <View style={styles.flex1}>
-          <Text style={styles.rowNombre}>{a.nombre}</Text>
+          <Text style={styles.rowNombre} numberOfLines={1}>{a.nombre}</Text>
           <View style={styles.rowTags}>
-            <View
-              style={[styles.tipoPill, { backgroundColor: a.tipo === "Maestro" ? "#F5F3FF" : "#EFF6FF" }]}
-            >
-              <Text style={[styles.tipoTxt, { color: a.tipo === "Maestro" ? "#8B5CF6" : "#3B82F6" }]}>
-                {a.tipo === "Maestro" ? "👨‍🏫 Maestro" : "🎒 Alumno"}
-              </Text>
-            </View>
             <Text style={styles.rowFecha}>{fmtDiaMes(a.fecha_nacimiento)}</Text>
+            <Text style={styles.rowFecha}>·</Text>
+            <Text style={[styles.tipoTxt, { color: a.tipo === "Maestro" ? "#8B5CF6" : t.textMuted }]}>
+              {a.tipo}
+              {esMiHijo ? " · tu hijo/a" : ""}
+            </Text>
           </View>
           {respNombre ? <Text style={styles.regala}>🎁 Regala: {respNombre}</Text> : null}
           {cumple.comprado ? (
@@ -631,7 +682,7 @@ export function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
                 <Pressable
                   key={a.rawId}
                   onPress={() => setResponsableId(a.rawId)}
-                  style={[styles.optRow, sel && { borderColor: a.color || T.accent, backgroundColor: "#EFF6FF" }]}
+                  style={[styles.optRow, sel && { borderColor: a.color || T.accent, backgroundColor: t.accentSoft }]}
                 >
                   <Text style={[styles.optTxt, sel && { fontWeight: "700" }]}>{a.nombre}</Text>
                   {sel ? <Text style={{ color: a.color || T.accent, fontWeight: "700" }}>✓</Text> : null}
@@ -856,7 +907,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
                   <Pressable
                     key={a.id}
                     onPress={() => toggleAlumno(a.id)}
-                    style={[styles.optRow, sel && { borderColor: a.color || T.accent, backgroundColor: "#EFF6FF" }]}
+                    style={[styles.optRow, sel && { borderColor: a.color || T.accent, backgroundColor: t.accentSoft }]}
                   >
                     <Text style={[styles.optTxt, sel && { fontWeight: "700" }]}>{fmtNombre(a)}</Text>
                     {sel ? <Text style={{ color: a.color || T.accent, fontWeight: "700" }}>✓</Text> : null}
@@ -1260,129 +1311,169 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
   );
 }
 
+// Estilos A3: sin sombras, borde hairline, radio 16, countdown por urgencia.
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text, marginBottom: 4 },
-  subRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 },
-  subtitle: { fontSize: 13, color: "#94A3B8" },
-  montoPill: { backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
-  montoTxt: { fontSize: 12, fontWeight: "700", color: "#10B981" },
-  muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 16 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4, marginBottom: 4 },
+  label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.lg, marginBottom: SPACE.sm },
+  montoPill: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 11 },
+  montoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
+  muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
 
-  banner: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 12 },
-  bannerNew: { backgroundColor: "#FFFBEB", borderColor: "#FCD34D" },
-  bannerFest: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  bannerEmoji: { fontSize: 26 },
-  bannerNombre: { fontSize: 13, fontWeight: "800", color: T.text },
-  bannerFecha: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  bannerBtns: { gap: 4, alignItems: "flex-end" },
-  verFestBtn: { backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
-  verFestTxt: { color: "white", fontSize: 12, fontWeight: "700" },
-  editFestBtn: { borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-  editFestTxt: { color: "#10B981", fontSize: 11, fontWeight: "600" },
-  crearFestBtn: { backgroundColor: "#F59E0B", borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
-  crearFestTxt: { color: "white", fontSize: 12, fontWeight: "700" },
+  banner: {
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    borderLeftWidth: 3,
+    borderRadius: RADIUS.xl,
+    padding: 13,
+    marginBottom: SPACE.sm,
+  },
+  bannerTop: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
+  bannerNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  bannerFecha: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  bannerBtns: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md, paddingLeft: 50 },
+  verFestBtn: { backgroundColor: t.accent, borderRadius: RADIUS.md, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
+  verFestTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
+  editFestBtn: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.md, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
+  editFestTxt: { color: t.textMuted, fontSize: 12.5, fontWeight: "700" },
 
-  invSection: { marginBottom: 14 },
-  invTitle: { fontSize: 11, fontWeight: "700", color: "#94A3B8", letterSpacing: 1, marginBottom: 8 },
-  invCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFFBEB", borderWidth: 1.5, borderColor: "#FCD34D", borderRadius: 14, padding: 12, marginBottom: 8 },
-  invNombre: { fontSize: 13, fontWeight: "700", color: T.text },
-  invMeta: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
-  estadoPill: { alignSelf: "flex-start", borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, marginTop: 4 },
-  estadoTxt: { fontSize: 10, fontWeight: "700" },
-  invBtn: { backgroundColor: "#F59E0B", borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
-  invBtnTxt: { color: "white", fontSize: 12, fontWeight: "700" },
+  // toolbar de una fila: búsqueda + selects colapsados
+  toolRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginTop: SPACE.lg },
+  searchWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.full,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+  },
+  searchInput: { flex: 1, fontSize: 13, color: t.text, paddingVertical: 0 },
+  cnt: { fontSize: 11.5, color: t.textFaint, marginTop: 6, marginBottom: SPACE.sm },
 
-  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, padding: 12, marginBottom: 8 },
-  rowNombre: { fontSize: 14, fontWeight: "700", color: T.text, marginBottom: 2 },
-  rowTags: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  tipoPill: { borderRadius: 20, paddingVertical: 2, paddingHorizontal: 7 },
-  tipoTxt: { fontSize: 10, fontWeight: "700" },
-  rowFecha: { fontSize: 11, color: "#94A3B8" },
-  regala: { fontSize: 11, color: "#64748B", marginTop: 1 },
-  compradoPill: { alignSelf: "flex-start", backgroundColor: "#F0FDF4", borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, marginTop: 2 },
-  compradoTxt: { fontSize: 10, fontWeight: "700", color: "#10B981" },
-  rowRight: { alignItems: "flex-end", gap: 4 },
-  diasPill: { borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
-  diasTxt: { fontSize: 11, fontWeight: "800" },
-  miniFest: { borderWidth: 1, borderColor: "#FCD34D", backgroundColor: "#FFFBEB", borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  miniFestTxt: { fontSize: 10, fontWeight: "700", color: "#F59E0B" },
-  miniCrear: { borderWidth: 1, borderColor: "#BFDBFE", backgroundColor: "#EFF6FF", borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  miniCrearTxt: { fontSize: 11, fontWeight: "700", color: "#3B82F6" },
+  invSection: { marginBottom: 4 },
+  invCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.md,
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    borderRadius: RADIUS.xl,
+    padding: 13,
+    marginBottom: SPACE.sm,
+  },
+  invTile: { width: 38, height: 38, borderRadius: RADIUS.md + 1, backgroundColor: t.warningSoft, alignItems: "center", justifyContent: "center" },
+  invTileTxt: { fontSize: 18 },
+  invNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  invMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  estadoPill: { borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
+  estadoTxt: { fontSize: 10.5, fontWeight: "800" },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.md,
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    borderRadius: RADIUS.xl,
+    padding: 13,
+    marginBottom: SPACE.sm,
+  },
+  rowNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, marginBottom: 2 },
+  rowTags: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2 },
+  tipoTxt: { fontSize: 12, fontWeight: "600" },
+  rowFecha: { fontSize: 12, color: t.textMuted },
+  regala: { fontSize: 12, color: t.textMuted, marginTop: 1 },
+  compradoPill: { alignSelf: "flex-start", backgroundColor: t.successSoft, borderRadius: RADIUS.full, paddingVertical: 3, paddingHorizontal: 8, marginTop: 3 },
+  compradoTxt: { fontSize: 10, fontWeight: "700", color: t.success },
+  rowRight: { alignItems: "flex-end", gap: 5 },
+  diasPill: { borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
+  diasTxt: { fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  miniFest: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
+  miniFestTxt: { fontSize: 10.5, fontWeight: "700", color: "#B45309" },
+  miniCrear: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
+  miniCrearTxt: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
   adminBtns: { flexDirection: "row", gap: 4 },
-  miniAdmin: { borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  miniAdminTxt: { fontSize: 10, color: "#64748B" },
-  miniColecta: { borderWidth: 1, borderColor: "#BFDBFE", backgroundColor: "#EFF6FF", borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  miniColectaTxt: { fontSize: 10, color: "#3B82F6", fontWeight: "700" },
+  miniAdmin: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
+  miniAdminTxt: { fontSize: 10, color: t.textMuted, fontWeight: "600" },
+  miniColecta: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
+  miniColectaTxt: { fontSize: 10, color: BLUE[600], fontWeight: "700" },
 
   // Modales
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 16 },
-  modalCard: { backgroundColor: "white", borderRadius: 20, padding: 20, maxHeight: "88%" },
-  modalTitle: { fontSize: 17, fontWeight: "900", color: T.text, marginBottom: 4 },
-  modalSub: { fontSize: 12, color: "#94A3B8", marginBottom: 8 },
-  label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
-  input: { minHeight: 44, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: "#F8FAFC" },
+  overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "center", padding: SPACE.lg },
+  modalCard: { backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xl, maxHeight: "88%" },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: t.textStrong, marginBottom: 4 },
+  modalSub: { fontSize: 12, color: t.textFaint, marginBottom: 8 },
+  input: { minHeight: 44, borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, paddingVertical: 8, fontSize: 13, color: t.text, backgroundColor: t.surfaceSunken },
   horaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   horaInput: { flex: 1 },
-  optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44, borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6, backgroundColor: "white" },
-  optRowSel: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  optTxt: { fontSize: 13, color: T.text, flex: 1 },
-  togglePill: { alignSelf: "flex-start", borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 },
-  togglePillOn: { borderColor: "#10B981", backgroundColor: "#F0FDF4" },
-  toggleTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  monedaBtn: { borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
-  monedaBtnOn: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  monedaTxt: { fontSize: 13, fontWeight: "700", color: "#94A3B8" },
+  optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44, borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, paddingVertical: 8, marginBottom: 6, backgroundColor: t.surface },
+  optRowSel: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  optTxt: { fontSize: 13, color: t.text, flex: 1 },
+  togglePill: { alignSelf: "flex-start", borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: t.surface },
+  togglePillOn: { borderColor: t.success, backgroundColor: t.successSoft },
+  toggleTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
+  monedaBtn: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center", backgroundColor: t.surface },
+  monedaBtnOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  monedaTxt: { fontSize: 13, fontWeight: "700", color: t.textFaint },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 18 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { fontSize: 13, fontWeight: "600", color: "#94A3B8" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
-  saveBtnFull: { minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center", marginTop: 10 },
-  saveTxt: { fontSize: 14, fontWeight: "700", color: "white" },
-  errorTxt: { fontSize: 12, color: "#EF4444", marginTop: 6 },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { fontSize: 13, fontWeight: "600", color: t.textFaint },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveBtnFull: { minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  saveTxt: { fontSize: 14, fontWeight: "700", color: t.onAccent },
+  errorTxt: { fontSize: 12, color: t.danger, marginTop: 6 },
 
   imgWrap: { marginBottom: 8 },
-  imgPreview: { width: "100%", height: 180, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  imgRemove: { position: "absolute", top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
-  imgRemoveTxt: { color: "white", fontSize: 13, fontWeight: "900" },
-  imgPick: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 2, borderStyle: "dashed", borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14 },
+  imgPreview: { width: "100%", height: 180, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong },
+  imgRemove: { position: "absolute", top: 6, right: 6, width: 26, height: 26, borderRadius: RADIUS.full, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
+  imgRemoveTxt: { color: t.textInverse, fontSize: 13, fontWeight: "900" },
+  imgPick: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, borderRadius: RADIUS.md, paddingVertical: SPACE.md, paddingHorizontal: 14 },
   imgPickEmoji: { fontSize: 18 },
-  imgPickTxt: { fontSize: 13, fontWeight: "600", color: T.accent },
+  imgPickTxt: { fontSize: 13, fontWeight: "600", color: BLUE[600] },
 
   invHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  invTodos: { fontSize: 11, fontWeight: "700", color: T.accent },
+  invTodos: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
 
   pagosHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 8 },
-  closeTxt: { fontSize: 18, color: "#94A3B8" },
-  link: { color: T.accent, fontWeight: "700" },
-  detalleImg: { width: "100%", height: 180, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 12 },
+  closeTxt: { fontSize: 18, color: t.textFaint },
+  link: { color: BLUE[600], fontWeight: "700" },
+  detalleImg: { width: "100%", height: 180, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, marginBottom: SPACE.md },
 
-  miHijoCard: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, marginBottom: 12 },
-  vozRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  vozBtn: { flex: 1, minHeight: 40, borderRadius: 10, borderWidth: 2, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  vozSi: { borderColor: "#10B981", backgroundColor: "#F0FDF4" },
-  vozNo: { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
-  vozTxt: { fontSize: 13, fontWeight: "700", color: "#94A3B8" },
-  contadores: { flexDirection: "row", gap: 16, marginBottom: 12 },
-  contLabel: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 6 },
+  miHijoCard: { backgroundColor: t.surfaceSunken, borderRadius: RADIUS.lg, padding: 14, marginBottom: SPACE.md },
+  vozRow: { flexDirection: "row", gap: 8, marginBottom: SPACE.md },
+  vozBtn: { flex: 1, minHeight: 40, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  vozSi: { borderColor: t.success, backgroundColor: t.successSoft },
+  vozNo: { borderColor: t.danger, backgroundColor: t.dangerSoft },
+  vozTxt: { fontSize: 13, fontWeight: "700", color: t.textFaint },
+  contadores: { flexDirection: "row", gap: SPACE.lg, marginBottom: SPACE.md },
+  contLabel: { fontSize: 11, fontWeight: "700", color: t.textFaint, marginBottom: 6 },
   stepperRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  stepBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  stepTxt: { fontSize: 18, fontWeight: "700", color: "#64748B" },
-  stepVal: { fontSize: 14, fontWeight: "700", color: T.text, minWidth: 28, textAlign: "center" },
+  stepBtn: { width: 32, height: 32, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  stepTxt: { fontSize: 18, fontWeight: "700", color: t.textMuted },
+  stepVal: { fontSize: 14, fontWeight: "700", color: t.text, minWidth: 28, textAlign: "center", fontVariant: ["tabular-nums"] },
 
-  totalesRow: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 6 },
-  totalCard: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
-  totalNum: { fontSize: 22, fontWeight: "900" },
+  totalesRow: { flexDirection: "row", gap: 8, marginTop: SPACE.md, marginBottom: 6 },
+  totalCard: { flex: 1, borderRadius: RADIUS.md, paddingVertical: 10, alignItems: "center" },
+  totalNum: { fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
   totalLbl: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5, marginTop: 2 },
-  exportBtn: { borderWidth: 1, borderColor: "#10B981", backgroundColor: "#F0FDF4", borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10 },
-  exportTxt: { fontSize: 11, fontWeight: "700", color: "#10B981" },
+  exportBtn: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 5, paddingHorizontal: 10 },
+  exportTxt: { fontSize: 11, fontWeight: "700", color: t.success },
   grupoResumen: { marginBottom: 10 },
   grupoLabel: { fontSize: 11, fontWeight: "700", marginBottom: 5 },
-  resumenRow: { borderRadius: 10, padding: 8, marginBottom: 5 },
-  resumenNombre: { fontSize: 13, fontWeight: "600", color: T.text },
+  resumenRow: { borderRadius: RADIUS.md, padding: 8, marginBottom: 5 },
+  resumenNombre: { fontSize: 13, fontWeight: "600", color: t.text },
   resumenExtras: { flexDirection: "row", gap: 10, marginTop: 3, flexWrap: "wrap" },
   resumenExtra: { fontSize: 11, fontWeight: "600" },
-  resumenComent: { fontSize: 11, color: "#94A3B8" },
+  resumenComent: { fontSize: 11, color: t.textFaint },
 });

@@ -7,10 +7,14 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { MESES, T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
+
+const t = THEMES.light;
 
 const CAMPOS = [
   { key: "entrada", label: "Entrada", color: "#8B5CF6", emoji: "🥣" },
@@ -112,7 +116,7 @@ export function Comedor() {
         <View>
           <View style={styles.diaNav}>
             <Pressable onPress={() => navDia(-1)} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>‹</Text>
+              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
             </Pressable>
             <Text style={styles.diaLabel}>
               {new Date(fechaSel + "T00:00:00").toLocaleDateString("es-AR", {
@@ -122,7 +126,7 @@ export function Comedor() {
               })}
             </Text>
             <Pressable onPress={() => navDia(1)} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
             </Pressable>
           </View>
           {diaActual ? (
@@ -147,11 +151,11 @@ export function Comedor() {
         <View>
           <View style={styles.weekNav}>
             <Pressable onPress={() => navSemana(-1)} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>‹</Text>
+              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
             </Pressable>
             <Text style={styles.weekLabel}>{semanaLabel()}</Text>
             <Pressable onPress={() => navSemana(1)} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
             </Pressable>
           </View>
           {diasSemana.map((fecha) => {
@@ -196,13 +200,13 @@ export function Comedor() {
         <View>
           <View style={styles.weekNav}>
             <Pressable onPress={() => setMes(new Date(year, month - 1, 1))} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>‹</Text>
+              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
             </Pressable>
             <Text style={styles.weekLabel}>
               {MESES[month]} {year}
             </Text>
             <Pressable onPress={() => setMes(new Date(year, month + 1, 1))} style={styles.navBtn}>
-              <Text style={styles.navBtnTxt}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
             </Pressable>
           </View>
           <Card style={styles.calCard}>
@@ -323,7 +327,7 @@ export function UploadMenuExcel({ onDone }) {
     <View style={styles.uploadWrap}>
       <Text style={styles.uploadLabel}>Cargar menú desde Excel</Text>
       <Pressable onPress={handlePick} disabled={loading} style={styles.uploadBtn}>
-        <Text style={styles.uploadEmoji}>📤</Text>
+        <MaterialCommunityIcons name="tray-arrow-up" size={18} color={BLUE[600]} />
         <View>
           <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Subir archivo Excel"}</Text>
           <Text style={styles.uploadHint}>Formato: menu_tribbu.xlsx</Text>
@@ -337,50 +341,48 @@ export function UploadMenuExcel({ onDone }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
-  muted: { fontSize: 13, color: "#94A3B8", fontWeight: "600", textAlign: "center" },
-  tabs: { flexDirection: "row", gap: 6, marginBottom: 16 },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: "#F1F5F9", minHeight: 36, justifyContent: "center" },
-  tabActive: { backgroundColor: T.primary },
-  tabTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  tabTxtActive: { color: "white" },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },
+  muted: { fontSize: 13, color: t.textFaint, fontWeight: "600", textAlign: "center" },
+  tabs: { flexDirection: "row", gap: 6, marginBottom: SPACE.lg },
+  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 36, justifyContent: "center" },
+  tabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
+  tabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  tabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
   diaNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  diaLabel: { fontSize: 13, color: T.text, fontWeight: "700", textTransform: "capitalize", flex: 1, textAlign: "center" },
-  navBtn: { width: 40, height: 40, borderRadius: 9, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  navBtnTxt: { fontSize: 18, color: "#64748B" },
-  platoCard: { padding: 14, marginBottom: 10, borderLeftWidth: 3 },
-  platoLabel: { fontSize: 10, fontWeight: "700", marginBottom: 4 },
-  platoTxt: { fontSize: 15, fontWeight: "700", color: T.text },
-  emptyCard: { padding: 24, alignItems: "center" },
+  diaLabel: { fontSize: 14, color: t.textStrong, fontWeight: "700", textTransform: "capitalize", flex: 1, textAlign: "center" },
+  navBtn: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  platoCard: { padding: 14, marginBottom: 10, borderLeftWidth: 3, borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
+  platoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 4 },
+  platoTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  emptyCard: { padding: SPACE.xxl, alignItems: "center", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   emptyEmoji: { fontSize: 32, marginBottom: 8 },
-  weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  weekLabel: { fontSize: 14, fontWeight: "700", color: T.text, flex: 1, textAlign: "center" },
-  weekRow: { flexDirection: "row", gap: 12, backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, marginBottom: 8 },
-  weekRowHoy: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
+  weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg },
+  weekLabel: { fontSize: 14, fontWeight: "700", color: t.textStrong, flex: 1, textAlign: "center" },
+  weekRow: { flexDirection: "row", gap: SPACE.md, backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: SPACE.md, marginBottom: SPACE.sm },
+  weekRowHoy: { borderColor: t.accent, backgroundColor: t.accentSoft },
   weekDate: { width: 44, alignItems: "center" },
-  weekDow: { fontSize: 10, fontWeight: "700", color: "#94A3B8", textTransform: "uppercase" },
-  weekDay: { fontSize: 18, fontWeight: "900", color: T.text },
-  weekHoyTxt: { color: T.accent },
-  weekItem: { fontSize: 12, color: T.text, lineHeight: 18 },
-  sinMenu: { fontSize: 12, color: "#CBD5E1" },
-  hint: { fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 10 },
-  calCard: { padding: 10 },
+  weekDow: { fontSize: 10, fontWeight: "700", color: t.textFaint, textTransform: "uppercase", letterSpacing: 1 },
+  weekDay: { fontSize: 17, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  weekHoyTxt: { color: BLUE[600] },
+  weekItem: { fontSize: 12, color: t.text, lineHeight: 18 },
+  sinMenu: { fontSize: 12, color: t.textFaint },
+  hint: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
+  calCard: { padding: 10, borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", padding: 2 },
-  calDow: { fontSize: 10, fontWeight: "700", color: "#94A3B8" },
-  calDayBox: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", borderRadius: 8 },
-  calDayMenu: { backgroundColor: "#DBEAFE" },
-  calDayHoy: { backgroundColor: T.accent },
-  calDayTxt: { fontSize: 12, fontWeight: "600", color: T.text },
-  uploadWrap: { marginBottom: 20 },
-  uploadLabel: { fontSize: 11, fontWeight: "700", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 },
-  uploadBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 2, borderStyle: "dashed", borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  uploadEmoji: { fontSize: 20 },
-  uploadTitle: { fontSize: 13, fontWeight: "700", color: T.accent },
-  uploadHint: { fontSize: 11, color: "#94A3B8" },
+  calDow: { fontSize: 10, fontWeight: "700", color: t.textFaint },
+  calDayBox: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", borderRadius: RADIUS.sm },
+  calDayMenu: { backgroundColor: BLUE[100] },
+  calDayHoy: { backgroundColor: t.accentSoft, borderWidth: 1.5, borderColor: t.accent },
+  calDayTxt: { fontSize: 12, fontWeight: "600", color: t.text },
+  uploadWrap: { marginBottom: SPACE.xl },
+  uploadLabel: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
+  uploadBtn: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 14, borderRadius: RADIUS.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.accent, backgroundColor: t.accentSoft, minHeight: 44 },
+  uploadTitle: { fontSize: 13, fontWeight: "700", color: BLUE[600] },
+  uploadHint: { fontSize: 11, color: t.textFaint },
   uploadMsg: { fontSize: 13, marginTop: 10, fontWeight: "600" },
 });

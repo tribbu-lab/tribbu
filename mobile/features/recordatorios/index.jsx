@@ -1,20 +1,27 @@
-// Recordatorios (puerto RN de src/features/recordatorios). Lista con leídos/
-// no-leídos, filtros por rango y prioridad, alta/edición y borrado. El admin que
-// crea un recordatorio dispara un push al curso. Incluye historial de comunicados.
+// Recordatorios — patrón A3 (ver mobile/DESIGN_SYSTEM.md §7). Lista con leídos/
+// no-leídos, filtros colapsados en select-chips (Sheet), alta/edición y borrado.
+// El admin que crea un recordatorio dispara un push al curso. Incluye historial
+// de comunicados. La prioridad/urgencia vive en el dot de la fila; leído = dot
+// hueco + texto apagado.
 
 import { useState, useEffect, useCallback, memo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, Modal, StyleSheet } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize } from "@shared/helpers";
-import { T } from "@shared/theme";
+import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
+import { SelectChip } from "../../components/SelectChip";
+import { EmptyState } from "../../components/EmptyState";
+
+const t = THEMES.light;
 
 const PRIO = {
-  alta: { l: "Alta", c: "#EF4444", bg: "#FEF2F2" },
-  media: { l: "Media", c: "#F59E0B", bg: "#FFFBEB" },
-  baja: { l: "Baja", c: "#10B981", bg: "#F0FDF4" },
+  alta: { l: "Alta", c: t.danger, bg: t.dangerSoft },
+  media: { l: "Media", c: t.warning, bg: t.warningSoft },
+  baja: { l: "Baja", c: t.success, bg: t.successSoft },
 };
 const POR_PAG = 10;
 const RANGOS = [
@@ -29,70 +36,43 @@ const PRIOS = [
   { value: "baja", label: "Baja" },
 ];
 
-const Chip = ({ label, active, onPress }) => (
-  <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
-    <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{label}</Text>
-  </Pressable>
-);
-
 const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, onLeido, onEditar, onEliminar }) {
   const prio = PRIO[r.prioridad || "media"];
   const dias = r.fecha
     ? Math.round((new Date(r.fecha + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 86400000)
     : null;
-  const diasLabel =
-    dias === null ? null : dias === 0 ? "hoy" : dias === 1 ? "mañana" : dias < 0 ? `hace ${Math.abs(dias)}d` : `en ${dias}d`;
+  const rel =
+    dias === null ? null : dias === 0 ? "hoy" : dias === 1 ? "mañana" : dias < 0 ? `hace ${Math.abs(dias)} días` : `en ${dias} días`;
+  const fechaCorta = r.fecha
+    ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" })
+    : null;
+  const meta = [fechaCorta, rel, prio.l, r.urgente ? "Urgente" : null].filter(Boolean).join(" · ") || "Sin fecha";
+  const dotColor = r.urgente ? t.danger : prio.c;
 
   return (
-    <View style={[styles.row, { borderLeftColor: r.urgente ? "#EF4444" : prio.c }, esLeido && styles.rowLeido]}>
-      <View style={styles.dateCol}>
-        {r.fecha ? (
-          <>
-            <Text style={styles.dateDay}>{new Date(r.fecha + "T00:00:00").getDate()}</Text>
-            <Text style={styles.dateMonth}>
-              {new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { month: "short" })}
-            </Text>
-            {diasLabel ? (
-              <Text
-                style={[
-                  styles.dateRel,
-                  { color: dias < 0 ? "#94A3B8" : dias <= 3 ? "#EF4444" : "#10B981" },
-                ]}
-              >
-                {diasLabel}
-              </Text>
-            ) : null}
-          </>
-        ) : (
-          <Text style={styles.dateNone}>--</Text>
-        )}
-      </View>
-
+    <View style={styles.row}>
+      <View style={[styles.rdot, esLeido ? styles.rdotLeido : { backgroundColor: dotColor }]} />
       <View style={styles.flex1}>
         <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]}>{r.texto}</Text>
-        <View style={styles.tags}>
-          <View style={[styles.tag, { backgroundColor: prio.bg }]}>
-            <Text style={[styles.tagTxt, { color: prio.c }]}>{prio.l}</Text>
-          </View>
-          {r.urgente ? (
-            <View style={[styles.tag, { backgroundColor: "#FEF2F2" }]}>
-              <Text style={[styles.tagTxt, { color: "#EF4444" }]}>Urgente</Text>
-            </View>
-          ) : null}
-        </View>
+        <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
       </View>
-
       <View style={styles.rowActions}>
-        <Pressable onPress={() => onLeido(r.id)} style={[styles.leidoBtn, esLeido && styles.leidoBtnOn]}>
-          <Text style={[styles.leidoTxt, esLeido && styles.leidoTxtOn]}>Leído</Text>
-        </Pressable>
+        {esLeido ? (
+          <Pressable onPress={() => onLeido(r.id)} hitSlop={8} style={styles.checkBtn} accessibilityLabel="Marcar no leído">
+            <MaterialCommunityIcons name="check" size={17} color={t.textFaint} />
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => onLeido(r.id)} hitSlop={8} style={styles.leerBtn}>
+            <Text style={styles.leerTxt}>Marcar leído</Text>
+          </Pressable>
+        )}
         {puedeEditar ? (
           <View style={styles.editRow}>
-            <Pressable onPress={() => onEditar(r)} style={styles.smallBtn}>
-              <Text style={styles.smallBtnTxt}>Editar</Text>
+            <Pressable onPress={() => onEditar(r)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Editar">
+              <MaterialCommunityIcons name="pencil-outline" size={15} color={t.textMuted} />
             </Pressable>
-            <Pressable onPress={() => onEliminar(r.id)} style={styles.smallBtn}>
-              <Text style={styles.borrarTxt}>Borrar</Text>
+            <Pressable onPress={() => onEliminar(r.id)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Borrar">
+              <MaterialCommunityIcons name="trash-can-outline" size={15} color={t.danger} />
             </Pressable>
           </View>
         ) : null}
@@ -199,9 +179,11 @@ export function Recordatorios() {
     setModal(r);
   }, []);
 
-  const filtrados = recordatorios
+  const visiblesTipo = recordatorios.filter((r) => r.tipo !== "regalo_cumple" && r.tipo !== "colecta_vence");
+  const sinLeer = visiblesTipo.filter((r) => !leidosSet.has(r.id)).length;
+
+  const filtrados = visiblesTipo
     .filter((r) => {
-      if (r.tipo === "regalo_cumple" || r.tipo === "colecta_vence") return false;
       if (filtroRango === "proximos" && r.fecha && r.fecha < hoyStr) return false;
       if (filtroRango === "pasados" && (!r.fecha || r.fecha >= hoyStr)) return false;
       if (filtroPrio !== "all" && r.prioridad !== filtroPrio) return false;
@@ -231,25 +213,47 @@ export function Recordatorios() {
         )}
         ListHeaderComponent={
           <View style={styles.headerWrap}>
-            <Text style={styles.h1}>Recordatorios</Text>
-            <Text style={styles.subtitle}>Avisos y recordatorios del curso</Text>
-
-            <View style={styles.filtersRow}>
-              {RANGOS.map((o) => (
-                <Chip key={o.value} label={o.label} active={filtroRango === o.value} onPress={() => { setFiltroRango(o.value); setPagina(1); }} />
-              ))}
+            <View style={styles.titleRow}>
+              <Text style={styles.h1}>Recordatorios</Text>
               <Pressable onPress={abrirNuevo} style={styles.nuevoBtn}>
-                <Text style={styles.nuevoTxt}>+ Nuevo</Text>
+                <MaterialCommunityIcons name="plus" size={14} color={t.onAccent} />
+                <Text style={styles.nuevoTxt}>Nuevo</Text>
               </Pressable>
             </View>
+            <Text style={styles.subtitle}>
+              {sinLeer === 0 ? "Todo leído" : sinLeer === 1 ? "1 sin leer" : `${sinLeer} sin leer`}
+            </Text>
+
             <View style={styles.filtersRow}>
-              {PRIOS.map((o) => (
-                <Chip key={o.value} label={o.label} active={filtroPrio === o.value} onPress={() => { setFiltroPrio(o.value); setPagina(1); }} />
-              ))}
+              <SelectChip
+                label="Rango"
+                value={filtroRango}
+                options={RANGOS}
+                onChange={(v) => {
+                  setFiltroRango(v);
+                  setPagina(1);
+                }}
+              />
+              <SelectChip
+                label="Prioridad"
+                value={filtroPrio}
+                options={PRIOS}
+                onChange={(v) => {
+                  setFiltroPrio(v);
+                  setPagina(1);
+                }}
+              />
             </View>
           </View>
         }
-        ListEmptyComponent={<Text style={styles.empty}>Sin recordatorios</Text>}
+        ListEmptyComponent={
+          <EmptyState
+            emoji="📌"
+            title="Sin recordatorios"
+            note="Cuando el curso tenga avisos o recordatorios, aparecen acá."
+            compact
+          />
+        }
         ListFooterComponent={
           <View>
             <Paginador pagina={pagina_} totalPag={totalPags} setPagina={setPagina} />
@@ -278,26 +282,26 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, onClose, o
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{editing ? "Editar recordatorio" : "Nuevo recordatorio"}</Text>
 
-          <Text style={styles.modalLabel}>TEXTO</Text>
+          <Text style={styles.modalLabel}>Texto</Text>
           <TextInput
             value={form.texto}
-            onChangeText={(t) => setForm((p) => ({ ...p, texto: t }))}
+            onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
             placeholder="Ej: Reunión de padres el viernes"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={t.placeholder}
             multiline
             style={[styles.modalInput, styles.modalTextarea]}
           />
 
-          <Text style={styles.modalLabel}>FECHA (opcional, AAAA-MM-DD)</Text>
+          <Text style={styles.modalLabel}>Fecha (opcional, AAAA-MM-DD)</Text>
           <TextInput
             value={form.fecha || ""}
-            onChangeText={(t) => setForm((p) => ({ ...p, fecha: t }))}
+            onChangeText={(v) => setForm((p) => ({ ...p, fecha: v }))}
             placeholder="2026-07-01"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={t.placeholder}
             style={styles.modalInput}
           />
 
-          <Text style={styles.modalLabel}>PRIORIDAD</Text>
+          <Text style={styles.modalLabel}>Prioridad</Text>
           <View style={styles.prioRow}>
             {["alta", "media", "baja"].map((p) => {
               const active = form.prioridad === p;
@@ -307,7 +311,9 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, onClose, o
                   onPress={() => setForm((f) => ({ ...f, prioridad: p }))}
                   style={[styles.prioBtn, active && { borderColor: PRIO[p].c, backgroundColor: PRIO[p].bg }]}
                 >
-                  <Text style={[styles.prioTxt, active && { color: PRIO[p].c }]}>{PRIO[p].l}</Text>
+                  <Text style={[styles.prioTxt, active && { color: p === "media" ? "#B45309" : PRIO[p].c }]}>
+                    {PRIO[p].l}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -371,9 +377,10 @@ function HistorialComunicados({ cursoId }) {
 
   return (
     <View style={styles.histWrap}>
+      <Text style={styles.label}>Comunicados</Text>
       <Pressable onPress={toggle} style={styles.histToggle}>
         <Text style={styles.histToggleTxt}>📢 Historial de comunicados</Text>
-        <Text style={styles.histChevron}>{abierto ? "▴" : "▾"}</Text>
+        <MaterialCommunityIcons name={abierto ? "chevron-up" : "chevron-down"} size={18} color={t.textFaint} />
       </Pressable>
 
       {abierto ? (
@@ -382,10 +389,7 @@ function HistorialComunicados({ cursoId }) {
           {!cargando && alertas.length === 0 ? <Text style={styles.empty}>Sin comunicados anteriores</Text> : null}
           {!cargando &&
             alertas.map((a) => (
-              <View
-                key={a.id}
-                style={[styles.histItem, { borderLeftColor: a.activa ? "#EF4444" : "#CBD5E1" }, a.activa && styles.histItemActiva]}
-              >
+              <View key={a.id} style={[styles.histItem, a.activa && styles.histItemActiva]}>
                 <Text style={styles.histEmoji}>{a.activa ? "🚨" : "📢"}</Text>
                 <View style={styles.flex1}>
                   <Text style={styles.histMsg}>{a.mensaje}</Text>
@@ -399,117 +403,140 @@ function HistorialComunicados({ cursoId }) {
   );
 }
 
+// Estilos A3: sin sombras, borde hairline, radio 16, dot de estado como ancla.
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
-  headerWrap: { marginBottom: 4 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
+  headerWrap: { marginBottom: SPACE.xs },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
-  filtersRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 8 },
-  chip: {
+
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4 },
+  nuevoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     minHeight: 36,
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+    backgroundColor: t.accent,
   },
-  chipActive: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  chipTxt: { fontSize: 12, fontWeight: "600", color: "#64748B" },
-  chipTxtActive: { color: T.accent, fontWeight: "700" },
-  nuevoBtn: { marginLeft: "auto", minHeight: 36, justifyContent: "center", paddingHorizontal: 16, borderRadius: 8, backgroundColor: T.accent },
-  nuevoTxt: { color: "white", fontSize: 12, fontWeight: "700" },
-  empty: { textAlign: "center", paddingVertical: 32, color: "#94A3B8", fontSize: 13 },
+  nuevoTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
+
+  // filtros colapsados (SelectChip del sistema)
+  filtersRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md, marginBottom: SPACE.md },
+
+  // fila de recordatorio
   row: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    marginBottom: 6,
-    borderRadius: 12,
-    backgroundColor: "white",
+    gap: SPACE.md,
+    padding: 13,
+    marginBottom: SPACE.sm,
+    borderRadius: RADIUS.xl,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderLeftWidth: 3,
+    borderColor: t.borderStrong,
   },
-  rowLeido: { opacity: 0.55 },
-  dateCol: { width: 64, alignItems: "center", marginRight: 12 },
-  dateDay: { fontSize: 18, fontWeight: "900", color: T.text, lineHeight: 20 },
-  dateMonth: { fontSize: 10, fontWeight: "700", color: "#94A3B8", textTransform: "uppercase" },
-  dateRel: { fontSize: 9, fontWeight: "700", marginTop: 2 },
-  dateNone: { fontSize: 12, color: "#CBD5E1", fontWeight: "600" },
-  rowTxt: { fontSize: 13, fontWeight: "600", color: T.text, lineHeight: 18 },
-  rowTxtLeido: { fontWeight: "400", color: "#94A3B8" },
-  tags: { flexDirection: "row", gap: 5, marginTop: 4, flexWrap: "wrap" },
-  tag: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8 },
-  tagTxt: { fontSize: 10, fontWeight: "700" },
-  rowActions: { alignItems: "flex-end", marginLeft: 8, gap: 4 },
-  leidoBtn: { minHeight: 32, justifyContent: "center", paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
-  leidoBtnOn: { borderColor: "#10B981", backgroundColor: "#F0FDF4" },
-  leidoTxt: { fontSize: 11, fontWeight: "700", color: "#64748B" },
-  leidoTxtOn: { color: "#10B981" },
+  rdot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  rdotLeido: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: SLATE[300] },
+  rowTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, lineHeight: 19 },
+  rowTxtLeido: { fontWeight: "500", color: t.textMuted },
+  rowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  rowActions: { alignItems: "flex-end", gap: 6 },
+  leerBtn: { minHeight: 30, justifyContent: "center" },
+  leerTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
+  checkBtn: { minHeight: 30, minWidth: 30, alignItems: "center", justifyContent: "center" },
   editRow: { flexDirection: "row", gap: 4 },
-  smallBtn: { paddingVertical: 5, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0" },
-  smallBtnTxt: { fontSize: 11, color: T.text },
-  borrarTxt: { fontSize: 11, color: "#EF4444" },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 420, backgroundColor: "white", borderRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 14 },
-  modalLabel: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 5, marginTop: 6 },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  empty: { textAlign: "center", paddingVertical: SPACE.xl, color: t.textFaint, fontSize: 13 },
+
+  // modal
+  modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
+  modalCard: { width: "100%", maxWidth: 420, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
+  modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 14 },
+  modalLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 6 },
   modalInput: {
     minHeight: 44,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 12,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surfaceSunken,
+    paddingHorizontal: SPACE.md,
     fontSize: 13,
-    color: T.text,
+    color: t.text,
   },
   modalTextarea: { minHeight: 72, paddingTop: 10, textAlignVertical: "top" },
   prioRow: { flexDirection: "row", gap: 6 },
-  prioBtn: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white" },
-  prioTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  urgenteBtn: { alignSelf: "flex-start", marginTop: 12, minHeight: 40, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white" },
-  urgenteOn: { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
-  urgenteTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  urgenteTxtOn: { color: "#EF4444" },
-  modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: "white", fontSize: 13, fontWeight: "700" },
-  // Historial
-  histWrap: { marginTop: 24 },
+  prioBtn: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+  },
+  prioTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
+  urgenteBtn: {
+    alignSelf: "flex-start",
+    marginTop: SPACE.md,
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+  },
+  urgenteOn: { borderColor: t.danger, backgroundColor: t.dangerSoft },
+  urgenteTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
+  urgenteTxtOn: { color: t.danger },
+  modalBtns: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.lg },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textFaint, fontSize: 13, fontWeight: "600" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
+
+  // historial
+  histWrap: { marginTop: SPACE.xl },
   histToggle: {
     minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingHorizontal: SPACE.lg,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
   },
-  histToggleTxt: { fontSize: 13, fontWeight: "700", color: T.text },
-  histChevron: { fontSize: 16, color: "#94A3B8" },
-  histList: { marginTop: 8 },
+  histToggleTxt: { fontSize: 13.5, fontWeight: "700", color: t.text },
+  histList: { marginTop: SPACE.sm },
   histItem: {
     flexDirection: "row",
     gap: 10,
-    padding: 12,
+    padding: SPACE.md,
     marginBottom: 6,
-    borderRadius: 12,
-    backgroundColor: "white",
+    borderRadius: RADIUS.xl,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderLeftWidth: 3,
+    borderColor: t.borderStrong,
   },
-  histItemActiva: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+  histItemActiva: { backgroundColor: t.dangerSoft, borderColor: STATUS.danger.border },
   histEmoji: { fontSize: 18 },
-  histMsg: { fontSize: 13, fontWeight: "600", color: T.text, lineHeight: 18, marginBottom: 4 },
-  histDate: { fontSize: 11, color: "#94A3B8" },
+  histMsg: { fontSize: 13, fontWeight: "600", color: t.text, lineHeight: 18, marginBottom: 4 },
+  histDate: { fontSize: 11, color: t.textFaint },
 });

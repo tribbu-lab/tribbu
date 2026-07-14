@@ -6,12 +6,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, StyleSheet } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, safeUrl } from "@shared/helpers";
 import { MESES, T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
+
+const t = THEMES.light;
 
 const TIPO_CONFIG = {
   cumple: { emoji: "🎂", color: "#EC4899", bg: "#FDF2F8", label: "Cumpleaños" },
@@ -132,7 +136,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <Text style={styles.h1}>Calendario 📅</Text>
+        <Text style={styles.h1}>Calendario</Text>
         {isAdmin ? (
           <Pressable onPress={() => setModal("nuevo")} style={styles.addBtn}>
             <Text style={styles.addTxt}>+ Evento</Text>
@@ -158,13 +162,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
           <Card style={styles.calCard}>
             <View style={styles.monthNav}>
               <Pressable onPress={() => setMes(new Date(year, month - 1, 1))} style={styles.navBtn}>
-                <Text style={styles.navBtnTxt}>‹</Text>
+                <MaterialCommunityIcons name="chevron-left" size={20} color={t.textMuted} />
               </Pressable>
               <Text style={styles.monthLabel}>
                 {MESES[month]} {year}
               </Text>
               <Pressable onPress={() => setMes(new Date(year, month + 1, 1))} style={styles.navBtn}>
-                <Text style={styles.navBtnTxt}>›</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={t.textMuted} />
               </Pressable>
             </View>
             <View style={styles.calGrid}>
@@ -185,7 +189,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     style={styles.calCell}
                   >
                     <View style={[styles.calDayBox, esHoy && styles.calDayHoy, selec && styles.calDaySelec]}>
-                      <Text style={[styles.calDayTxt, (esHoy || selec) && styles.calDayTxtOn]}>{day}</Text>
+                      <Text style={[styles.calDayTxt, esHoy && !selec && styles.calDayTxtHoy, selec && styles.calDayTxtOn]}>{day}</Text>
                       {evs.length > 0 ? (
                         <View style={styles.dots}>
                           {evs.slice(0, 3).map((e, ei) => {
@@ -763,114 +767,116 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos = [], userId =
   );
 }
 
+// Estilos A3: sin sombras, borde hairline, grilla del mes sin bordes por día
+// (hoy = anillo accent, seleccionado = relleno accent).
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 14 },
-  addBtn: { backgroundColor: T.accent, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
-  addTxt: { color: "white", fontSize: 13, fontWeight: "700" },
-  muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 16 },
-  tabs: { gap: 7, paddingBottom: 4, marginBottom: 12 },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", minHeight: 36, justifyContent: "center" },
-  tabActive: { backgroundColor: T.primary, borderColor: T.primary },
-  tabTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  tabTxtActive: { color: "white" },
-  calCard: { padding: 14, marginBottom: 12 },
-  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  monthLabel: { fontSize: 15, fontWeight: "700", color: T.text },
-  navBtn: { width: 40, height: 40, borderRadius: 9, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
-  navBtnTxt: { fontSize: 18, color: "#94A3B8" },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4, marginBottom: 14 },
+  addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.md, paddingVertical: 8, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
+  addTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
+  muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
+  tabs: { gap: 7, paddingBottom: 4, marginBottom: SPACE.md },
+  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 36, justifyContent: "center" },
+  tabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
+  tabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  tabTxtActive: { color: t.textInverse, fontWeight: "700" },
+  calCard: { padding: 14, marginBottom: SPACE.md },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.md },
+  monthLabel: { fontSize: 15, fontWeight: "800", color: t.textStrong },
+  navBtn: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
-  calDow: { textAlign: "center", fontSize: 10, fontWeight: "700", color: "#94A3B8", paddingVertical: 4 },
-  calDayBox: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: "#F1F5F9", backgroundColor: "white" },
-  calDayHoy: { backgroundColor: T.accent, borderColor: T.accent },
-  calDaySelec: { backgroundColor: T.primary, borderColor: T.primary },
-  calDayTxt: { fontSize: 12, fontWeight: "600", color: T.text },
-  calDayTxtOn: { color: "white", fontWeight: "800" },
+  calDow: { textAlign: "center", fontSize: 10, fontWeight: "700", color: t.textFaint, paddingVertical: 4, textTransform: "uppercase", letterSpacing: 0.6 },
+  calDayBox: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: RADIUS.sm },
+  calDayHoy: { backgroundColor: t.accentSoft, borderWidth: 1.5, borderColor: t.accent },
+  calDaySelec: { backgroundColor: t.accent },
+  calDayTxt: { fontSize: 12, fontWeight: "600", color: t.text, fontVariant: ["tabular-nums"] },
+  calDayTxtHoy: { color: BLUE[600], fontWeight: "800" },
+  calDayTxtOn: { color: t.onAccent, fontWeight: "800" },
   dots: { flexDirection: "row", gap: 2, marginTop: 2 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
+  dot: { width: 5, height: 5, borderRadius: RADIUS.full },
   diaCard: { padding: 14 },
-  diaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  diaTitle: { fontSize: 14, fontWeight: "800", color: T.text },
-  miniAdd: { backgroundColor: T.accent, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
-  miniAddTxt: { color: "white", fontSize: 12, fontWeight: "700" },
-  diaRow: { flexDirection: "row", gap: 10, alignItems: "flex-start", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  iconBox: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  diaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.md },
+  diaTitle: { fontSize: 14.5, fontWeight: "800", color: t.textStrong },
+  miniAdd: { backgroundColor: t.accent, borderRadius: RADIUS.sm, paddingVertical: 6, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
+  miniAddTxt: { color: t.onAccent, fontSize: 12, fontWeight: "700" },
+  diaRow: { flexDirection: "row", gap: 10, alignItems: "flex-start", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.border },
+  iconBox: { width: 40, height: 40, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
   iconTxt: { fontSize: 18 },
-  eventoTitulo: { fontSize: 13, fontWeight: "700", color: T.text },
-  eventoMeta: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
-  eventoDesc: { fontSize: 11, color: "#64748B", marginTop: 2 },
+  eventoTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  eventoMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  eventoDesc: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   lugarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  mapLink: { fontSize: 11, fontWeight: "700", color: T.accent },
-  asistBtn: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, minHeight: 32, justifyContent: "center" },
-  asistTxt: { fontSize: 11, fontWeight: "600", color: "#64748B" },
+  mapLink: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
+  asistBtn: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.sm, paddingVertical: 6, paddingHorizontal: 10, minHeight: 32, justifyContent: "center", backgroundColor: t.surface },
+  asistTxt: { fontSize: 11, fontWeight: "600", color: t.textMuted },
   editRow: { flexDirection: "row", gap: 4, marginTop: 4 },
-  miniBtn: { padding: 6, borderRadius: 6, borderWidth: 1, borderColor: "#E2E8F0" },
-  miniTxt: { fontSize: 12, color: T.text },
+  miniBtn: { padding: 6, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  miniTxt: { fontSize: 12, color: t.text },
   rangos: { gap: 6, paddingBottom: 8 },
-  rangoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", minHeight: 34, justifyContent: "center" },
-  rangoOn: { backgroundColor: T.primary, borderColor: T.primary },
-  rangoTxt: { fontSize: 11, fontWeight: "700", color: "#94A3B8" },
-  rangoTxtOn: { color: "white" },
+  rangoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 34, justifyContent: "center" },
+  rangoOn: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
+  rangoTxt: { fontSize: 11, fontWeight: "600", color: t.textMuted },
+  rangoTxtOn: { color: t.textInverse, fontWeight: "700" },
   listCard: { padding: 13, marginBottom: 10, borderLeftWidth: 3 },
-  listRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  listRow: { flexDirection: "row", gap: SPACE.md, alignItems: "flex-start" },
   listRight: { alignItems: "flex-end", gap: 6 },
-  diasTag: { backgroundColor: "#F1F5F9", borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8 },
-  diasTagTxt: { fontSize: 11, fontWeight: "700", color: "#64748B" },
+  diasTag: { backgroundColor: SLATE[100], borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
+  diasTagTxt: { fontSize: 11, fontWeight: "800", color: t.textMuted, fontVariant: ["tabular-nums"] },
   horarioScroll: { marginTop: 4 },
   horarioHeaderRow: { flexDirection: "row" },
-  horaCol: { width: 64, padding: 6, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  horaTxt: { fontSize: 10, fontWeight: "700", color: "#64748B" },
-  horarioDiaHead: { width: 110, padding: 8, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center" },
+  horaCol: { width: 64, padding: 6, backgroundColor: t.surfaceSunken, borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
+  horaTxt: { fontSize: 10, fontWeight: "700", color: t.textMuted },
+  horarioDiaHead: { width: 110, padding: 8, borderWidth: 1, borderColor: t.border, alignItems: "center" },
   horarioDiaTxt: { fontSize: 11, fontWeight: "800" },
   horarioRow: { flexDirection: "row" },
-  horarioCell: { width: 110, minHeight: 56, padding: 4, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
-  claseBox: { flex: 1, borderRadius: 8, borderWidth: 1.5, padding: 6 },
+  horarioCell: { width: 110, minHeight: 56, padding: 4, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface },
+  claseBox: { flex: 1, borderRadius: RADIUS.sm, borderWidth: 1.5, padding: 6 },
   claseMateria: { fontSize: 11, fontWeight: "700" },
-  claseDocente: { fontSize: 9, color: "#94A3B8", marginTop: 2 },
-  claseHora: { fontSize: 9, color: "#CBD5E1", marginTop: 2 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: "white", borderRadius: 20, padding: 20 },
-  confirmCard: { width: "100%", maxWidth: 340, backgroundColor: "white", borderRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 8 },
-  label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 5, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", paddingHorizontal: 12, fontSize: 13, color: T.text },
+  claseDocente: { fontSize: 9, color: t.textFaint, marginTop: 2 },
+  claseHora: { fontSize: 9, color: SLATE[300], marginTop: 2 },
+  overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
+  modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xl },
+  confirmCard: { width: "100%", maxWidth: 340, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
+  modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 8 },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 8 },
+  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: SPACE.md, fontSize: 13, color: t.text },
   tipoWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tipoChip: { borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: "white" },
-  tipoTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
+  tipoChip: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: t.surface },
+  tipoTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
   horaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  todoDiaBtn: { borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: "white" },
-  todoDiaOn: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  todoDiaTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  todoDiaTxtOn: { color: T.accent },
+  todoDiaBtn: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: t.surface },
+  todoDiaOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  todoDiaTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
+  todoDiaTxtOn: { color: BLUE[600] },
   horaInput: { flex: 1, minWidth: 60 },
   checkboxRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
-  checkboxOn: { borderColor: T.accent, backgroundColor: T.accent },
-  checkMark: { color: "white", fontSize: 12, fontWeight: "900" },
-  checkboxLabel: { fontSize: 13, fontWeight: "600", color: T.text },
-  modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
-  deleteBtn: { flex: 1, minHeight: 44, borderRadius: 10, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: "white", fontSize: 13, fontWeight: "700" },
-  pagosHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 },
-  closeTxt: { fontSize: 18, color: "#94A3B8" },
-  asistSection: { marginBottom: 16 },
-  miHijoCard: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  miHijoNombre: { fontSize: 12, fontWeight: "700", color: "#64748B", marginBottom: 8 },
+  checkbox: { width: 22, height: 22, borderRadius: RADIUS.xs, borderWidth: 2, borderColor: SLATE[300], alignItems: "center", justifyContent: "center" },
+  checkboxOn: { borderColor: t.accent, backgroundColor: t.accent },
+  checkMark: { color: t.onAccent, fontSize: 12, fontWeight: "900" },
+  checkboxLabel: { fontSize: 13, fontWeight: "600", color: t.text },
+  modalBtns: { flexDirection: "row", gap: 8, marginTop: SPACE.lg },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textFaint, fontSize: 13, fontWeight: "600" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  deleteBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
+  pagosHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: SPACE.md },
+  closeTxt: { fontSize: 18, color: t.textFaint },
+  asistSection: { marginBottom: SPACE.lg },
+  miHijoCard: { backgroundColor: t.surfaceSunken, borderRadius: RADIUS.lg, padding: SPACE.md, marginBottom: SPACE.sm, borderWidth: 1.5, borderColor: t.borderStrong },
+  miHijoNombre: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 8 },
   vozRow: { flexDirection: "row", gap: 8 },
-  vozBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 2, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  vozSi: { borderColor: "#10B981", backgroundColor: "#F0FDF4" },
-  vozNo: { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
-  vozTxt: { fontSize: 13, fontWeight: "700", color: "#94A3B8" },
+  vozBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  vozSi: { borderColor: t.success, backgroundColor: t.successSoft },
+  vozNo: { borderColor: t.danger, backgroundColor: t.dangerSoft },
+  vozTxt: { fontSize: 13, fontWeight: "700", color: t.textFaint },
   grupoResumen: { marginBottom: 10 },
   grupoLabel: { fontSize: 11, fontWeight: "700", marginBottom: 5 },
-  resumenRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 9, marginBottom: 4 },
-  resumenNombre: { fontSize: 13, fontWeight: "600", color: T.text },
+  resumenRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 10, borderRadius: RADIUS.md, marginBottom: 4 },
+  resumenNombre: { fontSize: 13, fontWeight: "600", color: t.text },
 });

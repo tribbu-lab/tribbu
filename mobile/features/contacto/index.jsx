@@ -5,12 +5,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Linking, StyleSheet } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, safeUrl } from "@shared/helpers";
-import { T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
+
+const t = THEMES.light;
 
 const COLEGIO_ID = "d31b5547-246b-46fa-906e-950e51d4af58";
 
@@ -78,7 +81,8 @@ export function Contacto() {
         )}
         {colegio?.url_maps ? (
           <Pressable onPress={() => abrir(colegio.url_maps)} style={styles.mapsBtn}>
-            <Text style={styles.mapsTxt}>📍 Ver en mapa</Text>
+            <MaterialCommunityIcons name="map-marker-outline" size={17} color={BLUE[600]} />
+            <Text style={styles.mapsTxt}>Ver en mapa</Text>
           </Pressable>
         ) : null}
       </Card>
@@ -159,7 +163,7 @@ export function Alumnos() {
         value={busqueda}
         onChangeText={setBusqueda}
         placeholder="Buscar alumno..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={t.placeholder}
         autoCorrect={false}
         style={styles.search}
       />
@@ -207,49 +211,73 @@ export function Alumnos() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text, marginBottom: 16 },
-  muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 16 },
-  card: { padding: 18 },
-  colegioNombre: { fontSize: 14, fontWeight: "800", color: T.text, marginBottom: 12 },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
+  muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
+  card: {
+    padding: SPACE.xl,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  colegioNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, marginBottom: SPACE.md },
   filaRow: { flexDirection: "row", gap: 10, marginBottom: 6 },
-  filaLabel: { fontSize: 13, color: "#94A3B8", fontWeight: "600", width: 110 },
-  filaVal: { fontSize: 13, color: T.text, flex: 1 },
-  link: { fontSize: 13, color: T.accent, fontWeight: "600" },
-  mapsBtn: { marginTop: 8, minHeight: 36, justifyContent: "center" },
-  mapsTxt: { fontSize: 13, fontWeight: "700", color: T.accent },
-  sectionTitle: { fontSize: 14, fontWeight: "800", color: T.text, marginTop: 8, marginBottom: 10 },
-  contactoCard: { padding: 14, marginBottom: 8 },
-  contactoNombre: { fontSize: 13, fontWeight: "700", color: T.text },
-  contactoRol: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
-  contactoLinks: { flexDirection: "row", gap: 16, marginTop: 6, flexWrap: "wrap" },
+  filaLabel: { fontSize: 13, color: t.textFaint, fontWeight: "600", width: 110 },
+  filaVal: { fontSize: 13, color: t.text, flex: 1 },
+  link: { fontSize: 13, color: BLUE[600], fontWeight: "700" },
+  mapsBtn: {
+    marginTop: SPACE.md,
+    minHeight: 44,
+    borderRadius: RADIUS.lg,
+    backgroundColor: t.accentSoft,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  mapsTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
+  sectionTitle: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.sm, marginBottom: SPACE.sm },
+  contactoCard: {
+    padding: SPACE.lg,
+    marginBottom: SPACE.sm,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: t.borderStrong,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  contactoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  contactoRol: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  contactoLinks: { flexDirection: "row", gap: SPACE.lg, marginTop: 6, flexWrap: "wrap" },
   search: {
     minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
     fontSize: 13,
-    color: T.text,
-    marginBottom: 12,
+    color: t.text,
+    marginBottom: SPACE.md,
   },
-  count: { fontSize: 12, color: "#94A3B8", marginBottom: 10 },
+  count: { fontSize: 12, color: t.textMuted, marginBottom: SPACE.sm },
   alumnoCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    marginBottom: 6,
+    backgroundColor: t.surface,
+    borderRadius: RADIUS.xl,
+    marginBottom: SPACE.sm,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: t.borderStrong,
     overflow: "hidden",
   },
-  alumnoTop: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12 },
-  alumnoNombre: { fontSize: 13, fontWeight: "700", color: T.text },
-  apodBox: { borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8 },
-  apodRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  apodDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T.accent },
-  apodNombre: { fontSize: 12, fontWeight: "600", color: T.text, flex: 1 },
-  sinApod: { fontSize: 11, color: "#CBD5E1" },
+  alumnoTop: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md },
+  alumnoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  apodBox: { borderTopWidth: 1, borderTopColor: t.border, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm },
+  apodRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.xs },
+  apodDot: { width: 7, height: 7, borderRadius: RADIUS.full, backgroundColor: t.accent },
+  apodNombre: { fontSize: 12, fontWeight: "600", color: t.text, flex: 1 },
+  sinApod: { fontSize: 12, color: SLATE[300] },
 });

@@ -4,13 +4,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, StyleSheet } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta } from "@shared/helpers";
-import { T } from "@shared/theme";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
+
+const t = THEMES.light;
 
 const fmtMonto = (n, moneda = "$") =>
   n != null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
@@ -204,10 +207,10 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               <View style={styles.flex1}>
                 <View style={styles.titleRow}>
                   <Text style={styles.colectaTitulo}>{c.titulo}</Text>
-                  {!c.activa ? <Pill label="Cerrada" color="#94A3B8" bg="#F1F5F9" /> : null}
-                  {c.activa && vencida ? <Pill label="Vencida" color="#EF4444" bg="#FEF2F2" /> : null}
+                  {!c.activa ? <Pill label="Cerrada" color={t.textMuted} bg={SLATE[100]} /> : null}
+                  {c.activa && vencida ? <Pill label="Vencida" color={t.danger} bg={t.dangerSoft} /> : null}
                   {c.activa && !vencida && dias !== null && dias <= 7 ? (
-                    <Pill label={`${dias}d`} color="#F59E0B" bg="#FFFBEB" />
+                    <Pill label={`${dias}d`} color="#B45309" bg={t.warningSoft} />
                   ) : null}
                 </View>
                 {c.descripcion ? <Text style={styles.colectaDesc}>{c.descripcion}</Text> : null}
@@ -230,7 +233,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               <View style={styles.progressWrap}>
                 <View style={styles.progressTop}>
                   <Text style={styles.progressLabel}>Recaudado</Text>
-                  <Text style={styles.progressLabel}>
+                  <Text style={styles.progressMonto}>
                     {fmtMonto(recaudado, c.moneda || "$")} / {fmtMonto(esperado, c.moneda || "$")}
                   </Text>
                 </View>
@@ -301,15 +304,15 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
                     }}
                     style={styles.iconBtn}
                   >
-                    <Text style={styles.iconTxt}>✏️</Text>
+                    <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
                   </Pressable>
                   <Pressable onPress={() => toggleActiva(c)} style={styles.iconBtn}>
-                    <Text style={[styles.iconTxt, { color: c.activa ? "#F59E0B" : "#10B981" }]}>
+                    <Text style={[styles.iconTxt, { color: c.activa ? "#B45309" : t.success }]}>
                       {c.activa ? "Cerrar" : "Reabrir"}
                     </Text>
                   </Pressable>
                   <Pressable onPress={() => eliminar(c.id)} style={styles.iconBtn}>
-                    <Text style={[styles.iconTxt, { color: "#EF4444" }]}>🗑</Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
                   </Pressable>
                 </>
               ) : null}
@@ -354,7 +357,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
               value={form.titulo}
               onChangeText={(t) => setForm((p) => ({ ...p, titulo: t }))}
               placeholder="Ej: Regalo día del maestro"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={t.placeholder}
               style={styles.input}
             />
 
@@ -363,7 +366,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
               value={form.descripcion}
               onChangeText={(t) => setForm((p) => ({ ...p, descripcion: t }))}
               placeholder="Detalles opcionales"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={t.placeholder}
               style={styles.input}
             />
 
@@ -382,7 +385,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
                 value={form.monto_sugerido}
                 onChangeText={(t) => setForm((p) => ({ ...p, monto_sugerido: t.replace(/[^0-9]/g, "") }))}
                 placeholder="Ej: 2000"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={t.placeholder}
                 keyboardType="number-pad"
                 style={[styles.input, styles.flex1, { marginBottom: 0 }]}
               />
@@ -393,7 +396,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
               value={form.fecha_limite}
               onChangeText={(t) => setForm((p) => ({ ...p, fecha_limite: t }))}
               placeholder="2026-07-01"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={t.placeholder}
               style={styles.input}
             />
 
@@ -444,7 +447,7 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose })
           <View style={styles.pagosHeader}>
             <Text style={styles.modalTitle}>{colecta.titulo}</Text>
             <Pressable onPress={onClose} hitSlop={8}>
-              <Text style={styles.closeTxt}>✕</Text>
+              <MaterialCommunityIcons name="close" size={18} color={t.textFaint} />
             </Pressable>
           </View>
           <ScrollView>
@@ -489,65 +492,65 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose })
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: t.bg },
+  content: { padding: SPACE.lg, paddingBottom: SPACE.xxxl },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
-  empty: { textAlign: "center", paddingVertical: 40, color: "#94A3B8", fontSize: 13 },
-  nuevaBtn: { alignSelf: "flex-start", backgroundColor: T.accent, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 18, marginBottom: 16, minHeight: 44, justifyContent: "center" },
-  nuevaTxt: { color: "white", fontSize: 13, fontWeight: "700" },
-  colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden" },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },
+  empty: { textAlign: "center", paddingVertical: 40, color: t.textFaint, fontSize: 13 },
+  nuevaBtn: { alignSelf: "flex-start", backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 10, paddingHorizontal: 18, marginBottom: SPACE.lg, minHeight: 44, justifyContent: "center" },
+  nuevaTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden", borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   cerrada: { opacity: 0.6 },
-  colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  colectaTitulo: { fontSize: 14, fontWeight: "800", color: T.text },
-  colectaDesc: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  colectaTitulo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  colectaDesc: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   metaRow: { flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" },
-  meta: { fontSize: 11, color: "#64748B" },
-  progressWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  meta: { fontSize: 12, color: t.textMuted },
+  progressWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   progressTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
-  progressLabel: { fontSize: 11, fontWeight: "700", color: "#64748B" },
-  bar: { height: 6, borderRadius: 10, backgroundColor: "#E2E8F0", overflow: "hidden" },
-  barFill: { height: "100%", backgroundColor: T.green, borderRadius: 10 },
-  progressSub: { fontSize: 10, color: "#94A3B8", marginTop: 4 },
+  progressLabel: { fontSize: 11, fontWeight: "700", color: t.textMuted },
+  progressMonto: { fontSize: 12, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  bar: { height: 6, borderRadius: RADIUS.full, backgroundColor: SLATE[200], overflow: "hidden" },
+  barFill: { height: "100%", backgroundColor: t.success, borderRadius: RADIUS.full },
+  progressSub: { fontSize: 11, color: t.textFaint, marginTop: 4 },
   misAlumnos: { padding: 14 },
   alumnoPagoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
-  alumnoNombre: { fontSize: 13, fontWeight: "600", color: T.text },
-  pagoBtn: { minHeight: 40, justifyContent: "center", paddingHorizontal: 16, borderRadius: 20, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white" },
-  pagoBtnOn: { backgroundColor: T.green, borderColor: T.green },
-  pagoTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  pagoTxtOn: { color: "white" },
-  estadoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0" },
-  estadoChipOn: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  estadoTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  estadoTxtOn: { color: T.green },
+  alumnoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  pagoBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
+  pagoBtnOn: { backgroundColor: t.success, borderColor: t.success },
+  pagoTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
+  pagoTxtOn: { color: "#FFFFFF" },
+  estadoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: t.warningSoft },
+  estadoChipOn: { backgroundColor: t.successSoft },
+  estadoTxt: { fontSize: 12, fontWeight: "700", color: "#B45309" },
+  estadoTxtOn: { color: t.success },
   colectaActions: { flexDirection: "row", gap: 6, padding: 12, flexWrap: "wrap", alignItems: "center" },
-  verPagosBtn: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" },
-  verPagosTxt: { fontSize: 11, fontWeight: "700", color: T.accent },
-  iconBtn: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, minHeight: 40, justifyContent: "center" },
-  iconTxt: { fontSize: 12, color: T.text },
+  verPagosBtn: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
+  verPagosTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  iconBtn: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 10, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  iconTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
   // Modal
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: "white", borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 12 },
-  label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 5, marginTop: 6 },
-  input: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", paddingHorizontal: 12, fontSize: 13, color: T.text, marginBottom: 4 },
+  overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
+  modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
+  modalTitle: { fontSize: 16, fontWeight: "800", color: t.textStrong, letterSpacing: -0.2, marginBottom: 12 },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: 6, marginTop: SPACE.sm },
+  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 14, color: t.text, marginBottom: 4 },
   montoRow: { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 4 },
-  monedaBtn: { borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "white" },
-  monedaOn: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
-  monedaTxt: { fontSize: 13, fontWeight: "700", color: "#94A3B8" },
-  monedaTxtOn: { color: T.accent },
-  respList: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, overflow: "hidden", maxHeight: 180 },
-  respRow: { paddingVertical: 11, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  respOn: { backgroundColor: "#EFF6FF" },
-  respTxt: { fontSize: 13, color: T.text },
+  monedaBtn: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: t.surface, minHeight: 44, justifyContent: "center" },
+  monedaOn: { borderColor: SLATE[900], backgroundColor: SLATE[900] },
+  monedaTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  monedaTxtOn: { color: "#FFFFFF", fontWeight: "700" },
+  respList: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.md, overflow: "hidden", maxHeight: 180 },
+  respRow: { minHeight: 44, justifyContent: "center", paddingVertical: 11, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: t.border },
+  respOn: { backgroundColor: t.accentSoft },
+  respTxt: { fontSize: 14, color: t.text },
   modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: "white", fontSize: 13, fontWeight: "700" },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textMuted, fontSize: 14, fontWeight: "700" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
   pagosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  closeTxt: { fontSize: 18, color: "#94A3B8" },
-  pagoAlumnoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  pagoAlumnoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: t.border },
 });

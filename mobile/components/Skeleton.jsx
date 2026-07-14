@@ -4,7 +4,7 @@
 
 import { useEffect, useRef } from "react";
 import { View, Animated } from "react-native";
-import { RADIUS, SPACE, SHADOW } from "@shared/tokens";
+import { RADIUS, SPACE } from "@shared/tokens";
 import { makeThemedStyles, useTheme } from "../context/Theme";
 
 function usePulse() {
@@ -45,15 +45,14 @@ export function Skeleton({ width = "100%", height = 12, radius = RADIUS.sm, styl
 const useStyles = makeThemedStyles((t) => ({
   card: {
     backgroundColor: t.surface,
-    borderRadius: RADIUS.xxl,
+    borderRadius: RADIUS.xl,
     padding: SPACE.xl,
     marginBottom: SPACE.lg,
     borderWidth: 1,
-    borderColor: t.border,
+    borderColor: t.borderStrong,
     flexDirection: "row",
     alignItems: "center",
     gap: SPACE.md,
-    ...SHADOW.card,
   },
   lines: { flex: 1, gap: SPACE.sm },
 }));

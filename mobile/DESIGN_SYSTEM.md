@@ -142,9 +142,10 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 | `Skeleton` / `SkeletonList` | `width,height,radius` / `rows, avatar` | pulso con native driver; preferir sobre `Spinner` cuando la forma de la lista es conocida |
 | `Spinner` | `style` | carga genérica centrada |
 | `Sheet` | `visible, onClose, title, position` | modal estándar: bottom-sheet (default) o diálogo centrado; overlay tocable, safe-area, KeyboardAvoiding |
+| `SelectChip` | `label, value, options, onChange, prefix` | filtro colapsado: chip (se tiñe si hay filtro activo) + Sheet de opciones scrolleable; `prefix=false` muestra el valor corto (`options[].short`) |
 | `Money` | `value, tone, size` | `fmtM` es-AR + tabular-nums; tonos `success` (pagado) / `danger` (deuda) / `muted` |
 | `ListToolbar` + `Paginador` | API de `useListControls` | patrón canónico de toda lista buscable/filtrable |
-| `FloatingTabBar` | `state, navigation, badge` | navegación del sistema (patrón A3): píldora flotante, íconos de trazo, cápsula activa `accentSoft`, badge de Recordatorios |
+| `FloatingTabBar` | `state, navigation, badge` | navegación del sistema (patrón A3): píldora flotante, íconos de trazo, cápsula activa `accentSoft`, badge de Recordatorios; labels con `maxFontSizeMultiplier` 1.1 y "Recordatorios" abreviado a "Avisos" en la barra |
 | `Placeholder` | `emoji, title, note` | pantalla de feature no portada |
 
 ### Recetas
@@ -190,6 +191,8 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 **Accesibilidad.** 44pt mínimos; `accessibilityRole`/`accessibilityLabel` en controles sin texto (ya incluidos en las primitivas); pares texto/fondo del tema cumplen AA en tamaños de uso (los `*Soft` solo con su color pleno correspondiente, ej. `warning` sobre `warningSoft` usa amber-700 en light).
 
 ---
+
+**A3 en toda la app.** Desde la adopción app-wide: `Card` ya no lleva sombra (borde hairline `borderStrong` + radio 16 — `SHADOW.raised` queda solo para superficies que realmente flotan: FloatingTabBar, sheets); todas las pantallas porteadas usan la piel A3 (título 21/800, `TYPE.label`, chips de estado soft, countdown por urgencia — también en Cumpleaños); los filtros largos colapsan en **select-chips** (`components/SelectChip`; en listas ordenables el orden se fija al criterio natural — Cumpleaños: próximo primero — y el control de orden desaparece); la grilla del mes de Calendario es sin bordes por día (hoy = anillo accent, seleccionado = relleno accent); segmentados: inactivo blanco con borde, activo relleno `SLATE[900]`.
 
 ## 8 · Normalizaciones respecto del código previo
 

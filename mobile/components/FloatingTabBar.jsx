@@ -13,11 +13,14 @@ import { THEMES, BLUE, RADIUS, SHADOW, TYPE } from "@shared/tokens";
 const t = THEMES.light;
 const ACTIVE = BLUE[600];
 
+// "Recordatorios" se abrevia a "Avisos" solo en la barra (la pantalla conserva
+// su nombre completo): 5 slots de ~66pt no soportan 13 caracteres con el
+// escalado de fuente del sistema.
 const TABS = [
   { name: "muro", label: "Inicio", icon: "home-outline" },
   { name: "calendario", label: "Calendario", icon: "calendar-month-outline" },
   { name: "cumples", label: "Cumpleaños", icon: "cake-variant-outline" },
-  { name: "recordatorios", label: "Recordatorios", icon: "pin-outline" },
+  { name: "recordatorios", label: "Avisos", icon: "pin-outline" },
   { name: "mas", label: "Más", icon: "menu" },
 ];
 
@@ -59,11 +62,15 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
                 />
                 {tab.name === "recordatorios" && badge > 0 ? (
                   <View style={styles.badge}>
-                    <Text style={styles.badgeTxt}>{badge > 9 ? "9+" : badge}</Text>
+                    <Text style={styles.badgeTxt} maxFontSizeMultiplier={1.1}>
+                      {badge > 9 ? "9+" : badge}
+                    </Text>
                   </View>
                 ) : null}
               </View>
-              <Text style={[styles.lbl, focused && styles.lblOn]} numberOfLines={1}>
+              {/* El escalado de accesibilidad se limita a ×1.1: con más, las
+                  etiquetas desbordan su slot y se truncan. */}
+              <Text style={[styles.lbl, focused && styles.lblOn]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                 {tab.label}
               </Text>
             </Pressable>

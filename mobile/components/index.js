@@ -8,6 +8,7 @@ export { Avatar, ChildDot } from "./Avatar";
 export { EmptyState } from "./EmptyState";
 export { Skeleton, SkeletonList } from "./Skeleton";
 export { Sheet } from "./Sheet";
+export { SelectChip } from "./SelectChip";
 export { Money } from "./Money";
 export { Spinner } from "./Spinner";
 export { Paginador } from "./Paginador";
