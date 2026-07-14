@@ -6,20 +6,19 @@
 // La Edge Function verifica que el llamador tenga rol super o admin antes de operar.
 
 import { supabase } from "../supabase";
-
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { getRuntimeConfig } from "./runtimeConfig";
 
 const callManageAuthUser = async (action, payload) => {
+  const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("No hay sesión activa");
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-auth-user`, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/manage-auth-user`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${session.access_token}`,
-      "apikey": SUPABASE_ANON,
+      "apikey": supabaseAnonKey,
     },
     body: JSON.stringify({ action, payload }),
   });

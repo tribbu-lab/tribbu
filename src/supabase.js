@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { getRuntimeConfig } from './lib/runtimeConfig';
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
 
-if(!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error('Faltan variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY');
+if(!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Faltan variables de entorno de Supabase (URL / anon key). Llamá a setRuntimeConfig(...) antes de importar este módulo.');
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

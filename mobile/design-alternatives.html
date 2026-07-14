@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tribbu · 3 direcciones de diseño</title>
+<style>
+  :root{
+    --ink:#0F172A; --slate7:#334155; --slate5:#64748B; --slate4:#94A3B8;
+    --blue:#3B82F6; --blue6:#2563EB; --bluesoft:#EFF6FF;
+    --pink:#EC4899; --pinksoft:#FDF2F8;
+    --page:#EEF1F6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--page);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1260px;margin:0 auto;padding:40px 28px 80px}
+
+  /* ── intro ── */
+  .kicker{font:700 12px/1 -apple-system;letter-spacing:2px;text-transform:uppercase;color:var(--slate4);margin-bottom:10px}
+  h1.page{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px}
+  .lede{font-size:15px;color:var(--slate5);max-width:760px;line-height:1.55}
+  .diag{margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .diag div{background:#fff;border:1px solid #E4E8F0;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;color:var(--slate7)}
+  .diag b{color:var(--ink)}
+  .diag span.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:7px;background:var(--ink);color:#fff;font:800 11px/1 -apple-system;margin-right:8px;vertical-align:-4px}
+
+  /* ── sticky nav ── */
+  .nav{position:sticky;top:0;z-index:50;display:flex;gap:8;padding:12px 0;margin:18px 0 6px;
+    background:linear-gradient(var(--page) 80%,transparent)}
+  .nav a{text-decoration:none;font:700 13px/1 -apple-system;color:var(--slate7);
+    background:#fff;border:1px solid #E4E8F0;border-radius:999px;padding:10px 16px}
+  .nav a b{color:var(--ink)}
+  .nav a:hover{border-color:var(--slate4)}
+
+  /* ── section chrome ── */
+  section.dir{margin-top:46px}
+  .dhdr{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .dletter{font:800 13px/1 -apple-system;color:#fff;background:var(--ink);border-radius:9px;padding:7px 10px;letter-spacing:.5px}
+  .dhdr h2{font-size:24px;font-weight:800;letter-spacing:-.4px}
+  .thesis{margin:10px 0 4px;font-size:14.5px;line-height:1.6;color:var(--slate7);max-width:860px}
+  .thesis b{color:var(--ink)}
+  .sig{display:inline-block;margin:10px 0 18px;font:600 12.5px/1.4 -apple-system;color:var(--blue6);
+    background:var(--bluesoft);border:1px solid #D6E6FF;border-radius:999px;padding:7px 13px}
+  .tokrow{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:0 0 20px;
+    background:#fff;border:1px solid #E4E8F0;border-radius:14px;padding:12px 16px}
+  .tok{display:flex;align-items:center;gap:7px;font:600 12px/1 ui-monospace,Menlo,monospace;color:var(--slate5)}
+  .sw{width:16px;height:16px;border-radius:5px;border:1px solid rgba(15,23,42,.12)}
+  .tokT{font-family:-apple-system;color:var(--slate7)}
+
+  .phones{display:flex;gap:22px;overflow-x:auto;padding:6px 2px 26px;align-items:flex-start}
+  .ph{width:375px;flex:none;border-radius:50px;border:9px solid #0B1020;overflow:hidden;
+    background:#fff;box-shadow:0 34px 60px -24px rgba(15,23,42,.4)}
+  .scr{display:flex;flex-direction:column;min-height:770px}
+  .grow{flex:1}
+  .cap{font:700 11px/1 -apple-system;letter-spacing:1.6px;text-transform:uppercase;color:var(--slate4);
+    text-align:center;margin-top:12px}
+  .phwrap{flex:none}
+
+  /* status bar + dark header base */
+  .stat{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;color:#fff;font:700 13px/1 -apple-system}
+  .dh{background:#0F172A;color:#fff}
+
+  /* notes under phones */
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:4px}
+  .note{background:#fff;border:1px solid #E4E8F0;border-radius:14px;padding:15px 17px}
+  .note h4{font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--slate4);margin-bottom:7px}
+  .note p{font-size:13.5px;line-height:1.55;color:var(--slate7)}
+  .note b{color:var(--ink)}
+
+  /* ════════ DIRECCIÓN A · AGENDA ════════ */
+  .dA .content{background:#F7F8FA;padding:18px 16px 24px}
+  .dA .hdrow{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 14px}
+  .dA .logo{font:800 19px/1 -apple-system;letter-spacing:-.8px}
+  .dA .logo i{color:var(--blue);font-style:normal}
+  .dA .hact{display:flex;align-items:center;gap:8px}
+  .dA .iconbtn{position:relative;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.08);display:grid;place-items:center;color:rgba(255,255,255,.75)}
+  .dA .iconbtn .dotn{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:99px;background:#F87171;border:1.5px solid #0F172A}
+  .dA .kidchip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border-radius:999px;padding:8px 12px;font:700 12.5px/1 -apple-system;color:#fff}
+  .dA .kdot{width:8px;height:8px;border-radius:99px;background:var(--pink)}
+  .dA .kidchip svg{opacity:.5}
+
+  .dA .eyebrow{font:700 11px/1 -apple-system;letter-spacing:1.2px;text-transform:uppercase;color:var(--slate4)}
+  .dA h1.big{font-size:21px;font-weight:800;letter-spacing:-.3px;margin:6px 0 2px}
+  .dA .astrip{display:flex;gap:8px;margin:13px 0 2px;flex-wrap:wrap}
+  .dA .apill{display:inline-flex;gap:7px;align-items:center;background:#fff;border:1px solid #E7EBF1;border-radius:999px;padding:8px 12px;font:600 12px/1 -apple-system;color:var(--slate7)}
+  .dA .apill .d{width:7px;height:7px;border-radius:99px}
+  .dA .alabel{font:700 11px/1 -apple-system;letter-spacing:1.1px;text-transform:uppercase;color:#8A94A6;margin:18px 2px 8px}
+  .dA .acard{background:#fff;border:1px solid #E7EBF1;border-radius:16px;overflow:hidden}
+  .dA .ar{display:flex;gap:12px;padding:13px 14px;align-items:center;border-top:1px solid #F1F5F9}
+  .dA .ar:first-child{border-top:0}
+  .dA .ard{width:42px;text-align:center;flex:none}
+  .dA .ard .dw{font:700 10px/1 -apple-system;letter-spacing:1px;color:var(--slate4);text-transform:uppercase}
+  .dA .ard .dn{font:800 17px/1.25 -apple-system;color:var(--ink);font-variant-numeric:tabular-nums}
+  .dA .arm{flex:1;min-width:0}
+  .dA .art{font:700 14.5px/1.3 -apple-system;color:var(--ink)}
+  .dA .ars{font:500 12px/1.45 -apple-system;color:var(--slate5);margin-top:2px}
+  .dA .cd{flex:none;border-radius:999px;padding:6px 10px;font:800 12px/1 -apple-system;font-variant-numeric:tabular-nums}
+  .dA .cd-hot{background:var(--blue);color:#fff}
+  .dA .cd-soon{background:var(--bluesoft);color:var(--blue6)}
+  .dA .cd-later{background:#F1F5F9;color:var(--slate5)}
+  .dA .acard-f{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-top:1px solid #F1F5F9;font:700 12.5px/1 -apple-system;color:var(--blue6)}
+  .dA .rowline{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .dA .quiet{border:1px solid #E7EBF1;background:#fff;border-radius:999px;padding:6px 11px;font:700 11px/1 -apple-system;color:var(--slate5)}
+  .dA .sub{font:500 13px/1 -apple-system;color:var(--slate5);margin-top:4px}
+  .dA .fcard{border-left:3px solid var(--pink)}
+  .dA .frow{display:flex;gap:11px;padding:13px 14px;align-items:center}
+  .dA .av{width:38px;height:38px;border-radius:99px;display:grid;place-items:center;font:800 13px/1 -apple-system;flex:none}
+  .dA .av-p{background:var(--pinksoft);color:#DB2777;border:1px solid rgba(236,72,153,.3)}
+  .dA .av-t{background:#F0FDFA;color:#0D9488;border:1px solid rgba(13,148,136,.3)}
+  .dA .btnrow{display:flex;gap:8px;padding:0 14px 13px 63px}
+  .dA .bp{background:var(--blue);color:#fff;border-radius:10px;padding:9px 14px;font:800 12.5px/1 -apple-system}
+  .dA .bg{color:var(--slate5);border:1px solid #E7EBF1;border-radius:10px;padding:9px 14px;font:700 12.5px/1 -apple-system;background:#fff}
+  .dA .tile{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;flex:none;background:#FFF7E6}
+  .dA .okchip{display:inline-flex;align-items:center;gap:4px;font:800 11px/1 -apple-system;color:#047857;background:#ECFDF5;border-radius:999px;padding:6px 9px}
+  .dA .chev{color:#C4CBD6;flex:none}
+  .dA .search{display:flex;gap:8px;margin:14px 0 10px}
+  .dA .sfield{flex:1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E7EBF1;border-radius:12px;padding:11px 12px;font:500 13px/1 -apple-system;color:var(--slate4)}
+  .dA .sortc{display:flex;align-items:center;background:#fff;border:1px solid #E7EBF1;border-radius:12px;padding:11px 12px;font:700 12px/1 -apple-system;color:var(--slate7)}
+  .dA .months{display:flex;gap:16px;padding:2px 2px 10px;font:700 12px/1 -apple-system;color:var(--slate4);letter-spacing:.6px}
+  .dA .months b{color:var(--blue6);border-bottom:2px solid var(--blue6);padding-bottom:6px}
+  .dA .cnt{font:600 11.5px/1 -apple-system;color:var(--slate4);margin:2px 2px 8px}
+  .dA .gift{font:500 12px/1.4 -apple-system;color:var(--slate5);margin-top:2px}
+  .dA .filters{display:flex;gap:8px;margin:12px 0}
+  .dA .fsel{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E7EBF1;border-radius:999px;padding:8px 12px;font:700 12px/1 -apple-system;color:var(--slate7)}
+  .dA .fsel span{color:var(--slate4);font-weight:600}
+  .dA .rdot{width:8px;height:8px;border-radius:99px;flex:none}
+  .dA .ract{font:700 12.5px/1 -apple-system;color:var(--blue6);flex:none}
+  .dA .rread .art{font-weight:500;color:var(--slate5)}
+  .dA .hlink{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;font:700 13.5px/1 -apple-system;color:var(--slate7)}
+  /* tab bar A */
+  .dA .tb{display:flex;background:#fff;border-top:1px solid #E7EBF1;padding:9px 6px 20px}
+  .dA .tb a{flex:1;display:grid;justify-items:center;gap:4px;font:600 9.5px/1 -apple-system;color:#9AA3B2;text-decoration:none}
+  .dA .tb a.on{color:var(--blue6);font-weight:800}
+  .ic{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .ics{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* A · carrusel de pendientes */
+  .dA .pcar{display:flex;gap:10px;overflow-x:hidden;padding:2px 2px 4px}
+  .dA .pcard{flex:none;width:268px;background:#fff;border:1px solid #E7EBF1;border-radius:16px;padding:13px 14px}
+  .dA .ptop{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+  .dA .ptop .d{width:7px;height:7px;border-radius:99px}
+  .dA .ptype{font:800 9.5px/1 -apple-system;letter-spacing:1.1px;text-transform:uppercase;color:var(--slate4)}
+  .dA .pt{font:700 14px/1.3 -apple-system;color:var(--ink)}
+  .dA .pm{font:500 12px/1.45 -apple-system;color:var(--slate5);margin-top:2px}
+  .dA .pact{display:flex;justify-content:space-between;align-items:center;margin-top:11px}
+  .dA .pact .go{font:700 12.5px/1 -apple-system;color:var(--blue6)}
+  .dA .money{font:800 13px/1 -apple-system;color:var(--ink);font-variant-numeric:tabular-nums}
+  .dA .pdots{display:flex;gap:5px;justify-content:center;margin-top:9px}
+  .dA .pdots i{width:5px;height:5px;border-radius:99px;background:#D7DDE6}
+  .dA .pdots i.on{width:14px;background:var(--blue)}
+  .dA .pempty{display:flex;gap:12px;align-items:center;background:#fff;border:1.5px dashed #DCE2EB;border-radius:16px;padding:14px}
+  .dA .pico{width:38px;height:38px;border-radius:99px;background:#ECFDF5;color:#059669;display:grid;place-items:center;flex:none}
+  .dA .rowlbl{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
+  .dA .rowlbl .alabel{margin:0}
+  .dA .seeall{font:700 11.5px/1 -apple-system;color:var(--blue6)}
+
+  /* A3 · tab bar flotante (de C, en lenguaje A) */
+  .dA .ftbw{background:#F7F8FA}
+  .dA .ftb{display:flex;background:#fff;margin:0 14px 14px;border-radius:999px;padding:6px;
+    border:1px solid #EDF0F5;box-shadow:0 14px 30px -16px rgba(15,23,42,.28)}
+  .dA .ftb a{flex:1;display:grid;justify-items:center;gap:3px;font:600 9.5px/1 -apple-system;
+    color:#9AA3B2;text-decoration:none;padding:8px 0;border-radius:999px}
+  .dA .ftb a.on{background:var(--bluesoft);color:var(--blue6);font-weight:800}
+
+  /* ════════ DIRECCIÓN B · CUADERNO ════════ */
+  .dB .content{background:#FBFBF9;padding:20px 18px 24px}
+  .dB .hdrow{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px}
+  .dB .logo{font:800 17px/1 -apple-system;letter-spacing:-.6px}
+  .dB .logo i{color:var(--blue);font-style:normal}
+  .dB .hact{display:flex;align-items:center;gap:14px;font:700 12.5px/1 -apple-system;color:rgba(255,255,255,.75)}
+  .dB .belld{position:relative;color:rgba(255,255,255,.75)}
+  .dB .belld .dotn{position:absolute;top:-2px;right:-3px;width:6px;height:6px;border-radius:99px;background:#F87171}
+  .sc{font:700 10.5px/1 -apple-system;letter-spacing:1.5px;text-transform:uppercase}
+  .dB .mast .sc{color:var(--slate4)}
+  .dB .mast h1{font-size:26px;font-weight:800;letter-spacing:-.6px;margin:4px 0 6px}
+  .dB .mast .hola{font:500 13px/1 -apple-system;color:var(--slate5)}
+  .dB .mrule{height:1px;background:#E2E6EC;margin:14px 0 2px}
+  .dB .bsec{display:flex;align-items:center;gap:10px;margin:20px 0 4px}
+  .dB .bsec .sc{color:#98A1B0}
+  .dB .bsec::after{content:"";flex:1;height:1px;background:#E7EAF0}
+  .dB .lrow{display:flex;align-items:center;gap:11px;padding:12px 0;border-bottom:1px solid #EEF0F4}
+  .dB .lrow:last-child{border-bottom:0}
+  .dB .ldate{width:50px;flex:none;font:700 11.5px/1.35 -apple-system;letter-spacing:.6px;color:var(--ink);font-variant-numeric:tabular-nums;text-transform:uppercase}
+  .dB .lmain{flex:1;min-width:0}
+  .dB .lt{font:650 14px/1.35 -apple-system;color:var(--ink)}
+  .dB .ls{font:400 12px/1.45 -apple-system;color:#79828F;margin-top:1px}
+  .dB .lcd{flex:none;font:700 12.5px/1 -apple-system;font-variant-numeric:tabular-nums;color:#9AA3B2}
+  .dB .lcd.soon{color:var(--blue6)}
+  .dB .stok{flex:none}
+  .dB .st-ok{color:#047857}.dB .st-alta{color:#DC2626}.dB .st-media{color:#B45309}
+  .dB .bnote{border:1px solid #E4E7ED;background:#F7F8FA;border-radius:12px;padding:13px 15px;margin-top:12px}
+  .dB .bnote .lt{font-size:14.5px}
+  .dB .blink{font:700 12.5px/1 -apple-system;color:var(--blue6);text-decoration:none;white-space:nowrap}
+  .dB .metaline{font:500 12.5px/1.5 -apple-system;color:#79828F;margin-top:5px}
+  .dB h1.head{font-size:24px;font-weight:800;letter-spacing:-.5px}
+  .dB .hrow{display:flex;justify-content:space-between;align-items:baseline}
+  .dB .bsearch{display:flex;align-items:center;gap:8px;border-bottom:1.5px solid #E2E6EC;padding:10px 2px;margin-top:14px;font:500 13px/1 -apple-system;color:#9AA3B2}
+  .dB .prio{border-left:3px solid transparent;padding-left:11px;margin-left:-14px}
+  .dB .prio-alta{border-color:#DC2626}
+  .dB .prio-media{border-color:#D97706}
+  .dB .read .lt{color:#9AA3B2;font-weight:500}
+  .dB .read .ldate{color:#9AA3B2}
+  .dB .tb{display:flex;background:#FBFBF9;border-top:1px solid #E4E7ED;padding:13px 8px 22px}
+  .dB .tb a{flex:1;text-align:center;text-decoration:none;font:700 10px/1 -apple-system;letter-spacing:1.2px;text-transform:uppercase;color:#A6AEBB;padding-top:4px}
+  .dB .tb a.on{color:var(--ink)}
+  .dB .tb a.on span{border-bottom:2px solid var(--ink);padding-bottom:5px}
+
+  /* ════════ DIRECCIÓN C · MOCHILA ════════ */
+  .dC .content{background:#F5F6FA;padding:18px 16px 24px}
+  .dC .dh{border-bottom:3px solid var(--pink)}
+  .dC .hdrow{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px}
+  .dC .logo{font:800 19px/1 -apple-system;letter-spacing:-.8px}
+  .dC .logo i{color:var(--blue);font-style:normal}
+  .dC .hact{display:flex;align-items:center;gap:9px}
+  .dC .cav{width:32px;height:32px;border-radius:99px;background:var(--pink);color:#fff;display:grid;place-items:center;font:800 13px/1 -apple-system;box-shadow:0 0 0 2.5px rgba(236,72,153,.35)}
+  .dC .kidname{font:700 12.5px/1 -apple-system;color:rgba(255,255,255,.85)}
+  .dC .iconbtn{position:relative;width:33px;height:33px;border-radius:99px;background:rgba(255,255,255,.09);display:grid;place-items:center;color:rgba(255,255,255,.8)}
+  .dC .iconbtn .dotn{position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:99px;background:#F87171;border:1.5px solid #0F172A}
+  .dC h1.big{font-size:23px;font-weight:900;letter-spacing:-.4px;margin:4px 0 2px}
+  .dC .sub{font:500 13px/1 -apple-system;color:var(--slate5)}
+  .dC .ccard{background:#fff;border-radius:22px;padding:15px;box-shadow:0 12px 26px -14px rgba(15,23,42,.16);margin-top:14px}
+  .dC .chero{background:var(--pinksoft);box-shadow:none;border:1.5px solid rgba(236,72,153,.22)}
+  .dC .clabel{font:800 11px/1 -apple-system;letter-spacing:1.2px;text-transform:uppercase;color:#DB2777}
+  .dC .cirow{background:#fff;border-radius:15px;padding:10px 12px;display:flex;gap:10px;align-items:center;margin-top:10px}
+  .dC .ctile{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:19px;flex:none;background:#F1F5F9}
+  .dC .ctile.warm{background:#FFF1F5}
+  .dC .ctile.sun{background:#FFF7E6}
+  .dC .ctile.cool{background:#EFF6FF}
+  .dC .ctile.red{background:#FEE2E2}
+  .dC .ctile.gray{background:#F1F5F9}
+  .dC .cirow .t{font:800 14px/1.3 -apple-system;color:var(--ink)}
+  .dC .cirow .s{font:500 12px/1.4 -apple-system;color:var(--slate5);margin-top:1px}
+  .dC .cmain{flex:1;min-width:0}
+  .dC .cpill{flex:none;border-radius:999px;padding:7px 11px;font:800 11.5px/1 -apple-system;font-variant-numeric:tabular-nums}
+  .dC .p-hot{background:#FEE2E2;color:#DC2626}
+  .dC .p-soon{background:#FEF3C7;color:#B45309}
+  .dC .p-later{background:#F1F5F9;color:var(--slate5)}
+  .dC .qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+  .dC .qa{display:grid;justify-items:center;gap:7px;text-decoration:none}
+  .dC .qa .b{width:54px;height:54px;border-radius:19px;background:#fff;display:grid;place-items:center;font-size:22px;box-shadow:0 8px 18px -10px rgba(15,23,42,.18)}
+  .dC .qa .l{font:700 11px/1 -apple-system;color:#475569}
+  .dC .cbtn{display:inline-block;background:var(--blue);color:#fff;border-radius:999px;padding:11px 16px;font:800 13px/1 -apple-system;margin-top:12px}
+  .dC .cbtn.ghost{background:#fff;color:var(--slate7);border:1.5px solid #E2E8F0}
+  .dC .cbtn.w{background:#fff;color:#B45309;border:1.5px solid rgba(217,119,6,.35)}
+  .dC .cst{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 10px;font:800 11px/1 -apple-system}
+  .dC .st-blue{background:#EFF6FF;color:var(--blue6)}
+  .dC .st-green{background:#ECFDF5;color:#047857}
+  .dC .st-pink{background:#FDF2F8;color:#DB2777}
+  .dC .st-red{background:#FEE2E2;color:#DC2626}
+  .dC .camber{background:#FFFBEB;border:1.5px solid rgba(217,119,6,.28);box-shadow:none}
+  .dC .bigt{font:900 17px/1.25 -apple-system;letter-spacing:-.2px}
+  .dC .meta{font:500 12.5px/1.5 -apple-system;color:var(--slate5);margin-top:3px}
+  .dC .row{display:flex;align-items:center;gap:11px}
+  .dC .cavl{width:42px;height:42px;border-radius:99px;display:grid;place-items:center;font:800 14px/1 -apple-system;flex:none}
+  .dC .cav-t{background:#CCFBF1;color:#0F766E}
+  .dC .cav-p{background:#FCE7F3;color:#DB2777}
+  .dC .csearch{display:flex;gap:8px;margin-top:16px}
+  .dC .csf{flex:1;background:#fff;border-radius:999px;padding:12px 16px;font:600 13px/1 -apple-system;color:var(--slate4);box-shadow:0 6px 16px -10px rgba(15,23,42,.14)}
+  .dC .cmonths{display:flex;gap:7px;margin:12px 0 2px;overflow:hidden}
+  .dC .cm{flex:none;border-radius:999px;padding:9px 14px;font:800 12px/1 -apple-system;background:#fff;color:var(--slate5);box-shadow:0 5px 12px -8px rgba(15,23,42,.14)}
+  .dC .cm.on{background:var(--ink);color:#fff}
+  .dC .datetile{width:52px;border-radius:15px;padding:8px 0;text-align:center;flex:none}
+  .dC .datetile .d{font:900 17px/1.15 -apple-system;font-variant-numeric:tabular-nums}
+  .dC .datetile .m{font:800 10px/1.3 -apple-system;letter-spacing:1px}
+  .dC .dt-red{background:#FEE2E2;color:#DC2626}
+  .dC .dt-gray{background:#F1F5F9;color:var(--slate5)}
+  .dC .faded{opacity:.62}
+  .dC .newb{background:var(--blue);color:#fff;border-radius:999px;padding:10px 15px;font:800 12.5px/1 -apple-system;flex:none}
+  .dC .tb{display:flex;background:#fff;margin:10px 12px 14px;border-radius:999px;padding:7px;box-shadow:0 14px 30px -16px rgba(15,23,42,.3)}
+  .dC .tb a{flex:1;display:grid;justify-items:center;gap:3px;text-decoration:none;font:700 9.5px/1 -apple-system;color:#9AA3B2;padding:7px 0;border-radius:999px}
+  .dC .tb a .e{font-size:17px}
+  .dC .tb a.on{background:var(--pinksoft);color:#DB2777;font-weight:800}
+  .dC .tbwrap{background:#F5F6FA}
+
+  /* comparison */
+  table.cmp{width:100%;border-collapse:collapse;background:#fff;border:1px solid #E4E8F0;border-radius:16px;overflow:hidden;margin-top:16px}
+  .cmp th,.cmp td{padding:13px 16px;font-size:13.5px;line-height:1.5;text-align:left;vertical-align:top;border-top:1px solid #EEF1F5}
+  .cmp th{background:#F8FAFC;font-weight:800;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--slate5);border-top:0}
+  .cmp td:first-child{font-weight:800;color:var(--ink);white-space:nowrap}
+  .cmp td{color:var(--slate7)}
+  .adopt{margin-top:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .adopt .note code{font:600 11.5px/1.7 ui-monospace,Menlo,monospace;color:var(--slate7);display:block}
+  .reco{margin-top:26px;background:var(--ink);color:#E6EAF2;border-radius:18px;padding:22px 24px;font-size:14.5px;line-height:1.65}
+  .reco b{color:#fff}
+  .reco .sc{color:#8A94A6;display:block;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<!-- sprite -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M3.5 10.5h17M8.5 3v4M15.5 3v4"/></symbol>
+  <symbol id="i-cake" viewBox="0 0 24 24"><path d="M4.5 21h15M6 21v-7.5h12V21"/><path d="M9 13.5V11M12 13.5V10M15 13.5V11"/><path d="M9 8.7v-.2M12 7.7v-.2M15 8.7v-.2"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9.5 4.5h5l-.8 5.2 2.8 2.8H7.5l2.8-2.8z"/><path d="M12 12.5V20"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 9.5a5.5 5.5 0 0 1 11 0c0 4.5 1.8 5.5 1.8 5.5H4.7s1.8-1 1.8-5.5"/><path d="M10.6 18.5a1.6 1.6 0 0 0 2.8 0"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.2-4.2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+</svg>
+
+<div class="wrap">
+
+  <div class="kicker">tribbu · exploración de diseño</div>
+  <h1 class="page">Tres direcciones para un sistema más sleek</h1>
+  <p class="lede">Mismas pantallas (Inicio · Cumpleaños · Recordatorios), mismos datos, tres tesis distintas de jerarquía.
+  Las tres se implementan sobre los tokens existentes (<code>@shared/tokens</code>) — al final está el delta de cada una y una recomendación.</p>
+
+  <div class="diag">
+    <div><span class="n">1</span><b>El dato clave está sub-jerarquizado.</b> "¿Cuántos días faltan?" es lo que un padre busca, y hoy es un pill gris al costado. Las tres direcciones lo promueven, cada una a su manera.</div>
+    <div><span class="n">2</span><b>Todo es la misma card.</b> Borde + sombra + blanco en todos los bloques → sin ritmo. Y en Cumpleaños compiten verde, amarillo y naranja antes del contenido.</div>
+    <div><span class="n">3</span><b>Emoji como ícono de UI ≠ emoji como contenido.</b> 🔔 🔑 🎨 y las tabs agregan ruido multicolor; el emoji de un evento (🏖️) sí comunica. Se conserva el segundo uso.</div>
+    <div><span class="n">4</span><b>Los filtros ocupan el espacio prime.</b> Dos filas de chips antes de la primera fila de contenido, e Inicio desaprovecha la mitad de la pantalla.</div>
+  </div>
+
+  <nav class="nav">
+    <a href="#dir-a"><b>A</b> · Agenda</a>
+    <a href="#dir-b"><b>B</b> · Cuaderno</a>
+    <a href="#dir-c"><b>C</b> · Mochila</a>
+    <a href="#cmp">Comparación</a>
+  </nav>
+
+  <!-- ═══════════════════════ DIRECCIÓN A ═══════════════════════ -->
+  <section class="dir" id="dir-a">
+    <div class="dhdr"><span class="dletter">A</span><h2>Agenda — precisión por sustracción</h2></div>
+    <p class="thesis">La evolución disciplinada del sistema actual. Se quita antes que agregar: <b>sin sombras, borde hairline, un solo tipo de card</b>, íconos de trazo en lugar de emojis de UI. El countdown pasa a ser el protagonista con tres niveles de urgencia, e Inicio se convierte en una agenda unificada (eventos + cumples ordenados por proximidad, sin importar el tipo).</p>
+    <div class="sig">Firma: el countdown como sistema — lleno ≤3 días · teñido ≤7 · neutro después</div>
+    <div class="tokrow">
+      <span class="tok"><span class="sw" style="background:#F7F8FA"></span>bg</span>
+      <span class="tok"><span class="sw" style="background:#fff"></span>surface</span>
+      <span class="tok"><span class="sw" style="background:#E7EBF1"></span>border (sin sombra)</span>
+      <span class="tok"><span class="sw" style="background:#3B82F6"></span>cd-hot</span>
+      <span class="tok"><span class="sw" style="background:#EFF6FF"></span>cd-soon</span>
+      <span class="tok tokT">radius 20→16 · h1 22/900→21/800 · íconos stroke 1.8</span>
+    </div>
+
+    <div class="phones dA">
+
+      <!-- A · INICIO -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="eyebrow">Sábado 11 de julio</div>
+          <h1 class="big">Hola, Nicolas</h1>
+          <div class="astrip">
+            <span class="apill"><span class="d" style="background:#EF4444"></span>1 recordatorio sin leer</span>
+            <span class="apill"><span class="d" style="background:#F59E0B"></span>Colecta regalo: pago pendiente</span>
+          </div>
+
+          <div class="alabel">Próximos 15 días</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="ard"><div class="dw">Vie</div><div class="dn">17</div></div>
+              <div class="arm"><div class="art">Cumple de Milagros 🎂</div><div class="ars">Alumna · le regala Valentín V.</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">20</div></div>
+              <div class="arm"><div class="art">Receso de invierno 🏖️</div><div class="ars">Sin clases · todo el colegio</div></div>
+              <span class="cd cd-later">9 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">27</div></div>
+              <div class="arm"><div class="art">Cumple de Lucia 🎂</div><div class="ars">Tu hija · festejo confirmado</div></div>
+              <span class="cd cd-later">16 días</span>
+            </div>
+            <div class="acard-f"><span>Ver calendario completo</span><svg class="ics"><use href="#i-chev"/></svg></div>
+          </div>
+
+          <div class="alabel">Comedor</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="tile" style="background:#F1F5F9">🍽️</div>
+              <div class="arm"><div class="art">Fin de semana — sin servicio</div><div class="ars">Lunes 13: milanesa con puré</div></div>
+              <svg class="ics chev"><use href="#i-chev"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="tb">
+          <a class="on"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+          <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+          <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+          <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+        </div>
+      </div></div><div class="cap">A · Inicio</div></div>
+
+      <!-- A · CUMPLEAÑOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="rowline">
+            <h1 class="big" style="margin:0">Cumpleaños</h1>
+            <span class="quiet">🎁 USD 90 por familia</span>
+          </div>
+          <div class="sub">23 en el curso · 2 este mes</div>
+
+          <div class="alabel">Tu festejo</div>
+          <div class="acard fcard">
+            <div class="frow">
+              <span class="av av-p">L</span>
+              <div class="arm"><div class="art">Festejo de Lucia</div><div class="ars">Lun 27 de julio · invitaciones enviadas</div></div>
+              <span class="cd cd-later">16 días</span>
+            </div>
+            <div class="btnrow"><span class="bp">Ver festejo</span><span class="bg">Editar</span></div>
+          </div>
+
+          <div class="alabel">Invitaciones</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="tile">🎉</div>
+              <div class="arm"><div class="art">Festejo de Santiago Arias</div><div class="ars">Vie 20 de nov · 17:00 · Ayres Plaza</div></div>
+              <span class="okchip">✓ Confirmado</span>
+            </div>
+          </div>
+
+          <div class="search">
+            <span class="sfield"><svg class="ics"><use href="#i-search"/></svg>Buscar por nombre…</span>
+            <span class="sortc">Próximo ↑</span>
+          </div>
+          <div class="months">
+            <span>TODOS</span><b>JUL</b><span>AGO</span><span>SEP</span><span>OCT</span><span>NOV</span>
+          </div>
+          <div class="cnt">2 cumpleaños en julio</div>
+          <div class="acard">
+            <div class="ar">
+              <span class="av av-t">MN</span>
+              <div class="arm"><div class="art">Milagros Navas</div><div class="ars">Jue 17 de julio · Alumna</div><div class="gift">🎁 Le regala: Valentín Vazquez</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <span class="av av-p">L</span>
+              <div class="arm"><div class="art">Lucia Albani Setti</div><div class="ars">Lun 27 de julio · Alumna · tu hija</div></div>
+              <span class="cd cd-later">16 días</span>
+            </div>
+          </div>
+        </div>
+        <div class="tb">
+          <a><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+          <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+          <a class="on"><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+          <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+        </div>
+      </div></div><div class="cap">A · Cumpleaños</div></div>
+
+      <!-- A · RECORDATORIOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="rowline">
+            <h1 class="big" style="margin:0">Recordatorios</h1>
+            <span class="bp" style="display:inline-flex;align-items:center;gap:5px"><svg class="ics" style="width:13px;height:13px"><use href="#i-plus"/></svg>Nuevo</span>
+          </div>
+          <div class="sub">1 sin leer</div>
+
+          <div class="filters">
+            <span class="fsel"><span>Estado:</span> Todos <svg class="ics" style="width:12px;height:12px;color:#9AA3B2"><use href="#i-chevd"/></svg></span>
+            <span class="fsel"><span>Prioridad:</span> Todas <svg class="ics" style="width:12px;height:12px;color:#9AA3B2"><use href="#i-chevd"/></svg></span>
+          </div>
+
+          <div class="acard">
+            <div class="ar">
+              <span class="rdot" style="background:#EF4444"></span>
+              <div class="arm"><div class="art">Reunión de fin de semestre</div><div class="ars">Mié 15 de julio · en 4 días · Alta</div></div>
+              <span class="ract">Marcar leído</span>
+            </div>
+            <div class="ar rread">
+              <span class="rdot" style="border:1.5px solid #CBD5E1"></span>
+              <div class="arm"><div class="art">Cumple Valen P.</div><div class="ars">24 de junio · hace 17 días</div></div>
+              <svg class="ics" style="color:#B6BEC9"><use href="#i-check"/></svg>
+            </div>
+          </div>
+
+          <div class="alabel">Comunicados</div>
+          <div class="acard">
+            <div class="hlink"><span>📣 Historial de comunicados</span><svg class="ics chev"><use href="#i-chev"/></svg></div>
+          </div>
+        </div>
+        <div class="tb">
+          <a><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+          <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+          <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+          <a class="on"><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+          <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+        </div>
+      </div></div><div class="cap">A · Recordatorios</div></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h4>Jerarquía</h4><p>Inicio deja de ser saludo + dos cards sueltas: es <b>una sola agenda ordenada por proximidad</b> que mezcla eventos y cumples, más una tira de pendientes accionables. El día (VIE 17) ancla cada fila a la izquierda; el countdown cierra a la derecha con urgencia codificada.</p></div>
+      <div class="note"><h4>Qué se elimina</h4><p>Sombras, el doble borde+sombra, los emojis de UI (🔔 🔑 🎨 → íconos de trazo; Salir y contraseña pasan a Más), las dos filas de chips de filtros (→ dos selects compactos) y el botón gigante de invitación (→ estado ✓ + fila tocable).</p></div>
+      <div class="note"><h4>Riesgo / esfuerzo</h4><p>El más bajo: misma estructura de navegación y componentes, cambian tokens y plantillas de fila. Requiere sumar <code>@expo/vector-icons</code> (Feather) y el token de urgencia del countdown.</p></div>
+    </div>
+
+    <!-- ── Variante A: carrusel de pendientes ── -->
+    <div class="dhdr" id="var-a" style="margin-top:40px"><span class="dletter" style="background:#3B82F6">A2</span><h2 style="font-size:19px">Variante de Inicio — pendientes como carrusel</h2></div>
+    <p class="thesis">Los pendientes dejan de ser pills informativos y pasan a <b>cards accionables</b>: cada una tiene tipo, vencimiento y su acción primaria (marcar leído, registrar pago, responder). El carrusel escala de 1 a n con la card siguiente asomando como affordance de scroll. Si no hay nada, el slot no desaparece: un <b>empty state</b> con borde punteado mantiene la pantalla estable y confirma que estás al día.</p>
+
+    <div class="phones dA">
+
+      <!-- A2 · INICIO CON CARRUSEL -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="eyebrow">Sábado 11 de julio</div>
+          <h1 class="big">Hola, Nicolas</h1>
+
+          <div class="rowlbl"><span class="alabel">Pendientes · 3</span><span class="seeall">Ver todos</span></div>
+          <div class="pcar">
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#EF4444"></span><span class="ptype">Recordatorio</span></div>
+              <div class="pt">Reunión de fin de semestre</div>
+              <div class="pm">Sin leer · mié 15 de julio</div>
+              <div class="pact"><span class="go">Marcar leído</span><span class="cd cd-soon">en 4 días</span></div>
+            </div>
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#F59E0B"></span><span class="ptype">Colecta</span></div>
+              <div class="pt">Regalo de Milagros</div>
+              <div class="pm">Tu aporte todavía no está registrado</div>
+              <div class="pact"><span class="go">Registrar pago</span><span class="money">USD 90</span></div>
+            </div>
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#10B981"></span><span class="ptype">Invitación</span></div>
+              <div class="pt">Festejo de Santiago</div>
+              <div class="pm">Falta confirmar asistencia</div>
+              <div class="pact"><span class="go">Responder</span><span class="cd cd-later">20 nov</span></div>
+            </div>
+          </div>
+          <div class="pdots"><i class="on"></i><i></i><i></i></div>
+
+          <div class="alabel">Próximos 15 días</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="ard"><div class="dw">Vie</div><div class="dn">17</div></div>
+              <div class="arm"><div class="art">Cumple de Milagros 🎂</div><div class="ars">Alumna · le regala Valentín V.</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">20</div></div>
+              <div class="arm"><div class="art">Receso de invierno 🏖️</div><div class="ars">Sin clases · todo el colegio</div></div>
+              <span class="cd cd-later">9 días</span>
+            </div>
+            <div class="acard-f"><span>Ver calendario completo</span><svg class="ics"><use href="#i-chev"/></svg></div>
+          </div>
+        </div>
+        <div class="tb">
+          <a class="on"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+          <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+          <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+          <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+        </div>
+      </div></div><div class="cap">A2 · Inicio — con pendientes</div></div>
+
+      <!-- A2 · INICIO VACÍO -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="eyebrow">Sábado 11 de julio</div>
+          <h1 class="big">Hola, Nicolas</h1>
+
+          <div class="alabel" style="margin-top:18px">Pendientes</div>
+          <div class="pempty">
+            <span class="pico"><svg class="ic" style="width:19px;height:19px"><use href="#i-check"/></svg></span>
+            <div class="arm">
+              <div class="pt">Estás al día ✨</div>
+              <div class="pm">No tenés pendientes. Cuando haya algo para resolver, aparece acá.</div>
+            </div>
+          </div>
+
+          <div class="alabel">Próximos 15 días</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="ard"><div class="dw">Vie</div><div class="dn">17</div></div>
+              <div class="arm"><div class="art">Cumple de Milagros 🎂</div><div class="ars">Alumna · le regala Valentín V.</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">20</div></div>
+              <div class="arm"><div class="art">Receso de invierno 🏖️</div><div class="ars">Sin clases · todo el colegio</div></div>
+              <span class="cd cd-later">9 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">27</div></div>
+              <div class="arm"><div class="art">Cumple de Lucia 🎂</div><div class="ars">Tu hija · festejo confirmado</div></div>
+              <span class="cd cd-later">16 días</span>
+            </div>
+            <div class="acard-f"><span>Ver calendario completo</span><svg class="ics"><use href="#i-chev"/></svg></div>
+          </div>
+
+          <div class="alabel">Comedor</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="tile" style="background:#F1F5F9">🍽️</div>
+              <div class="arm"><div class="art">Fin de semana — sin servicio</div><div class="ars">Lunes 13: milanesa con puré</div></div>
+              <svg class="ics chev"><use href="#i-chev"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="tb">
+          <a class="on"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+          <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+          <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+          <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+        </div>
+      </div></div><div class="cap">A2 · Inicio — sin pendientes</div></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h4>Por qué cards y no pills</h4><p>El pill solo informa; la card <b>resuelve</b>: tipo (versalita + dot de color), título, vencimiento y la acción primaria adentro. Un pendiente se liquida sin salir de Inicio. La card siguiente asoma ~44px como affordance de scroll y los dots marcan posición.</p></div>
+      <div class="note"><h4>El empty state</h4><p>El slot no desaparece: borde <b>punteado</b> (= "acá vive algo"), check verde y copy que confirma y explica ("aparece acá"). La pantalla no salta entre estados y el usuario aprende dónde mirar. La campana pierde el punto rojo — coherencia entre señales.</p></div>
+      <div class="note"><h4>Implementación</h4><p>FlatList horizontal con <code>snapToInterval</code> (ancho de card + gap), <code>pagingEnabled</code> off, dots derivados del índice. Card = <code>Card</code> del sistema con radio 16; acciones = <code>Button variant="ghost" size="sm"</code>. Empty = <code>EmptyState compact</code> con borde dashed.</p></div>
+    </div>
+
+    <!-- ── Variante A3: A2 + tab bar flotante de C ── -->
+    <div class="dhdr" id="var-a3" style="margin-top:40px"><span class="dletter" style="background:#3B82F6">A3</span><h2 style="font-size:19px">Variante — A2 con la tab bar flotante de C</h2></div>
+    <p class="thesis">Misma pantalla que A2, cambiando solo la navegación: la barra pegada al borde se reemplaza por la <b>píldora flotante</b> de la dirección C, traducida al lenguaje de A — íconos de trazo (no emojis) y <b>cápsula activa en azul suave</b> en lugar del tinte rosa. Es la única sombra de toda la pantalla, y acá está justificada: la barra realmente flota sobre el contenido.</p>
+
+    <div class="phones dA">
+
+      <!-- A3 · INICIO CON CARRUSEL -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="eyebrow">Sábado 11 de julio</div>
+          <h1 class="big">Hola, Nicolas</h1>
+
+          <div class="rowlbl"><span class="alabel">Pendientes · 3</span><span class="seeall">Ver todos</span></div>
+          <div class="pcar">
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#EF4444"></span><span class="ptype">Recordatorio</span></div>
+              <div class="pt">Reunión de fin de semestre</div>
+              <div class="pm">Sin leer · mié 15 de julio</div>
+              <div class="pact"><span class="go">Marcar leído</span><span class="cd cd-soon">en 4 días</span></div>
+            </div>
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#F59E0B"></span><span class="ptype">Colecta</span></div>
+              <div class="pt">Regalo de Milagros</div>
+              <div class="pm">Tu aporte todavía no está registrado</div>
+              <div class="pact"><span class="go">Registrar pago</span><span class="money">USD 90</span></div>
+            </div>
+            <div class="pcard">
+              <div class="ptop"><span class="d" style="background:#10B981"></span><span class="ptype">Invitación</span></div>
+              <div class="pt">Festejo de Santiago</div>
+              <div class="pm">Falta confirmar asistencia</div>
+              <div class="pact"><span class="go">Responder</span><span class="cd cd-later">20 nov</span></div>
+            </div>
+          </div>
+          <div class="pdots"><i class="on"></i><i></i><i></i></div>
+
+          <div class="alabel">Próximos 15 días</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="ard"><div class="dw">Vie</div><div class="dn">17</div></div>
+              <div class="arm"><div class="art">Cumple de Milagros 🎂</div><div class="ars">Alumna · le regala Valentín V.</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">20</div></div>
+              <div class="arm"><div class="art">Receso de invierno 🏖️</div><div class="ars">Sin clases · todo el colegio</div></div>
+              <span class="cd cd-later">9 días</span>
+            </div>
+            <div class="acard-f"><span>Ver calendario completo</span><svg class="ics"><use href="#i-chev"/></svg></div>
+          </div>
+        </div>
+        <div class="ftbw">
+          <div class="ftb">
+            <a class="on"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+            <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+            <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+            <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+            <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+          </div>
+        </div>
+      </div></div><div class="cap">A3 · Inicio — con pendientes</div></div>
+
+      <!-- A3 · INICIO VACÍO -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-bell"/></svg></span>
+              <span class="kidchip"><span class="kdot"></span>Lucia <svg class="ics" style="width:13px;height:13px"><use href="#i-chevd"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="eyebrow">Sábado 11 de julio</div>
+          <h1 class="big">Hola, Nicolas</h1>
+
+          <div class="alabel" style="margin-top:18px">Pendientes</div>
+          <div class="pempty">
+            <span class="pico"><svg class="ic" style="width:19px;height:19px"><use href="#i-check"/></svg></span>
+            <div class="arm">
+              <div class="pt">Estás al día ✨</div>
+              <div class="pm">No tenés pendientes. Cuando haya algo para resolver, aparece acá.</div>
+            </div>
+          </div>
+
+          <div class="alabel">Próximos 15 días</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="ard"><div class="dw">Vie</div><div class="dn">17</div></div>
+              <div class="arm"><div class="art">Cumple de Milagros 🎂</div><div class="ars">Alumna · le regala Valentín V.</div></div>
+              <span class="cd cd-soon">6 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">20</div></div>
+              <div class="arm"><div class="art">Receso de invierno 🏖️</div><div class="ars">Sin clases · todo el colegio</div></div>
+              <span class="cd cd-later">9 días</span>
+            </div>
+            <div class="ar">
+              <div class="ard"><div class="dw">Lun</div><div class="dn">27</div></div>
+              <div class="arm"><div class="art">Cumple de Lucia 🎂</div><div class="ars">Tu hija · festejo confirmado</div></div>
+              <span class="cd cd-later">16 días</span>
+            </div>
+            <div class="acard-f"><span>Ver calendario completo</span><svg class="ics"><use href="#i-chev"/></svg></div>
+          </div>
+
+          <div class="alabel">Comedor</div>
+          <div class="acard">
+            <div class="ar">
+              <div class="tile" style="background:#F1F5F9">🍽️</div>
+              <div class="arm"><div class="art">Fin de semana — sin servicio</div><div class="ars">Lunes 13: milanesa con puré</div></div>
+              <svg class="ics chev"><use href="#i-chev"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="ftbw">
+          <div class="ftb">
+            <a class="on"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+            <a><svg class="ic"><use href="#i-cal"/></svg>Calendario</a>
+            <a><svg class="ic"><use href="#i-cake"/></svg>Cumpleaños</a>
+            <a><svg class="ic"><use href="#i-pin"/></svg>Avisos</a>
+            <a><svg class="ic"><use href="#i-more"/></svg>Más</a>
+          </div>
+        </div>
+      </div></div><div class="cap">A3 · Inicio — sin pendientes</div></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h4>Qué cambia (solo la barra)</h4><p>Píldora blanca flotante con borde hairline y sombra; <b>la cápsula activa</b> (fondo azul suave + ícono y label en azul) señala la sección con más contraste que el tinte de A. Los íconos de trazo se mantienen — nada de emojis de UI.</p></div>
+      <div class="note"><h4>Trade-offs</h4><p>Gana personalidad y legibilidad del estado activo sin salirse de la paleta. A cambio: ~12px menos de alto útil, y el contenido debe scrollear <b>por detrás</b> de la barra (padding inferior extra en cada lista) para que el gesto se sienta flotante de verdad.</p></div>
+      <div class="note"><h4>Implementación</h4><p>Tab bar custom de Expo Router (<code>tabBar</code> prop): <code>position:"absolute"</code> + <code>bottom: insets.bottom + 8</code>, <code>RADIUS.full</code>, <code>SHADOW.raised</code> suavizada, cápsula activa = <code>accentSoft</code>. Listas: <code>contentContainerStyle.paddingBottom = 88</code>.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ DIRECCIÓN B ═══════════════════════ -->
+  <section class="dir" id="dir-b">
+    <div class="dhdr"><span class="dletter">B</span><h2>Cuaderno — el boletín escolar, tipográfico</h2></div>
+    <p class="thesis">Inspirada en el <b>cuaderno de comunicados</b>: la fecha vive en el margen como en una agenda escolar, el contenido son filas-libreta separadas por reglas hairline, y <b>las cards desaparecen casi por completo</b> (queda una sola caja: la nota destacada). La prioridad es un filo de color al margen, los estados son versalitas. Máxima densidad y escaneabilidad; en Cumpleaños la agrupación cronológica por mes reemplaza a los filtros.</p>
+    <div class="sig">Firma: la fila-libreta — fecha al margen, regla hairline, versalitas de estado</div>
+    <div class="tokrow">
+      <span class="tok"><span class="sw" style="background:#FBFBF9"></span>bg (papel)</span>
+      <span class="tok"><span class="sw" style="background:#E7EAF0"></span>rules</span>
+      <span class="tok"><span class="sw" style="background:#0F172A"></span>ink</span>
+      <span class="tok"><span class="sw" style="background:#DC2626"></span>alta</span>
+      <span class="tok"><span class="sw" style="background:#047857"></span>ok</span>
+      <span class="tok tokT">sin cards ni sombras · display 26/800 · versalitas ls 1.5</span>
+    </div>
+
+    <div class="phones dB">
+
+      <!-- B · INICIO -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact"><span class="belld"><svg class="ics" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span><span>Lucia ▾</span></div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="mast">
+            <div class="sc">Sábado</div>
+            <h1>11 de julio</h1>
+            <div class="hola">Hola, Nicolas — esto es lo que viene para Lucia.</div>
+            <div class="mrule"></div>
+          </div>
+
+          <div class="bsec"><span class="sc">Esta semana</span></div>
+          <div class="lrow">
+            <span class="ldate">Vie 17</span>
+            <div class="lmain"><div class="lt">🎂 Cumple de Milagros Navas</div><div class="ls">Alumna · le regala Valentín V.</div></div>
+            <span class="lcd soon">6 d</span>
+          </div>
+          <div class="lrow">
+            <span class="ldate">Lun 20</span>
+            <div class="lmain"><div class="lt">🏖️ Receso escolar de invierno</div><div class="ls">Sin clases · todo el colegio</div></div>
+            <span class="lcd">9 d</span>
+          </div>
+
+          <div class="bsec"><span class="sc">Pendientes</span></div>
+          <div class="lrow prio prio-alta">
+            <div class="lmain"><div class="lt">Reunión de fin de semestre</div><div class="ls">Sin leer · respondé antes del mié 15</div></div>
+            <span class="sc stok st-alta">Alta</span>
+          </div>
+
+          <div class="bsec"><span class="sc">Comedor</span></div>
+          <div class="lrow">
+            <span class="ldate">Lun 13</span>
+            <div class="lmain"><div class="lt">Milanesa con puré</div><div class="ls">Ver menú de la semana</div></div>
+            <a class="blink">→</a>
+          </div>
+        </div>
+        <div class="tb">
+          <a class="on"><span>Inicio</span></a><a><span>Agenda</span></a><a><span>Cumples</span></a><a><span>Avisos</span></a><a><span>Más</span></a>
+        </div>
+      </div></div><div class="cap">B · Inicio</div></div>
+
+      <!-- B · CUMPLEAÑOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact"><span class="belld"><svg class="ics" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span><span>Lucia ▾</span></div>
+          </div>
+        </div>
+        <div class="content grow">
+          <h1 class="head">Cumpleaños</h1>
+          <div class="metaline">23 en el curso · regalo: USD 90 por familia</div>
+          <div class="mrule"></div>
+
+          <div class="bnote">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div><div class="lt">🎈 El festejo de Lucia</div><div class="ls" style="margin-top:3px">Lun 27 de julio · invitaciones enviadas</div></div>
+              <a class="blink">Ver festejo →</a>
+            </div>
+          </div>
+
+          <div class="bsec"><span class="sc">Invitaciones</span></div>
+          <div class="lrow">
+            <div class="lmain"><div class="lt">Festejo de Santiago Arias Purita</div><div class="ls">Vie 20 de nov · 17:00 · Ayres Plaza</div></div>
+            <span class="sc stok st-ok">Confirmado</span>
+          </div>
+
+          <div class="bsearch"><svg class="ics"><use href="#i-search"/></svg>Buscar por nombre…</div>
+
+          <div class="bsec"><span class="sc">Julio</span></div>
+          <div class="lrow">
+            <span class="ldate">17</span>
+            <div class="lmain"><div class="lt">Milagros Navas</div><div class="ls">Alumna · le regala Valentín Vazquez</div></div>
+            <span class="lcd soon">6 d</span>
+          </div>
+          <div class="lrow">
+            <span class="ldate">27</span>
+            <div class="lmain"><div class="lt">Lucia Albani Setti</div><div class="ls">Alumna · tu hija</div></div>
+            <span class="lcd">16 d</span>
+          </div>
+
+          <div class="bsec"><span class="sc">Septiembre</span></div>
+          <div class="lrow">
+            <span class="ldate">02</span>
+            <div class="lmain"><div class="lt">Ramiro Paz</div><div class="ls">Maestro</div></div>
+            <span class="lcd">53 d</span>
+          </div>
+        </div>
+        <div class="tb">
+          <a><span>Inicio</span></a><a><span>Agenda</span></a><a class="on"><span>Cumples</span></a><a><span>Avisos</span></a><a><span>Más</span></a>
+        </div>
+      </div></div><div class="cap">B · Cumpleaños</div></div>
+
+      <!-- B · RECORDATORIOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact"><span class="belld"><svg class="ics" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span><span>Lucia ▾</span></div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div class="hrow">
+            <h1 class="head">Avisos</h1>
+            <a class="blink">+ Nuevo</a>
+          </div>
+          <div class="metaline">1 sin leer · 1 leído</div>
+          <div class="mrule"></div>
+
+          <div class="bsec"><span class="sc">Sin leer</span></div>
+          <div class="lrow prio prio-alta">
+            <span class="ldate">15 jul</span>
+            <div class="lmain"><div class="lt">Reunión de fin de semestre</div><div class="ls">En 4 días · <span class="sc st-alta" style="font-size:10px">Alta</span></div></div>
+            <a class="blink">Marcar leído</a>
+          </div>
+
+          <div class="bsec"><span class="sc">Leídos</span></div>
+          <div class="lrow prio prio-media read">
+            <span class="ldate">24 jun</span>
+            <div class="lmain"><div class="lt">Cumple Valen P.</div><div class="ls">Hace 17 días · <span class="sc st-media" style="font-size:10px">Media</span></div></div>
+            <span class="lcd">✓</span>
+          </div>
+
+          <div class="bsec"><span class="sc">Comunicados</span></div>
+          <div class="lrow">
+            <div class="lmain"><div class="lt">📣 Historial de comunicados</div><div class="ls">Todos los mensajes del colegio</div></div>
+            <a class="blink">→</a>
+          </div>
+        </div>
+        <div class="tb">
+          <a><span>Inicio</span></a><a><span>Agenda</span></a><a><span>Cumples</span></a><a class="on"><span>Avisos</span></a><a><span>Más</span></a>
+        </div>
+      </div></div><div class="cap">B · Recordatorios</div></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h4>Jerarquía</h4><p>La fecha es el índice de todo: <b>columna de margen fija</b>, tabular, como en la libreta. Los estados dejan de ser pills de color y pasan a <b>versalitas</b> (CONFIRMADO, ALTA) — se leen sin gritar. Los avisos se agrupan por lo único que importa: sin leer / leídos.</p></div>
+      <div class="note"><h4>Qué se elimina</h4><p>Todas las cards (queda una nota destacada), todas las sombras, los pills de mes (la lista se agrupa por mes con subtítulos → scroll cronológico natural), el buscador-caja (→ línea subrayada).</p></div>
+      <div class="note"><h4>Riesgo / esfuerzo</h4><p>Medio: es el cambio más radical de percepción con el menor costo técnico (menos chrome que dibujar). Riesgo: puede sentirse "seco" para una app familiar — los emojis de contenido y el azul de acción son los que aportan calidez.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ DIRECCIÓN C ═══════════════════════ -->
+  <section class="dir" id="dir-c">
+    <div class="dhdr"><span class="dletter">C</span><h2>Mochila — la identidad del hijo como arquitectura</h2></div>
+    <p class="thesis">El sistema ya tiene un concepto único que ningún genérico tiene: <b>cada hijo tiene su color</b>. Esta dirección lo asciende de accesorio a estructura: el color de Lucia tiñe el borde del header, su avatar, el hero de Inicio y la tab activa. Formas más redondas, chips-sticker, tiles de fecha con color de urgencia. La más cálida y "de familia" — con disciplina: <b>el color identitario nunca pinta texto de lectura</b>, solo superficies suaves y acentos.</p>
+    <div class="sig">Firma: la app de Lucia es rosa; la de su hermano, verde — theming por hijo en toda la UI</div>
+    <div class="tokrow">
+      <span class="tok"><span class="sw" style="background:#EC4899"></span>hijo (Lucia)</span>
+      <span class="tok"><span class="sw" style="background:#FDF2F8"></span>hijoSoft</span>
+      <span class="tok"><span class="sw" style="background:#FEE2E2"></span>urg ≤3d</span>
+      <span class="tok"><span class="sw" style="background:#FEF3C7"></span>urg ≤7d</span>
+      <span class="tok"><span class="sw" style="background:#fff"></span>surface r24 + sombra blanda</span>
+      <span class="tok tokT">radius 20→24 · tab bar flotante · stickers</span>
+    </div>
+
+    <div class="phones dC">
+
+      <!-- C · INICIO -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidname">Lucia</span><span class="cav">L</span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <h1 class="big">Hola, Nico 👋</h1>
+          <div class="sub">Sábado 11 de julio</div>
+
+          <div class="ccard chero">
+            <span class="clabel">La semana de Lucia</span>
+            <div class="cirow">
+              <span class="ctile warm">🎂</span>
+              <div class="cmain"><div class="t">Cumple de Milagros</div><div class="s">Jueves 17 · le regala Valentín</div></div>
+              <span class="cpill p-soon">en 6 días</span>
+            </div>
+            <div class="cirow">
+              <span class="ctile sun">🏖️</span>
+              <div class="cmain"><div class="t">Receso de invierno</div><div class="s">Desde el lunes 20</div></div>
+              <span class="cpill p-later">en 9 días</span>
+            </div>
+          </div>
+
+          <div class="qgrid">
+            <a class="qa"><span class="b">🍽️</span><span class="l">Comedor</span></a>
+            <a class="qa"><span class="b">💳</span><span class="l">Colectas</span></a>
+            <a class="qa"><span class="b">📋</span><span class="l">Info útil</span></a>
+            <a class="qa"><span class="b">📞</span><span class="l">Contacto</span></a>
+          </div>
+
+          <div class="ccard">
+            <div class="row">
+              <span class="ctile warm" style="width:46px;height:46px;font-size:22px">🎂</span>
+              <div class="cmain"><div class="bigt">El cumple de Lucia</div><div class="meta">Lunes 27 de julio · festejo confirmado</div></div>
+            </div>
+            <span class="cbtn">Preparar festejo</span>
+          </div>
+        </div>
+        <div class="tbwrap">
+          <div class="tb">
+            <a class="on"><span class="e">🏠</span>Inicio</a>
+            <a><span class="e">📅</span>Agenda</a>
+            <a><span class="e">🎂</span>Cumples</a>
+            <a><span class="e">📌</span>Avisos</a>
+            <a><span class="e">☰</span>Más</a>
+          </div>
+        </div>
+      </div></div><div class="cap">C · Inicio</div></div>
+
+      <!-- C · CUMPLEAÑOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidname">Lucia</span><span class="cav">L</span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h1 class="big">Cumpleaños</h1>
+            <span class="cst st-green">🎁 USD 90 por familia</span>
+          </div>
+          <div class="sub">23 en el curso</div>
+
+          <div class="ccard chero">
+            <div class="row">
+              <span class="cavl cav-p">L</span>
+              <div class="cmain"><div class="bigt">Festejo de Lucia</div><div class="meta">Lun 27 de julio · en 16 días</div></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <span class="cbtn">Ver festejo</span>
+              <span class="cbtn ghost">Editar</span>
+            </div>
+          </div>
+
+          <div class="ccard camber">
+            <div class="row">
+              <span class="ctile sun">🎉</span>
+              <div class="cmain"><div class="t" style="font:800 14px/1.3 -apple-system">Santiago te invitó a su festejo</div><div class="meta">Vie 20 de nov · 17:00 · Ayres Plaza</div></div>
+              <span class="cst st-green">✓</span>
+            </div>
+            <span class="cbtn w">Ver invitación</span>
+          </div>
+
+          <div class="csearch"><span class="csf">🔍 Buscar por nombre…</span></div>
+          <div class="cmonths">
+            <span class="cm on">Todos</span><span class="cm">Julio</span><span class="cm">Agosto</span><span class="cm">Sept…</span>
+          </div>
+
+          <div class="ccard" style="margin-top:10px">
+            <div class="row">
+              <span class="cavl cav-t">MN</span>
+              <div class="cmain"><div class="t" style="font:800 14.5px/1.3 -apple-system">Milagros Navas</div><div class="meta">17 de julio · <span class="cst st-blue" style="padding:3px 8px">🎒 Alumna</span></div></div>
+              <span class="cpill p-soon">6 d</span>
+            </div>
+          </div>
+          <div class="ccard" style="margin-top:10px">
+            <div class="row">
+              <span class="cavl cav-p">L</span>
+              <div class="cmain"><div class="t" style="font:800 14.5px/1.3 -apple-system">Lucia Albani Setti</div><div class="meta">27 de julio · <span class="cst st-pink" style="padding:3px 8px">⭐ Tu hija</span></div></div>
+              <span class="cpill p-later">16 d</span>
+            </div>
+          </div>
+        </div>
+        <div class="tbwrap">
+          <div class="tb">
+            <a><span class="e">🏠</span>Inicio</a>
+            <a><span class="e">📅</span>Agenda</a>
+            <a class="on"><span class="e">🎂</span>Cumples</a>
+            <a><span class="e">📌</span>Avisos</a>
+            <a><span class="e">☰</span>Más</a>
+          </div>
+        </div>
+      </div></div><div class="cap">C · Cumpleaños</div></div>
+
+      <!-- C · RECORDATORIOS -->
+      <div class="phwrap"><div class="ph"><div class="scr">
+        <div class="dh">
+          <div class="stat"><span>6:11</span><svg width="40" height="12" viewBox="0 0 40 12"><path d="M14 9.5a4 4 0 0 1 5 0l-2.5 2.4zM11 6.5a8.5 8.5 0 0 1 11 0l-1.8 1.8a6 6 0 0 0-7.4 0z" fill="#fff"/><rect x="26" y="2" width="11" height="8" rx="2.5" fill="none" stroke="#fff" opacity=".5"/><rect x="27.5" y="3.5" width="7" height="5" rx="1" fill="#fff"/></svg></div>
+          <div class="hdrow">
+            <span class="logo">tribbu<i>.</i></span>
+            <div class="hact">
+              <span class="iconbtn"><svg class="ic" style="width:17px;height:17px"><use href="#i-bell"/></svg><span class="dotn"></span></span>
+              <span class="kidname">Lucia</span><span class="cav">L</span>
+            </div>
+          </div>
+        </div>
+        <div class="content grow">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h1 class="big">Avisos 📌</h1>
+            <span class="newb">+ Nuevo</span>
+          </div>
+          <div class="sub">1 sin leer</div>
+
+          <div class="ccard">
+            <div class="row">
+              <span class="datetile dt-red"><div class="d">15</div><div class="m">JUL</div></span>
+              <div class="cmain">
+                <div class="bigt" style="font-size:15px">Reunión de fin de semestre</div>
+                <div class="meta">En 4 días · <span class="cst st-red" style="padding:3px 8px">Alta</span></div>
+              </div>
+            </div>
+            <span class="cbtn" style="padding:10px 14px;font-size:12.5px">Marcar leído ✓</span>
+          </div>
+
+          <div class="ccard faded">
+            <div class="row">
+              <span class="datetile dt-gray"><div class="d">24</div><div class="m">JUN</div></span>
+              <div class="cmain">
+                <div class="bigt" style="font-size:15px">Cumple Valen P.</div>
+                <div class="meta">Hace 17 días · leído ✓</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ccard">
+            <div class="row">
+              <span class="ctile gray">📣</span>
+              <div class="cmain"><div class="t" style="font:800 14px/1.3 -apple-system">Historial de comunicados</div><div class="meta">Todos los mensajes del colegio</div></div>
+              <span style="color:#C4CBD6;font-weight:800">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="tbwrap">
+          <div class="tb">
+            <a><span class="e">🏠</span>Inicio</a>
+            <a><span class="e">📅</span>Agenda</a>
+            <a><span class="e">🎂</span>Cumples</a>
+            <a class="on"><span class="e">📌</span>Avisos</a>
+            <a><span class="e">☰</span>Más</a>
+          </div>
+        </div>
+      </div></div><div class="cap">C · Recordatorios</div></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h4>Jerarquía</h4><p>El hero de Inicio responde la pregunta real ("¿qué viene para <b>mi</b> hija?") en un bloque teñido con su color. La urgencia se codifica en color de superficie (rojo ≤3d, ámbar ≤7d) en pills y tiles de fecha — se percibe antes de leer.</p></div>
+      <div class="note"><h4>Qué cambia</h4><p>El color del hijo pasa a: borde del header, avatar con anillo, hero, sticker "tu hija" y tab activa. Los accesos de "Más" (Comedor, Colectas…) suben a Inicio como quick-actions. Tab bar flotante tipo píldora. Los emojis se quedan — acá son el idioma.</p></div>
+      <div class="note"><h4>Riesgo / esfuerzo</h4><p>El más alto: hay que verificar contraste para los 10 colores de hijo (derivar soft/border con <code>childTheme</code> ya lo resuelve) y disciplina para no teñir de más. Es también la dirección con más personalidad propia frente a otras apps escolares.</p></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ COMPARACIÓN ═══════════════════════ -->
+  <section class="dir" id="cmp">
+    <div class="dhdr"><h2>Comparación y adopción</h2></div>
+    <table class="cmp">
+      <tr><th></th><th>A · Agenda</th><th>B · Cuaderno</th><th>C · Mochila</th></tr>
+      <tr><td>Tesis</td><td>Sustracción: menos chrome, countdown como sistema</td><td>Tipografía y reglas: densidad de boletín escolar</td><td>Identidad: el color del hijo estructura la UI</td></tr>
+      <tr><td>Personalidad</td><td>Sobria, "producto pulido"</td><td>Editorial, adulta, ultra escaneable</td><td>Cálida, familiar, distintiva</td></tr>
+      <tr><td>Esfuerzo</td><td>Bajo — tokens + plantillas de fila</td><td>Medio — nuevo componente de fila, quitar Cards</td><td>Medio/alto — theming por hijo en 5+ superficies</td></tr>
+      <tr><td>Riesgo</td><td>Bajo</td><td>Puede sentirse seca para el público</td><td>Contraste × 10 colores; puede empalagar</td></tr>
+      <tr><td>Elegila si…</td><td>querés el salto de calidad más seguro ya</td><td>los usuarios power (admins) son la prioridad</td><td>la marca "familia" es el diferencial a explotar</td></tr>
+    </table>
+
+    <div class="adopt">
+      <div class="note"><h4>Delta de tokens · A</h4><code>RADIUS.xxl 20→16 · SHADOW.card→none<br>border #E7EBF1 · TYPE.h1 21/800<br>+ COUNTDOWN = {hot, soon, later}<br>+ @expo/vector-icons (Feather) p/ UI</code></div>
+      <div class="note"><h4>Delta de tokens · B</h4><code>bg #FBFBF9 · sin SHADOW ni Card<br>+ TYPE.smallcaps (10.5/700 ls 1.5)<br>+ LedgerRow (fecha margen 50px, regla)<br>agrupación por mes reemplaza filtros</code></div>
+      <div class="note"><h4>Delta de tokens · C</h4><code>RADIUS.xxl 20→24 · SHADOW más blanda<br>childTheme → header/hero/tab activa<br>+ URGENCY = {≤3 rojo, ≤7 ámbar, resto gris}<br>+ Badge "sticker" md con emoji</code></div>
+    </div>
+
+    <div class="reco">
+      <span class="sc">Recomendación</span>
+      <b>A como base del sistema</b> — es el 80% del "sleek" con el menor riesgo — sumándole las dos mejores ideas de las otras: la <b>agrupación cronológica por mes</b> de B en Cumpleaños (mata las dos filas de filtros) y la <b>urgencia por color</b> de C en los countdowns. El theming por hijo de C puede entrar después como capa opcional: los tokens (<code>childTheme</code>) ya lo soportan.
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
