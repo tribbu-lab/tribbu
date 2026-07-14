@@ -32,9 +32,8 @@ tribbu_backup_*.json
 .vercel
 .env*.local
 
-# Supabase CLI scratch
-supabase/.temp/
-
 # Proyectos nativos generados por expo prebuild (regenerables)
 mobile/ios/
 mobile/android/
+supabase/.temp
+mobile/.expo
