@@ -23,3 +23,12 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# Credenciales Google (Android) — nunca commitear
+google-services.json
+play-service-account.json
+
+# Proyecto nativo generado por `expo run:android` (build local / emulador).
+# NO commitear NI dejar que suba a EAS: con android/ presente en el upload,
+# EAS saltea prebuild y el build cloud pasa a bare workflow.
+/android/

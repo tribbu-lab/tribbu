@@ -2,6 +2,16 @@
 // La env llega por EXPO_PUBLIC_* (ver .env.example) — solo la anon key del lado
 // cliente; la service-role key NUNCA va en mobile/.
 
+import { existsSync } from "fs";
+
+// FCM (push en Android): google-services.json no se commitea. En EAS llega como
+// file env var GOOGLE_SERVICES_JSON (la env contiene la RUTA al archivo que EAS
+// materializa en el worker); local, se usa el archivo suelto si existe. Si no
+// hay ninguno, se omite la key para no romper builds previas al setup de Firebase.
+const googleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ??
+  (existsSync("./google-services.json") ? "./google-services.json" : undefined);
+
 export default {
   expo: {
     name: "tribbu",
@@ -35,7 +45,23 @@ export default {
     android: {
       package: "com.tribbu.app",
       adaptiveIcon: {
+        // Foreground con el glifo dentro de la safe zone circular (66/108):
+        // derivado de assets/icon.png escalado ~53% sobre canvas #0F172A —
+        // el arte full-bleed directo dejaría el punto azul fuera de la máscara.
+        foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#0F172A",
+      },
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+      // Splash propio de Android: el estilo de Android 12+ SIEMPRE referencia
+      // @drawable/splashscreen_logo, y prebuild solo lo genera si hay `image`
+      // — con el splash top-level (solo color, como iOS) el build falla en
+      // aapt ("resource drawable/splashscreen_logo not found"). El glifo va
+      // sobre transparente, padded para la máscara circular ~Ø192dp (se dibuja
+      // contain a 200dp sobre canvas de 288dp).
+      splash: {
+        image: "./assets/splash-icon.png",
+        backgroundColor: "#0F172A",
+        resizeMode: "contain",
       },
       // Canal de notificaciones se crea en código (push/register.js)
     },
@@ -60,6 +86,9 @@ export default {
             "tribbu usa tus fotos para subir imágenes como la invitación de un festejo.",
           cameraPermission:
             "tribbu usa la cámara para adjuntar fotos en el curso.",
+          // Solo fotos, nunca video: sin esto Android pide RECORD_AUDIO y
+          // complica la declaración de permisos en Play sin necesidad.
+          microphonePermission: false,
         },
       ],
       [

@@ -12,33 +12,74 @@ cp .env.example .env          # completar EXPO_PUBLIC_SUPABASE_URL / ANON_KEY
 npx expo start                # dev (Expo Go o development build)
 ```
 
-> Solo la **anon key** llega al cliente. La service-role key nunca va en `mobile/`.
-
-## Builds (EAS)
+Emulador Android local (build nativo debug + Metro; genera `android/`, que está
+gitignoreado a propósito — si llegara al repo/EAS, el build cloud pasaría a
+bare workflow):
 
 ```bash
-npx eas login
-npx eas init                  # crea projectId (se inyecta en app.config.js > extra.eas)
-npx eas build -p ios          # binario iOS
-npx eas build -p android      # binario Android
+~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_36.1 &
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npx expo run:android
 ```
 
-## Backend pendiente (correr una vez)
+> Solo la **anon key** llega al cliente. La service-role key nunca va en `mobile/`.
 
-1. **Tabla de push tokens** — ejecutar `supabase/push_tokens.sql` en el SQL editor de Supabase.
-2. **Edge Function `send-push`** — migrar a la Expo Push API usando
-   `supabase/send-push.reference.ts` como guía (copiar a
-   `supabase/functions/send-push/index.ts` del proyecto de funciones y
-   `supabase functions deploy send-push`). El `payload.type` se conserva para el
-   deep-link (ver `push/useNotificationRouting.js`).
+## Builds y distribución (EAS)
 
-## Estado (milestone 1)
+El CLI no está instalado como dependencia: usar `npx -y eas-cli@latest <cmd>`
+desde `mobile/` (la sesión de `eas login` vive en `~/.expo` y se comparte).
 
-Portadas a RN: **Login/registro/cambiar contraseña, sesión + modelo "Mi acceso",
-navegación (tabs + super), push (registro + deep-link), Muro/Inicio y
-Recordatorios**. El resto de las features (Calendario, Comedor, Cumpleaños,
-Colectas, Info Útil, Contacto, Alumnos, Admin, Super Admin) quedan como
-placeholders navegables y se portan en sesiones de seguimiento.
+```bash
+npx -y eas-cli@latest build -p ios --profile production      # .ipa firmado
+npx -y eas-cli@latest build -p android --profile production  # .aab firmado
+npx -y eas-cli@latest submit -p ios --latest      # → App Store Connect / TestFlight
+npx -y eas-cli@latest submit -p android --latest  # → Google Play, track interno
+```
+
+El perfil `production` auto-incrementa la versión nativa en el server de EAS
+(`appVersionSource: remote`) y **toda la firma la gestiona EAS** (certs de iOS
+y keystore de Android generados/guardados remotos — no hay secretos de firma en
+el repo). Los ids de destino viven en `eas.json > submit` (`ascAppId` para App
+Store, `track: internal` para Play). El perfil `preview` genera binarios de
+distribución interna (en Android, APK instalable directo en el dispositivo).
+
+### Android — setup one-time
+
+1. **Push (FCM V1)** — sin esto la app funciona pero no recibe push (falla
+   `getExpoPushTokenAsync`):
+   - En [Firebase console](https://console.firebase.google.com): crear proyecto →
+     agregar app Android `com.tribbu.app` → descargar `google-services.json` a
+     `mobile/` (gitignoreado; `app.config.js` lo usa solo si existe).
+   - Para los builds de EAS: subir ese archivo como **file env var**
+     `GOOGLE_SERVICES_JSON` en expo.dev → proyecto tribbu → Environment
+     variables (environments `production` y `preview`).
+   - Clave del servidor: Firebase console → Project settings → Service
+     accounts → *Generate new private key*, y subirla con
+     `npx -y eas-cli@latest credentials -p android` → Google Service Account
+     → FCM V1.
+2. **Google Play** — crear la app `com.tribbu.app` en la
+   [Play Console](https://play.google.com/console); **la primera `.aab` se sube
+   a mano** (Testing interno → Create release — la API de Google no permite la
+   primera subida). Para los siguientes `eas submit`: crear un service account
+   con acceso a la Play Developer API (Play Console → Setup → API access),
+   darle permisos de release y guardar su clave JSON como
+   `mobile/play-service-account.json` (gitignoreado; la ruta ya está en
+   `eas.json > submit.production.android`).
+
+## Backend one-time (si aún no corrió)
+
+1. **Tabla de push tokens** — ejecutar `supabase/push_tokens.sql` en el SQL
+   editor de Supabase.
+2. **Edge Function `send-push`** — vive en `../supabase/functions/send-push/`
+   (Expo Push API); desplegar con `supabase functions deploy send-push`. El
+   `payload.type` se conserva para el deep-link (ver
+   `push/useNotificationRouting.js`).
+
+## Estado
+
+Todas las features están portadas a RN (el detalle y los gaps menores están en
+la sección "Mobile app" de `../CLAUDE.md`). iOS se distribuye vía
+TestFlight; Android vía Google Play (track interno), con el setup one-time de
+arriba.
 
 ## QA
 
