@@ -57,13 +57,16 @@ distribución interna (en Android, APK instalable directo en el dispositivo).
      `npx -y eas-cli@latest credentials -p android` → Google Service Account
      → FCM V1.
 2. **Google Play** — crear la app `com.tribbu.app` en la
-   [Play Console](https://play.google.com/console); **la primera `.aab` se sube
-   a mano** (Testing interno → Create release — la API de Google no permite la
-   primera subida). Para los siguientes `eas submit`: crear un service account
-   con acceso a la Play Developer API (Play Console → Setup → API access),
-   darle permisos de release y guardar su clave JSON como
+   [Play Console](https://play.google.com/console). Con la app creada en la
+   consola, `eas submit` puede subir incluso la primera `.aab` vía API (la
+   restricción de Google aplica a crear la *app*, no la primera release —
+   verificado 2026-07: la release inicial 1.0.0/vc4 entró por API al track
+   interno). Para el submit: habilitar la **Google Play Android Developer API**
+   en el proyecto GCP del service account, invitarlo en Play Console → Users &
+   permissions con permisos de release, y guardar su clave JSON como
    `mobile/play-service-account.json` (gitignoreado; la ruta ya está en
-   `eas.json > submit.production.android`).
+   `eas.json > submit.production.android`). Sirve reusar la clave del
+   firebase-adminsdk (mismo proyecto GCP) — es la que quedó configurada.
 
 ## Backend one-time (si aún no corrió)
 
