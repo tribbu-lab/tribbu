@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   authBg: { flex: 1, backgroundColor: "#0F172A" },
   authScroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
   brandWrap: { alignItems: "center", marginBottom: 32 },
-  brand: { fontSize: 40, fontWeight: "900", color: "white", letterSpacing: -2 },
+  brand: { fontSize: 40, fontWeight: "900", color: "white", letterSpacing: -2, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) },
   brandDot: { color: T.accent },
   brandSub: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 4, letterSpacing: 1 },
   authCard: {

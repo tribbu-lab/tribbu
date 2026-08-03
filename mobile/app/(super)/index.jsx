@@ -2,7 +2,7 @@
 // sobre la consola completa (SuperAdmin), que gestiona usuarios, cursos,
 // maestros, alumnos, códigos, horarios, uniformes, alertas y menú.
 
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  logo: { fontSize: 22, fontWeight: "900", color: "white", letterSpacing: -1 },
+  logo: { fontSize: 22, fontWeight: "900", color: "white", letterSpacing: -1, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) },
   dot: { color: T.accent },
   salirBtn: { backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 },
   salirTxt: { color: "rgba(255,255,255,0.7)", fontSize: 12 },

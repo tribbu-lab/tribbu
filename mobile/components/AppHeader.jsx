@@ -5,7 +5,7 @@
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
@@ -163,7 +163,7 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 const styles = StyleSheet.create({
   header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  logo: { ...TYPE.h1, color: dk.textStrong, letterSpacing: -1 },
+  logo: { ...TYPE.h1, color: dk.textStrong, letterSpacing: -1, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) },
   logoDot: { color: dk.accent },
   actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   iconBtn: {
