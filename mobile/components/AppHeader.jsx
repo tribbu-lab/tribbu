@@ -22,7 +22,9 @@ export function AppHeader() {
     cursoIdx,
     setCursoIdx,
     cursoId,
+    itemActual,
     colorDeItem,
+    colorCustomDeItem,
     setColorHijo,
   } = useSession();
 
@@ -42,8 +44,11 @@ export function AppHeader() {
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
+  // Como en la web: el color personalizado del hijo activo tiñe el header.
+  const headerBg = colorCustomDeItem(itemActual) || dk.bg;
+
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+    <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
         <Text style={styles.logo}>
           tribbu<Text style={styles.logoDot}>.</Text>
@@ -51,7 +56,7 @@ export function AppHeader() {
         <View style={styles.actions}>
           <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
             <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />
-            {noLeidos > 0 ? <View style={styles.notifDot} /> : null}
+            {noLeidos > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
           </Pressable>
           {unicoHijo ? (
             <Pressable
@@ -130,11 +135,14 @@ export function AppHeader() {
 }
 
 function ColorPicker({ item, currentColor, onPick, onClose }) {
+  const insets = useSafeAreaInsets();
   if (!item) return null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.pickerOverlay} onPress={onClose}>
-        <Pressable style={styles.pickerCard} onPress={() => {}}>
+        {/* La card llega al borde superior pero su contenido respeta el safe area
+            (notch / isla dinámica): sin esto el título queda bajo el reloj. */}
+        <Pressable style={[styles.pickerCard, { paddingTop: insets.top + SPACE.lg }]} onPress={() => {}}>
           <Text style={styles.pickerTitle}>Color de {item.nombre}</Text>
           <View style={styles.swatches}>
             {HIJO_COLORS_CUSTOM.map((col) => (
@@ -194,7 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: dk.surface2,
   },
-  kidDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  kidDot: { width: 10, height: 10, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" },
   kidName: { ...TYPE.chip, fontWeight: "700", color: dk.textStrong },
   selector: { gap: 6, paddingTop: 10, alignItems: "center" },
   selItemWrap: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, marginRight: 6 },
@@ -209,7 +217,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: dk.surfaceActive },
   chipTxt: { ...TYPE.chip, color: dk.textStrong },
-  dot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  dot: { width: 10, height: 10, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" },
   paintBtn: {
     width: 28,
     height: 28,

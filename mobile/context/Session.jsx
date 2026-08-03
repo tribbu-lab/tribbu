@@ -140,6 +140,17 @@ export function SessionProvider({ children }) {
     [usuario?.id, hijoColorsVer] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // Solo el color personalizado (null si no eligió uno): tiñe el header,
+  // igual que headerBg en la web (src/App.jsx).
+  const colorCustomDeItem = useCallback(
+    (item) => {
+      if (!item || item._tipo !== "hijo") return null;
+      const saved = getHijoColor(usuario?.id, item.id);
+      return saved && saved !== HIJO_COLOR_DEFAULT ? saved : null;
+    },
+    [usuario?.id, hijoColorsVer] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const value = useMemo(() => {
     const itemActual = items[cursoIdx] || null;
     const rolEfectivo = itemActual?.rolEfectivo || "padre";
@@ -159,6 +170,7 @@ export function SessionProvider({ children }) {
       hijoActivoId: itemActual?._tipo === "hijo" ? itemActual.id : null,
       misHijos: items.filter((i) => i._tipo === "hijo").map((i) => i.id),
       colorDeItem,
+      colorCustomDeItem,
       setColorHijo,
       logout,
       reloadUsuario: () =>
@@ -166,7 +178,7 @@ export function SessionProvider({ children }) {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, colorDeItem, setColorHijo, logout, cargarUsuario]);
+  }, [usuario, authLoading, items, cursoIdx, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
