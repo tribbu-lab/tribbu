@@ -18,8 +18,23 @@ bare workflow):
 
 ```bash
 ~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_36.1 &
-JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npx expo run:android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+npx expo run:android
 ```
+
+Simulador iOS local (requiere Xcode; genera `ios/`, gitignoreado por el mismo
+motivo que `android/`):
+
+```bash
+npx expo run:ios                                  # usa el simulador default
+npx expo run:ios --device "iPhone 17 Pro"         # o elegir uno de xcrun simctl list devices
+```
+
+En ambos casos el build debug queda instalado y conectado a Metro; las corridas
+siguientes solo necesitan `npx expo start --dev-client` si el nativo no cambió.
+Si el puerto 8081 está ocupado, `--port 8082` y abrir la app con el deep link
+`tribbu://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8082`.
 
 > Solo la **anon key** llega al cliente. La service-role key nunca va en `mobile/`.
 
