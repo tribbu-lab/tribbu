@@ -82,8 +82,13 @@ suyos (los admins sobre todos); en eventos, solo admins, como hoy.
   *durante* la edición del modal (como `eventos.imagen_url` en cumples) y las
   URLs viajan en el payload del insert/update. En eventos, el payload es un
   spread `{...form}`, así que basta con sumar `adjuntos` al estado del form.
-- **Storage.** Bucket público nuevo `adjuntos` (crear en el dashboard; lectura
-  pública, escritura para `authenticated`). Path `{cursoId}/{ts}.{ext}` = la
+- **Storage.** Bucket público nuevo `adjuntos` con **tres** policies sobre
+  `storage.objects`: INSERT y UPDATE para `authenticated`, y **SELECT para
+  `public`** — esta última es obligatoria aunque el bucket sea público: el flag
+  público solo cubre la lectura por CDN, y sin policy de SELECT el camino
+  `upsert: true` del upload (`INSERT ... ON CONFLICT`) es denegado con "new row
+  violates row-level security policy" (bug encontrado y corregido en producción,
+  2026-08-13). Path `{cursoId}/{ts}.{ext}` = la
   convención de `libros` (`src/features/info/index.jsx:70-85`), que también pasa
   `contentType` y muestra el error al usuario — es el patrón a copiar en web,
   no el de cumples (que falla en silencio).
