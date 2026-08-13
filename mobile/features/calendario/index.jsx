@@ -15,6 +15,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
+import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 
 const t = THEMES.light;
 
@@ -309,6 +310,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                       </View>
                     ) : null}
                     {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
+                    <AdjuntosList adjuntos={e.adjuntos} />
                   </View>
                   <View style={styles.listRight}>
                     <View style={styles.diasTag}>
@@ -400,6 +402,7 @@ function EventoRow({ e, isAdmin, onAsistencia, onEditar, onEliminar }) {
           {e.lugar ? ` · 📍${e.lugar}` : ""}
         </Text>
         {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
+        <AdjuntosList adjuntos={e.adjuntos} />
       </View>
       {e.tipo !== "festejo" && e.confirma_asistencia ? (
         <Pressable onPress={onAsistencia} style={styles.asistBtn}>
@@ -487,8 +490,10 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     descripcion: evento?.descripcion || "",
     todo_el_dia: evento?.todo_el_dia !== false,
     confirma_asistencia: evento?.confirma_asistencia ?? false,
+    adjuntos: evento?.adjuntos || [],
   });
   const [saving, setSaving] = useState(false);
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
 
   const guardar = async () => {
     if (!form.titulo || !form.fecha) return;
@@ -612,11 +617,19 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
               <Text style={styles.checkboxLabel}>Solicitar asistencia</Text>
             </Pressable>
 
+            <Text style={styles.label}>ADJUNTOS (OPCIONAL)</Text>
+            <AdjuntosInput
+              adjuntos={form.adjuntos || []}
+              onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))}
+              cursoId={cursoId}
+              onUploadingChange={setSubiendoAdj}
+            />
+
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
               </Pressable>
-              <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
+              <Pressable onPress={guardar} disabled={saving || subiendoAdj} style={[styles.saveBtn, subiendoAdj && { opacity: 0.5 }]}>
                 <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
               </Pressable>
             </View>

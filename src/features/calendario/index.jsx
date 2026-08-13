@@ -8,6 +8,7 @@ import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
+import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
@@ -229,6 +230,7 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                             {cfg.label}{e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
                           </div>
                           {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                          <AdjuntosList adjuntos={e.adjuntos}/>
                         </div>
                         {e.tipo==="festejo"
                         ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
@@ -313,6 +315,7 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                       {e.url_ubicacion&&<a href={safeUrl(e.url_ubicacion)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
                     </div>}
                     {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                    <AdjuntosList adjuntos={e.adjuntos}/>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
@@ -452,7 +455,9 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     descripcion: evento?.descripcion || "",
     todo_el_dia: evento?.todo_el_dia !== false,
     confirma_asistencia: evento?.confirma_asistencia ?? false,
+    adjuntos:    evento?.adjuntos    || [],
   });
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   const guardar = async () => {
     if(!form.titulo || !form.fecha) return;
@@ -517,9 +522,13 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
           <input type="checkbox" id="confirma_asist" checked={!!form.confirma_asistencia} onChange={e=>setForm(p=>({...p,confirma_asistencia:e.target.checked}))} style={{width:16,height:16,cursor:"pointer",accentColor:"#3B82F6"}}/>
           <label htmlFor="confirma_asist" style={{fontSize:13,fontWeight:600,cursor:"pointer",color:"#0F172A"}}>Solicitar asistencia</label>
         </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Adjuntos (opcional)</div>
+          <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoId} onUploadingChange={setSubiendoAdj}/>
+        </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-          <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
+          <button onClick={guardar} disabled={subiendoAdj} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj?"default":"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
         </div>
       </Card>
     </div>

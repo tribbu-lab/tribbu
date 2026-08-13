@@ -6,3 +6,4 @@ export { Pill }        from "./Pill";
 export { Spinner }     from "./Spinner";
 export { Paginador }   from "./Paginador";
 export { ListToolbar } from "./ListToolbar";
+export { AdjuntosInput, AdjuntosList, MAX_ADJUNTOS } from "./Adjuntos";

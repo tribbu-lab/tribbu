@@ -2,11 +2,13 @@
 // - pickAndUploadImage: elige una imagen con expo-image-picker, la sube al bucket
 //   de Supabase Storage y devuelve la URL pública. Reemplaza el <input type=file>
 //   + storage.upload(File) de la web (RN no tiene File/Blob desde el picker).
+// - pickAndUploadDocument: ídem con expo-document-picker para PDFs (adjuntos).
 // - exportRowsToExcel: arma un .xlsx con xlsx, lo escribe en cache con
 //   expo-file-system y abre la hoja de compartir nativa (la web usa writeFile,
 //   que dispara una descarga).
 
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
@@ -30,6 +32,8 @@ function base64ToBytes(b64) {
   }
   return Uint8Array.from(out);
 }
+
+export const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB por archivo adjunto
 
 const EXT_MIME = {
   jpg: "image/jpeg",
@@ -56,9 +60,36 @@ export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "" }
   if (res.canceled || !res.assets?.[0]) return null;
 
   const asset = res.assets[0];
+  if (asset.fileSize && asset.fileSize > MAX_FILE_BYTES) throw new Error("La imagen supera los 10 MB");
   const ext = (asset.uri.split(".").pop() || "jpg").toLowerCase().split("?")[0];
   const contentType = EXT_MIME[ext] || asset.mimeType || "image/jpeg";
-  const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: "base64" });
+  const url = await uploadBase64({ uri: asset.uri, bucket, pathPrefix, ext, contentType });
+  return { url, nombre: asset.fileName || null };
+}
+
+/**
+ * Pide un PDF con expo-document-picker, lo sube al bucket indicado y devuelve
+ * `{ url, nombre }`, o `null` si el usuario canceló. Lanza si el archivo supera
+ * los 10 MB o falla la subida (el caller muestra el error).
+ */
+export async function pickAndUploadDocument({ bucket = "adjuntos", pathPrefix = "" }) {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: ["application/pdf"],
+    copyToCacheDirectory: true,
+  });
+  if (res.canceled || !res.assets?.[0]) return null;
+
+  const asset = res.assets[0];
+  if (asset.size && asset.size > MAX_FILE_BYTES) throw new Error("El archivo supera los 10 MB");
+  // Android puede ignorar el filtro de MIME del picker: revalidamos acá.
+  const esPdf = asset.mimeType === "application/pdf" || /\.pdf$/i.test(asset.name || asset.uri);
+  if (!esPdf) throw new Error("Solo se permiten archivos PDF");
+  const url = await uploadBase64({ uri: asset.uri, bucket, pathPrefix, ext: "pdf", contentType: "application/pdf" });
+  return { url, nombre: asset.name || "documento.pdf" };
+}
+
+async function uploadBase64({ uri, bucket, pathPrefix, ext, contentType }) {
+  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
   const bytes = base64ToBytes(b64);
   const path = `${pathPrefix}${Date.now()}.${ext}`;
 
@@ -69,7 +100,7 @@ export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "" }
   if (error) throw error;
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return { url: data.publicUrl };
+  return data.publicUrl;
 }
 
 /**

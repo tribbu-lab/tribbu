@@ -16,6 +16,7 @@ import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
 import { SelectChip } from "../../components/SelectChip";
 import { EmptyState } from "../../components/EmptyState";
+import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 
 const t = THEMES.light;
 
@@ -56,6 +57,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
       <View style={styles.flex1}>
         <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]}>{r.texto}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
+        <AdjuntosList adjuntos={r.adjuntos} />
       </View>
       <View style={styles.rowActions}>
         {esLeido ? (
@@ -89,7 +91,7 @@ export function Recordatorios() {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false });
+  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
   const [saving, setSaving] = useState(false);
   const [filtroRango, setFiltroRango] = useState("all");
   const [filtroPrio, setFiltroPrio] = useState("all");
@@ -126,6 +128,7 @@ export function Recordatorios() {
       fecha: form.fecha || null,
       prioridad: form.prioridad || "media",
       urgente: form.urgente || false,
+      adjuntos: form.adjuntos || [],
       curso_id: cursoId,
     };
     if (modal?.id) {
@@ -172,11 +175,17 @@ export function Recordatorios() {
   );
 
   const abrirNuevo = () => {
-    setForm({ texto: "", fecha: "", prioridad: "media", urgente: false });
+    setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
     setModal({});
   };
   const abrirEditar = useCallback((r) => {
-    setForm({ texto: r.texto || "", fecha: r.fecha || "", prioridad: r.prioridad || "media", urgente: r.urgente || false });
+    setForm({
+      texto: r.texto || "",
+      fecha: r.fecha || "",
+      prioridad: r.prioridad || "media",
+      urgente: r.urgente || false,
+      adjuntos: r.adjuntos || [],
+    });
     setModal(r);
   }, []);
 
@@ -269,6 +278,7 @@ export function Recordatorios() {
         setForm={setForm}
         saving={saving}
         editing={!!modal?.id}
+        cursoId={cursoId}
         onClose={() => setModal(null)}
         onGuardar={guardar}
       />
@@ -276,7 +286,8 @@ export function Recordatorios() {
   );
 }
 
-function RecordatorioModal({ visible, form, setForm, saving, editing, onClose, onGuardar }) {
+function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, onClose, onGuardar }) {
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -329,11 +340,19 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, onClose, o
             </Text>
           </Pressable>
 
+          <Text style={styles.modalLabel}>Adjuntos (opcional)</Text>
+          <AdjuntosInput
+            adjuntos={form.adjuntos || []}
+            onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))}
+            cursoId={cursoId}
+            onUploadingChange={setSubiendoAdj}
+          />
+
           <View style={styles.modalBtns}>
             <Pressable onPress={onClose} style={styles.cancelBtn}>
               <Text style={styles.cancelTxt}>Cancelar</Text>
             </Pressable>
-            <Pressable onPress={onGuardar} disabled={saving} style={styles.saveBtn}>
+            <Pressable onPress={onGuardar} disabled={saving || subiendoAdj} style={[styles.saveBtn, subiendoAdj && styles.saveBtnOff]}>
               <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
             </Pressable>
           </View>
@@ -509,6 +528,7 @@ const styles = StyleSheet.create({
   cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
   cancelTxt: { color: t.textFaint, fontSize: 13, fontWeight: "600" },
   saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveBtnOff: { opacity: 0.5 },
   saveTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
 
   // historial

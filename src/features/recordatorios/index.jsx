@@ -7,6 +7,7 @@ import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
+import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -19,8 +20,9 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
-  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false});
+  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});
   const [saving,        setSaving]        = useState(false);
+  const [subiendoAdj,   setSubiendoAdj]   = useState(false);
   const [alerta,        setAlerta]        = useState(null);
   const [alertaModal,   setAlertaModal]   = useState(false);
   const [filtroRango,   setFiltroRango]   = useState("all");
@@ -54,7 +56,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const guardar = async () => {
     if(!form.texto?.trim()) return;
     setSaving(true);
-    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, curso_id:cursoId };
+    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoId };
     if(modal?.id) {
       await supabase.from("recordatorios").update(payload).eq("id",modal.id);
     } else {
@@ -177,9 +179,13 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
                 {form.urgente?"Urgente":"Marcar urgente"}
               </button>
             </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ADJUNTOS (opcional)</div>
+              <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoId} onUploadingChange={setSubiendoAdj}/>
+            </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+              <button onClick={guardar} disabled={saving||subiendoAdj} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj?"default":"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
           </Card>
         </div>
@@ -198,7 +204,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
           <option value="media">Media</option>
           <option value="baja">Baja</option>
         </select>
-        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
       </div>
       {filtroRango==="personalizado"&&(
         <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
@@ -244,6 +250,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
                 }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
+              <AdjuntosList adjuntos={r.adjuntos}/>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,marginLeft:8,alignItems:"flex-end"}}>
               {r.tipo==="regalo_cumple"&&!esLeido ? (
@@ -255,7 +262,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
                 <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"Leido":"Leido"}</button>
               )}
               {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&r.tipo!=="colecta_vence"&&<div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
+                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
               </div>}
               {isAdmin&&(r.tipo==="regalo_cumple"||r.tipo==="colecta_vence")&&<div style={{display:"flex",gap:4}}>
