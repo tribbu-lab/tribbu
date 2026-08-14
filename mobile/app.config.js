@@ -32,7 +32,9 @@ export default {
       // assets/icon.png de la raíz — iOS aplica su propia máscara de esquinas, y
       // el arte original trae esquinas redondeadas que dejarían bordes blancos.
       icon: "./assets/icon.png",
-      supportsTablet: true,
+      // false a propósito: la app es phone-first y con true App Store Connect
+      // exige capturas de iPad 13" para enviar a revisión.
+      supportsTablet: false,
       infoPlist: {
         // Solo HTTPS estándar → exenta de reportes de cifrado; evita el estado
         // "Missing Compliance" en cada build de TestFlight.
