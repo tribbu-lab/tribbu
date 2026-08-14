@@ -21,10 +21,11 @@ operativo en ambas plataformas; este spec cubre exclusivamente lo que falta.
 
 ### Comunes
 
-- [ ] La política de privacidad (`public/privacidad.html`, ya existente y
+- [x] La política de privacidad (`public/privacidad.html`, ya existente y
       linkeada desde el login) está accesible en una **URL pública productiva**
-      (p. ej. `https://<dominio-web>/privacidad.html`) y esa URL exacta está
-      cargada en App Store Connect y en Play Console.
+      — `https://tribbu-alpha.vercel.app/privacidad.html` (verificado 200,
+      2026-08-14) — y esa URL exacta es la que debe cargarse en App Store
+      Connect y en Play Console.
 - [x] Existe un canal de **solicitud de eliminación de cuenta** documentado en
       la política de privacidad (alcanza con el mailto `privacidad@tribbu.app`
       ya presente, siempre que la política lo mencione explícitamente como vía
@@ -93,8 +94,9 @@ operativo en ambas plataformas; este spec cubre exclusivamente lo que falta.
 
 - **Runbook de ejecución**: `mobile/STORE_RELEASE.md` — estado verificado por
   API (2026-08-14: interno 1.1.0/vc7 completed, drafts en alpha/beta, ficha
-  solo con título, `privacidad.html` 404 por deploy web viejo), copy listo
-  para pegar en ambas consolas, y la tabla App Privacy ↔ Data safety.
+  solo con título), copy listo para pegar en ambas consolas, y la tabla
+  App Privacy ↔ Data safety. URL productiva de la web:
+  `https://tribbu-alpha.vercel.app` (`www.tribbu.app` apunta a un deploy viejo).
 - **No hay (casi) código nuevo.** El trabajo es operativo: consolas de las
   tiendas + comandos EAS. Cambios de repo posibles: retocar
   `public/privacidad.html` (mención explícita de eliminación de cuenta),

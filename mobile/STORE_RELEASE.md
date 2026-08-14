@@ -15,15 +15,18 @@ cubre el tramo manual de consolas, con el copy listo para pegar.
   faltan descripciones, gráficos y todos los cuestionarios.
 - **iOS**: la app 6787757386 existe en App Store Connect y recibe builds por
   TestFlight; falta toda la ficha de App Store + revisión.
-- **Web**: `https://www.tribbu.app/privacidad.html` devuelve **404** — el
-  deploy productivo es anterior al commit de la página. Ver paso 0.
+- **Web**: la URL productiva de la app es `https://tribbu-alpha.vercel.app`
+  (auto-deploy activo en ese proyecto de Vercel). La política de privacidad
+  está viva y actualizada en `https://tribbu-alpha.vercel.app/privacidad.html`
+  (verificado 200 el 2026-08-14). Ojo: `www.tribbu.app` apunta a un deploy
+  viejo — si más adelante el dominio pasa a producción, actualizar las URLs
+  en ambas fichas.
 
 ## Paso 0 — Prerrequisitos (bloquean todo lo demás)
 
-1. **Redeploy de la web** para que
-   `https://www.tribbu.app/privacidad.html` responda 200 (la página ya está en
-   `public/` y el build la copia a `dist/`; solo falta desplegar). Ambas fichas
-   referencian esa URL.
+1. ~~Redeploy de la web~~ **Resuelto**: la política responde 200 en
+   `https://tribbu-alpha.vercel.app/privacidad.html` — es la URL que va en
+   ambas fichas.
 2. **Cuenta demo para revisores**: crear en producción un apoderado demo
    (Super Admin → usuarios) con 1 hijo en un curso de prueba que tenga datos
    visibles: 2–3 eventos futuros, recordatorios, una colecta, menú del comedor
@@ -72,7 +75,7 @@ promueve vc7 desde el track interno (no hace falta build nuevo).
      (generado desde el ícono; reemplazable por un arte mejor).
    - Capturas de teléfono (mín. 2): las del paso 0.
 2. **Declaraciones** (Policy → App content), en este orden:
-   - **Privacy policy**: `https://www.tribbu.app/privacidad.html`.
+   - **Privacy policy**: `https://tribbu-alpha.vercel.app/privacidad.html`.
    - **App access**: "All or some functionality is restricted" → cargar las
      credenciales demo + nota: "El acceso es por invitación; las cuentas las
      crea el colegio. La cuenta provista es un apoderado con datos de ejemplo."
@@ -115,8 +118,8 @@ Luego en [App Store Connect](https://appstoreconnect.apple.com):
    - Keywords (≤100): `colegio,curso,apoderados,padres,escuela,recordatorios,colecta,comedor,cumpleaños,calendario`
    - Descripción: la compartida de arriba.
    - Categoría: Educación (secundaria: Productividad).
-   - Support URL: `https://www.tribbu.app` · Privacy Policy URL:
-     `https://www.tribbu.app/privacidad.html`.
+   - Support URL: `https://tribbu-alpha.vercel.app` · Privacy Policy URL:
+     `https://tribbu-alpha.vercel.app/privacidad.html`.
    - Capturas iPhone 6.9″ (obligatorias; las 6.5″ se derivan solas).
    - Seleccionar el build recién subido.
 2. **App Privacy** (cuestionario): ver tabla abajo. "Do you or your
