@@ -101,8 +101,8 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   };
 
   const filtrados = recordatorios.filter(r=>{
-    // Solo mostrar recordatorios creados manualmente, no los automáticos
-    if(r.tipo==="regalo_cumple" || r.tipo==="colecta_vence") return false;
+    // Ocultar recordatorios de regalo (se manejan aparte). Los de colecta (colecta_vence) sí se muestran.
+    if(r.tipo==="regalo_cumple") return false;
     if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
     if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
     if(filtroRango==="personalizado"){

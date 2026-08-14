@@ -83,8 +83,24 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
     let err;
     if(modal?.id) { const r = await supabase.from("colectas").update(payload).eq("id",modal.id); err=r.error; }
     else {
-      const r = await supabase.from("colectas").insert(payload); err=r.error;
+      const r = await supabase.from("colectas").insert(payload).select().single(); err=r.error;
       if(!err) {
+        const nuevaColecta = r.data;
+        // Recordatorio para los apoderados del curso — persiste hasta que cada uno lo marca leído
+        if(nuevaColecta?.id) {
+          const montoTxt = payload.monto_sugerido ? ` — ${payload.moneda||"$"} ${Number(payload.monto_sugerido).toLocaleString("es-AR")}` : "";
+          const vencTxt  = payload.fecha_limite ? ` · vence ${fmtF(payload.fecha_limite)}` : "";
+          await supabase.from("recordatorios").insert({
+            curso_id:   cursoId,
+            tipo:       "colecta_vence",
+            ref_id:     nuevaColecta.id,
+            texto:      `Colecta "${payload.titulo}"${montoTxt}${vencTxt}. Recordá abonar.`,
+            fecha:      payload.fecha_limite || null,
+            prioridad:  "media",
+            urgente:    false,
+            creado_por: userId,
+          });
+        }
         const userIds = await getUserIdsByCurso(cursoId);
         await sendPush({ type:"colecta", payload:{ descripcion:form.titulo||form.descripcion||"Nueva colecta", userIds } });
       }
@@ -100,6 +116,10 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
 
   const eliminar = async (id) => {
     await supabase.from("colecta_pagos").delete().eq("colecta_id",id);
+    // Borrar los "leídos" de los recordatorios de esta colecta antes de borrar los recordatorios
+    const { data: recsCol } = await supabase.from("recordatorios").select("id").eq("ref_id",id).eq("tipo","colecta_vence");
+    const recIds = (recsCol||[]).map(r=>r.id);
+    if(recIds.length) await supabase.from("recordatorio_leidos").delete().in("recordatorio_id",recIds);
     await supabase.from("recordatorios").delete().eq("ref_id",id).eq("tipo","colecta_vence");
     await supabase.from("colectas").delete().eq("id",id);
     cargar();
