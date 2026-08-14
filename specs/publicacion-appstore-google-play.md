@@ -38,11 +38,13 @@ operativo en ambas plataformas; este spec cubre exclusivamente lo que falta.
       con eventos, recordatorios, colecta y cumpleaños ficticios; credenciales
       en `mobile/STORE_RELEASE.md`) — falta cargarla en App Review (iOS) y en
       Play Console → App access (Android).
-- [ ] **Resuelto el bloqueante Apple 5.1.1(v)**: la app tiene registro in-app
-      por código de invitación, por lo que Apple exige eliminación de cuenta
-      **iniciada en la app** (un email no alcanza). Implementar "Eliminar mi
-      cuenta" (Más → Cuenta, vía Edge Function con service-role) o quitar el
-      registro del build de iOS. Ver sección "Bloqueante iOS" del runbook.
+- [x] **Resuelto el bloqueante Apple 5.1.1(v)**: implementado "Eliminar mi
+      cuenta" en Más → Cuenta (mobile) con doble confirmación, respaldado por
+      la Edge Function `delete-account` (deployada; borra los datos propios
+      del usuario vía JWT + service-role, anula referencias históricas y no
+      toca `hijos`). QA end-to-end en emulador: cuenta de prueba eliminada de
+      `usuarios`/Auth/dependencias. Los builds que se envíen a revisión deben
+      incluir este código.
 - [ ] El binario enviado a revisión en cada tienda es un build `production` de
       EAS con versión ≥ 1.1.0 y — en Android — versionCode ≥ 4 (los vc ≤ 3 se
       compilaron sin `google-services.json` y tienen push roto).

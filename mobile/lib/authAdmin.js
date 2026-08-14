@@ -28,6 +28,30 @@ const callManageAuthUser = async (action, payload) => {
   return json;
 };
 
+// Eliminación de cuenta self-service (Apple 5.1.1(v)): la Edge Function
+// delete-account identifica al usuario por su JWT y borra SOLO su propia
+// cuenta (datos + Auth). No lleva payload a propósito.
+export const deleteMyAccount = async () => {
+  const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa");
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: supabaseAnonKey,
+    },
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
+  return json;
+};
+
 export const authAdminCreate = (email, password) =>
   callManageAuthUser("create", { email, password });
 

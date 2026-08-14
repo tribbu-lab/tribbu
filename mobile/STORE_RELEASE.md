@@ -43,23 +43,23 @@ cubre el tramo manual de consolas, con el copy listo para pegar.
    screencap`). Solo se exigen capturas de teléfono (iPad descartado:
    `supportsTablet: false`).
 
-## ⚠️ Bloqueante iOS — eliminación de cuenta in-app (guideline 5.1.1(v))
+## ✅ Resuelto — eliminación de cuenta in-app (guideline 5.1.1(v))
 
-La app **sí tiene creación de cuenta in-app** ("Registrarme con código de
-invitación", `mobile/features/auth`). Apple exige que toda app con creación de
-cuenta ofrezca también **eliminación de cuenta iniciada dentro de la app** (un
-email de contacto NO alcanza). Antes de enviar a revisión, elegir una:
+La app tiene creación de cuenta in-app ("Registrarme con código de
+invitación"), por lo que Apple exige eliminación de cuenta iniciada dentro de
+la app. **Implementado** (2026-08-14): **Más → Cuenta → "Eliminar mi cuenta"**
+(doble confirmación destructiva) llama a la Edge Function **`delete-account`**
+(deployada), que identifica al usuario por su JWT y borra sus datos con la
+service-role del lado servidor: push_tokens, leídos, asistencias,
+adquiridos, recordatorios personales, accesos (usuario_cursos/usuario_hijos)
+y la fila de `usuarios` + el usuario de Auth; anula referencias históricas
+(pagos/colectas/cumples como responsable) y **no toca los hijos** (datos del
+colegio, pueden tener otro apoderado). El rol `super` no puede autoeliminarse.
+QA end-to-end verificado en emulador con un usuario descartable.
 
-1. **Implementar "Eliminar mi cuenta"** en Más → Cuenta (recomendado): borra
-   el usuario vía una Edge Function con service-role (patrón
-   `manage-auth-user`) previa confirmación. Sirve también para el formulario
-   de Data safety de Play.
-2. **Quitar el registro por código del build de iOS** (dejar solo login): si
-   no hay creación de cuenta in-app, la exigencia no aplica. Menos trabajo,
-   pero pierde el alta autogestionada en iOS.
-
-Las Review Notes de abajo asumen que se eligió una de las dos opciones —
-ajustar la redacción según cuál.
+Esto también responde "sí" a la vía de eliminación in-app en Data safety de
+Play. Requiere que el build enviado a revisión incluya este código (build
+nuevo en ambas tiendas a partir de acá).
 
 ## Copy compartido (listo para pegar)
 
@@ -152,13 +152,12 @@ Luego en [App Store Connect](https://appstoreconnect.apple.com):
    > tribbu is an invitation-only app for school communities (parents and
    > "room parents" of a classroom). There is no public sign-up: accounts are
    > created by each school's administrators, or by parents who received an
-   > invitation code from their school. [Si se implementó la opción 1:]
-   > Account deletion is available in-app under "Más → Cuenta → Eliminar mi
-   > cuenta". [Si se eligió la opción 2, quitar la frase anterior y aclarar
-   > que este build no ofrece creación de cuenta.] The demo account provided
-   > is a parent account with one child in a demo classroom pre-loaded with
-   > sample data (calendar events, reminders, a fundraiser, lunch menu,
-   > birthdays). Push notifications are scoped to the user's classroom.
+   > invitation code from their school. Account deletion is available in-app
+   > under "Más → Eliminar mi cuenta" (guideline 5.1.1(v)). The demo account
+   > provided is a parent account with one child in a demo classroom
+   > pre-loaded with sample data (calendar events, reminders, a fundraiser,
+   > lunch menu, birthdays). Push notifications are scoped to the user's
+   > classroom.
 
 5. **Enviar a revisión** → estado "Ready for Sale".
 
