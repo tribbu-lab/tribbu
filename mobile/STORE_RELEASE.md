@@ -27,18 +27,39 @@ cubre el tramo manual de consolas, con el copy listo para pegar.
 1. ~~Redeploy de la web~~ **Resuelto**: la política responde 200 en
    `https://tribbu-alpha.vercel.app/privacidad.html` — es la URL que va en
    ambas fichas.
-2. **Cuenta demo para revisores**: crear en producción un apoderado demo
-   (Super Admin → usuarios) con 1 hijo en un curso de prueba que tenga datos
-   visibles: 2–3 eventos futuros, recordatorios, una colecta, menú del comedor
-   y cumpleaños. Anotar email/contraseña; se cargan en App Review (iOS) y en
-   App access (Play). **Nunca** usar un curso con familias reales.
-3. **Capturas** (usar la cuenta demo):
-   - iPhone: `npx expo run:ios --device "iPhone 17 Pro"` y
-     `xcrun simctl io booted screenshot shot.png` (ideal 4–6: Inicio/Muro,
-     Calendario, Recordatorios, Colectas, Comedor, Cumpleaños).
-   - Android: emulador local + `adb exec-out screencap -p > shot.png`.
-   - Solo se exigen capturas de teléfono (iPad quedó descartado:
-     `supportsTablet: false`).
+2. ~~Cuenta demo para revisores~~ **Resuelto** (2026-08-14): existe la cuenta
+   demo **`demo@tribbu.app` / `TribbuDemo2026!`** — María Torres, apoderada de
+   Emma Torres y Room Parent del curso demo **"3°A — Primaria"** (curso solo
+   con datos ficticios: 4 alumnos con cumpleaños, 3 eventos futuros —uno con
+   confirmación de asistencia—, 3 recordatorios y 1 colecta con pagos
+   parciales). Cargar estas credenciales en App Review (iOS) y App access
+   (Play). No borrar el curso 3°A mientras la app esté en revisión.
+3. **Capturas** (con la cuenta demo): las de **iOS ya están** en
+   `mobile/assets/store/screenshots/ios/` (6 pantallas, 1320×2868 del
+   iPhone 17 Pro Max — el tamaño 6.9″ que exige App Store Connect) y las de
+   **Android** en `mobile/assets/store/screenshots/android/`. Regenerarlas:
+   levantar la app (`npx expo run:ios|android`) y correr los flows de Maestro
+   o capturar a mano (`xcrun simctl io booted screenshot` / `adb exec-out
+   screencap`). Solo se exigen capturas de teléfono (iPad descartado:
+   `supportsTablet: false`).
+
+## ⚠️ Bloqueante iOS — eliminación de cuenta in-app (guideline 5.1.1(v))
+
+La app **sí tiene creación de cuenta in-app** ("Registrarme con código de
+invitación", `mobile/features/auth`). Apple exige que toda app con creación de
+cuenta ofrezca también **eliminación de cuenta iniciada dentro de la app** (un
+email de contacto NO alcanza). Antes de enviar a revisión, elegir una:
+
+1. **Implementar "Eliminar mi cuenta"** en Más → Cuenta (recomendado): borra
+   el usuario vía una Edge Function con service-role (patrón
+   `manage-auth-user`) previa confirmación. Sirve también para el formulario
+   de Data safety de Play.
+2. **Quitar el registro por código del build de iOS** (dejar solo login): si
+   no hay creación de cuenta in-app, la exigencia no aplica. Menos trabajo,
+   pero pierde el alta autogestionada en iOS.
+
+Las Review Notes de abajo asumen que se eligió una de las dos opciones —
+ajustar la redacción según cuál.
 
 ## Copy compartido (listo para pegar)
 
@@ -129,14 +150,15 @@ Luego en [App Store Connect](https://appstoreconnect.apple.com):
 4. **App Review Information**: credenciales demo + estas notas (en inglés):
 
    > tribbu is an invitation-only app for school communities (parents and
-   > "room parents" of a classroom). Accounts are created by each school's
-   > administrators — there is no public sign-up, which is why the app does
-   > not offer in-app account creation or deletion (guideline 5.1.1(v));
-   > users can request account deletion at privacidad@tribbu.app, as stated
-   > in our privacy policy. The demo account provided is a parent account
-   > with one child in a demo classroom pre-loaded with sample data
-   > (calendar events, reminders, a fundraiser, lunch menu, birthdays).
-   > Push notifications are scoped to the user's classroom.
+   > "room parents" of a classroom). There is no public sign-up: accounts are
+   > created by each school's administrators, or by parents who received an
+   > invitation code from their school. [Si se implementó la opción 1:]
+   > Account deletion is available in-app under "Más → Cuenta → Eliminar mi
+   > cuenta". [Si se eligió la opción 2, quitar la frase anterior y aclarar
+   > que este build no ofrece creación de cuenta.] The demo account provided
+   > is a parent account with one child in a demo classroom pre-loaded with
+   > sample data (calendar events, reminders, a fundraiser, lunch menu,
+   > birthdays). Push notifications are scoped to the user's classroom.
 
 5. **Enviar a revisión** → estado "Ready for Sale".
 

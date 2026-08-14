@@ -33,10 +33,16 @@ operativo en ambas plataformas; este spec cubre exclusivamente lo que falta.
       cuentas; Apple 5.1.1(v) **no** exige borrado in-app porque tribbu no
       tiene auto-registro (las cuentas las crean admins), pero eso debe
       explicarse en las Review Notes.
-- [ ] Existe una **cuenta demo** funcional contra producción (usuario apoderado
-      con al menos un hijo/curso con datos visibles) para los revisores de
-      ambas tiendas; sus credenciales están cargadas en App Review (iOS) y en
+- [x] Existe una **cuenta demo** funcional contra producción — `demo@tribbu.app`
+      (María Torres, apoderada + Room Parent del curso demo "3°A — Primaria"
+      con eventos, recordatorios, colecta y cumpleaños ficticios; credenciales
+      en `mobile/STORE_RELEASE.md`) — falta cargarla en App Review (iOS) y en
       Play Console → App access (Android).
+- [ ] **Resuelto el bloqueante Apple 5.1.1(v)**: la app tiene registro in-app
+      por código de invitación, por lo que Apple exige eliminación de cuenta
+      **iniciada en la app** (un email no alcanza). Implementar "Eliminar mi
+      cuenta" (Más → Cuenta, vía Edge Function con service-role) o quitar el
+      registro del build de iOS. Ver sección "Bloqueante iOS" del runbook.
 - [ ] El binario enviado a revisión en cada tienda es un build `production` de
       EAS con versión ≥ 1.1.0 y — en Android — versionCode ≥ 4 (los vc ≤ 3 se
       compilaron sin `google-services.json` y tienen push roto).
