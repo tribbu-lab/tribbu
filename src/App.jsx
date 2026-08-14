@@ -223,6 +223,20 @@ function App() {
     return () => window.removeEventListener("tribbu:navigate", handler);
   }, [usuario]);
 
+  // Fix WebView Android: los inputs date/time no abren el calendario nativo al tocar.
+  // Forzamos la apertura con showPicker() en cualquier tap sobre el campo.
+  useEffect(() => {
+    const abrirPicker = (e) => {
+      const el = e.target;
+      if(!el || el.tagName !== "INPUT") return;
+      if(el.type !== "date" && el.type !== "time" && el.type !== "month" && el.type !== "datetime-local") return;
+      if(typeof el.showPicker !== "function") return;
+      try { el.showPicker(); } catch(_) {}
+    };
+    document.addEventListener("click", abrirPicker);
+    return () => document.removeEventListener("click", abrirPicker);
+  }, []);
+
   const handleLogin = (u) => {
     setUsuario(u);
     // Si hay un tab pendiente de una notificación, navegar ahí en lugar del muro
