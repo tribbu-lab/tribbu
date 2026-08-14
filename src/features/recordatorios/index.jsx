@@ -38,8 +38,9 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const hoyStr = new Date().toISOString().split("T")[0];
 
   // Cursos distintos donde el apoderado tiene hijos. Si hay más de uno, ofrecemos la vista unificada.
+  // (No importa si además es Room Parent: si tiene hijos en varios cursos, puede ver todo junto.)
   const cursosHijos = [...new Set((misHijosItems||[]).map(h=>h.curso_id).filter(Boolean))];
-  const puedeVerTodos = !isAdmin && cursosHijos.length > 1;
+  const puedeVerTodos = cursosHijos.length > 1;
   // Si dejó de aplicar (cambió de perfil/curso), apagamos el modo unificado
   useEffect(()=>{ if(!puedeVerTodos && verTodos) setVerTodos(false); },[puedeVerTodos]);
 
