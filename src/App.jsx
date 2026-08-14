@@ -321,7 +321,7 @@ function App() {
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} misHijosItems={items.filter(i=>i._tipo==="hijo").map(i=>({id:i.id,nombre:i.nombre,apellido:i.apellido,curso_id:i.curso_id,color:i.color}))} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
