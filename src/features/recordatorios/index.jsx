@@ -30,6 +30,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const [filtroDesde,   setFiltroDesde]   = useState("");
   const [filtroHasta,   setFiltroHasta]   = useState("");
   const [filtroPrio,    setFiltroPrio]    = useState("all");
+  const [filtroLeido,   setFiltroLeido]   = useState("all");
   const [pagina,        setPagina]        = useState(1);
   const POR_PAG = 10;
 
@@ -126,6 +127,8 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
       if(filtroDesde && !r.fecha) return false;
     }
     if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
+    if(filtroLeido==="leidos"   && !leidosSet.has(r.id)) return false;
+    if(filtroLeido==="noleidos" &&  leidosSet.has(r.id)) return false;
     return true;
   }).sort((a,b)=>{
     if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
@@ -218,6 +221,11 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
           <option value="alta">Alta</option>
           <option value="media">Media</option>
           <option value="baja">Baja</option>
+        </select>
+        <select value={filtroLeido} onChange={e=>{setFiltroLeido(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+          <option value="all">Leídos y no leídos</option>
+          <option value="noleidos">Sin leer</option>
+          <option value="leidos">Leídos</option>
         </select>
         {puedeVerTodos&&(
           <button onClick={()=>{setVerTodos(v=>!v);setPagina(1);}} style={{padding:"7px 12px",borderRadius:8,border:`1.5px solid ${verTodos?"#3B82F6":"#E2E8F0"}`,background:verTodos?"#EFF6FF":"white",color:verTodos?"#3B82F6":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>
