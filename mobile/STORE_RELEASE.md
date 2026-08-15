@@ -181,6 +181,6 @@ En Play, además: "Data is encrypted in transit" → Sí; "Users can request dat
 deletion" → Sí. **Delete account URL** (campo obligatorio del formulario):
 `https://tribbu-alpha.vercel.app/eliminar-cuenta.html` — página dedicada con
 los pasos (in-app y por email), qué se elimina y qué se conserva
-(`public/eliminar-cuenta.html`). Método de creación de cuenta: "Username,
-password, and other authentication" (email+contraseña; el alta requiere
-código de invitación).
+(`public/eliminar-cuenta.html`). Método de creación de cuenta: **"Username and
+password"** solamente (email+contraseña; sin 2FA/OTP/SSO — el código de
+invitación no es un método de autenticación sino un requisito de alta).
