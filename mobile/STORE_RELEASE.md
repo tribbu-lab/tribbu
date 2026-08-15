@@ -177,6 +177,21 @@ tránsito, y con vía de eliminación (email). Fuente: modelo de datos real.
 | Contenido generado (eventos, recordatorios, mensajes) | `eventos`, `recordatorios`, etc. | User Content → Other User Content | Other user-generated content |
 | Token de push (identificador de dispositivo) | `push_tokens` | Identifiers → Device ID | Device or other IDs |
 
+**Play — detalle por tipo de dato** (wizard "Data types" → "Data usage and
+handling"). Común a todos: solo **Collected** (nunca "Shared": Supabase/Expo
+son service providers, no es sharing según Play), **ephemeral: No**, y purpose
+**App functionality** (sin Analytics/Ads/Fraud/Personalization). Diferencias:
+
+| Dato | Required/Optional | Purposes extra |
+|---|---|---|
+| Name | Required | + Account management |
+| Email address | Required (login) | + Account management |
+| Phone number | Optional | — |
+| Photos | Optional (adjuntos) | — |
+| Files and docs | Optional (PDFs) | — |
+| Other user-generated content | Optional | — |
+| Device or other IDs (push token) | Optional (permiso de notificaciones) | — |
+
 En Play, además: "Data is encrypted in transit" → Sí; "Users can request data
 deletion" → Sí. **Delete account URL** (campo obligatorio del formulario):
 `https://tribbu-alpha.vercel.app/eliminar-cuenta.html` — página dedicada con
