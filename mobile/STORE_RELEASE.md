@@ -13,8 +13,9 @@ cubre el tramo manual de consolas, con el copy listo para pegar.
   (alpha ya está limpio). Promover directo interno → producción.
 - **Play producción**: vacío. **Ficha**: solo el título "Tribbu" (es-419);
   faltan descripciones, gráficos y todos los cuestionarios.
-- **iOS**: la app 6787757386 existe en App Store Connect y recibe builds por
-  TestFlight; falta toda la ficha de App Store + revisión.
+- **iOS**: build 1.1.0 (con `supportsTablet: false` y eliminación de cuenta)
+  subido a App Store Connect (6787757386) el 2026-08-15; falta la ficha de
+  App Store + envío a revisión.
 - **Web**: la URL productiva de la app es `https://tribbu-alpha.vercel.app`
   (auto-deploy activo en ese proyecto de Vercel). La política de privacidad
   está viva y actualizada en `https://tribbu-alpha.vercel.app/privacidad.html`
@@ -122,14 +123,10 @@ promueve vc9 desde el track interno (ya submitteado; no hace falta build nuevo).
 
 ## App Store (app 6787757386)
 
-**Primero un build nuevo**: el cambio `supportsTablet: false` debe llegar al
-binario que se envía a revisión.
-
-```bash
-cd mobile
-npx -y eas-cli@latest build -p ios --profile production
-npx -y eas-cli@latest submit -p ios --latest
-```
+~~Primero un build nuevo~~ **Hecho** (2026-08-15): build 1.1.0 de iOS con
+`supportsTablet: false` + eliminación de cuenta in-app subido a App Store
+Connect vía `eas submit` (aparece en TestFlight tras el procesamiento de
+Apple, ~5–10 min). Es el build a seleccionar en la versión de App Store.
 
 Luego en [App Store Connect](https://appstoreconnect.apple.com):
 
