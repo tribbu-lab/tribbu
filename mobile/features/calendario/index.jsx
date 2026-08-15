@@ -16,6 +16,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
+import { DateField } from "../../components/DateField";
 
 const t = THEMES.light;
 
@@ -560,21 +561,30 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
 
             {[
               { l: "Título", k: "titulo", ph: "Ej: Acto del 25 de mayo" },
-              { l: "Fecha (AAAA-MM-DD)", k: "fecha", ph: "2026-05-25" },
+              { l: "Fecha", k: "fecha", ph: "Elegir fecha" },
               { l: "Lugar", k: "lugar", ph: "Ej: Patio del colegio" },
               { l: "URL ubicación", k: "url_ubicacion", ph: "https://maps.google.com/..." },
               { l: "Descripción", k: "descripcion", ph: "Detalles adicionales" },
             ].map((f) => (
               <View key={f.k}>
                 <Text style={styles.label}>{f.l.toUpperCase()}</Text>
-                <TextInput
-                  value={form[f.k]}
-                  onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
-                  placeholder={f.ph}
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize={f.k === "url_ubicacion" ? "none" : "sentences"}
-                  style={styles.input}
-                />
+                {f.k === "fecha" ? (
+                  <DateField
+                    value={form.fecha}
+                    onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
+                    placeholder={f.ph}
+                    style={styles.input}
+                  />
+                ) : (
+                  <TextInput
+                    value={form[f.k]}
+                    onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
+                    placeholder={f.ph}
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize={f.k === "url_ubicacion" ? "none" : "sentences"}
+                    style={styles.input}
+                  />
+                )}
               </View>
             ))}
 

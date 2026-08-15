@@ -31,6 +31,7 @@ import { useSession } from "../../context/Session";
 import { SelectChip } from "../../components/SelectChip";
 import { Paginador } from "../../components/Paginador";
 import { Avatar } from "../../components/Avatar";
+import { DateField } from "../../components/DateField";
 import { useListControls } from "../../lib/useListControls";
 
 const t = THEMES.light;
@@ -840,21 +841,30 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
 
             {[
               { l: "Título", k: "titulo", ph: `Festejo de ${alumnoNombre}` },
-              { l: "Fecha (AAAA-MM-DD)", k: "fecha", ph: "2026-07-15" },
+              { l: "Fecha", k: "fecha", ph: "Elegir fecha" },
               { l: "Lugar", k: "lugar", ph: "Ej: Salón de eventos, casa…" },
               { l: "URL ubicación", k: "url_ubicacion", ph: "https://maps.google.com/..." },
               { l: "Descripción", k: "descripcion", ph: "Info para los invitados" },
             ].map((f) => (
               <View key={f.k}>
                 <Text style={styles.label}>{f.l.toUpperCase()}</Text>
-                <TextInput
-                  value={form[f.k]}
-                  onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
-                  placeholder={f.ph}
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize={f.k === "url_ubicacion" ? "none" : "sentences"}
-                  style={styles.input}
-                />
+                {f.k === "fecha" ? (
+                  <DateField
+                    value={form.fecha}
+                    onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
+                    placeholder={f.ph}
+                    style={styles.input}
+                  />
+                ) : (
+                  <TextInput
+                    value={form[f.k]}
+                    onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
+                    placeholder={f.ph}
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize={f.k === "url_ubicacion" ? "none" : "sentences"}
+                    style={styles.input}
+                  />
+                )}
               </View>
             ))}
 
@@ -1287,15 +1297,8 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
               );
             })}
 
-            <Text style={styles.label}>FECHA LÍMITE (AAAA-MM-DD)</Text>
-            <TextInput
-              value={fechaLimite}
-              onChangeText={setFechaLimite}
-              placeholder="2026-07-20"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="none"
-              style={styles.input}
-            />
+            <Text style={styles.label}>FECHA LÍMITE</Text>
+            <DateField value={fechaLimite} onChange={setFechaLimite} style={styles.input} />
 
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>

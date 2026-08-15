@@ -4,6 +4,7 @@ export { Pill } from "./Pill";
 export { Badge, RoleBadge } from "./Badge";
 export { Button } from "./Button";
 export { Input } from "./Input";
+export { DateField } from "./DateField";
 export { Avatar, ChildDot } from "./Avatar";
 export { EmptyState } from "./EmptyState";
 export { Skeleton, SkeletonList } from "./Skeleton";

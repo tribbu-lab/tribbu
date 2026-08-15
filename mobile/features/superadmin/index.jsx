@@ -19,6 +19,7 @@ import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { ListToolbar } from "../../components/ListToolbar";
 import { Paginador } from "../../components/Paginador";
+import { DateField } from "../../components/DateField";
 import { useListControls } from "../../lib/useListControls";
 import { UploadMenuExcel } from "../comedor";
 
@@ -843,8 +844,8 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
                 />
               </View>
             ))}
-            <Text style={styles.label}>CUMPLEAÑOS (AAAA-MM-DD)</Text>
-            <TextInput value={form.fecha_nacimiento || ""} onChangeText={(t) => setForm((p) => ({ ...p, fecha_nacimiento: t }))} placeholder="1985-04-12" placeholderTextColor="#94A3B8" autoCapitalize="none" style={styles.input} />
+            <Text style={styles.label}>CUMPLEAÑOS</Text>
+            <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
             <Text style={styles.label}>CURSOS ASIGNADOS</Text>
             <View style={styles.chipsWrap}>
               {cursos.map((c) => {
@@ -901,8 +902,8 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
                 <TextInput value={form.apellido || ""} onChangeText={(t) => setForm((p) => ({ ...p, apellido: t }))} placeholder="Ej: García" placeholderTextColor="#94A3B8" style={styles.input} />
               </View>
             </View>
-            <Text style={styles.label}>FECHA DE NACIMIENTO (AAAA-MM-DD)</Text>
-            <TextInput value={form.fecha_nacimiento || ""} onChangeText={(t) => setForm((p) => ({ ...p, fecha_nacimiento: t }))} placeholder="2016-03-21" placeholderTextColor="#94A3B8" autoCapitalize="none" style={styles.input} />
+            <Text style={styles.label}>FECHA DE NACIMIENTO</Text>
+            <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
             <Text style={styles.label}>DNI</Text>
             <TextInput value={form.dni || ""} onChangeText={(t) => setForm((p) => ({ ...p, dni: t }))} placeholder="Ej: 12345678" placeholderTextColor="#94A3B8" style={styles.input} />
             <Text style={styles.label}>CURSO</Text>

@@ -17,6 +17,7 @@ import { Paginador } from "../../components/Paginador";
 import { SelectChip } from "../../components/SelectChip";
 import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
+import { DateField } from "../../components/DateField";
 
 const t = THEMES.light;
 
@@ -304,12 +305,11 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, o
             style={[styles.modalInput, styles.modalTextarea]}
           />
 
-          <Text style={styles.modalLabel}>Fecha (opcional, AAAA-MM-DD)</Text>
-          <TextInput
+          <Text style={styles.modalLabel}>Fecha (opcional)</Text>
+          <DateField
             value={form.fecha || ""}
-            onChangeText={(v) => setForm((p) => ({ ...p, fecha: v }))}
-            placeholder="2026-07-01"
-            placeholderTextColor={t.placeholder}
+            onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
+            clearable
             style={styles.modalInput}
           />
 
