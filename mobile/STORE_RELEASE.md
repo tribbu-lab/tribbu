@@ -4,13 +4,13 @@ Spec: `../specs/publicacion-appstore-google-play.md`. El pipeline técnico
 (build + firma + submit vía EAS) ya funciona en ambas plataformas; este runbook
 cubre el tramo manual de consolas, con el copy listo para pegar.
 
-## Estado verificado (2026-08-14, vía Play Developer API)
+## Estado verificado (2026-08-15, vía Play Developer API)
 
-- **Play track interno**: 1.1.0 / versionCode **7** `completed` (hay además un
-  release `draft` viejo en interno — descartarlo).
-- **Play alpha y beta**: releases `draft` de 1.1.0/vc7 sin publicar —
-  descartarlos o completarlos; recomendado descartarlos y promover directo
-  interno → producción para no mantener 4 tracks.
+- **Play track interno**: 1.1.0 / versionCode **9** `completed` (submitteado
+  2026-08-15 vía `eas submit --id c616bf17…`; **incluye la eliminación de
+  cuenta in-app** — es el build a promover).
+- **Play beta**: queda un release `draft` viejo de 1.1.0/vc7 — descartarlo
+  (alpha ya está limpio). Promover directo interno → producción.
 - **Play producción**: vacío. **Ficha**: solo el título "Tribbu" (es-419);
   faltan descripciones, gráficos y todos los cuestionarios.
 - **iOS**: la app 6787757386 existe en App Store Connect y recibe builds por
@@ -85,7 +85,7 @@ nuevo en ambas tiendas a partir de acá).
 ## Google Play (`com.tribbu.app`)
 
 Todo en [Play Console](https://play.google.com/console). El AAB ya está: se
-promueve vc7 desde el track interno (no hace falta build nuevo).
+promueve vc9 desde el track interno (ya submitteado; no hace falta build nuevo).
 
 1. **Ficha principal de la tienda** (Grow → Store presence → Main store listing):
    - Nombre: `tribbu — comunidad escolar` (o dejar "Tribbu")
@@ -114,7 +114,7 @@ promueve vc7 desde el track interno (no hace falta build nuevo).
    closed testing antes de habilitar producción (Play Console lo muestra en
    Dashboard → "Apply for production access"). Si la opción "Promote to
    production" aparece habilitada, no aplica.
-5. **Promoción**: Release → Internal testing → release 1.1.0 (vc7) → Promote
+5. **Promoción**: Release → Internal testing → release 1.1.0 (vc9) → Promote
    release → Production → rollout 100% → enviar a revisión (la primera
    revisión de producción puede tardar varios días).
 6. **Verificar**: app instalable buscando "tribbu" desde un dispositivo
