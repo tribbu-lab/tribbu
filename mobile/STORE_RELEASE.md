@@ -178,5 +178,9 @@ tránsito, y con vía de eliminación (email). Fuente: modelo de datos real.
 | Token de push (identificador de dispositivo) | `push_tokens` | Identifiers → Device ID | Device or other IDs |
 
 En Play, además: "Data is encrypted in transit" → Sí; "Users can request data
-deletion" → Sí (vía `privacidad@tribbu.app`, sección "Eliminación de cuenta"
-de la política).
+deletion" → Sí. **Delete account URL** (campo obligatorio del formulario):
+`https://tribbu-alpha.vercel.app/eliminar-cuenta.html` — página dedicada con
+los pasos (in-app y por email), qué se elimina y qué se conserva
+(`public/eliminar-cuenta.html`). Método de creación de cuenta: "Username,
+password, and other authentication" (email+contraseña; el alta requiere
+código de invitación).
