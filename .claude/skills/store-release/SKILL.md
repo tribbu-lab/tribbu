@@ -1,7 +1,7 @@
 ---
 name: store-release
 description: Build the tribbu mobile app for iOS and Android locally with EAS (zero cloud-build quota) and submit both to the stores (Play internal track + App Store Connect). Use when the user wants to ship a new mobile release, "build y submit", or publish the app to the stores.
-argument-hint: [all|android|ios] [--cloud] (default: all, local builds)
+argument-hint: "[all|android|ios] [--cloud] (default: all, local builds)"
 ---
 
 # Store Release — build local + submit a ambas tiendas
