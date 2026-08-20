@@ -40,6 +40,7 @@ if `--cloud` was passed or the user explicitly asks after a local failure).
 ## Phase 1 — Android (build → submit)
 
 ```bash
+GOOGLE_SERVICES_JSON="$PWD/google-services.json" \
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ANDROID_HOME="$HOME/Library/Android/sdk" \
 npx -y eas-cli@latest build -p android --profile production --local \
@@ -48,8 +49,16 @@ npx -y eas-cli@latest build -p android --profile production --local \
 
 - Run in background (takes 10–25 min); watch for completion, then confirm the
   `.aab` exists and is non-trivial in size (> 20 MB).
-- `google-services.json` is gitignored but reaches the build via the EAS file
-  env var `GOOGLE_SERVICES_JSON` — do not "fix" its absence by un-ignoring it.
+- **`GOOGLE_SERVICES_JSON` con ruta ABSOLUTA local es OBLIGATORIO en builds
+  locales**: el archivo está gitignoreado (no entra al tarball del build) y la
+  file env var de EAS tiene visibilidad *secret*, que NO baja a `--local` — sin
+  esto el binario sale **sin Firebase y el push no registra** (fue el bug de las
+  APKs 1.0.0/vc≤3 de julio, descubierto 2026-08-20). Solo los builds cloud la
+  reciben de EAS. No "arreglarlo" des-ignorando el archivo.
+- Verificación post-build del binario (debe dar ≥1):
+  `unzip -p <artefacto> resources.arsc | grep -a -c 943309263680`
+  (en un `.aab` el path es `base/resources.arsc`; si da 0, el build salió sin
+  Firebase — no lo distribuyas).
 - Submit (does **not** consume build quota; targets come from `eas.json > submit`,
   Play **internal** track, `play-service-account.json` must exist locally):
 
