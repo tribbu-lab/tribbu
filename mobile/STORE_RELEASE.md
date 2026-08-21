@@ -196,3 +196,51 @@ los pasos (in-app y por email), qué se elimina y qué se conserva
 (`public/eliminar-cuenta.html`). Método de creación de cuenta: **"Username and
 password"** solamente (email+contraseña; sin 2FA/OTP/SSO — el código de
 invitación no es un método de autenticación sino un requisito de alta).
+
+## APK compartible (distribución directa, fuera de las tiendas)
+
+Para compartir la app por fuera de Play (WhatsApp/Drive/link directo) existe el
+perfil **`apk`** de `eas.json`: extiende `production` (misma firma remota de
+EAS — se instala encima de la versión de Play y viceversa —, mismas env vars de
+Supabase) pero genera un `.apk` instalable directo en vez de `.aab`. Cada build
+también incrementa el `versionCode` remoto (comparte la secuencia con los
+builds de tienda). Build local (no consume cuota cloud, 10–25 min), desde
+`mobile/`:
+
+```bash
+GOOGLE_SERVICES_JSON="$PWD/google-services.json" \
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+npx -y eas-cli@latest build -p android --profile apk --local \
+  --non-interactive --output ./tribbu-compartible.apk
+```
+
+- **`GOOGLE_SERVICES_JSON` con ruta absoluta es OBLIGATORIO** en builds
+  locales: el archivo está gitignoreado (no entra al tarball del build) y la
+  file env var de EAS es *secret* (no baja a `--local`) — sin él la APK sale
+  **sin Firebase y el push no registra** (el bug de las APKs 1.0.0 de julio
+  2026).
+- Verificar antes de compartir (debe dar ≥1):
+  `unzip -p tribbu-compartible.apk resources.arsc | grep -a -c 943309263680`.
+- No hay submit: el `.apk` (gitignoreado, nunca commitearlo) se comparte
+  directo; al instalar, Android pide habilitar "instalar apps desconocidas"
+  para el origen desde el que se abre.
+
+### Compilar la APK desde otra computadora
+
+Con el repo clonado, el **único archivo del ambiente de desarrollo a
+compartir** (por canal seguro — nunca commitearlo) es
+**`mobile/google-services.json`**, la config de Firebase para el push. Nada
+más: `play-service-account.json` es solo para submits a Play, y no hace falta
+`.env` (las vars de Supabase van inline en el perfil `production` de
+`eas.json`, y el `projectId` de EAS está hardcodeado en `app.config.js`).
+
+El resto son accesos y toolchain, no archivos:
+
+- **Login de EAS** con una cuenta con acceso al proyecto (owner
+  `albatross-tech`): `npx eas-cli login`. El keystore de firma y el
+  `versionCode` viven en los servers de EAS y se resuelven solos al buildear.
+- **Node LTS** + `npm install` en `mobile/`.
+- **JDK 17** (sirve el JBR de Android Studio) y **Android SDK**, apuntados por
+  `JAVA_HOME` / `ANDROID_HOME` (ajustar las rutas del comando a esa máquina).
+  Los builds locales de EAS corren en macOS/Linux (en Windows, vía WSL).

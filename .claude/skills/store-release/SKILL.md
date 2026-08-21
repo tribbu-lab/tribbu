@@ -67,6 +67,16 @@ npx -y eas-cli@latest submit -p android --profile production \
   --path ./tribbu-production.aab --non-interactive
 ```
 
+### Variante — APK compartible (sin submit)
+
+Si el usuario pide una **APK para compartir** (distribución directa, no
+tiendas): mismo comando de build pero con `--profile apk` (extiende
+`production`, `buildType: apk`) y `--output ./tribbu-compartible.apk`; **no hay
+paso de submit**. Aplican el mismo gotcha de `GOOGLE_SERVICES_JSON` y la
+verificación post-build (en un `.apk` el path es `resources.arsc`, sin
+`base/`). Doc humana: sección "APK compartible" de `mobile/STORE_RELEASE.md`
+(incluye qué compartir para compilar desde otra computadora).
+
 ## Phase 2 — iOS (build → submit)
 
 Only start after Phase 1's build finished (resource contention).
