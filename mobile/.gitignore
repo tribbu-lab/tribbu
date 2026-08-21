@@ -5,6 +5,9 @@ web-build/
 
 # Native
 *.orig.*
+*.aab
+*.ipa
+*.apk
 *.jks
 *.p8
 *.p12

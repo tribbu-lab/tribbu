@@ -13,6 +13,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
+import { DateField } from "../../components/DateField";
 
 const t = THEMES.light;
 
@@ -392,12 +393,10 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
               />
             </View>
 
-            <Text style={styles.label}>FECHA LÍMITE (AAAA-MM-DD)</Text>
-            <TextInput
+            <Text style={styles.label}>FECHA LÍMITE</Text>
+            <DateField
               value={form.fecha_limite}
-              onChangeText={(t) => setForm((p) => ({ ...p, fecha_limite: t }))}
-              placeholder="2026-07-01"
-              placeholderTextColor={t.placeholder}
+              onChange={(v) => setForm((p) => ({ ...p, fecha_limite: v }))}
               style={styles.input}
             />
 

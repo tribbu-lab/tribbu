@@ -4,17 +4,18 @@ Spec: `../specs/publicacion-appstore-google-play.md`. El pipeline técnico
 (build + firma + submit vía EAS) ya funciona en ambas plataformas; este runbook
 cubre el tramo manual de consolas, con el copy listo para pegar.
 
-## Estado verificado (2026-08-14, vía Play Developer API)
+## Estado verificado (2026-08-15, vía Play Developer API)
 
-- **Play track interno**: 1.1.0 / versionCode **7** `completed` (hay además un
-  release `draft` viejo en interno — descartarlo).
-- **Play alpha y beta**: releases `draft` de 1.1.0/vc7 sin publicar —
-  descartarlos o completarlos; recomendado descartarlos y promover directo
-  interno → producción para no mantener 4 tracks.
+- **Play track interno**: 1.1.0 / versionCode **9** `completed` (submitteado
+  2026-08-15 vía `eas submit --id c616bf17…`; **incluye la eliminación de
+  cuenta in-app** — es el build a promover).
+- **Play beta**: queda un release `draft` viejo de 1.1.0/vc7 — descartarlo
+  (alpha ya está limpio). Promover directo interno → producción.
 - **Play producción**: vacío. **Ficha**: solo el título "Tribbu" (es-419);
   faltan descripciones, gráficos y todos los cuestionarios.
-- **iOS**: la app 6787757386 existe en App Store Connect y recibe builds por
-  TestFlight; falta toda la ficha de App Store + revisión.
+- **iOS**: build 1.1.0 (con `supportsTablet: false` y eliminación de cuenta)
+  subido a App Store Connect (6787757386) el 2026-08-15; falta la ficha de
+  App Store + envío a revisión.
 - **Web**: la URL productiva de la app es `https://tribbu-alpha.vercel.app`
   (auto-deploy activo en ese proyecto de Vercel). La política de privacidad
   está viva y actualizada en `https://tribbu-alpha.vercel.app/privacidad.html`
@@ -85,7 +86,7 @@ nuevo en ambas tiendas a partir de acá).
 ## Google Play (`com.tribbu.app`)
 
 Todo en [Play Console](https://play.google.com/console). El AAB ya está: se
-promueve vc7 desde el track interno (no hace falta build nuevo).
+promueve vc9 desde el track interno (ya submitteado; no hace falta build nuevo).
 
 1. **Ficha principal de la tienda** (Grow → Store presence → Main store listing):
    - Nombre: `tribbu — comunidad escolar` (o dejar "Tribbu")
@@ -114,7 +115,7 @@ promueve vc7 desde el track interno (no hace falta build nuevo).
    closed testing antes de habilitar producción (Play Console lo muestra en
    Dashboard → "Apply for production access"). Si la opción "Promote to
    production" aparece habilitada, no aplica.
-5. **Promoción**: Release → Internal testing → release 1.1.0 (vc7) → Promote
+5. **Promoción**: Release → Internal testing → release 1.1.0 (vc9) → Promote
    release → Production → rollout 100% → enviar a revisión (la primera
    revisión de producción puede tardar varios días).
 6. **Verificar**: app instalable buscando "tribbu" desde un dispositivo
@@ -122,14 +123,10 @@ promueve vc7 desde el track interno (no hace falta build nuevo).
 
 ## App Store (app 6787757386)
 
-**Primero un build nuevo**: el cambio `supportsTablet: false` debe llegar al
-binario que se envía a revisión.
-
-```bash
-cd mobile
-npx -y eas-cli@latest build -p ios --profile production
-npx -y eas-cli@latest submit -p ios --latest
-```
+~~Primero un build nuevo~~ **Hecho** (2026-08-15): build 1.1.0 de iOS con
+`supportsTablet: false` + eliminación de cuenta in-app subido a App Store
+Connect vía `eas submit` (aparece en TestFlight tras el procesamiento de
+Apple, ~5–10 min). Es el build a seleccionar en la versión de App Store.
 
 Luego en [App Store Connect](https://appstoreconnect.apple.com):
 
@@ -177,6 +174,25 @@ tránsito, y con vía de eliminación (email). Fuente: modelo de datos real.
 | Contenido generado (eventos, recordatorios, mensajes) | `eventos`, `recordatorios`, etc. | User Content → Other User Content | Other user-generated content |
 | Token de push (identificador de dispositivo) | `push_tokens` | Identifiers → Device ID | Device or other IDs |
 
+**Play — detalle por tipo de dato** (wizard "Data types" → "Data usage and
+handling"). Común a todos: solo **Collected** (nunca "Shared": Supabase/Expo
+son service providers, no es sharing según Play), **ephemeral: No**, y purpose
+**App functionality** (sin Analytics/Ads/Fraud/Personalization). Diferencias:
+
+| Dato | Required/Optional | Purposes extra |
+|---|---|---|
+| Name | Required | + Account management |
+| Email address | Required (login) | + Account management |
+| Phone number | Optional | — |
+| Photos | Optional (adjuntos) | — |
+| Files and docs | Optional (PDFs) | — |
+| Other user-generated content | Optional | — |
+| Device or other IDs (push token) | Optional (permiso de notificaciones) | — |
+
 En Play, además: "Data is encrypted in transit" → Sí; "Users can request data
-deletion" → Sí (vía `privacidad@tribbu.app`, sección "Eliminación de cuenta"
-de la política).
+deletion" → Sí. **Delete account URL** (campo obligatorio del formulario):
+`https://tribbu-alpha.vercel.app/eliminar-cuenta.html` — página dedicada con
+los pasos (in-app y por email), qué se elimina y qué se conserva
+(`public/eliminar-cuenta.html`). Método de creación de cuenta: **"Username and
+password"** solamente (email+contraseña; sin 2FA/OTP/SSO — el código de
+invitación no es un método de autenticación sino un requisito de alta).
