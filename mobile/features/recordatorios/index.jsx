@@ -226,7 +226,8 @@ export function Recordatorios() {
           <RecordatorioRow
             r={item}
             esLeido={leidosSet.has(item.id)}
-            puedeEditar={isAdmin || item.creado_por === userId}
+            // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
+            puedeEditar={(isAdmin || item.creado_por === userId) && item.tipo !== "colecta_vence"}
             onLeido={marcarLeido}
             onEditar={abrirEditar}
             onEliminar={eliminar}
@@ -248,6 +249,7 @@ export function Recordatorios() {
             <View style={styles.filtersRow}>
               <SelectChip
                 label="Rango"
+                icon="calendar-range-outline"
                 value={filtroRango}
                 options={RANGOS}
                 onChange={(v) => {
@@ -257,6 +259,7 @@ export function Recordatorios() {
               />
               <SelectChip
                 label="Prioridad"
+                icon="flag-outline"
                 value={filtroPrio}
                 options={PRIOS}
                 onChange={(v) => {
@@ -266,6 +269,7 @@ export function Recordatorios() {
               />
               <SelectChip
                 label="Estado"
+                icon="check-circle-outline"
                 value={filtroLeido}
                 options={LEIDOS}
                 onChange={(v) => {
@@ -464,8 +468,10 @@ const styles = StyleSheet.create({
   nuevoTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
 
-  // filtros colapsados (SelectChip del sistema)
-  filtersRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md, marginBottom: SPACE.md },
+  // filtros colapsados (SelectChip del sistema, con icono en vez de label para
+  // entrar en una fila); wrap de respaldo: con fuentes grandes o pantallas muy
+  // angostas un chip baja de línea en vez de cortarse contra el borde
+  filtersRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm, marginTop: SPACE.md, marginBottom: SPACE.md },
 
   // fila de recordatorio
   row: {

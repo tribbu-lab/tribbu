@@ -1,8 +1,9 @@
 // SelectChip — filtro colapsado del sistema (patrón A3): un chip que abre un
-// Sheet con las opciones (48pt por fila, check en la activa). Con `prefix`
-// muestra "Label: Valor" (Recordatorios); sin prefix muestra el label como
-// placeholder y el valor corto cuando hay filtro activo (Cumpleaños).
-// El chip se tiñe (accentSoft) cuando el valor ≠ "all".
+// Sheet con las opciones (48pt por fila, check en la activa). Con `icon` (nombre
+// MaterialCommunityIcons) muestra "icono + Valor" y el label queda para el Sheet
+// y accesibilidad (Recordatorios); con `prefix` muestra "Label: Valor"; sin
+// ninguno muestra el label como placeholder y el valor corto cuando hay filtro
+// activo (Cumpleaños). El chip se tiñe (accentSoft) cuando el valor ≠ "all".
 
 import { useState } from "react";
 import { Text, Pressable, ScrollView } from "react-native";
@@ -40,13 +41,13 @@ const useStyles = makeThemedStyles((t) => ({
   optTxtOn: { fontWeight: "800", color: BLUE[600] },
 }));
 
-export function SelectChip({ label, value, options, onChange, prefix = true, style }) {
+export function SelectChip({ label, value, options, onChange, prefix = true, icon, style }) {
   const [open, setOpen] = useState(false);
   const s = useStyles();
   const t = useTheme();
   const actual = options.find((o) => o.value === value);
   const activo = value != null && value !== "all";
-  const display = prefix ? actual?.label : activo ? actual?.short || actual?.label : label;
+  const display = icon || prefix ? actual?.label : activo ? actual?.short || actual?.label : label;
 
   return (
     <>
@@ -56,7 +57,11 @@ export function SelectChip({ label, value, options, onChange, prefix = true, sty
         accessibilityRole="button"
         accessibilityLabel={`Filtro ${label}`}
       >
-        {prefix ? <Text style={s.lbl}>{label}:</Text> : null}
+        {icon ? (
+          <MaterialCommunityIcons name={icon} size={15} color={activo ? BLUE[600] : t.textFaint} />
+        ) : prefix ? (
+          <Text style={s.lbl}>{label}:</Text>
+        ) : null}
         <Text style={[s.val, activo && s.valOn]}>{display}</Text>
         <MaterialCommunityIcons name="chevron-down" size={14} color={activo ? BLUE[600] : t.textFaint} />
       </Pressable>

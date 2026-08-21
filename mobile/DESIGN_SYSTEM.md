@@ -142,7 +142,7 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 | `Skeleton` / `SkeletonList` | `width,height,radius` / `rows, avatar` | pulso con native driver; preferir sobre `Spinner` cuando la forma de la lista es conocida |
 | `Spinner` | `style` | carga genérica centrada |
 | `Sheet` | `visible, onClose, title, position` | modal estándar: bottom-sheet (default) o diálogo centrado; overlay tocable, safe-area, KeyboardAvoiding |
-| `SelectChip` | `label, value, options, onChange, prefix` | filtro colapsado: chip (se tiñe si hay filtro activo) + Sheet de opciones scrolleable; `prefix=false` muestra el valor corto (`options[].short`) |
+| `SelectChip` | `label, value, options, onChange, prefix, icon` | filtro colapsado: chip (se tiñe si hay filtro activo) + Sheet de opciones scrolleable; `icon` (nombre MCI) muestra icono+valor con el label solo en Sheet/a11y (Recordatorios); `prefix=false` muestra el valor corto (`options[].short`) |
 | `Money` | `value, tone, size` | `fmtM` es-AR + tabular-nums; tonos `success` (pagado) / `danger` (deuda) / `muted` |
 | `ListToolbar` + `Paginador` | API de `useListControls` | patrón canónico de toda lista buscable/filtrable |
 | `FloatingTabBar` | `state, navigation, badge` | navegación del sistema (patrón A3): píldora flotante **en overlay real** (`position:absolute`; el contenido scrollea por detrás — toda pantalla bajo las tabs reserva `TAB_BAR_SPACE` (112) como `paddingBottom` de su scroll), íconos de trazo, cápsula activa `accentSoft`, badge de Recordatorios; labels con `maxFontSizeMultiplier` 1.1 y "Recordatorios" abreviado a "Avisos" en la barra |
