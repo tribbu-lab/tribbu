@@ -37,6 +37,11 @@ const PRIOS = [
   { value: "media", label: "Media" },
   { value: "baja", label: "Baja" },
 ];
+const LEIDOS = [
+  { value: "all", label: "Todos" },
+  { value: "noleidos", label: "No leídos" },
+  { value: "leidos", label: "Leídos" },
+];
 
 const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, onLeido, onEditar, onEliminar }) {
   const prio = PRIO[r.prioridad || "media"];
@@ -95,6 +100,7 @@ export function Recordatorios() {
   const [saving, setSaving] = useState(false);
   const [filtroRango, setFiltroRango] = useState("all");
   const [filtroPrio, setFiltroPrio] = useState("all");
+  const [filtroLeido, setFiltroLeido] = useState("all");
   const [pagina, setPagina] = useState(1);
 
   const hoyStr = new Date().toISOString().split("T")[0];
@@ -189,7 +195,9 @@ export function Recordatorios() {
     setModal(r);
   }, []);
 
-  const visiblesTipo = recordatorios.filter((r) => r.tipo !== "regalo_cumple" && r.tipo !== "colecta_vence");
+  // Ocultar solo los de regalo (se manejan aparte). Los de colecta (colecta_vence)
+  // SÍ se muestran, igual que en la web.
+  const visiblesTipo = recordatorios.filter((r) => r.tipo !== "regalo_cumple");
   const sinLeer = visiblesTipo.filter((r) => !leidosSet.has(r.id)).length;
 
   const filtrados = visiblesTipo
@@ -197,6 +205,8 @@ export function Recordatorios() {
       if (filtroRango === "proximos" && r.fecha && r.fecha < hoyStr) return false;
       if (filtroRango === "pasados" && (!r.fecha || r.fecha >= hoyStr)) return false;
       if (filtroPrio !== "all" && r.prioridad !== filtroPrio) return false;
+      if (filtroLeido === "leidos" && !leidosSet.has(r.id)) return false;
+      if (filtroLeido === "noleidos" && leidosSet.has(r.id)) return false;
       return true;
     })
     .sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : 0));
@@ -250,6 +260,15 @@ export function Recordatorios() {
                 options={PRIOS}
                 onChange={(v) => {
                   setFiltroPrio(v);
+                  setPagina(1);
+                }}
+              />
+              <SelectChip
+                label="Estado"
+                value={filtroLeido}
+                options={LEIDOS}
+                onChange={(v) => {
+                  setFiltroLeido(v);
                   setPagina(1);
                 }}
               />
