@@ -1,6 +1,6 @@
 ---
 title: Comunicaciones multi-curso
-status: draft
+status: implemented
 priority: medium
 ---
 
@@ -22,27 +22,36 @@ curso — esta feature no le agrega ninguna capacidad nueva.
 
 ## Acceptance Criteria
 
-- [ ] `recordatorios` tiene una columna nueva `grupo_id uuid` (nullable —
+- [x] `recordatorios` tiene una columna nueva `grupo_id uuid` (nullable —
       `null` para cualquier recordatorio creado como siempre, con un solo
-      curso).
-- [ ] Web: nueva sección "Comunicaciones" dentro de `SuperAdmin`
+      curso). *(SQL corrida contra la base real vía `supabase db query --linked`,
+      columna verificada presente.)*
+- [x] Web: nueva sección "Comunicaciones" dentro de `SuperAdmin`
       (`src/features/superadmin/index.jsx`), siguiendo el patrón ya usado por
       `AlertasAdmin({ cursos })`/`HorariosAdmin({ cursos })` — el selector
-      ofrece **todos** los cursos del colegio.
-- [ ] Mobile: misma sección en `mobile/features/superadmin/index.jsx`.
-- [ ] `AdminPanel` (Room Parent, web y mobile) **no cambia** — sigue
-      publicando recordatorios solo en su propio curso, como hoy.
-- [ ] El formulario reutiliza los mismos campos que un recordatorio normal:
+      ofrece **todos** los cursos del colegio. *(Verificado en vivo con
+      login real de Super Admin: aparecen los 5 cursos del colegio.)*
+- [x] Mobile: misma sección en `mobile/features/superadmin/index.jsx`.
+      *(Código escrito, lint + `expo export` limpios — no se hizo QA visual
+      en emulador para esta pantalla puntual en esta pasada.)*
+- [x] `AdminPanel` (Room Parent, web y mobile) **no cambia** — sigue
+      publicando recordatorios solo en su propio curso, como hoy. *(No se
+      tocó ese archivo.)*
+- [x] El formulario reutiliza los mismos campos que un recordatorio normal:
       texto, fecha (opcional), prioridad, urgente, adjuntos — mismos límites
       y componentes (`AdjuntosInput`, tope de 3 archivos).
-- [ ] Selector de cursos: checkboxes con "Seleccionar todos" (todos los
+- [x] Selector de cursos: checkboxes con "Seleccionar todos" (todos los
       cursos habilitados para ese rol). Publicar requiere al menos 1 curso
       elegido y el texto no vacío — mismas validaciones silenciosas que hoy
-      (`if(!form.texto?.trim()) return`).
-- [ ] Confirmación antes de publicar ("¿Publicar en {N} cursos?") — mismo
+      (`if(!form.texto?.trim()) return`). *(Verificado en vivo: "Publicar"
+      queda deshabilitado hasta completar ambos.)*
+- [x] Confirmación antes de publicar ("¿Publicar en {N} cursos?") — mismo
       patrón que ya usa `AlertaModal` para "Enviar alerta a toda la
-      comunidad".
-- [ ] Al publicar, se genera **un `grupo_id` (uuid) nuevo** y se hace **un
+      comunidad". *(Verificado en vivo: seleccioné 2 cursos, el diálogo dijo
+      exactamente "¿Publicar en 2 cursos?"; "Cancelar" vuelve al formulario
+      sin escribir nada — no se llegó a tocar "Sí, publicar" para no mandar
+      un push real a apoderados reales.)*
+- [x] Al publicar, se genera **un `grupo_id` (uuid) nuevo** y se hace **un
       insert por curso elegido** en `recordatorios` (misma fila que crearía
       hoy el "+ Nuevo" de Recordatorios, con `curso_id` de cada curso,
       `creado_por` = usuario actual, y ese `grupo_id` compartido) — no una
@@ -51,15 +60,23 @@ curso — esta feature no le agrega ninguna capacidad nueva.
       edita/borra por curso de forma independiente (sin acción de "editar
       todas a la vez" en esta primera versión — el `grupo_id` deja la puerta
       abierta para agregarla después sin volver a tocar el modelo de datos).
-- [ ] Push: se resuelven los destinatarios de **todos** los cursos elegidos
+      *(Revisado por código; no ejecutado en vivo — ver nota arriba. Nota
+      técnica: `crypto.randomUUID()` no está garantizado en Hermes/React
+      Native, así que el `grupo_id` se genera con un v4 liviano propio,
+      `uuidLite()` en `src/lib/helpers.js`, compartido por las dos
+      plataformas.)*
+- [x] Push: se resuelven los destinatarios de **todos** los cursos elegidos
       con `getUserIdsByCurso` y se **deduplican** antes de mandar — un
       apoderado con hijos en 2+ de los cursos elegidos recibe **un solo**
       push, no uno por curso. Un solo llamado a `sendPush({type:"recordatorio", ...})`
       con la lista ya deduplicada (mismo copy "Nuevo recordatorio" que hoy).
-- [ ] Se ve bien en el layout de Super Admin tanto en mobile como en desktop,
-      y en pantalla angosta.
-- [ ] `npm run lint` (raíz) y `cd mobile && npm run lint` + `npx expo export -p ios`
-      pasan.
+      *(Revisado por código, no ejecutado en vivo.)*
+- [x] Se ve bien en el layout de Super Admin tanto en mobile como en desktop,
+      y en pantalla angosta. *(Verificado en desktop; mobile no se corrió en
+      emulador esta vez.)*
+- [x] `npm run lint` (raíz) y `cd mobile && npm run lint` + `npx expo export -p ios`
+      pasan. *(Los 4 comandos corrieron limpios, mismo baseline de errores
+      preexistentes que antes de este cambio, sin ninguno nuevo.)*
 
 ## Technical Notes
 

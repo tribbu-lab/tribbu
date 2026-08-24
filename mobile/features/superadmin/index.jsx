@@ -13,14 +13,16 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
-import { fmtNombre, fmtF, sanitize } from "@shared/helpers";
+import { fmtNombre, fmtF, sanitize, uuidLite } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { ListToolbar } from "../../components/ListToolbar";
 import { Paginador } from "../../components/Paginador";
 import { DateField } from "../../components/DateField";
+import { AdjuntosInput } from "../../components/Adjuntos";
 import { useListControls } from "../../lib/useListControls";
+import { useSession } from "../../context/Session";
 import { UploadMenuExcel } from "../comedor";
 
 const SECCIONES = [
@@ -32,6 +34,7 @@ const SECCIONES = [
   { id: "horarios", l: "🕐 Horarios" },
   { id: "uniformes", l: "👕 Uniformes" },
   { id: "alertas", l: "🚨 Alertas" },
+  { id: "comunicaciones", l: "📢 Comunicaciones" },
   { id: "menu", l: "🍽️ Menú" },
 ];
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
@@ -576,6 +579,7 @@ export function SuperAdmin() {
       {sec === "horarios" ? <HorariosAdmin cursos={cursos} /> : null}
       {sec === "uniformes" ? <UniformesAdmin cursos={cursos} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
+      {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>
@@ -1058,6 +1062,167 @@ function AlertasAdmin({ cursos }) {
     </View>
   );
 }
+
+// ── ComunicacionesAdmin ───────────────────────────────────────────────────────────
+// Publica un recordatorio idéntico en varios cursos a la vez (exclusivo de Super
+// Admin — el Room Parent sigue publicando solo en su propio curso, sin cambios).
+// Un `grupo_id` (uuid) compartido marca las filas como parte de la misma
+// comunicación, aunque cada una se edita/borra por curso como cualquier
+// recordatorio (ver specs/comunicaciones-multi-curso.md).
+const PRIO = {
+  alta: { l: "Alta", c: "#EF4444", bg: "#FEF2F2" },
+  media: { l: "Media", c: "#F59E0B", bg: "#FFFBEB" },
+  baja: { l: "Baja", c: "#10B981", bg: "#F0FDF4" },
+};
+function ComunicacionesAdmin({ cursos }) {
+  const { usuario } = useSession();
+  const [cursosSel, setCursosSel] = useState([]);
+  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [publicando, setPublicando] = useState(false);
+  const [ok, setOk] = useState(null);
+
+  const toggleCurso = (id) => setCursosSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const todosSeleccionados = cursos.length > 0 && cursosSel.length === cursos.length;
+  const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map((c) => c.id));
+
+  const publicar = async () => {
+    if (!form.texto?.trim() || cursosSel.length === 0) return;
+    setPublicando(true);
+    const grupo_id = uuidLite();
+    const rows = cursosSel.map((curso_id) => ({
+      texto: sanitize(form.texto),
+      fecha: form.fecha || null,
+      prioridad: form.prioridad || "media",
+      urgente: form.urgente || false,
+      adjuntos: form.adjuntos || [],
+      curso_id,
+      grupo_id,
+      creado_por: usuario?.id ?? null,
+    }));
+    await supabase.from("recordatorios").insert(rows);
+    const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+    if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
+    setPublicando(false);
+    setConfirmando(false);
+    setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
+    setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+    setCursosSel([]);
+    setTimeout(() => setOk(null), 4000);
+  };
+
+  const puedePublicar = !!form.texto?.trim() && cursosSel.length > 0 && !subiendoAdj;
+
+  return (
+    <View>
+      <Text style={styles.cardTitle}>Comunicación para varios cursos</Text>
+      <Text style={styles.subtitle}>Se publica como un recordatorio independiente en cada curso elegido.</Text>
+
+      {ok ? (
+        <View style={comStyles.okBox}>
+          <Text style={comStyles.okTxt}>✓ {ok}</Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.label}>TEXTO</Text>
+      <TextInput
+        value={form.texto}
+        onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
+        placeholder="Ej: Reunión general de padres el viernes 15 a las 18hs"
+        placeholderTextColor="#94A3B8"
+        multiline
+        style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
+      />
+
+      <Text style={styles.label}>FECHA (OPCIONAL)</Text>
+      <DateField value={form.fecha || ""} onChange={(v) => setForm((p) => ({ ...p, fecha: v }))} clearable style={styles.input} />
+
+      <Text style={styles.label}>PRIORIDAD</Text>
+      <View style={comStyles.prioRow}>
+        {["alta", "media", "baja"].map((p) => {
+          const active = form.prioridad === p;
+          return (
+            <Pressable
+              key={p}
+              onPress={() => setForm((f) => ({ ...f, prioridad: p }))}
+              style={[comStyles.prioBtn, active && { borderColor: PRIO[p].c, backgroundColor: PRIO[p].bg }]}
+            >
+              <Text style={[comStyles.prioTxt, active && { color: PRIO[p].c }]}>{PRIO[p].l}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Pressable
+        onPress={() => setForm((p) => ({ ...p, urgente: !p.urgente }))}
+        style={[styles.togglePill, form.urgente && { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
+      >
+        <Text style={[styles.toggleTxt, form.urgente && { color: "#EF4444" }]}>{form.urgente ? "Urgente" : "Marcar urgente"}</Text>
+      </Pressable>
+
+      <Text style={styles.label}>ADJUNTOS (OPCIONAL)</Text>
+      <AdjuntosInput adjuntos={form.adjuntos || []} onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))} cursoId="comunicaciones" onUploadingChange={setSubiendoAdj} />
+
+      <View style={comStyles.sectionRow}>
+        <Text style={styles.cardTitle}>¿A qué cursos aplica?</Text>
+        {cursos.length > 0 ? (
+          <Pressable onPress={seleccionarTodos}>
+            <Text style={comStyles.linkTxt}>{todosSeleccionados ? "Ninguno" : "Seleccionar todos"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.chipsWrap}>
+        {cursos.map((c) => {
+          const sel = cursosSel.includes(c.id);
+          return (
+            <Pressable key={c.id} onPress={() => toggleCurso(c.id)} style={[styles.chip, sel && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
+              <Text style={[styles.chipTxt, sel && { color: c.color, fontWeight: "700" }]}>
+                {sel ? "✓ " : ""}
+                {c.avatar} {c.nombre}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {!confirmando ? (
+        <Pressable
+          onPress={() => setConfirmando(true)}
+          disabled={!puedePublicar}
+          style={[styles.saveBtn, { marginTop: 20 }, !puedePublicar && { opacity: 0.5 }]}
+        >
+          <Text style={styles.saveTxt}>Publicar</Text>
+        </Pressable>
+      ) : (
+        <View style={comStyles.confirmBox}>
+          <Text style={comStyles.confirmTxt}>
+            ¿Publicar en {cursosSel.length} curso{cursosSel.length !== 1 ? "s" : ""}?
+          </Text>
+          <View style={styles.modalBtns}>
+            <Pressable onPress={() => setConfirmando(false)} style={styles.cancelBtn}>
+              <Text style={styles.cancelTxt}>Cancelar</Text>
+            </Pressable>
+            <Pressable onPress={publicar} disabled={publicando} style={styles.saveBtn}>
+              <Text style={styles.saveTxt}>{publicando ? "Publicando..." : "Sí, publicar"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+const comStyles = StyleSheet.create({
+  okBox: { backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 10, padding: 12, marginBottom: 14 },
+  okTxt: { fontSize: 12, fontWeight: "700", color: "#10B981" },
+  prioRow: { flexDirection: "row", gap: 6 },
+  prioBtn: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white" },
+  prioTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 10 },
+  linkTxt: { fontSize: 12, fontWeight: "700", color: "#3B82F6" },
+  confirmBox: { backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderRadius: 12, padding: 14, marginTop: 20 },
+  confirmTxt: { fontSize: 13, fontWeight: "700", color: T.text, marginBottom: 10 },
+});
 
 // ── HorariosAdmin (super: selector de curso) ─────────────────────────────────────
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];

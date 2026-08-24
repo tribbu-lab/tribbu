@@ -4,11 +4,12 @@ import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+         sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
+import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar } from "../../components";
@@ -572,7 +573,7 @@ export function SuperAdmin() {
         ))}
       </div>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"codigos",l:"🔑 Códigos"},{id:"horarios",l:"🕐 Horarios"},{id:"uniformes",l:"👕 Uniformes"},{id:"colegio",l:"🏫 Colegio"},{id:"alertas",l:"🚨 Alertas"},{id:"menu",l:"🍽️ Menú"}].map(t=>(
+        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"codigos",l:"🔑 Códigos"},{id:"horarios",l:"🕐 Horarios"},{id:"uniformes",l:"👕 Uniformes"},{id:"colegio",l:"🏫 Colegio"},{id:"alertas",l:"🚨 Alertas"},{id:"comunicaciones",l:"📢 Comunicaciones"},{id:"menu",l:"🍽️ Menú"}].map(t=>(
           <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
@@ -709,6 +710,9 @@ export function SuperAdmin() {
       {sec==="alertas"&&(
         <AlertasAdmin cursos={cursos}/>
       )}
+      {sec==="comunicaciones"&&(
+        <ComunicacionesAdmin cursos={cursos}/>
+      )}
       {sec==="horarios"&&(
         <HorariosAdmin cursos={cursos}/>
       )}
@@ -836,6 +840,120 @@ export function AlertasAdmin({ cursos }) {
               </div>
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Publica un recordatorio idéntico en varios cursos a la vez (el Room Parent
+// sigue publicando solo en su propio curso, sin cambios — esto es exclusivo
+// de Super Admin). Un `grupo_id` (uuid) compartido marca las filas como parte
+// de la misma comunicación, aunque cada una se edita/borra por curso como
+// cualquier recordatorio (ver specs/comunicaciones-multi-curso.md).
+export function ComunicacionesAdmin({ cursos }) {
+  const [userId, setUserId] = useState(null);
+  const [cursosSel, setCursosSel] = useState([]);
+  const [form, setForm] = useState({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [publicando, setPublicando] = useState(false);
+  const [ok, setOk] = useState(null);
+
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(!session?.user) return;
+      supabase.from("usuarios").select("id").eq("auth_id",session.user.id).single()
+        .then(({data})=>setUserId(data?.id??null));
+    });
+  },[]);
+
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
+
+  const toggleCurso = (id) => setCursosSel(p=> p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
+  const todosSeleccionados = cursos.length>0 && cursosSel.length===cursos.length;
+  const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map(c=>c.id));
+
+  const publicar = async () => {
+    if(!form.texto?.trim() || cursosSel.length===0) return;
+    setPublicando(true);
+    const grupo_id = uuidLite();
+    const rows = cursosSel.map(curso_id=>({
+      texto: sanitize(form.texto), fecha: form.fecha||null, prioridad: form.prioridad||"media",
+      urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
+    }));
+    await supabase.from("recordatorios").insert(rows);
+    const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+    if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+    setPublicando(false); setConfirmando(false);
+    setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
+    setForm({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
+    setCursosSel([]);
+    setTimeout(()=>setOk(null),4000);
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Comunicación para varios cursos</div>
+      <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Se publica como un recordatorio independiente en cada curso elegido.</div>
+
+      {ok&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#10B981"}}>✓ {ok}</div>}
+
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
+        <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunión general de padres el viernes 15 a las 18hs" rows={3} style={{...inp,resize:"vertical"}}/>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:160}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
+          <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
+        </div>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
+          <div style={{display:"flex",gap:6}}>
+            {["alta","media","baja"].map(p=>(
+              <button key={p} onClick={()=>setForm(f=>({...f,prioridad:p}))} style={{padding:"7px 12px",borderRadius:8,border:`1.5px solid ${form.prioridad===p?PRIO[p].c:"#E2E8F0"}`,background:form.prioridad===p?PRIO[p].bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.prioridad===p?PRIO[p].c:"#94A3B8"}}>{PRIO[p].l}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
+          {form.urgente?"Urgente":"Marcar urgente"}
+        </button>
+      </div>
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ADJUNTOS (opcional)</div>
+        <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId="comunicaciones" onUploadingChange={setSubiendoAdj}/>
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:700}}>¿A qué cursos aplica?</div>
+        {cursos.length>0&&<button onClick={seleccionarTodos} style={{border:"none",background:"none",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700}}>{todosSeleccionados?"Ninguno":"Seleccionar todos"}</button>}
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
+        {cursos.map(c=>{
+          const sel = cursosSel.includes(c.id);
+          return (
+            <button key={c.id} onClick={()=>toggleCurso(c.id)} style={{padding:"8px 16px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:sel?c.color:"#94A3B8"}}>
+              {sel?"✓ ":""}{c.avatar} {c.nombre}
+            </button>
+          );
+        })}
+      </div>
+
+      {!confirmando ? (
+        <button onClick={()=>setConfirmando(true)} disabled={!form.texto?.trim()||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
+          Publicar
+        </button>
+      ) : (
+        <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>¿Publicar en {cursosSel.length} curso{cursosSel.length!==1?"s":""}?</div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+            <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
+          </div>
         </div>
       )}
     </div>
