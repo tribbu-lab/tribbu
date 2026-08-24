@@ -33,7 +33,7 @@ const TIPO_CONFIG = {
 const pad = (n) => String(n).padStart(2, "0");
 
 export function Calendario({ openFecha = null, onClearOpenFecha }) {
-  const { cursoId, usuario, isAdmin, misHijos = [] } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [] } = useSession();
   const userId = usuario?.id ?? null;
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -51,27 +51,39 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [filtroTipo, setFiltroTipo] = useState("todos");
 
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const [ev, al, ma, hor] = await Promise.all([
-      supabase.from("eventos").select("*").eq("curso_id", cursoId).order("fecha"),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
+      supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
+      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase
         .from("maestros")
         .select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)")
-        .eq("maestro_cursos.curso_id", cursoId),
-      supabase.from("horarios").select("*").eq("curso_id", cursoId).order("hora_inicio"),
+        .in("maestro_cursos.curso_id", cursoIds),
+      supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
     ]);
     setEventos(ev.data || []);
     setHorarios(hor.data || []);
     setCumples([
       ...(al.data || [])
         .filter((a) => a.fecha_nacimiento)
-        .map((a) => ({ id: `c-a-${a.id}`, tipo: "cumple", nombre: fmtNombre(a), fecha_nacimiento: a.fecha_nacimiento })),
+        .map((a) => ({
+          id: `c-a-${a.id}`,
+          tipo: "cumple",
+          nombre: fmtNombre(a),
+          fecha_nacimiento: a.fecha_nacimiento,
+          curso_id: a.curso_id,
+        })),
       ...(ma.data || [])
         .filter((m) => m.fecha_nacimiento)
-        .map((m) => ({ id: `c-m-${m.id}`, tipo: "cumple", nombre: m.nombre, fecha_nacimiento: m.fecha_nacimiento })),
+        .map((m) => ({
+          id: `c-m-${m.id}`,
+          tipo: "cumple",
+          nombre: m.nombre,
+          fecha_nacimiento: m.fecha_nacimiento,
+          curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
+        })),
     ]);
-  }, [cursoId]);
+  }, [cursoIds]);
 
   useEffect(() => {
     cargar();
@@ -232,6 +244,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                   <EventoRow
                     key={e.id || i}
                     e={e}
+                    tag={tagDeCurso(e.curso_id)}
                     isAdmin={isAdmin}
                     onAsistencia={() => setEventoDetalle(e)}
                     onEditar={() => setModal(e)}
@@ -296,6 +309,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                   </View>
                   <View style={styles.flex1}>
                     <Text style={styles.eventoTitulo}>{e.titulo}</Text>
+                    <TagHijo tag={tagDeCurso(e.curso_id)} />
                     <Text style={styles.eventoMeta}>
                       {d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                       {e.hora && !e.todo_el_dia ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
@@ -342,7 +356,24 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         </View>
       ) : null}
 
-      {vista === "horario" ? <HorarioView horarios={horarios} isAdmin={isAdmin} /> : null}
+      {vista === "horario" ? (
+        esVistaTodos ? (
+          horarios.length === 0 ? (
+            <Text style={styles.muted}>No hay horarios cargados aún.</Text>
+          ) : (
+            (cursoIds || [])
+              .filter((cid) => horarios.some((h) => h.curso_id === cid))
+              .map((cid) => (
+                <View key={cid} style={styles.horarioSeccion}>
+                  <TagHijo tag={tagDeCurso(cid)} />
+                  <HorarioView horarios={horarios.filter((h) => h.curso_id === cid)} isAdmin={false} />
+                </View>
+              ))
+          )
+        ) : (
+          <HorarioView horarios={horarios} isAdmin={isAdmin} />
+        )
+      ) : null}
 
       {modal === "nuevo" || modal?.id ? (
         <EventoModal
@@ -360,6 +391,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
       {eventoDetalle ? (
         <EventoAsistenciaModal
           evento={eventoDetalle}
+          tag={tagDeCurso(eventoDetalle.curso_id)}
           misHijos={misHijos}
           userId={userId}
           isAdmin={isAdmin}
@@ -387,7 +419,20 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   );
 }
 
-function EventoRow({ e, isAdmin, onAsistencia, onEditar, onEliminar }) {
+// Tag de hijo estándar (solo vista "Todos": tagDeCurso devuelve null en vista por hijo).
+function TagHijo({ tag }) {
+  if (!tag) return null;
+  return (
+    <View style={styles.tagHijoRow}>
+      <View style={[styles.tagHijoDot, { backgroundColor: tag.color }]} />
+      <Text style={styles.tagHijoTxt} numberOfLines={1}>
+        {tag.nombre}
+      </Text>
+    </View>
+  );
+}
+
+function EventoRow({ e, tag = null, isAdmin, onAsistencia, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
   const editable = isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo";
   return (
@@ -397,6 +442,7 @@ function EventoRow({ e, isAdmin, onAsistencia, onEditar, onEliminar }) {
       </View>
       <View style={styles.flex1}>
         <Text style={styles.eventoTitulo}>{e.titulo}</Text>
+        <TagHijo tag={tag} />
         <Text style={styles.eventoMeta}>
           {cfg.label}
           {e.hora && !e.todo_el_dia ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
@@ -499,18 +545,21 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const guardar = async () => {
     if (!form.titulo || !form.fecha) return;
     setSaving(true);
-    const payload = { ...form, curso_id: cursoId, creado_por: userId };
+    // Al editar, el curso es el del evento (nunca el de sesión); al crear, el
+    // cursoId de sesión (el modal solo se abre con isAdmin, nunca en vista Todos).
+    const cursoEvento = evento?.curso_id ?? cursoId;
+    const payload = { ...form, curso_id: cursoEvento, creado_por: userId };
     let eventoId = evento?.id;
     if (esNuevo) {
       const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
       eventoId = ev?.id;
-      const userIds = await getUserIdsByCurso(cursoId);
+      const userIds = await getUserIdsByCurso(cursoEvento);
       await sendPush({ type: "evento", payload: { titulo: form.titulo, fecha: form.fecha || "", userIds } });
     } else {
       await supabase.from("eventos").update(payload).eq("id", evento.id);
     }
     if (form.confirma_asistencia && eventoId) {
-      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
       const hijosIds = (hijos || []).map((h) => h.id);
       if (hijosIds.length) {
         const { data: uh } = await supabase
@@ -650,7 +699,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   );
 }
 
-export function EventoAsistenciaModal({ evento, onClose, misHijos = [], userId = null }) {
+export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = [], userId = null }) {
   const [asistencia, setAsistencia] = useState({});
   const [hijosInfo, setHijosInfo] = useState({});
   const [todosHijos, setTodosHijos] = useState([]);
@@ -709,6 +758,7 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos = [], userId =
           <View style={styles.pagosHeader}>
             <View style={styles.flex1}>
               <Text style={styles.modalTitle}>{evento.titulo}</Text>
+              <TagHijo tag={tag} />
               <Text style={styles.eventoMeta}>
                 {new Date(evento.fecha + "T00:00:00").toLocaleDateString("es-AR", {
                   weekday: "long",
@@ -851,6 +901,10 @@ const styles = StyleSheet.create({
   listRight: { alignItems: "flex-end", gap: 6 },
   diasTag: { backgroundColor: SLATE[100], borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
   diasTagTxt: { fontSize: 11, fontWeight: "800", color: t.textMuted, fontVariant: ["tabular-nums"] },
+  tagHijoRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  tagHijoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  tagHijoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
+  horarioSeccion: { marginBottom: SPACE.lg },
   horarioScroll: { marginTop: 4 },
   horarioHeaderRow: { flexDirection: "row" },
   horaCol: { width: 64, padding: 6, backgroundColor: t.surfaceSunken, borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },

@@ -21,8 +21,9 @@ export function AppHeader() {
     items,
     cursoIdx,
     setCursoIdx,
-    cursoId,
+    cursoIds,
     itemActual,
+    tagDeCurso,
     colorDeItem,
     colorCustomDeItem,
     setColorHijo,
@@ -32,7 +33,7 @@ export function AppHeader() {
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
   const { notifs, leidos, cargando, noLeidos, marcarLeido, recargar } = useNotificaciones({
-    cursoId,
+    cursoIds,
     userId: usuario?.id ?? null,
     active: true,
   });
@@ -44,8 +45,12 @@ export function AppHeader() {
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
-  // Como en la web: el color personalizado del hijo activo tiñe el header.
-  const headerBg = colorCustomDeItem(itemActual) || dk.bg;
+  // El color del hijo activo tiñe el header: el personalizado si eligió uno,
+  // si no el color por defecto del hijo (hijos.color, asignado al crearlo).
+  const headerBg =
+    colorCustomDeItem(itemActual) ||
+    (itemActual?._tipo === "hijo" && itemActual.color) ||
+    dk.bg;
 
   return (
     <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
@@ -90,7 +95,13 @@ export function AppHeader() {
                   onPress={() => setCursoIdx(i)}
                   style={[styles.chip, active && styles.chipActive]}
                 >
-                  {item._tipo === "hijo" ? (
+                  {item._tipo === "todos" ? (
+                    <MaterialCommunityIcons
+                      name="account-group"
+                      size={14}
+                      color={active ? dk.textStrong : dk.textFaint}
+                    />
+                  ) : item._tipo === "hijo" ? (
                     <View
                       style={[
                         styles.dot,
@@ -99,7 +110,7 @@ export function AppHeader() {
                     />
                   ) : null}
                   <Text style={styles.chipTxt}>
-                    {item._tipo === "hijo" ? item.nombre : `${item.avatar || ""} ${item.nombre}`}
+                    {item._tipo === "todos" || item._tipo === "hijo" ? item.nombre : `${item.avatar || ""} ${item.nombre}`}
                   </Text>
                 </Pressable>
                 {item._tipo === "hijo" && active ? (
@@ -118,6 +129,7 @@ export function AppHeader() {
         notifs={notifs}
         leidos={leidos}
         cargando={cargando}
+        tagDeCurso={tagDeCurso}
         onMarcarLeido={marcarLeido}
         onCerrar={() => setPanelNotifs(false)}
       />

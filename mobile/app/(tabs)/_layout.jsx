@@ -14,10 +14,10 @@ import { supabase } from "../../lib/supabase";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
 
 // Contador de recordatorios no leídos para el badge de la tab (igual que la web).
-function useRecordatoriosBadge(cursoId, userId) {
+function useRecordatoriosBadge(cursoIds, userId) {
   const [count, setCount] = useState(0);
   const cargar = useCallback(async () => {
-    if (!cursoId || !userId) {
+    if (!cursoIds?.length || !userId) {
       setCount(0);
       return;
     }
@@ -26,14 +26,14 @@ function useRecordatoriosBadge(cursoId, userId) {
       supabase
         .from("recordatorios")
         .select("id")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`),
       supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId),
     ]);
     const leidosIds = new Set((leidos.data || []).map((r) => r.recordatorio_id));
     setCount((recs.data || []).filter((r) => !leidosIds.has(r.id)).length);
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -45,8 +45,8 @@ function useRecordatoriosBadge(cursoId, userId) {
 }
 
 export default function TabsLayout() {
-  const { usuario, cursoId } = useSession();
-  const badge = useRecordatoriosBadge(cursoId, usuario?.id);
+  const { usuario, cursoIds } = useSession();
+  const badge = useRecordatoriosBadge(cursoIds, usuario?.id);
   useNotificationRouting(true);
 
   // Oculta del bottom-bar las secundarias (se alcanzan desde "Más").

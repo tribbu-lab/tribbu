@@ -88,7 +88,10 @@ export function SessionProvider({ children }) {
           _tipo: "hijo",
           rolEfectivo: cursosAdmin.has(h.curso_id) ? "admin" : "padre",
         }));
-      setItems(next);
+      // Con hijos en más de un curso, "Todos" es un acceso más (el primero y el
+      // default): la vista unificada domina todas las pantallas vía cursoIds.
+      const cursosDistintos = new Set(next.map((h) => h.curso_id).filter(Boolean));
+      setItems(cursosDistintos.size > 1 ? [{ _tipo: "todos", id: "__todos__", nombre: "Todos" }, ...next] : next);
       setCursoIdx(0);
     })();
     return () => {
@@ -151,9 +154,41 @@ export function SessionProvider({ children }) {
     [usuario?.id, hijoColorsVer] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // Cursos distintos donde el usuario tiene hijos (excluye el pseudo-item "Todos").
+  const cursosHijos = useMemo(
+    () => [...new Set(items.filter((i) => i._tipo === "hijo").map((i) => i.curso_id).filter(Boolean))],
+    [items]
+  );
+
+  const esVistaTodos = items[cursoIdx]?._tipo === "todos";
+
+  // Tag por curso para la vista "Todos": primer nombre de cada hijo del curso +
+  // su color de identidad (el mismo dot del selector del header).
+  const tagPorCurso = useMemo(() => {
+    const m = new Map();
+    for (const it of items) {
+      if (it._tipo !== "hijo" || !it.curso_id) continue;
+      const nombre = it.nombre?.split(" ")[0] || "";
+      const prev = m.get(it.curso_id);
+      if (prev) prev.nombre = `${prev.nombre}, ${nombre}`;
+      else m.set(it.curso_id, { nombre, color: colorDeItem(it) });
+    }
+    return m;
+  }, [items, colorDeItem]);
+
+  // {nombre, color} del curso dado, SOLO en vista "Todos" (en vista por hijo
+  // devuelve null, así las pantallas lo llaman incondicionalmente).
+  const tagDeCurso = useCallback(
+    (cid) => (esVistaTodos && cid ? tagPorCurso.get(cid) || null : null),
+    [esVistaTodos, tagPorCurso]
+  );
+
   const value = useMemo(() => {
     const itemActual = items[cursoIdx] || null;
-    const rolEfectivo = itemActual?.rolEfectivo || "padre";
+    // En "Todos" no hay curso único: sin rol admin (las acciones por curso
+    // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
+    const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
+    const cursoId = esVistaTodos ? null : itemActual?.curso_id ?? null;
     return {
       usuario,
       authLoading,
@@ -162,13 +197,17 @@ export function SessionProvider({ children }) {
       cursoIdx,
       setCursoIdx,
       itemActual,
-      cursoId: itemActual?.curso_id ?? null,
-      cursoNombre: itemActual?.cursos?.nombre ?? null,
+      cursoId,
+      cursoIds: esVistaTodos ? cursosHijos : cursoId ? [cursoId] : [],
+      esVistaTodos,
+      cursoNombre: esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre ?? null,
       rolEfectivo,
       isAdmin: rolEfectivo === "admin",
       esPadre: rolEfectivo === "padre",
       hijoActivoId: itemActual?._tipo === "hijo" ? itemActual.id : null,
       misHijos: items.filter((i) => i._tipo === "hijo").map((i) => i.id),
+      cursosHijos,
+      tagDeCurso,
       colorDeItem,
       colorCustomDeItem,
       setColorHijo,
@@ -178,7 +217,7 @@ export function SessionProvider({ children }) {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
+  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

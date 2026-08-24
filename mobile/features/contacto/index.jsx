@@ -116,18 +116,18 @@ export function Contacto() {
 }
 
 export function Alumnos() {
-  const { cursoId } = useSession();
+  const { cursoIds, esVistaTodos, tagDeCurso } = useSession();
   const [hijos, setHijos] = useState([]);
   const [apodMap, setApodMap] = useState({});
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const { data: hijosData } = await supabase
       .from("hijos")
       .select("*")
-      .eq("curso_id", cursoId)
+      .in("curso_id", cursoIds)
       .order("apellido")
       .order("nombre");
     setHijos(hijosData || []);
@@ -145,7 +145,7 @@ export function Alumnos() {
       setApodMap(m);
     }
     setCargando(false);
-  }, [cursoId]);
+  }, [cursoIds]);
 
   useEffect(() => {
     cargar();
@@ -156,6 +156,54 @@ export function Alumnos() {
   const filtrados = hijos.filter((h) =>
     fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // En vista "Todos" se agrupa por curso (orden = cursoIds); en vista por hijo
+  // hay un solo grupo sin encabezado, idéntico al comportamiento actual.
+  const grupos = esVistaTodos
+    ? (cursoIds || [])
+        .map((cid) => ({ cursoId: cid, hijos: filtrados.filter((h) => h.curso_id === cid) }))
+        .filter((g) => g.hijos.length > 0)
+    : [{ cursoId: null, hijos: filtrados }];
+  const conEncabezados = grupos.length > 1;
+
+  const renderAlumno = (h) => {
+    const apods = apodMap[h.id] || [];
+    return (
+      <View key={h.id} style={styles.alumnoCard}>
+        <View style={styles.alumnoTop}>
+          <View style={styles.flex1}>
+            <Text style={styles.alumnoNombre}>{fmtNombre(h)}</Text>
+            {h.fecha_nacimiento ? (
+              <Text style={styles.contactoRol}>
+                {new Date(h.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </Text>
+            ) : null}
+          </View>
+          {h.dni ? <Text style={styles.contactoRol}>DNI: {h.dni}</Text> : null}
+        </View>
+        <View style={styles.apodBox}>
+          {apods.length === 0 ? (
+            <Text style={styles.sinApod}>Sin apoderados vinculados</Text>
+          ) : (
+            apods.map((a) => (
+              <View key={a.id} style={styles.apodRow}>
+                <View style={styles.apodDot} />
+                <Text style={styles.apodNombre}>
+                  {fmtNombre(a)}
+                  {a.telefono ? `  ${a.telefono}` : ""}
+                  {a.email ? `  ${a.email}` : ""}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -169,41 +217,17 @@ export function Alumnos() {
         style={styles.search}
       />
       <Text style={styles.count}>{filtrados.length} alumnos</Text>
-      {filtrados.map((h) => {
-        const apods = apodMap[h.id] || [];
+      {grupos.map((g) => {
+        const tag = conEncabezados ? tagDeCurso(g.cursoId) : null;
         return (
-          <View key={h.id} style={styles.alumnoCard}>
-            <View style={styles.alumnoTop}>
-              <View style={styles.flex1}>
-                <Text style={styles.alumnoNombre}>{fmtNombre(h)}</Text>
-                {h.fecha_nacimiento ? (
-                  <Text style={styles.contactoRol}>
-                    {new Date(h.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </Text>
-                ) : null}
+          <View key={g.cursoId ?? "curso-actual"}>
+            {tag ? (
+              <View style={styles.cursoHeader}>
+                <View style={[styles.cursoDot, { backgroundColor: tag.color }]} />
+                <Text style={styles.cursoTxt} numberOfLines={1}>{tag.nombre}</Text>
               </View>
-              {h.dni ? <Text style={styles.contactoRol}>DNI: {h.dni}</Text> : null}
-            </View>
-            <View style={styles.apodBox}>
-              {apods.length === 0 ? (
-                <Text style={styles.sinApod}>Sin apoderados vinculados</Text>
-              ) : (
-                apods.map((a) => (
-                  <View key={a.id} style={styles.apodRow}>
-                    <View style={styles.apodDot} />
-                    <Text style={styles.apodNombre}>
-                      {fmtNombre(a)}
-                      {a.telefono ? `  ${a.telefono}` : ""}
-                      {a.email ? `  ${a.email}` : ""}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </View>
+            ) : null}
+            {g.hijos.map(renderAlumno)}
           </View>
         );
       })}
@@ -266,6 +290,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACE.md,
   },
   count: { fontSize: 12, color: t.textMuted, marginBottom: SPACE.sm },
+  cursoHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: SPACE.sm, marginBottom: SPACE.sm },
+  cursoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  cursoTxt: { fontSize: 11.5, fontWeight: "700", color: t.textMuted, flex: 1 },
   alumnoCard: {
     backgroundColor: t.surface,
     borderRadius: RADIUS.xl,

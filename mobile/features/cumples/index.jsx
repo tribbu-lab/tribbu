@@ -75,7 +75,7 @@ const fmtDiaMes = (fecha) =>
   new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" });
 
 export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
-  const { cursoId, usuario, isAdmin, misHijos = [], hijoActivoId = null } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], hijoActivoId = null } = useSession();
   const userId = usuario?.id;
   const misHijosUniq = useMemo(() => [...new Set(misHijos)], [misHijos]);
 
@@ -114,7 +114,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       const { data: yaExisten } = await supabase
         .from("recordatorios")
         .select("ref_id, para_usuario_id")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .eq("tipo", "regalo_cumple")
         .in("ref_id", refIds);
       const existeSet = new Set((yaExisten || []).map((r) => `${r.ref_id}_${r.para_usuario_id}`));
@@ -124,7 +124,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         .map(({ item, cumple, dias, next }) => {
           const nombre = item.nombre.split(" ")[0];
           return {
-            curso_id: cursoId,
+            // El recordatorio pertenece al curso del cumple (en vista Todos no hay curso de sesión).
+            curso_id: cumple.curso_id,
             tipo: "regalo_cumple",
             ref_id: cumple.id,
             para_usuario_id: cumple.responsable_id,
@@ -139,26 +140,26 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         });
       if (inserts.length) await supabase.from("recordatorios").insert(inserts);
     },
-    [cursoId]
+    [cursoIds]
   );
 
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const [al, ma, cu, fest, inv] = await Promise.all([
       supabase
         .from("hijos")
-        .select("id,nombre,apellido,fecha_nacimiento,color")
-        .eq("curso_id", cursoId)
+        .select("id,nombre,apellido,fecha_nacimiento,color,curso_id")
+        .in("curso_id", cursoIds)
         .order("nombre"),
       supabase
         .from("maestros")
         .select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)")
-        .eq("maestro_cursos.curso_id", cursoId),
+        .in("maestro_cursos.curso_id", cursoIds),
       supabase
         .from("cumples")
         .select("*, responsable:responsable_id(id,nombre,apellido)")
-        .eq("curso_id", cursoId),
-      supabase.from("eventos").select("*").eq("curso_id", cursoId).eq("tipo", "festejo"),
+        .in("curso_id", cursoIds),
+      supabase.from("eventos").select("*").in("curso_id", cursoIds).eq("tipo", "festejo"),
       userId && misHijos?.length
         ? supabase
             .from("evento_asistencia")
@@ -169,13 +170,16 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         : Promise.resolve({ data: [] }),
     ]);
 
-    const curso = await supabase
+    // Monto sugerido por familia: con un solo curso se muestra siempre; en vista
+    // Todos solo si todos los cursos coinciden (si difieren, se oculta la pill).
+    const { data: cursosData } = await supabase
       .from("cursos")
       .select("monto_regalo,moneda_regalo")
-      .eq("id", cursoId)
-      .single();
-    setMontoRegalo(curso.data?.monto_regalo || null);
-    setMonedaRegalo(curso.data?.moneda_regalo || "$");
+      .in("id", cursoIds);
+    const montosUniq = [...new Set((cursosData || []).map((c) => c.monto_regalo || null))];
+    const monedasUniq = [...new Set((cursosData || []).map((c) => c.moneda_regalo || "$"))];
+    setMontoRegalo(montosUniq.length === 1 ? montosUniq[0] : null);
+    setMonedaRegalo(monedasUniq.length === 1 ? monedasUniq[0] : "$");
 
     const invFiltradas = (inv.data || []).filter(
       (i) => i.evento && (hijoActivoId === null || i.alumno_invitado_id === hijoActivoId)
@@ -210,6 +214,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
           tipo: "Alumno",
           fecha_nacimiento: a.fecha_nacimiento,
           color: a.color || "#3B82F6",
+          curso_id: a.curso_id,
         })),
       ...maestrosUniq
         .filter((m) => m.fecha_nacimiento)
@@ -220,6 +225,9 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
           tipo: "Maestro",
           fecha_nacimiento: m.fecha_nacimiento,
           color: "#8B5CF6",
+          // El !inner ya filtró los cursos a cursoIds; si el maestro está en
+          // varios de mis cursos, se etiqueta con el primero.
+          curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),
     ];
     unified.sort((a, b) => nextBday(a.fecha_nacimiento) - nextBday(b.fecha_nacimiento));
@@ -229,7 +237,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     const { data: hijosDelCurso } = await supabase
       .from("hijos")
       .select("id")
-      .eq("curso_id", cursoId);
+      .in("curso_id", cursoIds);
     const hids = (hijosDelCurso || []).map((h) => h.id);
     let uhData = [];
     if (hids.length) {
@@ -278,7 +286,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     }
     setCumpleMap(map);
     await verificarRecordatoriosRegalo(map, unified);
-  }, [cursoId, userId, misHijos, hijoActivoId, verificarRecordatoriosRegalo]);
+  }, [cursoIds, userId, misHijos, hijoActivoId, verificarRecordatoriosRegalo]);
 
   useEffect(() => {
     cargar();
@@ -320,7 +328,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       await supabase.from("cumples").update(payload).eq("id", existenteId);
     } else {
       await supabase.from("cumples").insert({
-        curso_id: cursoId,
+        // Curso del alumno/maestro editado (en vista Todos no hay curso de sesión).
+        curso_id: editando.curso_id,
         alumno_id: isAlumno ? editando.rawId : null,
         maestro_id_ref: !isAlumno ? editando.rawId : null,
         ...payload,
@@ -331,6 +340,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   };
 
   const crearColectaRegalo = async ({ maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id }) => {
+    // Curso del maestro homenajeado (nunca el de sesión, que es null en vista Todos).
+    const cursoDestino = colectaRegaloModal?.cursoId ?? cursoId;
     const payload = {
       titulo: sanitize(titulo),
       tipo: "colecta",
@@ -339,13 +350,13 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       moneda: moneda || "$",
       fecha_limite: fecha_limite || null,
       vencimiento: fecha_limite || new Date().toISOString().slice(0, 10),
-      curso_id: cursoId,
+      curso_id: cursoDestino,
       activa: true,
       responsable_id: responsable_id || null,
     };
     const { error } = await supabase.from("colectas").insert(payload);
     if (!error) {
-      const userIds = await getUserIdsByCurso(cursoId);
+      const userIds = await getUserIdsByCurso(cursoDestino);
       await sendPush({
         type: "colecta",
         payload: { descripcion: `Colecta para el regalo de ${maestroNombre}`, userIds },
@@ -399,7 +410,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         ) : null}
       </View>
       <Text style={styles.subtitle}>
-        {lista.length} en el curso{esteMes ? ` · ${esteMes} este mes` : ""}
+        {lista.length} {esVistaTodos ? "en tus cursos" : "en el curso"}
+        {esteMes ? ` · ${esteMes} este mes` : ""}
       </Text>
 
       {/* Tu festejo: crear/ver festejo del propio hijo (card A3 con barra del color del hijo) */}
@@ -433,7 +445,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
                     <Text style={styles.verFestTxt}>Ver festejo</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, festejo: fest })}
+                    onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id, festejo: fest })}
                     style={styles.editFestBtn}
                   >
                     <Text style={styles.editFestTxt}>Editar</Text>
@@ -441,7 +453,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
                 </>
               ) : (
                 <Pressable
-                  onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre })}
+                  onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id })}
                   style={styles.verFestBtn}
                 >
                   <Text style={styles.verFestTxt}>+ Crear festejo</Text>
@@ -533,6 +545,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       : cumple.responsable
       ? fmtNombre(cumple.responsable)
       : null;
+    const tag = tagDeCurso(a.curso_id); // solo en vista Todos
     return (
       <View style={styles.row}>
         <Avatar nombre={a.nombre} color={a.color} size={38} />
@@ -545,6 +558,15 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
               {a.tipo}
               {esMiHijo ? " · tu hijo/a" : ""}
             </Text>
+            {tag ? (
+              <>
+                <Text style={styles.rowFecha}>·</Text>
+                <View style={styles.tagHijo}>
+                  <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                  <Text style={styles.tagTxt} numberOfLines={1}>{tag.nombre}</Text>
+                </View>
+              </>
+            ) : null}
           </View>
           {respNombre ? <Text style={styles.regala}>🎁 Regala: {respNombre}</Text> : null}
           {cumple.comprado ? (
@@ -566,7 +588,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
           ) : null}
           {isAlumno && !fest && esMiHijo ? (
             <Pressable
-              onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre })}
+              onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id })}
               style={styles.miniCrear}
             >
               <Text style={styles.miniCrearTxt}>+ Festejo</Text>
@@ -579,7 +601,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
               </Pressable>
               {a.tipo === "Maestro" ? (
                 <Pressable
-                  onPress={() => setColectaRegaloModal({ maestroNombre: a.nombre, maestroId: a.rawId })}
+                  onPress={() => setColectaRegaloModal({ maestroNombre: a.nombre, maestroId: a.rawId, cursoId: a.curso_id })}
                   style={styles.miniColecta}
                 >
                   <Text style={styles.miniColectaTxt}>+ Colecta</Text>
@@ -624,7 +646,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         <FestejoModal
           alumnoId={festejoModal.alumnoId}
           alumnoNombre={festejoModal.alumnoNombre}
-          cursoId={cursoId}
+          cursoId={festejoModal.cursoId ?? cursoId}
           userId={userId}
           festejoExistente={festejoModal.festejo}
           onClose={() => setFestejoModal(null)}
@@ -1394,7 +1416,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACE.sm,
   },
   rowNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, marginBottom: 2 },
-  rowTags: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2 },
+  rowTags: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 2, flexWrap: "wrap" },
+  // Tag de hijo (vista "Todos"): dot del color de identidad + primer nombre
+  tagHijo: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
+  tagDot: { width: 8, height: 8, borderRadius: 4 },
+  tagTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
   tipoTxt: { fontSize: 12, fontWeight: "600" },
   rowFecha: { fontSize: 12, color: t.textMuted },
   regala: { fontSize: 12, color: t.textMuted, marginTop: 1 },

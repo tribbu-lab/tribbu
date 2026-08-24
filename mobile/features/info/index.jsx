@@ -37,6 +37,19 @@ const abrir = async (url) => {
   }
 };
 
+// Encabezado de sección por curso (solo vista "Todos"): dot + nombre del hijo.
+function CursoHeader({ tag }) {
+  if (!tag) return null;
+  return (
+    <View style={styles.cursoHeader}>
+      <View style={[styles.cursoDot, { backgroundColor: tag.color }]} />
+      <Text style={styles.cursoNombre} numberOfLines={1}>
+        {tag.nombre}
+      </Text>
+    </View>
+  );
+}
+
 const SUBS = [
   { id: "utiles", l: "Útiles" },
   { id: "uniformes", l: "Uniformes" },
@@ -45,7 +58,7 @@ const SUBS = [
 ];
 
 export function InfoUtil() {
-  const { cursoId, usuario, isAdmin } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin } = useSession();
   const userId = usuario?.id ?? null;
   const [sec, setSec] = useState("utiles");
 
@@ -67,16 +80,22 @@ export function InfoUtil() {
         </ScrollView>
       </View>
 
-      {sec === "utiles" ? <Utiles cursoId={cursoId} userId={userId} isAdmin={isAdmin} /> : null}
-      {sec === "uniformes" ? <Uniformes cursoId={cursoId} userId={userId} /> : null}
-      {sec === "libros" ? <Libros cursoId={cursoId} userId={userId} isAdmin={isAdmin} /> : null}
+      {sec === "utiles" ? (
+        <Utiles cursoId={cursoId} cursoIds={cursoIds} userId={userId} isAdmin={isAdmin} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
+      ) : null}
+      {sec === "uniformes" ? (
+        <Uniformes cursoIds={cursoIds} userId={userId} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
+      ) : null}
+      {sec === "libros" ? (
+        <Libros cursoId={cursoId} cursoIds={cursoIds} userId={userId} isAdmin={isAdmin} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
+      ) : null}
       {sec === "alumnos" ? <Alumnos /> : null}
     </View>
   );
 }
 
 // ── Checklist genérica (Útiles) ─────────────────────────────────────────────
-function Utiles({ cursoId, userId, isAdmin }) {
+function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }) {
   const [utiles, setUtiles] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
@@ -84,15 +103,20 @@ function Utiles({ cursoId, userId, isAdmin }) {
   const [form, setForm] = useState({});
 
   const cargar = useCallback(async () => {
+    if (!cursoIds?.length) {
+      setUtiles([]);
+      setAdquiridos(new Set());
+      return;
+    }
     const [ut, adq] = await Promise.all([
-      supabase.from("utiles").select("*").eq("curso_id", cursoId).order("categoria").order("item"),
+      supabase.from("utiles").select("*").in("curso_id", cursoIds).order("categoria").order("item"),
       userId
         ? supabase.from("util_adquirido").select("util_id").eq("usuario_id", userId)
         : Promise.resolve({ data: [] }),
     ]);
     setUtiles(ut.data || []);
     setAdquiridos(new Set((adq.data || []).map((r) => r.util_id)));
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -114,7 +138,9 @@ function Utiles({ cursoId, userId, isAdmin }) {
   };
 
   const guardar = async () => {
-    if (!form.item?.trim()) return;
+    // Alta/edición solo con un curso concreto (en vista "Todos" cursoId es null
+    // y el UI admin queda oculto igual, pero este guard evita escrituras huérfanas).
+    if (!cursoId || !form.item?.trim()) return;
     const payload = {
       item: form.item.trim(),
       categoria: form.categoria || null,
@@ -139,12 +165,64 @@ function Utiles({ cursoId, userId, isAdmin }) {
     const q = busqueda.toLowerCase();
     return !q || u.item?.toLowerCase().includes(q) || (u.categoria || "").toLowerCase().includes(q);
   });
-  const agrupados = filtrados.reduce((acc, u) => {
-    const k = u.categoria || "Sin categoría";
-    (acc[k] = acc[k] || []).push(u);
-    return acc;
-  }, {});
   const adqCount = utiles.filter((u) => adquiridos.has(u.id)).length;
+
+  // Vista "Todos": secciones por curso (solo si hay datos de más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds || []).filter((cid) => filtrados.some((u) => u.curso_id === cid))
+    : [];
+  const porCurso = cursosConDatos.length > 1;
+
+  const renderGrupos = (items) => {
+    const agrupados = items.reduce((acc, u) => {
+      const k = u.categoria || "Sin categoría";
+      (acc[k] = acc[k] || []).push(u);
+      return acc;
+    }, {});
+    return Object.entries(agrupados)
+      .sort(([a], [b]) => a.localeCompare(b, "es"))
+      .map(([cat, grupo]) => (
+        <View key={cat} style={styles.group}>
+          <View style={styles.groupHeader}>
+            <Text style={styles.groupTitle}>{cat}</Text>
+            <Text style={styles.groupCount}>
+              {grupo.filter((u) => adquiridos.has(u.id)).length}/{grupo.length}
+            </Text>
+          </View>
+          {grupo.map((u) => {
+            const adq = adquiridos.has(u.id);
+            return (
+              <View key={u.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
+                <Pressable onPress={() => toggle(u.id)} style={[styles.check, adq && styles.checkOn]}>
+                  {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
+                </Pressable>
+                <View style={styles.flex1}>
+                  <Text style={[styles.itemName, adq && styles.itemNameOn]}>{u.item}</Text>
+                  {u.comentario ? <Text style={styles.itemSub}>{u.comentario}</Text> : null}
+                </View>
+                {u.cantidad ? <Text style={styles.cantidad}>{u.cantidad}</Text> : null}
+                {isAdmin ? (
+                  <View style={styles.itemActions}>
+                    <Pressable
+                      onPress={() => {
+                        setForm({ ...u });
+                        setModal(u);
+                      }}
+                      style={styles.miniBtn}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                    <Pressable onPress={() => eliminar(u.id)} style={styles.miniBtn}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ));
+  };
 
   return (
     <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
@@ -175,49 +253,14 @@ function Utiles({ cursoId, userId, isAdmin }) {
 
       {filtrados.length === 0 ? <Text style={styles.empty}>Sin útiles para mostrar</Text> : null}
 
-      {Object.entries(agrupados)
-        .sort(([a], [b]) => a.localeCompare(b, "es"))
-        .map(([cat, items]) => (
-          <View key={cat} style={styles.group}>
-            <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>{cat}</Text>
-              <Text style={styles.groupCount}>
-                {items.filter((u) => adquiridos.has(u.id)).length}/{items.length}
-              </Text>
+      {porCurso
+        ? cursosConDatos.map((cid) => (
+            <View key={cid}>
+              <CursoHeader tag={tagDeCurso(cid)} />
+              {renderGrupos(filtrados.filter((u) => u.curso_id === cid))}
             </View>
-            {items.map((u) => {
-              const adq = adquiridos.has(u.id);
-              return (
-                <View key={u.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
-                  <Pressable onPress={() => toggle(u.id)} style={[styles.check, adq && styles.checkOn]}>
-                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
-                  </Pressable>
-                  <View style={styles.flex1}>
-                    <Text style={[styles.itemName, adq && styles.itemNameOn]}>{u.item}</Text>
-                    {u.comentario ? <Text style={styles.itemSub}>{u.comentario}</Text> : null}
-                  </View>
-                  {u.cantidad ? <Text style={styles.cantidad}>{u.cantidad}</Text> : null}
-                  {isAdmin ? (
-                    <View style={styles.itemActions}>
-                      <Pressable
-                        onPress={() => {
-                          setForm({ ...u });
-                          setModal(u);
-                        }}
-                        style={styles.miniBtn}
-                      >
-                        <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                      </Pressable>
-                      <Pressable onPress={() => eliminar(u.id)} style={styles.miniBtn}>
-                        <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-        ))}
+          ))
+        : renderGrupos(filtrados)}
 
       <ItemFormModal
         visible={modal !== null}
@@ -238,7 +281,7 @@ function Utiles({ cursoId, userId, isAdmin }) {
 }
 
 // ── Libros ───────────────────────────────────────────────────────────────
-function Libros({ cursoId, userId, isAdmin }) {
+function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }) {
   const [libros, setLibros] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
@@ -247,15 +290,20 @@ function Libros({ cursoId, userId, isAdmin }) {
   const [preview, setPreview] = useState(null);
 
   const cargar = useCallback(async () => {
+    if (!cursoIds?.length) {
+      setLibros([]);
+      setAdquiridos(new Set());
+      return;
+    }
     const [lb, adq] = await Promise.all([
-      supabase.from("libros").select("*").eq("curso_id", cursoId).order("materia").order("nombre"),
+      supabase.from("libros").select("*").in("curso_id", cursoIds).order("materia").order("nombre"),
       userId
         ? supabase.from("libro_adquirido").select("libro_id").eq("usuario_id", userId)
         : Promise.resolve({ data: [] }),
     ]);
     setLibros(lb.data || []);
     setAdquiridos(new Set((adq.data || []).map((r) => r.libro_id)));
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -277,7 +325,8 @@ function Libros({ cursoId, userId, isAdmin }) {
   };
 
   const guardar = async () => {
-    if (!form.nombre?.trim()) return;
+    // Alta/edición solo con un curso concreto (ver comentario en Utiles).
+    if (!cursoId || !form.nombre?.trim()) return;
     const payload = {
       nombre: form.nombre.trim(),
       editorial: form.editorial || null,
@@ -307,12 +356,68 @@ function Libros({ cursoId, userId, isAdmin }) {
       (l.editorial || "").toLowerCase().includes(q)
     );
   });
-  const agrupados = filtrados.reduce((acc, l) => {
-    const k = l.materia || "Sin materia";
-    (acc[k] = acc[k] || []).push(l);
-    return acc;
-  }, {});
   const adqCount = libros.filter((l) => adquiridos.has(l.id)).length;
+
+  // Vista "Todos": secciones por curso (solo si hay datos de más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds || []).filter((cid) => filtrados.some((l) => l.curso_id === cid))
+    : [];
+  const porCurso = cursosConDatos.length > 1;
+
+  const renderGrupos = (items) => {
+    const agrupados = items.reduce((acc, l) => {
+      const k = l.materia || "Sin materia";
+      (acc[k] = acc[k] || []).push(l);
+      return acc;
+    }, {});
+    return Object.entries(agrupados)
+      .sort(([a], [b]) => a.localeCompare(b, "es"))
+      .map(([materia, grupo]) => (
+        <View key={materia} style={styles.group}>
+          <Text style={styles.materiaLabel}>{materia}</Text>
+          {grupo.map((l) => {
+            const adq = adquiridos.has(l.id);
+            return (
+              <Card key={l.id} style={[styles.libroCard, { borderLeftColor: adq ? t.success : t.borderStrong }]}>
+                <Pressable onPress={() => toggle(l.id)} style={[styles.check, adq && styles.checkOn]}>
+                  {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
+                </Pressable>
+                <View style={styles.flex1}>
+                  <Text style={[styles.itemName, adq && styles.itemNameOn]}>{l.nombre}</Text>
+                  {l.editorial ? <Text style={styles.itemSub}>{l.editorial}</Text> : null}
+                  {l.url_descarga ? (
+                    <Pressable onPress={() => abrir(l.url_descarga)}>
+                      <Text style={styles.link}>Descargar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {l.imagen_url ? (
+                  <Pressable onPress={() => setPreview({ url: l.imagen_url, nombre: l.nombre })}>
+                    <Image source={{ uri: l.imagen_url }} style={styles.cover} />
+                  </Pressable>
+                ) : null}
+                {isAdmin ? (
+                  <View style={styles.itemActions}>
+                    <Pressable
+                      onPress={() => {
+                        setForm({ ...l });
+                        setModal(l);
+                      }}
+                      style={styles.miniBtn}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                    <Pressable onPress={() => eliminar(l.id)} style={styles.miniBtn}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </Card>
+            );
+          })}
+        </View>
+      ));
+  };
 
   return (
     <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
@@ -343,53 +448,14 @@ function Libros({ cursoId, userId, isAdmin }) {
 
       {filtrados.length === 0 ? <Text style={styles.empty}>Sin libros para mostrar</Text> : null}
 
-      {Object.entries(agrupados)
-        .sort(([a], [b]) => a.localeCompare(b, "es"))
-        .map(([materia, items]) => (
-          <View key={materia} style={styles.group}>
-            <Text style={styles.materiaLabel}>{materia}</Text>
-            {items.map((l) => {
-              const adq = adquiridos.has(l.id);
-              return (
-                <Card key={l.id} style={[styles.libroCard, { borderLeftColor: adq ? t.success : t.borderStrong }]}>
-                  <Pressable onPress={() => toggle(l.id)} style={[styles.check, adq && styles.checkOn]}>
-                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
-                  </Pressable>
-                  <View style={styles.flex1}>
-                    <Text style={[styles.itemName, adq && styles.itemNameOn]}>{l.nombre}</Text>
-                    {l.editorial ? <Text style={styles.itemSub}>{l.editorial}</Text> : null}
-                    {l.url_descarga ? (
-                      <Pressable onPress={() => abrir(l.url_descarga)}>
-                        <Text style={styles.link}>Descargar</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  {l.imagen_url ? (
-                    <Pressable onPress={() => setPreview({ url: l.imagen_url, nombre: l.nombre })}>
-                      <Image source={{ uri: l.imagen_url }} style={styles.cover} />
-                    </Pressable>
-                  ) : null}
-                  {isAdmin ? (
-                    <View style={styles.itemActions}>
-                      <Pressable
-                        onPress={() => {
-                          setForm({ ...l });
-                          setModal(l);
-                        }}
-                        style={styles.miniBtn}
-                      >
-                        <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                      </Pressable>
-                      <Pressable onPress={() => eliminar(l.id)} style={styles.miniBtn}>
-                        <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </Card>
-              );
-            })}
-          </View>
-        ))}
+      {porCurso
+        ? cursosConDatos.map((cid) => (
+            <View key={cid}>
+              <CursoHeader tag={tagDeCurso(cid)} />
+              {renderGrupos(filtrados.filter((l) => l.curso_id === cid))}
+            </View>
+          ))
+        : renderGrupos(filtrados)}
 
       <ItemFormModal
         visible={modal !== null}
@@ -417,16 +483,27 @@ function Libros({ cursoId, userId, isAdmin }) {
 }
 
 // ── Uniformes (solo checklist adquirido) ────────────────────────────────────
-function Uniformes({ cursoId, userId }) {
+function Uniformes({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
   const [uniformes, setUniformes] = useState([]);
+  const [idsPorCurso, setIdsPorCurso] = useState({}); // curso_id → [uniforme_id] (para agrupar en "Todos")
   const [adquiridos, setAdquiridos] = useState(new Set());
 
   const cargar = useCallback(async () => {
+    if (!cursoIds?.length) {
+      setUniformes([]);
+      setIdsPorCurso({});
+      return;
+    }
     const { data: links } = await supabase
       .from("uniforme_cursos")
-      .select("uniforme_id")
-      .eq("curso_id", cursoId);
-    const ids = (links || []).map((r) => r.uniforme_id);
+      .select("uniforme_id, curso_id")
+      .in("curso_id", cursoIds);
+    const ids = [...new Set((links || []).map((r) => r.uniforme_id))];
+    const porCurso = (links || []).reduce((acc, r) => {
+      (acc[r.curso_id] = acc[r.curso_id] || []).push(r.uniforme_id);
+      return acc;
+    }, {});
+    setIdsPorCurso(porCurso);
     if (!ids.length) {
       setUniformes([]);
       return;
@@ -439,7 +516,7 @@ function Uniformes({ cursoId, userId }) {
     ]);
     setUniformes((uni.data || []).sort((a, b) => (a.tipo || "").localeCompare(b.tipo || "", "es")));
     setAdquiridos(new Set((adq.data || []).map((r) => r.uniforme_item_id)));
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -469,6 +546,38 @@ function Uniformes({ cursoId, userId }) {
   const adqCount = allItems.filter((it) => adquiridos.has(it.id)).length;
   const pct = total ? Math.round((adqCount / total) * 100) : 0;
 
+  // Vista "Todos": secciones por curso (solo si hay uniformes en más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds || []).filter((cid) => (idsPorCurso[cid] || []).length > 0)
+    : [];
+  const porCurso = cursosConDatos.length > 1;
+
+  const renderUniforme = (u, key) => {
+    const items = u.uniforme_items || [];
+    return (
+      <Card key={key} style={styles.uniCard}>
+        <View style={styles.uniHeader}>
+          <Text style={styles.uniEmoji}>{u.emoji || "👕"}</Text>
+          <Text style={styles.uniTipo}>{u.tipo}</Text>
+        </View>
+        {items.length === 0 ? <Text style={styles.itemSub}>Sin ítems cargados.</Text> : null}
+        {[...items]
+          .sort((a, b) => (a.item || "").localeCompare(b.item || "", "es"))
+          .map((it) => {
+            const adq = adquiridos.has(it.id);
+            return (
+              <View key={it.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
+                <Pressable onPress={() => toggle(it.id)} style={[styles.check, adq && styles.checkOn]}>
+                  {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
+                </Pressable>
+                <Text style={[styles.itemName, styles.flex1, adq && styles.itemNameOn]}>{it.item}</Text>
+              </View>
+            );
+          })}
+      </Card>
+    );
+  };
+
   return (
     <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
       {total > 0 ? (
@@ -489,31 +598,17 @@ function Uniformes({ cursoId, userId }) {
         <Text style={styles.empty}>No hay uniformes asignados a este curso.</Text>
       ) : null}
 
-      {uniformes.map((u) => {
-        const items = u.uniforme_items || [];
-        return (
-          <Card key={u.id} style={styles.uniCard}>
-            <View style={styles.uniHeader}>
-              <Text style={styles.uniEmoji}>{u.emoji || "👕"}</Text>
-              <Text style={styles.uniTipo}>{u.tipo}</Text>
-            </View>
-            {items.length === 0 ? <Text style={styles.itemSub}>Sin ítems cargados.</Text> : null}
-            {[...items]
-              .sort((a, b) => (a.item || "").localeCompare(b.item || "", "es"))
-              .map((it) => {
-                const adq = adquiridos.has(it.id);
-                return (
-                  <View key={it.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
-                    <Pressable onPress={() => toggle(it.id)} style={[styles.check, adq && styles.checkOn]}>
-                      {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
-                    </Pressable>
-                    <Text style={[styles.itemName, styles.flex1, adq && styles.itemNameOn]}>{it.item}</Text>
-                  </View>
-                );
-              })}
-          </Card>
-        );
-      })}
+      {porCurso
+        ? cursosConDatos.map((cid) => {
+            const idsDelCurso = new Set(idsPorCurso[cid] || []);
+            return (
+              <View key={cid}>
+                <CursoHeader tag={tagDeCurso(cid)} />
+                {uniformes.filter((u) => idsDelCurso.has(u.id)).map((u) => renderUniforme(u, `${cid}-${u.id}`))}
+              </View>
+            );
+          })
+        : uniformes.map((u) => renderUniforme(u, u.id))}
     </ScrollView>
   );
 }
@@ -572,6 +667,9 @@ const styles = StyleSheet.create({
   search: { minHeight: 44, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, fontSize: 13, color: t.text, marginBottom: 12 },
   empty: { textAlign: "center", paddingVertical: 32, color: t.textMuted, fontSize: 13 },
   group: { marginBottom: 14 },
+  cursoHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, marginBottom: 8 },
+  cursoDot: { width: 8, height: 8, borderRadius: 4 },
+  cursoNombre: { fontSize: 11.5, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
   groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: t.surface2, borderRadius: RADIUS.sm },
   groupTitle: { flex: 1, ...TYPE.label, color: t.textFaint },
   groupCount: { fontSize: 10, color: t.textFaint },

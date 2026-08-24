@@ -30,7 +30,7 @@ const FORM_VACIO = {
 };
 
 export function Finanzas({ openColectaId = null, onClearOpen }) {
-  const { cursoId, usuario, isAdmin, misHijos = [] } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, misHijos = [], tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
 
   const [colectas, setColectas] = useState([]);
@@ -43,17 +43,17 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const [vistaAdmin, setVistaAdmin] = useState(null);
 
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const { data: colData } = await supabase
       .from("colectas")
       .select("*")
-      .eq("curso_id", cursoId)
+      .in("curso_id", cursoIds)
       .order("vencimiento", { ascending: true })
       .order("id", { ascending: false });
     const colIds = (colData || []).map((c) => c.id);
 
     const [alum, pag] = await Promise.all([
-      supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id", cursoId).order("nombre"),
+      supabase.from("hijos").select("id,nombre,apellido,color,curso_id").in("curso_id", cursoIds).order("nombre"),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id", colIds)
         : Promise.resolve({ data: [] }),
@@ -80,7 +80,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     setColectas(colData || []);
     setAlumnos(alum.data || []);
     setPagos(pag.data || []);
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -108,7 +108,9 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       responsable_id: form.responsable_id || null,
       fecha_limite: form.fecha_limite || null,
       vencimiento: form.fecha_limite || new Date().toISOString().slice(0, 10),
-      curso_id: cursoId,
+      // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
+      // aplica al crear (acción admin, nunca disponible en vista Todos)
+      curso_id: modal?.id ? modal.curso_id : cursoId,
       activa: true,
     };
     if (modal?.id) {
@@ -125,7 +127,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
             : "";
           const vencTxt = payload.fecha_limite ? ` · vence ${fmtF(payload.fecha_limite)}` : "";
           await supabase.from("recordatorios").insert({
-            curso_id: cursoId,
+            curso_id: nuevaColecta.curso_id,
             tipo: "colecta_vence",
             ref_id: nuevaColecta.id,
             texto: `Colecta "${payload.titulo}"${montoTxt}${vencTxt}. Recordá abonar.`,
@@ -135,7 +137,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
             creado_por: userId,
           });
         }
-        const userIds = await getUserIdsByCurso(cursoId);
+        const userIds = await getUserIdsByCurso(nuevaColecta?.curso_id ?? cursoId);
         await sendPush({ type: "colecta", payload: { descripcion: form.titulo, userIds } });
       }
     }
@@ -194,12 +196,10 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     }
   };
 
-  const misAlumnos = alumnos.filter((a) => misHijos.includes(a.id));
-
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Colectas</Text>
-      <Text style={styles.subtitle}>Colectas del curso</Text>
+      <Text style={styles.subtitle}>{esVistaTodos ? "Colectas de todos tus cursos" : "Colectas del curso"}</Text>
 
       {isAdmin ? (
         <Pressable
@@ -218,19 +218,32 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       ) : null}
 
       {colectas.map((c) => {
-        const pagados = alumnos.filter((a) => getPago(c.id, a.id)?.estado === "pagado");
-        const total = alumnos.length;
+        // En vista Todos `alumnos` trae hijos de varios cursos: todo lo de esta
+        // colecta se calcula solo con los alumnos de SU curso (no-op por hijo)
+        const alumnosCurso = alumnos.filter((a) => a.curso_id === c.curso_id);
+        const pagados = alumnosCurso.filter((a) => getPago(c.id, a.id)?.estado === "pagado");
+        const total = alumnosCurso.length;
         const recaudado = pagados.length * (c.monto_sugerido || 0);
         const esperado = total * (c.monto_sugerido || 0);
         const pct = total ? Math.round((pagados.length / total) * 100) : 0;
         const resp = usuarios.find((u) => u.id === c.responsable_id);
         const dias = c.fecha_limite ? dHasta(c.fecha_limite) : null;
         const vencida = dias !== null && dias < 0;
+        const tag = tagDeCurso?.(c.curso_id) ?? null;
+        const misAlumnosCurso = alumnosCurso.filter((a) => misHijos.includes(a.id));
 
         return (
           <Card key={c.id} style={[styles.colectaCard, !c.activa && styles.cerrada]}>
             <View style={styles.colectaHeader}>
               <View style={styles.flex1}>
+                {tag ? (
+                  <View style={styles.tagRow}>
+                    <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                    <Text style={styles.tagTxt} numberOfLines={1}>
+                      {tag.nombre}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.titleRow}>
                   <Text style={styles.colectaTitulo}>{c.titulo}</Text>
                   {!c.activa ? <Pill label="Cerrada" color={t.textMuted} bg={SLATE[100]} /> : null}
@@ -272,9 +285,9 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               </View>
             ) : null}
 
-            {!isAdmin && misAlumnos.length > 0 ? (
+            {!isAdmin && misAlumnosCurso.length > 0 ? (
               <View style={styles.misAlumnos}>
-                {misAlumnos.map((a) => {
+                {misAlumnosCurso.map((a) => {
                   const pago = getPago(c.id, a.id);
                   const pagado = pago?.estado === "pagado";
                   const esResponsable = userId === c.responsable_id;
@@ -360,7 +373,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
       <PagosModal
         colecta={vistaAdmin}
-        alumnos={alumnos}
+        alumnos={vistaAdmin ? alumnos.filter((a) => a.curso_id === vistaAdmin.curso_id) : []}
         getPago={getPago}
         canToggle={(c) => isAdmin || userId === c?.responsable_id}
         onToggle={togglePago}
@@ -528,6 +541,9 @@ const styles = StyleSheet.create({
   cerrada: { opacity: 0.6 },
   colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 },
+  tagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  tagTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
   colectaTitulo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   colectaDesc: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   metaRow: { flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" },

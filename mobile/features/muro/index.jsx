@@ -2,6 +2,8 @@
 // y mobile/design-alternatives.html §A3). Tres bloques, en orden de urgencia:
 //   1. Pendientes: carrusel de cards accionables (recordatorios sin leer,
 //      colectas sin pagar, invitaciones sin responder) con empty state punteado.
+//      En la vista "Todos" del header, todo el muro (pendientes, agenda, alertas)
+//      abarca los cursos de todos los hijos, con tag de hijo por fila/card.
 //   2. Próximos 15 días: agenda unificada (eventos + cumpleaños por proximidad)
 //      con countdown por urgencia (≤3 lleno · ≤7 teñido · resto neutro).
 //   3. Comedor: menú de hoy o el próximo día con servicio.
@@ -73,7 +75,7 @@ function DiasChip({ dias, prefijo = false }) {
 
 export function Muro() {
   const router = useRouter();
-  const { cursoId, cursoNombre, isAdmin, usuario, misHijos } = useSession();
+  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
   const userName = usuario?.nombre?.split(" ")[0] || "";
 
@@ -89,10 +91,13 @@ export function Muro() {
   });
 
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const fechaHoy = new Date().toISOString().split("T")[0];
     const fecha15 = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const misHijosIds = (misHijos || []).filter((h) => h && typeof h === "string");
+    // Todas las lecturas por curso van por cursoIds: en vista "Todos" abarca
+    // todos los cursos con hijos; en vista por hijo es solo el curso activo.
+    const cursosScope = cursoIds;
 
     const [
       alerta,
@@ -106,19 +111,19 @@ export function Muro() {
       leidosData,
       invitacionesData,
     ] = await Promise.all([
-      supabase.from("alertas").select("*").eq("curso_id", cursoId).eq("activa", true).order("creado_en", { ascending: false }).limit(1),
+      supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
       supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(1),
-      supabase.from("recordatorios").select("*").eq("curso_id", cursoId),
-      supabase.from("colectas").select("*").eq("curso_id", cursoId),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id", cursoId),
-      supabase.from("eventos").select("*").eq("curso_id", cursoId).gte("fecha", fechaHoy).lte("fecha", fecha15).order("fecha"),
+      supabase.from("recordatorios").select("*").in("curso_id", cursosScope),
+      supabase.from("colectas").select("*").in("curso_id", cursosScope),
+      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
+      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
+      supabase.from("eventos").select("*").in("curso_id", cursosScope).gte("fecha", fechaHoy).lte("fecha", fecha15).order("fecha"),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId) : Promise.resolve({ data: [] }),
       userId && misHijosIds.length
         ? supabase
             .from("evento_asistencia")
-            .select("id, asiste, alumno_invitado_id, evento:evento_id(id,titulo,fecha,tipo)")
+            .select("id, asiste, alumno_invitado_id, evento:evento_id(id,titulo,fecha,tipo,curso_id)")
             .in("alumno_invitado_id", misHijosIds)
             .eq("asiste", "pendiente")
         : Promise.resolve({ data: [] }),
@@ -141,6 +146,7 @@ export function Muro() {
         esMio: misHijosIds.includes(a.id),
         nombre: fmtNombre(a),
         tipo: "Alumno",
+        curso_id: a.curso_id,
         ...nextBday(a.fecha_nacimiento),
       })),
       ...(maestrosData.data || []).filter((m) => m.fecha_nacimiento).map((m) => ({
@@ -148,6 +154,7 @@ export function Muro() {
         esMio: false,
         nombre: m.nombre,
         tipo: "Maestro",
+        curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         ...nextBday(m.fecha_nacimiento),
       })),
     ]
@@ -167,19 +174,26 @@ export function Muro() {
       })
       .sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : 0));
 
-    const hijosDelCurso = (hijosData.data || []).map((h) => h.id);
-    const misHijosEnCurso = misHijosIds.filter((hid) => hijosDelCurso.includes(hid));
+    // Mis hijos agrupados por curso: cada colecta se evalúa contra los hijos de
+    // SU curso (en modo unificado hay colectas de varios cursos en cuotas).
+    const misHijosPorCurso = new Map();
+    for (const it of items || []) {
+      if (it._tipo !== "hijo" || !it.curso_id) continue;
+      const arr = misHijosPorCurso.get(it.curso_id) || [];
+      arr.push(it.id);
+      misHijosPorCurso.set(it.curso_id, arr);
+    }
     let colectasPend = [];
-    if (misHijosEnCurso.length && (cuotas.data || []).length) {
-      const colIds = (cuotas.data || [])
-        .filter((c) => c.activa && (!c.vencimiento || c.vencimiento <= fecha15))
-        .map((c) => c.id);
-      const { data: pagosData } = colIds.length
-        ? await supabase.from("colecta_pagos").select("*").in("colecta_id", colIds).in("alumno_id", misHijosEnCurso)
-        : { data: [] };
+    const colectasActivas = (cuotas.data || []).filter((c) => c.activa && (!c.vencimiento || c.vencimiento <= fecha15));
+    if (misHijosIds.length && colectasActivas.length) {
+      const { data: pagosData } = await supabase
+        .from("colecta_pagos")
+        .select("*")
+        .in("colecta_id", colectasActivas.map((c) => c.id))
+        .in("alumno_id", misHijosIds);
       const pagados = new Set((pagosData || []).filter((p) => p.estado === "pagado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
-      colectasPend = (cuotas.data || []).filter(
-        (c) => c.activa && (!c.vencimiento || c.vencimiento <= fecha15) && misHijosEnCurso.some((hid) => !pagados.has(`${c.id}-${hid}`))
+      colectasPend = colectasActivas.filter((c) =>
+        (misHijosPorCurso.get(c.curso_id) || []).some((hid) => !pagados.has(`${c.id}-${hid}`))
       );
     }
 
@@ -194,7 +208,7 @@ export function Muro() {
     }
 
     setDatos({
-      alerta: alerta.data?.[0] || null,
+      alertas: alerta.data || [],
       menu: menu.data || null,
       menuProx: menuProx.data?.[0] || null,
       recordatorios: recsNoLeidos,
@@ -203,7 +217,7 @@ export function Muro() {
       invitaciones,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
-  }, [cursoId, userId, misHijos]);
+  }, [cursoIds, userId, misHijos, items]);
 
   useEffect(() => {
     setDatos(null);
@@ -233,11 +247,10 @@ export function Muro() {
     cargar();
   };
 
-  const dismissAlerta = async () => {
-    if (datos?.alerta) {
-      await supabase.from("alertas").update({ activa: false }).eq("id", datos.alerta.id);
-      cargar();
-    }
+  const dismissAlerta = async (alertaId) => {
+    if (!alertaId) return;
+    await supabase.from("alertas").update({ activa: false }).eq("id", alertaId);
+    cargar();
   };
 
   // Cargando: el saludo es inmediato (dato local) y la lista llega como skeleton.
@@ -255,7 +268,8 @@ export function Muro() {
     (r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general"
   );
 
-  // ── Pendientes: cards accionables del carrusel ──
+  // ── Pendientes: cards accionables del carrusel. En vista "Todos" las pantallas
+  // destino también están unificadas, así que se navega sin cambiar de acceso. ──
   const pendientes = [
     ...recsVisibles.map((r) => ({
       key: `r-${r.id}`,
@@ -264,6 +278,7 @@ export function Muro() {
       titulo: r.texto,
       meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}`,
       accion: "Marcar leído",
+      tag: tagDeCurso(r.curso_id),
       onAccion: () => marcarLeidoMuro(r.id),
       derecha: r.fecha ? { dias: diasHasta(r.fecha) } : null,
     })),
@@ -274,6 +289,7 @@ export function Muro() {
       titulo: c.titulo,
       meta: "Tu aporte todavía no está registrado",
       accion: "Registrar pago",
+      tag: tagDeCurso(c.curso_id),
       onAccion: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
       derecha: c.monto_sugerido
         ? { monto: `${c.moneda || "$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}` }
@@ -286,6 +302,7 @@ export function Muro() {
       titulo: ev.titulo,
       meta: "Falta confirmar asistencia",
       accion: "Responder",
+      tag: tagDeCurso(ev.curso_id),
       onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
     })),
@@ -299,6 +316,7 @@ export function Muro() {
       dias: diasHasta(e.fecha),
       titulo: `${e.titulo} ${(TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto).emoji}`,
       meta: e.lugar ? `📍 ${e.lugar}` : "Todo el curso",
+      tag: tagDeCurso(e.curso_id),
       onPress: () => router.push({ pathname: "/(tabs)/calendario", params: { openFecha: e.fecha } }),
     })),
     ...datos.bdayList.map((b) => ({
@@ -307,6 +325,7 @@ export function Muro() {
       dias: b.dias,
       titulo: `Cumple de ${b.nombre} 🎂`,
       meta: b.esMio ? `${b.tipo} · tu hijo/a` : b.tipo,
+      tag: tagDeCurso(b.curso_id),
       onPress: () => router.push("/(tabs)/cumples"),
     })),
   ]
@@ -336,22 +355,25 @@ export function Muro() {
         </Pressable>
       ) : null}
 
-      {datos.alerta ? (
-        <View style={styles.alerta}>
-          <Text style={styles.alertaEmoji}>🚨</Text>
-          <View style={styles.flex1}>
-            <Text style={styles.alertaMeta}>
-              {cursoNombre} · {datos.alerta.hora}
-            </Text>
-            <Text style={styles.alertaMsg}>{datos.alerta.mensaje}</Text>
+      {(datos.alertas || []).map((a) => {
+        const tag = tagDeCurso(a.curso_id);
+        return (
+          <View key={a.id} style={styles.alerta}>
+            <Text style={styles.alertaEmoji}>🚨</Text>
+            <View style={styles.flex1}>
+              <Text style={styles.alertaMeta}>
+                {tag ? tag.nombre : cursoNombre} · {a.hora}
+              </Text>
+              <Text style={styles.alertaMsg}>{a.mensaje}</Text>
+            </View>
+            {isAdmin ? (
+              <Pressable onPress={() => dismissAlerta(a.id)} hitSlop={8} style={styles.alertaClose}>
+                <Text style={styles.alertaCloseTxt}>✕</Text>
+              </Pressable>
+            ) : null}
           </View>
-          {isAdmin ? (
-            <Pressable onPress={dismissAlerta} hitSlop={8} style={styles.alertaClose}>
-              <Text style={styles.alertaCloseTxt}>✕</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+        );
+      })}
 
       {/* ── Pendientes ── */}
       <Text style={styles.label}>
@@ -412,7 +434,16 @@ export function Muro() {
                 </View>
                 <View style={styles.flex1}>
                   <Text style={styles.arowTitulo} numberOfLines={1}>{item.titulo}</Text>
-                  <Text style={styles.arowMeta} numberOfLines={1}>{item.meta}</Text>
+                  <View style={styles.arowMetaRow}>
+                    {item.tag ? (
+                      <>
+                        <View style={[styles.ptagDot, { backgroundColor: item.tag.color }]} />
+                        <Text style={styles.ptagTxt} numberOfLines={1}>{item.tag.nombre}</Text>
+                        <Text style={styles.arowMeta}>·</Text>
+                      </>
+                    ) : null}
+                    <Text style={[styles.arowMeta, styles.flex1]} numberOfLines={1}>{item.meta}</Text>
+                  </View>
                 </View>
                 <DiasChip dias={item.dias} />
               </Pressable>
@@ -467,8 +498,16 @@ function PendienteCard({ p }) {
   return (
     <View style={styles.pcard}>
       <View style={styles.ptop}>
-        <View style={[styles.pdot, { backgroundColor: p.dot }]} />
-        <Text style={styles.ptipo}>{p.tipo}</Text>
+        <View style={styles.ptopLeft}>
+          <View style={[styles.pdot, { backgroundColor: p.dot }]} />
+          <Text style={styles.ptipo}>{p.tipo}</Text>
+        </View>
+        {p.tag ? (
+          <View style={styles.ptag}>
+            <View style={[styles.ptagDot, { backgroundColor: p.tag.color }]} />
+            <Text style={styles.ptagTxt} numberOfLines={1}>{p.tag.nombre}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={styles.ptitulo} numberOfLines={1}>{p.titulo}</Text>
       <Text style={styles.pmeta} numberOfLines={1}>{p.meta}</Text>
@@ -542,8 +581,13 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
     padding: 13,
   },
-  ptop: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 7 },
+  ptop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 7 },
+  ptopLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   pdot: { width: 7, height: 7, borderRadius: RADIUS.full },
+  // tag de hijo en cards de otro curso (modo unificado)
+  ptag: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 130, flexShrink: 1 },
+  ptagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  ptagTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted },
   ptipo: { fontSize: 9.5, fontWeight: "800", letterSpacing: 1.1, textTransform: "uppercase", color: t.textFaint },
   ptitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   pmeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
@@ -592,7 +636,8 @@ const styles = StyleSheet.create({
   fechaDow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint },
   fechaNum: { fontSize: 17, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
   arowTitulo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
-  arowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  arowMeta: { fontSize: 12, color: t.textMuted },
+  arowMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   agendaVacia: { fontSize: 12.5, color: t.textFaint, textAlign: "center", padding: SPACE.xl },
   cardFooter: {
     flexDirection: "row",

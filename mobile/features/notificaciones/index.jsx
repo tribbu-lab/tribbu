@@ -7,20 +7,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
 
-export function useNotificaciones({ cursoId, userId, active }) {
+export function useNotificaciones({ cursoIds, userId, active }) {
   const [notifs, setNotifs] = useState([]);
   const [leidos, setLeidos] = useState(new Set());
   const [cargando, setCargando] = useState(false);
 
   const cargar = useCallback(async () => {
-    if (!cursoId || !userId) return;
+    if (!cursoIds?.length || !userId) return;
     setCargando(true);
     const hoy = new Date().toISOString().split("T")[0];
     const [recs, leidosData, alertas] = await Promise.all([
       supabase
         .from("recordatorios")
         .select("*")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
         .order("fecha", { ascending: true, nullsFirst: false })
@@ -29,7 +29,7 @@ export function useNotificaciones({ cursoId, userId, active }) {
       supabase
         .from("alertas")
         .select("*")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .eq("activa", true)
         .order("creado_en", { ascending: false })
         .limit(3),
@@ -43,12 +43,13 @@ export function useNotificaciones({ cursoId, userId, active }) {
       texto: a.mensaje,
       urgente: true,
       creado_en: a.creado_en,
+      curso_id: a.curso_id,
       emoji: "🚨",
     }));
     const recsNotifs = (recs.data || []).map((r) => ({ ...r, _tipo: "recordatorio" }));
     setNotifs([...alertasNotifs, ...recsNotifs]);
     setCargando(false);
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -93,7 +94,7 @@ const fmtRelativo = (fecha) => {
   return `en ${dias}d`;
 };
 
-function NotifRow({ item, leido, onPress }) {
+function NotifRow({ item, leido, tag, onPress }) {
   const esAlerta = item._tipo === "alerta";
   const prio = PRIO[item.prioridad || "media"];
   const relativo = item.fecha ? fmtRelativo(item.fecha) : null;
@@ -133,6 +134,12 @@ function NotifRow({ item, leido, onPress }) {
                 <Text style={[styles.tagTxt, { color: "#EF4444" }]}>Urgente</Text>
               </View>
             ) : null}
+            {tag ? (
+              <View style={styles.hijoTag}>
+                <View style={[styles.hijoDot, { backgroundColor: tag.color }]} />
+                <Text style={styles.hijoTxt} numberOfLines={1}>{tag.nombre}</Text>
+              </View>
+            ) : null}
             {!leido && !esAlerta ? <View style={styles.dot} /> : null}
           </View>
         </View>
@@ -141,7 +148,7 @@ function NotifRow({ item, leido, onPress }) {
   );
 }
 
-export function NotificacionesPanel({ visible, notifs, leidos, cargando, onMarcarLeido, onCerrar }) {
+export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onCerrar }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
@@ -165,6 +172,7 @@ export function NotificacionesPanel({ visible, notifs, leidos, cargando, onMarca
                 <NotifRow
                   item={item}
                   leido={item._tipo !== "alerta" && leidos.has(item.id)}
+                  tag={tagDeCurso ? tagDeCurso(item.curso_id) : null}
                   onPress={onMarcarLeido}
                 />
               )}
@@ -228,6 +236,9 @@ const styles = StyleSheet.create({
   tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6 },
   tagTxt: { fontSize: 10, fontWeight: "700" },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent },
+  hijoTag: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 130 },
+  hijoDot: { width: 8, height: 8, borderRadius: 4 },
+  hijoTxt: { fontSize: 10, fontWeight: "700", color: "#94A3B8" },
   emptyWrap: { alignItems: "center", paddingVertical: 40 },
   emptyEmoji: { fontSize: 32, marginBottom: 12 },
   emptyTitle: { fontSize: 14, fontWeight: "700", color: T.text, marginBottom: 4 },

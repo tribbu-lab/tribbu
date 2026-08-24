@@ -4,7 +4,7 @@
 // de comunicados. La prioridad/urgencia vive en el dot de la fila; leído = dot
 // hueco + texto apagado.
 
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, Modal, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
@@ -44,7 +44,7 @@ const LEIDOS = [
   { value: "leidos", label: "Leídos" },
 ];
 
-const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, onLeido, onEditar, onEliminar }) {
+const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, onLeido, onEditar, onEliminar }) {
   const prio = PRIO[r.prioridad || "media"];
   const dias = r.fecha
     ? Math.round((new Date(r.fecha + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 86400000)
@@ -63,6 +63,12 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
       <View style={styles.flex1}>
         <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]}>{r.texto}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
+        {tag ? (
+          <View style={styles.tagRow}>
+            <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+            <Text style={styles.tagTxt} numberOfLines={1}>{tag.nombre}</Text>
+          </View>
+        ) : null}
         <AdjuntosList adjuntos={r.adjuntos} />
       </View>
       <View style={styles.rowActions}>
@@ -91,13 +97,13 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
 });
 
 export function Recordatorios() {
-  const { cursoId, usuario, isAdmin } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
 
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [], curso_id: null });
   const [saving, setSaving] = useState(false);
   const [filtroRango, setFiltroRango] = useState("all");
   const [filtroPrio, setFiltroPrio] = useState("all");
@@ -106,13 +112,26 @@ export function Recordatorios() {
 
   const hoyStr = new Date().toISOString().split("T")[0];
 
+  // En vista "Todos" el permiso de edición se resuelve contra el rol en el curso
+  // de cada fila, no contra el isAdmin de sesión (que en Todos es false).
+  const cursosAdmin = useMemo(
+    () => new Set((items || []).filter((i) => i.rolEfectivo === "admin").map((i) => i.curso_id)),
+    [items]
+  );
+
+  // Opciones de curso destino para el alta en vista "Todos" (label = hijo/s).
+  const cursosOpciones = useMemo(
+    () => (esVistaTodos ? cursoIds.map((cid) => ({ curso_id: cid, tag: tagDeCurso(cid) })).filter((o) => o.tag) : []),
+    [esVistaTodos, cursoIds, tagDeCurso]
+  );
+
   const cargar = useCallback(async () => {
-    if (!cursoId) return;
+    if (!cursoIds?.length) return;
     const [recs, leidos] = await Promise.all([
       supabase
         .from("recordatorios")
         .select("*")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .order("fecha", { ascending: true, nullsFirst: false })
         .order("id", { ascending: false }),
       userId
@@ -121,7 +140,7 @@ export function Recordatorios() {
     ]);
     setRecordatorios(recs.data || []);
     setLeidosSet(new Set((leidos.data || []).map((r) => r.recordatorio_id)));
-  }, [cursoId, userId]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -129,6 +148,9 @@ export function Recordatorios() {
 
   const guardar = async () => {
     if (!form.texto?.trim()) return;
+    // En vista "Todos" el alta exige un curso destino elegido en el modal.
+    const cursoDestino = cursoId || form.curso_id;
+    if (!modal?.id && !cursoDestino) return;
     setSaving(true);
     const payload = {
       texto: sanitize(form.texto),
@@ -136,14 +158,17 @@ export function Recordatorios() {
       prioridad: form.prioridad || "media",
       urgente: form.urgente || false,
       adjuntos: form.adjuntos || [],
-      curso_id: cursoId,
+      curso_id: cursoDestino,
     };
     if (modal?.id) {
-      await supabase.from("recordatorios").update(payload).eq("id", modal.id);
+      // Al editar no se pisa curso_id: en vista "Todos" la fila puede ser de
+      // otro curso y el payload lo movería.
+      const { curso_id: _cid, ...upd } = payload;
+      await supabase.from("recordatorios").update(upd).eq("id", modal.id);
     } else {
       await supabase.from("recordatorios").insert({ ...payload, creado_por: userId });
       if (isAdmin) {
-        const userIds = await getUserIdsByCurso(cursoId);
+        const userIds = await getUserIdsByCurso(cursoDestino);
         await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
       }
     }
@@ -182,7 +207,15 @@ export function Recordatorios() {
   );
 
   const abrirNuevo = () => {
-    setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+    setForm({
+      texto: "",
+      fecha: "",
+      prioridad: "media",
+      urgente: false,
+      adjuntos: [],
+      // En vista "Todos" arranca en el primer curso; el modal muestra el selector.
+      curso_id: cursoId || cursoIds[0] || null,
+    });
     setModal({});
   };
   const abrirEditar = useCallback((r) => {
@@ -192,6 +225,7 @@ export function Recordatorios() {
       prioridad: r.prioridad || "media",
       urgente: r.urgente || false,
       adjuntos: r.adjuntos || [],
+      curso_id: r.curso_id || null,
     });
     setModal(r);
   }, []);
@@ -227,7 +261,11 @@ export function Recordatorios() {
             r={item}
             esLeido={leidosSet.has(item.id)}
             // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
-            puedeEditar={(isAdmin || item.creado_por === userId) && item.tipo !== "colecta_vence"}
+            puedeEditar={
+              (esVistaTodos ? item.creado_por === userId || cursosAdmin.has(item.curso_id) : isAdmin || item.creado_por === userId) &&
+              item.tipo !== "colecta_vence"
+            }
+            tag={tagDeCurso(item.curso_id)}
             onLeido={marcarLeido}
             onEditar={abrirEditar}
             onEliminar={eliminar}
@@ -291,7 +329,7 @@ export function Recordatorios() {
         ListFooterComponent={
           <View>
             <Paginador pagina={pagina_} totalPag={totalPags} setPagina={setPagina} />
-            <HistorialComunicados cursoId={cursoId} />
+            <HistorialComunicados cursoIds={cursoIds} tagDeCurso={tagDeCurso} />
           </View>
         }
       />
@@ -302,7 +340,9 @@ export function Recordatorios() {
         setForm={setForm}
         saving={saving}
         editing={!!modal?.id}
-        cursoId={cursoId}
+        cursoId={cursoId || form.curso_id}
+        // En vista "Todos" el alta pide elegir el curso destino.
+        cursosOpciones={esVistaTodos && !modal?.id ? cursosOpciones : []}
         onClose={() => setModal(null)}
         onGuardar={guardar}
       />
@@ -310,13 +350,35 @@ export function Recordatorios() {
   );
 }
 
-function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, onClose, onGuardar }) {
+function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, cursosOpciones = [], onClose, onGuardar }) {
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{editing ? "Editar recordatorio" : "Nuevo recordatorio"}</Text>
+          {cursosOpciones.length > 0 ? (
+            <>
+              <Text style={styles.modalLabel}>Para el curso de</Text>
+              <View style={styles.cursoRow}>
+                {cursosOpciones.map((o) => {
+                  const active = form.curso_id === o.curso_id;
+                  return (
+                    <Pressable
+                      key={o.curso_id}
+                      onPress={() => setForm((p) => ({ ...p, curso_id: o.curso_id }))}
+                      style={[styles.cursoBtn, active && styles.cursoBtnOn]}
+                    >
+                      <View style={[styles.tagDot, { backgroundColor: o.tag.color }]} />
+                      <Text style={[styles.cursoTxt, active && styles.cursoTxtOn]} numberOfLines={1}>
+                        {o.tag.nombre}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
 
           <Text style={styles.modalLabel}>Texto</Text>
           <TextInput
@@ -385,17 +447,18 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, o
   );
 }
 
-function HistorialComunicados({ cursoId }) {
+function HistorialComunicados({ cursoIds, tagDeCurso }) {
   const [alertas, setAlertas] = useState([]);
   const [abierto, setAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
 
   const cargar = async () => {
+    if (!cursoIds?.length) return;
     setCargando(true);
     const { data } = await supabase
       .from("alertas")
       .select("*")
-      .eq("curso_id", cursoId)
+      .in("curso_id", cursoIds)
       .order("creado_en", { ascending: false })
       .limit(100);
     setAlertas(data || []);
@@ -436,6 +499,12 @@ function HistorialComunicados({ cursoId }) {
                 <Text style={styles.histEmoji}>{a.activa ? "🚨" : "📢"}</Text>
                 <View style={styles.flex1}>
                   <Text style={styles.histMsg}>{a.mensaje}</Text>
+                  {tagDeCurso?.(a.curso_id) ? (
+                    <View style={styles.tagRow}>
+                      <View style={[styles.tagDot, { backgroundColor: tagDeCurso(a.curso_id).color }]} />
+                      <Text style={styles.tagTxt} numberOfLines={1}>{tagDeCurso(a.curso_id).nombre}</Text>
+                    </View>
+                  ) : null}
                   <Text style={styles.histDate}>{fmtFecha(a.creado_en)}</Text>
                 </View>
               </View>
@@ -490,6 +559,10 @@ const styles = StyleSheet.create({
   rowTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, lineHeight: 19 },
   rowTxtLeido: { fontWeight: "500", color: t.textMuted },
   rowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  // tag de hijo en modo "Todos": dot con el color de identidad + primer(os) nombre(s)
+  tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
+  tagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  tagTxt: { fontSize: 11.5, fontWeight: "700", color: t.textMuted },
   rowActions: { alignItems: "flex-end", gap: 6 },
   leerBtn: { minHeight: 30, justifyContent: "center" },
   leerTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
@@ -511,6 +584,22 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
   modalCard: { width: "100%", maxWidth: 420, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
   modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 14 },
+  // selector de curso destino (solo vista "Todos")
+  cursoRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  cursoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: t.borderStrong,
+    backgroundColor: t.surface,
+  },
+  cursoBtnOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  cursoTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
+  cursoTxtOn: { color: BLUE[600] },
   modalLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 6 },
   modalInput: {
     minHeight: 44,
