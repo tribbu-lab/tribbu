@@ -8,6 +8,20 @@
 
 import { getStorageBackend } from "./storage";
 
+/**
+ * uuid v4 liviano, sin dependencias. No es un token de seguridad — se usa
+ * para claves de agrupación (ej. `grupo_id` de comunicaciones multi-curso).
+ * `crypto.randomUUID()` existe en navegadores modernos pero no está
+ * garantizado en Hermes/React Native, así que usamos esto en las dos
+ * plataformas para no divergir.
+ */
+export const uuidLite = () =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+
 /** "$1.234" */
 export const fmtM = (m) => `$${Math.abs(m).toLocaleString("es-AR")}`;
 
