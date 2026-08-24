@@ -16,10 +16,9 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, active, misHijosItems=[], onBadgeChange }) {
+export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, active, onBadgeChange }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
-  const [verTodos,      setVerTodos]      = useState(false);
   const [modal,         setModal]         = useState(null);
   const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});
   const [saving,        setSaving]        = useState(false);
@@ -30,7 +29,6 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const [filtroDesde,   setFiltroDesde]   = useState("");
   const [filtroHasta,   setFiltroHasta]   = useState("");
   const [filtroPrio,    setFiltroPrio]    = useState("all");
-  const [filtroLeido,   setFiltroLeido]   = useState("all");
   const [pagina,        setPagina]        = useState(1);
   const POR_PAG = 10;
 
@@ -38,23 +36,9 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
   const hoyStr = new Date().toISOString().split("T")[0];
 
-  // Cursos distintos donde el apoderado tiene hijos. Si hay más de uno, ofrecemos la vista unificada.
-  // (No importa si además es Room Parent: si tiene hijos en varios cursos, puede ver todo junto.)
-  const cursosHijos = [...new Set((misHijosItems||[]).map(h=>h.curso_id).filter(Boolean))];
-  const puedeVerTodos = cursosHijos.length > 1;
-  // Si dejó de aplicar (cambió de perfil/curso), apagamos el modo unificado
-  useEffect(()=>{ if(!puedeVerTodos && verTodos) setVerTodos(false); },[puedeVerTodos]);
-
-  // Nombre(s) del/los hijo(s) de un curso dado — para la etiqueta en la vista unificada
-  const hijosDeCurso = (cId) => (misHijosItems||[]).filter(h=>h.curso_id===cId).map(h=>h.nombre).filter(Boolean).join(", ");
-
   const cargar = async () => {
-    const usarTodos = puedeVerTodos && verTodos;
-    const recsQuery = usarTodos
-      ? supabase.from("recordatorios").select("*").in("curso_id",cursosHijos).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false})
-      : supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false});
     const [recs, leidos, al] = await Promise.all([
-      recsQuery,
+      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
     ]);
@@ -63,7 +47,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
     setAlerta((al.data||[])[0]||null);
   };
 
-  useEffect(()=>{ cargar(); },[cursoId, verTodos]);
+  useEffect(()=>{ cargar(); },[cursoId]);
   useEffect(()=>{ if(active) cargar(); },[active]);
 
   const esPropio = (r) => r.creado_por === userId;
@@ -117,8 +101,8 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   };
 
   const filtrados = recordatorios.filter(r=>{
-    // Ocultar recordatorios de regalo (se manejan aparte). Los de colecta (colecta_vence) sí se muestran.
-    if(r.tipo==="regalo_cumple") return false;
+    // Solo mostrar recordatorios creados manualmente, no los automáticos
+    if(r.tipo==="regalo_cumple" || r.tipo==="colecta_vence") return false;
     if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
     if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
     if(filtroRango==="personalizado"){
@@ -127,8 +111,6 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
       if(filtroDesde && !r.fecha) return false;
     }
     if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
-    if(filtroLeido==="leidos"   && !leidosSet.has(r.id)) return false;
-    if(filtroLeido==="noleidos" &&  leidosSet.has(r.id)) return false;
     return true;
   }).sort((a,b)=>{
     if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
@@ -173,8 +155,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
       )}
 
       {modal!==null&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          <div style={{minHeight:"100%",display:"flex",alignItems:"center",justifyContent:"center",padding:20,boxSizing:"border-box"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:420}}>
             <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
             <div style={{marginBottom:10}}>
@@ -207,7 +188,6 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
               <button onClick={guardar} disabled={saving||subiendoAdj} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj?"default":"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
           </Card>
-          </div>
         </div>
       )}
 
@@ -224,16 +204,6 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
           <option value="media">Media</option>
           <option value="baja">Baja</option>
         </select>
-        <select value={filtroLeido} onChange={e=>{setFiltroLeido(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-          <option value="all">Leídos y no leídos</option>
-          <option value="noleidos">Sin leer</option>
-          <option value="leidos">Leídos</option>
-        </select>
-        {puedeVerTodos&&(
-          <button onClick={()=>{setVerTodos(v=>!v);setPagina(1);}} style={{padding:"7px 12px",borderRadius:8,border:`1.5px solid ${verTodos?"#3B82F6":"#E2E8F0"}`,background:verTodos?"#EFF6FF":"white",color:verTodos?"#3B82F6":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>
-            {verTodos?"👨‍👩‍👧 Todos mis hijos":"Ver todos"}
-          </button>
-        )}
         <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
       </div>
       {filtroRango==="personalizado"&&(
@@ -272,7 +242,6 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                {verTodos&&hijosDeCurso(r.curso_id)&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0FDF4",color:"#10B981"}}>👤 {hijosDeCurso(r.curso_id)}</span>}
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
                   : r.tipo==="colecta_vence"
