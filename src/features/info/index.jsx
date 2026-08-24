@@ -13,7 +13,18 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 
 
-export function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
+// Encabezado de sección por curso (solo vista "Todos"): dot + nombre del hijo.
+function CursoHeader({ tag }) {
+  if(!tag) return null;
+  return (
+    <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:4,marginBottom:8}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+      <span style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
+    </div>
+  );
+}
+
+export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin, userId, cursoNombre="" }) {
   const [sec,setSec] = useState("utiles");
 
   return (
@@ -25,15 +36,15 @@ export function InfoUtil({ cursoId, isAdmin, userId, cursoNombre="" }) {
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
-      {sec==="utiles"    &&<Utiles    cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="uniformes" &&<Uniformes cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="libros"    &&<Libros    cursoId={cursoId} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} isAdmin={isAdmin}/>}
+      {sec==="utiles"    &&<Utiles    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="uniformes" &&<Uniformes cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="libros"    &&<Libros    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin}/>}
     </div>
   );
 }
 
-export function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
+export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
@@ -44,15 +55,17 @@ export function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const [imgPreview,setImgPreview]= useState(null); // {url, nombre}
 
   const cargar = async () => {
+    if(!cursoIds?.length) { setLibros([]); setAdquiridos(new Set()); return; }
     const [lb, adq] = await Promise.all([
-      supabase.from("libros").select("*").eq("curso_id", cursoId).order("materia").order("nombre"),
+      supabase.from("libros").select("*").in("curso_id", cursoIds).order("materia").order("nombre"),
       userId ? supabase.from("libro_adquirido").select("libro_id").eq("usuario_id", userId) : Promise.resolve({data:[]}),
     ]);
     setLibros(lb.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.libro_id)));
   };
 
-  useEffect(()=>{ cargar(); },[cursoId]);
+  const cursosKey = (cursoIds||[]).join(",");
+  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const toggleAdquirido = async (libroId) => {
     if(!userId) return;
@@ -68,6 +81,7 @@ export function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
   };
 
   const guardar = async () => {
+    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
     if(!form.nombre?.trim()) return;
     let imagen_url = form.imagen_url||null;
     if(form._file) {
@@ -106,10 +120,47 @@ export function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
     return true;
   });
 
-  // Group by materia
-  const agrupados = filtrados.reduce((acc,l)=>{ const k=l.materia||"Sin materia"; (acc[k]=acc[k]||[]).push(l); return acc; },{});
-
   const adquiridosCount = libros.filter(l=>adquiridos.has(l.id)).length;
+
+  // Vista "Todos": secciones por curso (solo si hay libros de más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds||[]).filter(cid=>filtrados.some(l=>l.curso_id===cid))
+    : [];
+  const porCurso = cursosConDatos.length>1;
+
+  // Group by materia
+  const renderGrupos = (items) => {
+    const agrupados = items.reduce((acc,l)=>{ const k=l.materia||"Sin materia"; (acc[k]=acc[k]||[]).push(l); return acc; },{});
+    return Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b,"es")).map(([materia,grupo])=>(
+      <div key={materia} style={{marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:2}}>{materia}</div>
+        {grupo.map(l=>{
+          const adq = adquiridos.has(l.id);
+          return (
+            <Card key={l.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
+              <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                {adq?"✓":""}
+              </button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
+                {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
+                {l.url_descarga&&<a href={safeUrl(l.url_descarga)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
+              </div>
+              {l.imagen_url&&(
+                <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
+              )}
+              {isAdmin&&(
+                <div style={{display:"flex",gap:5,flexShrink:0}}>
+                  <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
+                  <button onClick={()=>eliminar(l.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    ));
+  };
 
   return (
     <div style={{maxWidth:600}}>
@@ -189,41 +240,20 @@ export function Libros({ cursoId, userId, isAdmin, cursoNombre="" }) {
 
       {filtrados.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin libros para mostrar</div>}
 
-      {/* Agrupados por materia */}
-      {Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b,"es")).map(([materia,items])=>(
-        <div key={materia} style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:2}}>{materia}</div>
-          {items.map(l=>{
-            const adq = adquiridos.has(l.id);
-            return (
-              <Card key={l.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
-                <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
-                  {adq?"✓":""}
-                </button>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
-                  {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
-                  {l.url_descarga&&<a href={safeUrl(l.url_descarga)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginTop:3,display:"inline-block"}}>Descargar</a>}
-                </div>
-                {l.imagen_url&&(
-                  <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
-                )}
-                {isAdmin&&(
-                  <div style={{display:"flex",gap:5,flexShrink:0}}>
-                    <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-                    <button onClick={()=>eliminar(l.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      ))}
+      {/* Agrupados por materia (en vista "Todos": secciones por curso) */}
+      {porCurso
+        ? cursosConDatos.map(cid=>(
+            <div key={cid}>
+              <CursoHeader tag={tagDeCurso?.(cid)}/>
+              {renderGrupos(filtrados.filter(l=>l.curso_id===cid))}
+            </div>
+          ))
+        : renderGrupos(filtrados)}
     </div>
   );
 }
 
-export function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
+export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
   const [utiles,    setUtiles]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null);
@@ -233,14 +263,16 @@ export function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
   const [togglingId,setTogglingId]= useState(null);
 
   const cargar = async () => {
+    if(!cursoIds?.length) { setUtiles([]); setAdquiridos(new Set()); return; }
     const [ut, adq] = await Promise.all([
-      supabase.from("utiles").select("*").eq("curso_id", cursoId).order("categoria").order("item"),
+      supabase.from("utiles").select("*").in("curso_id", cursoIds).order("categoria").order("item"),
       userId ? supabase.from("util_adquirido").select("util_id").eq("usuario_id", userId) : Promise.resolve({data:[]}),
     ]);
     setUtiles(ut.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.util_id)));
   };
-  useEffect(()=>{ cargar(); },[cursoId]);
+  const cursosKey = (cursoIds||[]).join(",");
+  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const toggleAdquirido = async (id) => {
     if(!userId) return;
@@ -256,6 +288,7 @@ export function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
   };
 
   const guardar = async () => {
+    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
     if(!form.item?.trim()) return;
     const payload = {item:form.item.trim(), categoria:form.categoria||null, cantidad:form.cantidad||null, comentario:form.comentario||null, curso_id:cursoId};
     if(modal?.id) await supabase.from("utiles").update(payload).eq("id",modal.id);
@@ -279,8 +312,65 @@ export function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
     return true;
   });
 
-  const agrupados = filtrados.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push(u); return acc; },{});
   const adquiridosCount = utiles.filter(u=>adquiridos.has(u.id)).length;
+
+  // Vista "Todos": secciones por curso (solo si hay útiles de más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds||[]).filter(cid=>filtrados.some(u=>u.curso_id===cid))
+    : [];
+  const porCurso = cursosConDatos.length>1;
+
+  const renderGrupos = (lista) => {
+    const agrupados = lista.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push(u); return acc; },{});
+    return Object.entries(agrupados).sort(([a],[b])=>{
+        if(a==="Notas") return -1; if(b==="Notas") return 1;
+        if(a==="Sin categoría") return 1; if(b==="Sin categoría") return -1;
+        return a.localeCompare(b,"es");
+      }).map(([cat,items])=>(
+      <div key={cat} style={{marginBottom:14,maxWidth:600}}>
+        {/* Categoría header */}
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:8,marginBottom:0}}>
+          <span style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.8,flex:1}}>{cat}</span>
+          <span style={{fontSize:10,color:"#94A3B8"}}>{items.filter(u=>adquiridos.has(u.id)).length}/{items.length}</span>
+        </div>
+        {/* Table rows */}
+        <div style={{border:"1px solid #E2E8F0",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+          {items.map((u,ri)=>{
+            const adq = adquiridos.has(u.id);
+            const isLast = ri===items.length-1;
+            return (
+              <div key={u.id} style={{display:"flex",alignItems:"center",gap:0,background:adq?"#F0FDF4":ri%2===0?"white":"#FAFAFA",borderBottom:isLast?"none":"1px solid #F1F5F9",minHeight:36}}>
+                {/* check */}
+                <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
+                  <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
+                    {adq?"✓":""}
+                  </button>
+                </div>
+                {/* nombre */}
+                <div style={{flex:1,padding:"7px 10px",minWidth:0}}>
+                  <span style={{fontSize:13,fontWeight:500,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
+                  {u.comentario&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{u.comentario}</span>}
+                </div>
+                {/* cantidad */}
+                {u.cantidad&&(
+                  <div style={{width:70,padding:"7px 10px",borderLeft:"1px solid #F1F5F9",flexShrink:0,textAlign:"center"}}>
+                    <span style={{fontSize:12,color:"#475569",fontWeight:600}}>{u.cantidad}</span>
+                  </div>
+                )}
+                {/* admin actions */}
+                {isAdmin&&(
+                  <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
+                    <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"3px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#64748B"}}>✏️</button>
+                    <button onClick={()=>eliminar(u.id)} style={{padding:"3px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#EF4444"}}>🗑</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ));
+  };
 
   const exportar = () => {
     const grupos = utiles.reduce((acc,u)=>{ const k=u.categoria||"Sin categoría"; (acc[k]=acc[k]||[]).push({Nombre:u.item, Cantidad:u.cantidad||"", Comentario:u.comentario||""}); return acc; },{});
@@ -333,67 +423,32 @@ export function Utiles({ cursoId, userId, isAdmin, cursoNombre="" }) {
 
       {filtrados.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin útiles para mostrar</div>}
 
-      {Object.entries(agrupados).sort(([a],[b])=>{
-          if(a==="Notas") return -1; if(b==="Notas") return 1;
-          if(a==="Sin categoría") return 1; if(b==="Sin categoría") return -1;
-          return a.localeCompare(b,"es");
-        }).map(([cat,items])=>(
-        <div key={cat} style={{marginBottom:14,maxWidth:600}}>
-          {/* Categoría header */}
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:8,marginBottom:0}}>
-            <span style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.8,flex:1}}>{cat}</span>
-            <span style={{fontSize:10,color:"#94A3B8"}}>{items.filter(u=>adquiridos.has(u.id)).length}/{items.length}</span>
-          </div>
-          {/* Table rows */}
-          <div style={{border:"1px solid #E2E8F0",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
-            {items.map((u,ri)=>{
-              const adq = adquiridos.has(u.id);
-              const isLast = ri===items.length-1;
-              return (
-                <div key={u.id} style={{display:"flex",alignItems:"center",gap:0,background:adq?"#F0FDF4":ri%2===0?"white":"#FAFAFA",borderBottom:isLast?"none":"1px solid #F1F5F9",minHeight:36}}>
-                  {/* check */}
-                  <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
-                    <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
-                      {adq?"✓":""}
-                    </button>
-                  </div>
-                  {/* nombre */}
-                  <div style={{flex:1,padding:"7px 10px",minWidth:0}}>
-                    <span style={{fontSize:13,fontWeight:500,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
-                    {u.comentario&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{u.comentario}</span>}
-                  </div>
-                  {/* cantidad */}
-                  {u.cantidad&&(
-                    <div style={{width:70,padding:"7px 10px",borderLeft:"1px solid #F1F5F9",flexShrink:0,textAlign:"center"}}>
-                      <span style={{fontSize:12,color:"#475569",fontWeight:600}}>{u.cantidad}</span>
-                    </div>
-                  )}
-                  {/* admin actions */}
-                  {isAdmin&&(
-                    <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
-                      <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"3px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#64748B"}}>✏️</button>
-                      <button onClick={()=>eliminar(u.id)} style={{padding:"3px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#EF4444"}}>🗑</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      {porCurso
+        ? cursosConDatos.map(cid=>(
+            <div key={cid}>
+              <CursoHeader tag={tagDeCurso?.(cid)}/>
+              {renderGrupos(filtrados.filter(u=>u.curso_id===cid))}
+            </div>
+          ))
+        : renderGrupos(filtrados)}
     </div>
   );
 }
 
-export function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
+export function Uniformes({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin, userId, cursoNombre="" }) {
   const [uniformes,  setUniformes]  = useState([]);
+  const [idsPorCurso,setIdsPorCurso]= useState({}); // curso_id → [uniforme_id] (para agrupar en "Todos")
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [togglingId, setTogglingId] = useState(null);
 
   const cargar = async () => {
-    // Get uniforme IDs linked to this curso
-    const { data: links } = await supabase.from("uniforme_cursos").select("uniforme_id").eq("curso_id",cursoId);
-    const ids = (links||[]).map(r=>r.uniforme_id);
+    if(!cursoIds?.length) { setUniformes([]); setIdsPorCurso({}); return; }
+    // Get uniforme IDs linked to these cursos
+    const { data: links } = await supabase.from("uniforme_cursos").select("uniforme_id, curso_id").in("curso_id",cursoIds);
+    const mapa = {};
+    (links||[]).forEach(r=>{ (mapa[r.curso_id]=mapa[r.curso_id]||[]).push(r.uniforme_id); });
+    setIdsPorCurso(mapa);
+    const ids = [...new Set((links||[]).map(r=>r.uniforme_id))];
     if(!ids.length) { setUniformes([]); return; }
     const [uni, adq] = await Promise.all([
       supabase.from("uniformes").select("*, uniforme_items(id,item)").in("id",ids),
@@ -404,7 +459,8 @@ export function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
     setAdquiridos(new Set((adq.data||[]).map(r=>r.uniforme_item_id)));
   };
 
-  useEffect(()=>{ cargar(); },[cursoId]);
+  const cursosKey = (cursoIds||[]).join(",");
+  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const toggleAdquirido = async (itemId) => {
     setTogglingId(itemId);
@@ -428,6 +484,39 @@ export function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
     "uniformes", { titulo:"Lista de Uniformes", curso:cursoNombre, columnas:["Tipo","Ítem","Adquirido"] }
   );
 
+  // Vista "Todos": secciones por curso (solo si hay uniformes en más de un curso).
+  const cursosConDatos = esVistaTodos
+    ? (cursoIds||[]).filter(cid=>(idsPorCurso[cid]||[]).length>0)
+    : [];
+  const porCurso = cursosConDatos.length>1;
+
+  const renderUniforme = (u, i, key) => {
+    const items = u.uniforme_items||[];
+    const bg = ["#EEF2FF","#F0FDF4","#FFF7ED"][i%3];
+    return (
+      <Card key={key} style={{marginBottom:12,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:bg,borderBottom:"1px solid #F1F5F9"}}>
+          <div style={{width:34,height:34,borderRadius:10,background:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{u.emoji||"👕"}</div>
+          <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
+        </div>
+        <div>
+          {items.sort((a,b)=>a.item.localeCompare(b.item,"es")).map((it,j)=>{
+            const adq = adquiridos.has(it.id);
+            return (
+              <div key={it.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 14px",borderBottom:j<items.length-1?"1px solid #F8FAFC":"none",background:j%2===0?"white":"#FAFAFA",opacity:adq?0.7:1}}>
+                <button onClick={()=>toggleAdquirido(it.id)} disabled={togglingId===it.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                  {adq?"✓":""}
+                </button>
+                <span style={{fontSize:13,flex:1,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{it.item}</span>
+              </div>
+            );
+          })}
+          {items.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems cargados.</div>}
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div style={{maxWidth:600}}>
       {total>0&&(
@@ -443,32 +532,17 @@ export function Uniformes({ cursoId, isAdmin, userId, cursoNombre="" }) {
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
         {total>0&&<button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>}
       </div>
-      {uniformes.map((u,i)=>{
-        const items = u.uniforme_items||[];
-        const bg = ["#EEF2FF","#F0FDF4","#FFF7ED"][i%3];
-        return (
-          <Card key={u.id} style={{marginBottom:12,overflow:"hidden"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:bg,borderBottom:"1px solid #F1F5F9"}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{u.emoji||"👕"}</div>
-              <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
-            </div>
-            <div>
-              {items.sort((a,b)=>a.item.localeCompare(b.item,"es")).map((it,j)=>{
-                const adq = adquiridos.has(it.id);
-                return (
-                  <div key={it.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 14px",borderBottom:j<items.length-1?"1px solid #F8FAFC":"none",background:j%2===0?"white":"#FAFAFA",opacity:adq?0.7:1}}>
-                    <button onClick={()=>toggleAdquirido(it.id)} disabled={togglingId===it.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
-                      {adq?"✓":""}
-                    </button>
-                    <span style={{fontSize:13,flex:1,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{it.item}</span>
-                  </div>
-                );
-              })}
-              {items.length===0&&<div style={{padding:"12px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems cargados.</div>}
-            </div>
-          </Card>
-        );
-      })}
+      {porCurso
+        ? cursosConDatos.map(cid=>{
+            const idsDelCurso = new Set(idsPorCurso[cid]||[]);
+            return (
+              <div key={cid}>
+                <CursoHeader tag={tagDeCurso?.(cid)}/>
+                {uniformes.filter(u=>idsDelCurso.has(u.id)).map((u,i)=>renderUniforme(u,i,`${cid}-${u.id}`))}
+              </div>
+            );
+          })
+        : uniformes.map((u,i)=>renderUniforme(u,i,u.id))}
       {uniformes.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>No hay uniformes asignados a este curso.</div>}
     </div>
   );

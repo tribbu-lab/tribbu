@@ -15,7 +15,7 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen }) {
+export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen }) {
   const [colectas,   setColectas]   = useState([]);
   const [alumnos,    setAlumnos]    = useState([]);
   const [usuarios,   setUsuarios]   = useState([]);
@@ -28,13 +28,14 @@ export function Finanzas({ cursoId, userId, isAdmin, misHijos=[], openColectaId=
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const cargar = async () => {
-    // traer ids de colectas del curso primero
-const { data: colData } = await supabase.from("colectas").select("*").eq("curso_id",cursoId).order("vencimiento",{ascending:true}).order("id",{ascending:false});
+    if(!cursoIds?.length) return;
+    // traer ids de colectas de los cursos del scope primero
+const { data: colData } = await supabase.from("colectas").select("*").in("curso_id",cursoIds).order("vencimiento",{ascending:true}).order("id",{ascending:false});
     const colIds = (colData||[]).map(c=>c.id);
 
-    // responsables del curso
+    // responsables de los cursos del scope
     const [alum, pag] = await Promise.all([
-      supabase.from("hijos").select("id,nombre,apellido,color").eq("curso_id",cursoId).order("nombre"),
+      supabase.from("hijos").select("id,nombre,apellido,color,curso_id").in("curso_id",cursoIds).order("nombre"),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
         : Promise.resolve({data:[]}),
@@ -57,7 +58,7 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
     setPagos(pag.data||[]);
   };
 
-  useEffect(()=>{ cargar(); },[cursoId]);
+  useEffect(()=>{ cargar(); },[cursoIds?.join(",")]);
   useEffect(()=>{
     if(openColectaId && colectas.length) {
       const c = colectas.find(x=>x.id===openColectaId);
@@ -77,7 +78,9 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
       responsable_id: form.responsable_id ? form.responsable_id : null,
       fecha_limite:   form.fecha_limite||null,
       vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
-      curso_id:       cursoId,
+      // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
+      // aplica al crear (acción admin, nunca disponible en vista Todos)
+      curso_id:       modal?.id ? modal.curso_id : cursoId,
       activa:         true,
     };
     let err;
@@ -91,7 +94,7 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
           const montoTxt = payload.monto_sugerido ? ` — ${payload.moneda||"$"} ${Number(payload.monto_sugerido).toLocaleString("es-AR")}` : "";
           const vencTxt  = payload.fecha_limite ? ` · vence ${fmtF(payload.fecha_limite)}` : "";
           await supabase.from("recordatorios").insert({
-            curso_id:   cursoId,
+            curso_id:   nuevaColecta.curso_id,
             tipo:       "colecta_vence",
             ref_id:     nuevaColecta.id,
             texto:      `Colecta "${payload.titulo}"${montoTxt}${vencTxt}. Recordá abonar.`,
@@ -101,7 +104,7 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
             creado_por: userId,
           });
         }
-        const userIds = await getUserIdsByCurso(cursoId);
+        const userIds = await getUserIdsByCurso(nuevaColecta?.curso_id ?? cursoId);
         await sendPush({ type:"colecta", payload:{ descripcion:form.titulo||form.descripcion||"Nueva colecta", userIds } });
       }
     }
@@ -151,15 +154,12 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
   const getPago = (colectaId, alumnoId) =>
     pagos.find(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
 
-  // alumnos que pertenecen al apoderado
-  const misAlumnos = alumnos.filter(a=>misHijos.includes(a.id));
-
   const fmtM = (n, moneda="$") => n!=null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
 
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Colectas</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Colectas del curso</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{esVistaTodos?"Colectas de todos tus cursos":"Colectas del curso"}</div>
 
       {/* Modal nueva/editar colecta */}
       {modal!==null&&(
@@ -217,7 +217,7 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
               <div style={{fontSize:15,fontWeight:900}}>{vistaAdmin.titulo}</div>
               <button onClick={()=>setVistaAdmin(null)} style={{fontSize:18,background:"none",border:"none",cursor:"pointer",color:"#94A3B8"}}>✕</button>
             </div>
-            {alumnos.map(a=>{
+            {alumnos.filter(a=>a.curso_id===vistaAdmin.curso_id).map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
               const esResponsable = isAdmin || userId===vistaAdmin.responsable_id;
@@ -252,14 +252,19 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
       {colectas.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No hay colectas activas</div>}
 
       {colectas.map(c=>{
-        const alumnosPagados = alumnos.filter(a=>getPago(c.id,a.id)?.estado==="pagado");
-        const total          = alumnos.length;
+        // En vista Todos `alumnos` trae hijos de varios cursos: todo lo de esta
+        // colecta se calcula solo con los alumnos de SU curso (no-op por hijo)
+        const alumnosCurso   = alumnos.filter(a=>a.curso_id===c.curso_id);
+        const alumnosPagados = alumnosCurso.filter(a=>getPago(c.id,a.id)?.estado==="pagado");
+        const total          = alumnosCurso.length;
         const recaudado      = alumnosPagados.length * (c.monto_sugerido||0);
         const esperado       = total * (c.monto_sugerido||0);
         const pct            = total ? Math.round(alumnosPagados.length/total*100) : 0;
         const resp           = usuarios.find(u=>u.id===c.responsable_id);
         const dias           = c.fecha_limite ? dHasta(c.fecha_limite) : null;
         const vencida        = dias!==null && dias<0;
+        const tag            = tagDeCurso?.(c.curso_id) ?? null;
+        const misAlumnosCurso = alumnosCurso.filter(a=>misHijos.includes(a.id));
 
         return (
           <Card key={c.id} style={{marginBottom:14,overflow:"hidden",opacity:c.activa?1:0.6}}>
@@ -267,6 +272,12 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
             <div style={{padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
                 <div style={{flex:1}}>
+                  {tag&&(
+                    <span style={{display:"inline-flex",alignItems:"center",gap:5,marginBottom:3}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                      <span style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
+                    </span>
+                  )}
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontSize:14,fontWeight:800}}>{c.titulo}</span>
                     {!c.activa&&<Pill label="Cerrada" color="#94A3B8" bg="#F1F5F9"/>}
@@ -305,10 +316,10 @@ const { data: colData } = await supabase.from("colectas").select("*").eq("curso_
               </div>
             )}
 
-            {/* Vista apoderado — mis alumnos */}
-            {!isAdmin&&misAlumnos.length>0&&(
+            {/* Vista apoderado — mis alumnos (del curso de esta colecta) */}
+            {!isAdmin&&misAlumnosCurso.length>0&&(
               <div style={{padding:"10px 16px"}}>
-                {misAlumnos.map(a=>{
+                {misAlumnosCurso.map(a=>{
                   const pago        = getPago(c.id,a.id);
                   const pagado      = pago?.estado==="pagado";
                   const esResponsable = isAdmin || userId===c.responsable_id;

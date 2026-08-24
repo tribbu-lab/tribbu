@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
@@ -112,14 +112,36 @@ function App() {
   const [panelNotifs,   setPanelNotifs]   = useState(false);
   const isMobile = useIsMobile();
 
-  // Derivar cursoId del item actual (puede ser null si no hay sesión aún)
-  const _itemActual = items[cursoIdx];
-  const _cursoId    = _itemActual?.curso_id ?? null;
+  // Derivar el scope de cursos del item actual (puede estar vacío sin sesión).
+  // En la vista "Todos" (pseudo-item, default con hijos en >1 curso) cursoId es
+  // null y cursoIds abarca todos los cursos con hijos.
+  const _itemActual   = items[cursoIdx];
+  const _esVistaTodos = _itemActual?._tipo==="todos";
+  const _cursoId      = _esVistaTodos ? null : _itemActual?.curso_id ?? null;
+  // Identidad estable: las features dependen de cursoIds en sus efectos y un
+  // array nuevo por render dispararía refetches en cadena.
+  const _cursoIds = useMemo(()=>{
+    if(_esVistaTodos) return [...new Set(items.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))];
+    return _cursoId ? [_cursoId] : [];
+  },[items, _esVistaTodos, _cursoId]);
+
+  // {nombre, color} de los hijos de un curso, SOLO en vista Todos (null por
+  // hijo): las pantallas lo llaman incondicionalmente para etiquetar filas.
+  const tagDeCurso = (cid) => {
+    if(!_esVistaTodos || !cid) return null;
+    const hs = items.filter(i=>i._tipo==="hijo" && i.curso_id===cid);
+    if(!hs.length) return null;
+    const sc = hijoColorsMap[`${usuario?.id}_${hs[0].id}`] || getHijoColor(usuario?.id, hs[0].id) || null;
+    return {
+      nombre: hs.map(h=>h.nombre?.split(" ")[0]).filter(Boolean).join(", "),
+      color: (sc && sc!==HIJO_COLOR_DEFAULT) ? sc : (hs[0].color || "#3B82F6"),
+    };
+  };
 
   // Hook de notificaciones — siempre se llama, usa guards internos cuando no hay sesión
   const { notifs, leidos, cargando: cargandoNotifs, noLeidos,
           marcarLeido } = useNotificaciones({
-    cursoId: _cursoId, userId: usuario?.id ?? null, active: panelNotifs,
+    cursoIds: _cursoIds, userId: usuario?.id ?? null, active: panelNotifs,
   });
 
   useEffect(()=>{
@@ -149,7 +171,10 @@ function App() {
           rolEfectivo: cursosAdmin.has(h.curso_id) ? "admin" : "padre",
         }));
 
-      setItems(items);
+      // Con hijos en más de un curso, "Todos" es un acceso más (el primero y el
+      // default): la vista unificada domina todas las pantallas vía cursoIds.
+      const cursosDistintos = new Set(items.map(h=>h.curso_id).filter(Boolean));
+      setItems(cursosDistintos.size>1 ? [{_tipo:"todos", id:"__todos__", nombre:"Todos"}, ...items] : items);
     };
     cargarItems();
   },[usuario]);
@@ -158,11 +183,13 @@ function App() {
   const cargarBadge = (usr, itmList, idx) => {
     if(!usr) return;
     const itm_ = itmList[idx];
-    const cid_ = itm_?._tipo==="hijo" ? itm_?.curso_id : itm_?.id;
-    if(!cid_) return;
+    const cids_ = itm_?._tipo==="todos"
+      ? [...new Set(itmList.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))]
+      : [itm_?._tipo==="hijo" ? itm_?.curso_id : itm_?.id].filter(Boolean);
+    if(!cids_.length) return;
     const hoy = new Date().toISOString().split("T")[0];
     Promise.all([
-      supabase.from("recordatorios").select("id").eq("curso_id", cid_)
+      supabase.from("recordatorios").select("id").in("curso_id", cids_)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${usr.id}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`),
       supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", usr.id),
@@ -258,12 +285,18 @@ function App() {
   if(authLoading) return <Spinner/>;
   if(!usuario) return <Login onLogin={handleLogin}/>;
 
-  const itemActual  = items[cursoIdx];
-  const rolEfectivo = itemActual?.rolEfectivo || "padre";
+  const itemActual   = items[cursoIdx];
+  const esVistaTodos = _esVistaTodos;
+  const cursoIds     = _cursoIds;
+  // En "Todos" no hay curso único: sin rol admin (las acciones por curso
+  // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
+  const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
   const esPadre     = rolEfectivo==="padre";
   const isAdmin     = rolEfectivo==="admin";
-  const cursoId     = itemActual?.curso_id;
-  const cursoNombre = itemActual?.cursos?.nombre;
+  const cursoId     = _cursoId;
+  const cursoNombre = esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre;
+  // Cursos donde el usuario es Room Parent — para permisos por fila en Todos.
+  const cursosAdmin = items.filter(i=>i.rolEfectivo==="admin").map(i=>i.curso_id);
 
   if(usuario.rol==="super") return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
@@ -282,7 +315,10 @@ function App() {
   const hijoColorKey = itemActual?._tipo==="hijo" && itemActual ? `${usuario?.id}_${itemActual.id}` : null;
   const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
   const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
-  const headerBg  = hijoColor || "#0F172A";
+  // El color del hijo activo tiñe el header: el personalizado si eligió uno, si
+  // no el color por defecto del hijo (hijos.color, asignado al crearlo) — mismo
+  // fix que mobile/components/AppHeader.jsx.
+  const headerBg  = hijoColor || (itemActual?._tipo==="hijo" && itemActual.color) || "#0F172A";
   const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || "#3B82F6";
 
   const cambiarColorHijo = (idx, color) => {
@@ -311,20 +347,20 @@ function App() {
   ];
 
   const renderTab = () => {
-    if(!cursoId) return <Spinner/>;
+    if(!cursoIds.length) return <Spinner/>;
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     const misHijosActivos = items.filter(i=>i._tipo==="hijo").map(i=>i.id);
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} items={items.filter(i=>i._tipo==="hijo")} cursoIdx={cursoIdx} setCursoIdx={setCursoIdx} hijoColorsMap={hijoColorsMap} cambiarColorHijo={cambiarColorHijo} colorPickerIdx={colorPickerIdx} setColorPickerIdx={setColorPickerIdx} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); if(extra?.openFecha) setOpenFecha(extra.openFecha); }}/>;
-      case "clases":   return <Calendario cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); if(extra?.openFecha) setOpenFecha(extra.openFecha); }}/>;
+      case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
-      case "info":     return <InfoUtil cursoId={cursoId} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
-      case "finanzas": return <Finanzas cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} misHijosItems={items.filter(i=>i._tipo==="hijo").map(i=>({id:i.id,nombre:i.nombre,apellido:i.apellido,curso_id:i.curso_id,color:i.color}))} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
-      case "cumples":  return <Cumpleanios cursoId={cursoId} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
-      case "contacto": return <Contacto cursoId={cursoId} isSuperAdmin={usuario?.rol==="super"}/>;
-      case "alumnos":  return <Alumnos cursoId={cursoId} isAdmin={isAdmin}/>;
+      case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
+      case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
+      case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
+      case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
+      case "alumnos":  return <Alumnos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
     }
@@ -338,12 +374,13 @@ function App() {
     <>
       {items.length>0&&(
         <div style={{padding:"0 12px 12px"}}>
-          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:8}}>"Mi acceso"</div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6,paddingLeft:8}}>Mi acceso</div>
           {items.map((item,i)=>(
             <div key={i} style={{position:"relative",marginBottom:2}}>
               <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8,WebkitTextFillColor:"white"}}>
+                {item._tipo==="todos"&&<span style={{fontSize:12,flexShrink:0}}>👥</span>}
                 {item._tipo==="hijo"&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                <span style={{flex:1,color:"white"}}>{item._tipo==="hijo"?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                <span style={{flex:1,color:"white"}}>{item._tipo==="hijo"||item._tipo==="todos"?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
                 {item._tipo==="hijo"&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer",color:"white"}}>🎨</span>}
               </button>
             </div>
@@ -360,7 +397,7 @@ function App() {
     const pickerActiveColor = (pickerSavedColor && pickerSavedColor !== HIJO_COLOR_DEFAULT) ? pickerSavedColor : null;
     return (
       <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
-        <div style={{position:"absolute",top:isMobile?60:0,left:0,width:isMobile?"100%":220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)",borderRadius:isMobile?"0 0 16px 16px":"0 0 16px 0"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"absolute",...(isMobile?{top:60}:{bottom:0}),left:0,width:isMobile?"100%":220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)",borderRadius:isMobile?"0 0 16px 16px":"0 16px 0 0"}} onClick={e=>e.stopPropagation()}>
           <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:10}}>Color de {pickerItem.nombre}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
             {HIJO_COLORS_CUSTOM.map(col=>(
@@ -379,7 +416,7 @@ function App() {
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       {panelNotifs&&(
         <NotificacionesPanel
-          notifs={notifs} leidos={leidos} cargando={cargandoNotifs}
+          notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
           onMarcarLeido={marcarLeido}
           onCerrar={()=>setPanelNotifs(false)}
         />
@@ -412,8 +449,9 @@ function App() {
               return (
                 <div key={i} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                   <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",background:active?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.07)",color:"white",fontSize:12,fontWeight:active?700:400,display:"flex",alignItems:"center",gap:5}}>
+                    {item._tipo==="todos"&&<span style={{fontSize:11}}>👥</span>}
                     {item._tipo==="hijo"&&<span style={{width:8,height:8,borderRadius:"50%",background:active?iColor:"rgba(255,255,255,0.3)",display:"inline-block",flexShrink:0}}/>}
-                    {item._tipo==="hijo"?item.nombre:`${item.avatar||""} ${item.nombre}`}
+                    {item._tipo==="hijo"||item._tipo==="todos"?item.nombre:`${item.avatar||""} ${item.nombre}`}
                   </button>
                   {item._tipo==="hijo"&&active&&<button onClick={()=>setColorPickerIdx(colorPickerIdx===i?null:i)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,width:24,height:24,cursor:"pointer",fontSize:12}}>🎨</button>}
                 </div>
@@ -481,7 +519,7 @@ function App() {
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       {panelNotifs&&(
         <NotificacionesPanel
-          notifs={notifs} leidos={leidos} cargando={cargandoNotifs}
+          notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
           onMarcarLeido={marcarLeido}
           onCerrar={()=>setPanelNotifs(false)}
         />
@@ -513,7 +551,14 @@ function App() {
           </button>
         </div>
 
-        <div style={{padding:"16px 12px",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        {/* Selector de hijos/Todos en la navegación (como el header de mobile):
+            cambia la vista desde cualquier pantalla con un click. Va al pie,
+            justo arriba del usuario. */}
+        <div style={{paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+          <SidebarItems/>
+        </div>
+
+        <div style={{padding:"0 12px 16px"}}>
           <div style={{padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
             <div style={{fontSize:12,fontWeight:700,color:"white"}}>{usuario.nombre} {usuario.apellido||""}</div>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>

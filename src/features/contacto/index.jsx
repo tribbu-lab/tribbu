@@ -218,14 +218,15 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   );
 }
 
-export function Alumnos({ cursoId, isAdmin }) {
+export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});
   const [busqueda, setBusqueda] = useState("");
 
   const cargar = async () => {
+    if(!cursoIds?.length) { setHijos([]); setApodMap({}); return; }
     const { data: hijosData } = await supabase
-      .from("hijos").select("*").eq("curso_id",cursoId).order("apellido").order("nombre");
+      .from("hijos").select("*").in("curso_id",cursoIds).order("apellido").order("nombre");
     setHijos(hijosData||[]);
     const ids = (hijosData||[]).map(h=>h.id);
     if(ids.length) {
@@ -242,45 +243,70 @@ export function Alumnos({ cursoId, isAdmin }) {
     }
   };
 
-  useEffect(()=>{ cargar(); },[cursoId]);
+  const cursosKey = (cursoIds||[]).join(",");
+  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const filtrados = hijos.filter(h=>fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase()));
+
+  // En vista "Todos" se agrupa por curso (orden = cursoIds); en vista por hijo
+  // hay un solo grupo sin encabezado, idéntico al comportamiento actual.
+  const grupos = esVistaTodos
+    ? (cursoIds||[])
+        .map(cid=>({ cursoId: cid, hijos: filtrados.filter(h=>h.curso_id===cid) }))
+        .filter(g=>g.hijos.length>0)
+    : [{ cursoId: null, hijos: filtrados }];
+  const conEncabezados = grupos.length>1;
+
+  const renderAlumno = (h) => {
+    const apods = apodMap[h.id]||[];
+    return (
+      <div key={h.id} style={{background:"white",borderRadius:12,marginBottom:6,border:"1px solid #E2E8F0",overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(h)}</div>
+            {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
+          </div>
+          {h.dni&&<div style={{fontSize:11,color:"#94A3B8"}}>DNI: {h.dni}</div>}
+        </div>
+        {apods.length>0&&(
+          <div style={{borderTop:"1px solid #F1F5F9",padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:10}}>
+            {apods.map(a=>(
+              <div key={a.id} style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/>
+                <div>
+                  <span style={{fontSize:12,fontWeight:600,color:"#0F172A"}}>{fmtNombre(a)}</span>
+                  {a.telefono&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.telefono}</span>}
+                  {a.email&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.email}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {apods.length===0&&(
+          <div style={{borderTop:"1px solid #F1F5F9",padding:"6px 14px"}}>
+            <span style={{fontSize:11,color:"#CBD5E1"}}>Sin apoderados vinculados</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:16}}>Alumnos</div>
       <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar alumno..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"white",boxSizing:"border-box",marginBottom:12}}/>
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>{filtrados.length} alumnos</div>
-      {filtrados.map(h=>{
-        const apods = apodMap[h.id]||[];
+      {grupos.map(g=>{
+        const tag = conEncabezados ? tagDeCurso?.(g.cursoId) : null;
         return (
-          <div key={h.id} style={{background:"white",borderRadius:12,marginBottom:6,border:"1px solid #E2E8F0",overflow:"hidden"}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(h)}</div>
-                {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
-              </div>
-              {h.dni&&<div style={{fontSize:11,color:"#94A3B8"}}>DNI: {h.dni}</div>}
-            </div>
-            {apods.length>0&&(
-              <div style={{borderTop:"1px solid #F1F5F9",padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:10}}>
-                {apods.map(a=>(
-                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:7,height:7,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/>
-                    <div>
-                      <span style={{fontSize:12,fontWeight:600,color:"#0F172A"}}>{fmtNombre(a)}</span>
-                      {a.telefono&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.telefono}</span>}
-                      {a.email&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.email}</span>}
-                    </div>
-                  </div>
-                ))}
+          <div key={g.cursoId ?? "curso-actual"}>
+            {tag&&(
+              <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:4,marginBottom:8}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                <span style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
               </div>
             )}
-            {apods.length===0&&(
-              <div style={{borderTop:"1px solid #F1F5F9",padding:"6px 14px"}}>
-                <span style={{fontSize:11,color:"#CBD5E1"}}>Sin apoderados vinculados</span>
-              </div>
-            )}
+            {g.hijos.map(renderAlumno)}
           </div>
         );
       })}

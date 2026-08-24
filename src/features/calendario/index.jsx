@@ -13,6 +13,7 @@ import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { FestejoDetalleModal } from "../cumples";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -26,7 +27,18 @@ const TIPO_CONFIG = {
 };
 
 
-export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha }) {
+// Tag de hijo estándar (solo vista "Todos": tagDeCurso devuelve null en vista por hijo).
+function TagHijo({ tag }) {
+  if(!tag) return null;
+  return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:5,minWidth:0}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+      <span style={{fontSize:10,fontWeight:700,color:"#64748B",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tag.nombre}</span>
+    </span>
+  );
+}
+
+export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha }) {
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
   const [horarioColegio, setHorarioColegio] = useState(null);
@@ -47,9 +59,10 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
   const [leidosSet,      setLeidosSet]      = useState(new Set());
 
   const cargarRecs = async () => {
+    if(!cursoIds?.length) return;
     const hoyStr = new Date().toISOString().split("T")[0];
     const [recs, leidos] = await Promise.all([
-      supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true}),
+      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
     ]);
     setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId)));
@@ -62,11 +75,12 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
   };
 
   const cargar = async () => {
+    if(!cursoIds?.length) return;
     const [ev, al, ma, hor, col] = await Promise.all([
-      supabase.from("eventos").select("*").eq("curso_id", cursoId).order("fecha"),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id", cursoId),
-      supabase.from("horarios").select("*").eq("curso_id", cursoId).order("hora_inicio"),
+      supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
+      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
+      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
+      supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
       supabase.from("colegio").select("horario_clases").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
     ]);
     setEventos(ev.data||[]);
@@ -76,16 +90,16 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
     const todos = [
       ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
         id:`c-a-${a.id}`, tipo:"cumple", nombre:fmtNombre(a), color:a.color||"#EC4899",
-        fecha_nacimiento: a.fecha_nacimiento,
+        fecha_nacimiento: a.fecha_nacimiento, curso_id: a.curso_id,
       })),
       ...(ma.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
         id:`c-m-${m.id}`, tipo:"cumple", nombre:m.nombre, color:"#8B5CF6",
-        fecha_nacimiento: m.fecha_nacimiento,
+        fecha_nacimiento: m.fecha_nacimiento, curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
       })),
     ];
     setCumples(todos);
   };
-  useEffect(()=>{ cargar(); cargarRecs(); },[cursoId]);
+  useEffect(()=>{ cargar(); cargarRecs(); },[cursoIds?.join(",")]);
 
   useEffect(()=>{
     if(!openFecha) return;
@@ -150,7 +164,7 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
   return (
     <div>
       {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
-      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
+      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} tag={tagDeCurso(eventoDetalle.curso_id)} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {confirm && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -224,8 +238,11 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                     return (
                       <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:i<evDiaSelec.length-1?"1px solid #F1F5F9":"none"}}>
                         <div style={{width:36,height:36,borderRadius:10,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{cfg.emoji}</div>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                            <TagHijo tag={tagDeCurso(e.curso_id)}/>
+                          </div>
                           <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
                             {cfg.label}{e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
                           </div>
@@ -304,8 +321,11 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                   <div style={{width:42,height:42,borderRadius:12,background:cfg.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <div style={{fontSize:18}}>{cfg.emoji}</div>
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
+                      <TagHijo tag={tagDeCurso(e.curso_id)}/>
+                    </div>
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
                       {d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
                       {e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}
@@ -352,37 +372,28 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
         };
         const { inicio: colegioInicio, fin: colegioFin } = parsearHorarioColegio(horarioColegio);
 
-        // Slots base: todos los existentes en horarios
-        const slotsExistentes = [...new Set(horarios.map(h=>h.hora_inicio))].sort();
+        // Render de la tabla semanal para un set de horarios (un curso)
+        const renderTabla = (hs) => {
+          // Slots base: todos los existentes en horarios
+          const slotsExistentes = [...new Set(hs.map(h=>h.hora_inicio))].sort();
 
-        // Si hay horario de colegio, agregar slots vacíos cada hora hasta el fin
-        let allSlots = [...slotsExistentes];
-        if(colegioInicio && colegioFin && slotsExistentes.length > 0) {
-          const primerSlot = slotsExistentes[0];
-          const slotInicio = colegioInicio < primerSlot ? colegioInicio : primerSlot;
-          // Generar slots cada 1h desde inicio hasta fin del colegio
-          const [hIni] = slotInicio.split(":").map(Number);
-          const [hFin] = colegioFin.split(":").map(Number);
-          for(let h = hIni; h < hFin; h++) {
-            const slot = String(h).padStart(2,"0")+":00";
-            if(!allSlots.includes(slot)) allSlots.push(slot);
+          // Si hay horario de colegio, agregar slots vacíos cada hora hasta el fin
+          let allSlots = [...slotsExistentes];
+          if(colegioInicio && colegioFin && slotsExistentes.length > 0) {
+            const primerSlot = slotsExistentes[0];
+            const slotInicio = colegioInicio < primerSlot ? colegioInicio : primerSlot;
+            // Generar slots cada 1h desde inicio hasta fin del colegio
+            const [hIni] = slotInicio.split(":").map(Number);
+            const [hFin] = colegioFin.split(":").map(Number);
+            for(let h = hIni; h < hFin; h++) {
+              const slot = String(h).padStart(2,"0")+":00";
+              if(!allSlots.includes(slot)) allSlots.push(slot);
+            }
+            allSlots.sort();
           }
-          allSlots.sort();
-        }
 
-        return (
-          <div>
-            <div style={{fontSize:16,fontWeight:900,color:"#0F172A",marginBottom:2}}>Horario de Clases</div>
-            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Vista semanal</div>
-
-            {horarios.length===0&&(
-              <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
-                {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
-              </div>
-            )}
-
-            {horarios.length>0&&(
-              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          return (
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
                 <table style={{borderCollapse:"collapse",minWidth:520,width:"100%",tableLayout:"fixed"}}>
                   <colgroup>
                     <col style={{width:68}}/>
@@ -401,7 +412,7 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                   <tbody>
                     {allSlots.map((slot,si)=>{
                       // find max hora_fin for this slot to show range
-                      const slotClases = horarios.filter(h=>h.hora_inicio===slot);
+                      const slotClases = hs.filter(h=>h.hora_inicio===slot);
                       const maxFin = slotClases.map(h=>h.hora_fin).sort().pop();
                       return (
                         <tr key={slot}>
@@ -410,7 +421,7 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                             {maxFin&&<div style={{fontSize:9,color:"#CBD5E1",whiteSpace:"nowrap"}}>{fmtHora(maxFin)}</div>}
                           </td>
                           {DIAS.map((dia,di)=>{
-                            const clase = horarios.find(h=>h.dia===dia&&h.hora_inicio===slot);
+                            const clase = hs.find(h=>h.dia===dia&&h.hora_inicio===slot);
                             const dc = DIA_COLORS[di];
                             return (
                               <td key={dia} style={{padding:"5px 5px",border:"1px solid #E2E8F0",verticalAlign:"top",background:"white"}}>
@@ -431,7 +442,34 @@ export function Calendario({ cursoId, userId, isAdmin, misHijos=[], openFecha=nu
                     })}
                   </tbody>
                 </table>
+            </div>
+          );
+        };
+
+        // En vista "Todos": una sección por curso, encabezada por el tag del hijo
+        const cursosConHorario = esVistaTodos
+          ? (cursoIds||[]).filter(cid=>horarios.some(h=>h.curso_id===cid))
+          : [];
+
+        return (
+          <div>
+            <div style={{fontSize:16,fontWeight:900,color:"#0F172A",marginBottom:2}}>Horario de Clases</div>
+            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Vista semanal</div>
+
+            {horarios.length===0&&(
+              <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
+                {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
               </div>
+            )}
+
+            {horarios.length>0&&(esVistaTodos
+              ? cursosConHorario.map(cid=>(
+                  <div key={cid} style={{marginBottom:24}}>
+                    <div style={{marginBottom:8}}><TagHijo tag={tagDeCurso(cid)}/></div>
+                    {renderTabla(horarios.filter(h=>h.curso_id===cid))}
+                  </div>
+                ))
+              : renderTabla(horarios)
             )}
           </div>
         );
@@ -459,21 +497,23 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  // Escrituras siempre sobre el curso del evento (nunca el de sesión al editar)
+  const cursoEvento = evento?.curso_id ?? cursoId;
   const guardar = async () => {
     if(!form.titulo || !form.fecha) return;
-    const payload = { ...form, curso_id: cursoId, creado_por: userId };
+    const payload = { ...form, curso_id: cursoEvento, creado_por: userId };
     let eventoId = evento?.id;
     if(esNuevo) {
       const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
       eventoId = ev?.id;
-      const userIds = await getUserIdsByCurso(cursoId);
+      const userIds = await getUserIdsByCurso(cursoEvento);
       await sendPush({ type:"evento", payload:{ titulo:form.titulo, fecha:form.fecha||"", userIds } });
     } else {
       await supabase.from("eventos").update(payload).eq("id", evento.id);
     }
     // Si confirma_asistencia: crear filas pendientes para todos los apoderados del curso
     if(form.confirma_asistencia && eventoId) {
-      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
       const hijosIds = (hijos||[]).map(h=>h.id);
       if(hijosIds.length) {
         const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
@@ -524,7 +564,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         </div>
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Adjuntos (opcional)</div>
-          <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoId} onUploadingChange={setSubiendoAdj}/>
+          <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoEvento} onUploadingChange={setSubiendoAdj}/>
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
@@ -535,7 +575,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   );
 }
 
-export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null }) {
+export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=null, tag=null }) {
   const [asistencia, setAsistencia] = useState({});
   const [hijosInfo,  setHijosInfo]  = useState({});
   const [todosHijos, setTodosHijos] = useState([]);
@@ -581,7 +621,10 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
       <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
           <div>
-            <div style={{fontSize:15,fontWeight:900}}>{evento.titulo}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{fontSize:15,fontWeight:900}}>{evento.titulo}</div>
+              <TagHijo tag={tag}/>
+            </div>
             <div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>
               {new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
               {evento.hora?` · ${evento.hora}${evento.hora_fin?` – ${evento.hora_fin}`:""}` :""}

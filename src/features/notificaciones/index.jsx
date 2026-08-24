@@ -7,24 +7,24 @@ import { fmtDM } from "../../lib/helpers";
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
 // Se usa en App.jsx junto con el badge de notificaciones.
 
-export function useNotificaciones({ cursoId, userId, active }) {
+export function useNotificaciones({ cursoIds, userId, active }) {
   const [notifs,   setNotifs]   = useState([]);
   const [leidos,   setLeidos]   = useState(new Set());
   const [cargando, setCargando] = useState(false);
 
   const cargar = async () => {
-    if(!cursoId || !userId) return;
+    if(!cursoIds?.length || !userId) return;
     setCargando(true);
     const hoy = new Date().toISOString().split("T")[0];
     const [recs, leidosData, alertas] = await Promise.all([
       supabase.from("recordatorios").select("*")
-        .eq("curso_id", cursoId)
+        .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
         .order("fecha", { ascending: true, nullsFirst: false })
         .limit(30),
       supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId),
-      supabase.from("alertas").select("*").eq("curso_id", cursoId).eq("activa", true)
+      supabase.from("alertas").select("*").in("curso_id", cursoIds).eq("activa", true)
         .order("creado_en", { ascending: false }).limit(3),
     ]);
 
@@ -38,6 +38,7 @@ export function useNotificaciones({ cursoId, userId, active }) {
       texto: a.mensaje,
       urgente: true,
       creado_en: a.creado_en,
+      curso_id: a.curso_id,
       emoji: "🚨",
     }));
 
@@ -50,7 +51,7 @@ export function useNotificaciones({ cursoId, userId, active }) {
     setCargando(false);
   };
 
-  useEffect(() => { cargar(); }, [cursoId, userId]);
+  useEffect(() => { cargar(); }, [cursoIds, userId]);
   useEffect(() => { if(active) cargar(); }, [active]);
 
   const marcarLeido = async (id) => {
@@ -68,7 +69,7 @@ export function useNotificaciones({ cursoId, userId, active }) {
   return { notifs, leidos, cargando, noLeidos, marcarLeido, recargar: cargar };
 }
 
-export function NotificacionesPanel({ notifs, leidos, cargando, onMarcarLeido, onCerrar }) {
+export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onCerrar }) {
   const PRIO = {
     alta:   { c: "#EF4444", bg: "#FEF2F2" },
     media:  { c: "#F59E0B", bg: "#FFFBEB" },
@@ -147,6 +148,7 @@ export function NotificacionesPanel({ notifs, leidos, cargando, onMarcarLeido, o
             const leido = !esAlerta && leidos.has(n.id);
             const prio = PRIO[n.prioridad||"media"];
             const relativo = n.fecha ? fmtRelativo(n.fecha) : null;
+            const tag = tagDeCurso ? tagDeCurso(n.curso_id) : null;
 
             return (
               <div
@@ -187,6 +189,12 @@ export function NotificacionesPanel({ notifs, leidos, cargando, onMarcarLeido, o
                       )}
                       {n.urgente&&!esAlerta&&(
                         <span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 6px",borderRadius:6}}>Urgente</span>
+                      )}
+                      {tag && (
+                        <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                          <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,display:"inline-block",flexShrink:0}}/>
+                          <span style={{fontSize:10,fontWeight:700,color:"#94A3B8"}}>{tag.nombre}</span>
+                        </span>
                       )}
                       {!leido && !esAlerta && (
                         <span style={{

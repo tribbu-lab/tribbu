@@ -18,7 +18,7 @@ import { ListToolbar } from "../../components";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import * as XLSX from "xlsx";
 
-export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=null }) {
+export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
   const misHijosUniq = [...new Set(misHijos)];
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
@@ -33,17 +33,21 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
   const [apoderados, setApoderados] = useState([]);
 
   const cargar = async () => {
+    if(!cursoIds?.length) return;
     const [al,ma,cu,fest,inv] = await Promise.all([
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre"),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").eq("maestro_cursos.curso_id",cursoId),
-      supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").eq("curso_id",cursoId),
-      supabase.from("eventos").select("*").eq("curso_id",cursoId).eq("tipo","festejo"),
-      // Traer invitaciones de los hijos del usuario en este curso (RLS filtra por apoderado del hijo)
+      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds).order("nombre"),
+      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
+      supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").in("curso_id",cursoIds),
+      supabase.from("eventos").select("*").in("curso_id",cursoIds).eq("tipo","festejo"),
+      // Traer invitaciones de los hijos del usuario en estos cursos (RLS filtra por apoderado del hijo)
       userId && misHijos?.length ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion)").in("alumno_invitado_id", misHijos) : Promise.resolve({data:[]}),
     ]);
-    const curso = await supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single();
-    setMontoRegalo(curso.data?.monto_regalo||null);
-    setMonedaRegalo(curso.data?.moneda_regalo||"$");
+    // Monto sugerido por familia: en vista Todos solo se muestra si todos los cursos coinciden.
+    const { data: cursosData } = await supabase.from("cursos").select("monto_regalo,moneda_regalo").in("id",cursoIds);
+    const montosUniq  = [...new Set((cursosData||[]).map(c=>c.monto_regalo||null))];
+    const monedasUniq = [...new Set((cursosData||[]).map(c=>c.moneda_regalo||"$"))];
+    setMontoRegalo(montosUniq.length===1 ? montosUniq[0] : null);
+    setMonedaRegalo(monedasUniq.length===1 ? monedasUniq[0] : "$");
     const invFiltradas = (inv.data||[]).filter(i=>i.evento && (hijoActivo===null || i.alumno_invitado_id===hijoActivo));
     setInvitaciones(invFiltradas);
     const fmap = {};
@@ -55,10 +59,13 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
       ...alumnosUniq.filter(a=>a.fecha_nacimiento).map(a=>({
         id:`a-${a.id}`, rawId:a.id, nombre:fmtNombre(a), tipo:"Alumno",
         fecha_nacimiento:a.fecha_nacimiento, color:a.color||"#3B82F6",
+        curso_id:a.curso_id,
       })),
       ...maestrosUniq.filter(m=>m.fecha_nacimiento).map(m=>({
         id:`m-${m.id}`, rawId:m.id, nombre:m.nombre, tipo:"Maestro",
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
+        // El !inner ya filtró los cursos a cursoIds; si el maestro está en varios, se etiqueta con el primero.
+        curso_id:m.maestro_cursos?.[0]?.curso_id ?? null,
       })),
     ];
     const tmpNextBday = (fecha) => {
@@ -70,7 +77,7 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
     };
     unified.sort((a,b)=>tmpNextBday(a.fecha_nacimiento)-tmpNextBday(b.fecha_nacimiento));
     setLista(unified);
-    const { data: hijosDelCurso } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+    const { data: hijosDelCurso } = await supabase.from("hijos").select("id").in("curso_id", cursoIds);
     const hids = (hijosDelCurso||[]).map(h=>h.id);
     if(hids.length) {
       const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hids);
@@ -134,7 +141,7 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
     const refIds = pendientes.map(p => p.cumple.id);
     const { data: yaExisten } = await supabase.from("recordatorios")
       .select("ref_id, para_usuario_id")
-      .eq("curso_id", cursoId)
+      .in("curso_id", cursoIds)
       .eq("tipo", "regalo_cumple")
       .in("ref_id", refIds);
 
@@ -146,7 +153,8 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
       .map(({ item, cumple, dias, next }) => {
         const nombre = item.nombre.split(" ")[0];
         return {
-          curso_id: cursoId, tipo: "regalo_cumple", ref_id: cumple.id,
+          // El recordatorio pertenece al curso del cumple (en vista Todos no hay curso de sesión).
+          curso_id: cumple.curso_id, tipo: "regalo_cumple", ref_id: cumple.id,
           para_usuario_id: cumple.responsable_id,
           texto: `El cumple de ${nombre} es en ${dias===0?"hoy":dias===1?"1 dia":`${dias} dias`}. Ya compraste el regalo?`,
           emoji: "🎁", urgente: dias <= 2, prioridad: dias <= 2 ? "alta" : "media",
@@ -159,7 +167,7 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
     }
   };
 
-  useEffect(()=>{ cargar(); },[cursoId]);
+  useEffect(()=>{ cargar(); },[cursoIds]);
 
   const guardarResponsable = async ({responsable_id, comprado}) => {
     const isAlumno = editando.tipo==="Alumno";
@@ -181,7 +189,8 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
       if(error) console.error("Error UPDATE cumple:", JSON.stringify(error));
     } else {
       const { error } = await supabase.from("cumples").insert({
-        curso_id: cursoId,
+        // Curso del alumno/maestro editado (en vista Todos no hay curso de sesión).
+        curso_id: editando.curso_id,
         alumno_id: isAlumno ? editando.rawId : null,
         maestro_id_ref: !isAlumno ? editando.rawId : null,
         ...payload,
@@ -193,17 +202,19 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
   };
 
   const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
+    // Curso del maestro homenajeado (nunca el de sesión, que es null en vista Todos).
+    const cursoDestino = colectaRegaloModal?.cursoId ?? cursoId;
     const payload = {
       titulo: sanitize(titulo), tipo: "colecta",
       descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
       monto_sugerido: monto ? Number(monto) : null, moneda: moneda||"$",
       fecha_limite: fecha_limite||null,
       vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
-      curso_id: cursoId, activa: true, responsable_id: responsable_id||null,
+      curso_id: cursoDestino, activa: true, responsable_id: responsable_id||null,
     };
     const { error } = await supabase.from("colectas").insert(payload);
     if(!error) {
-      const userIds = await getUserIdsByCurso(cursoId);
+      const userIds = await getUserIdsByCurso(cursoDestino);
       await sendPush({ type:"colecta", payload:{ descripcion:`Colecta para el regalo de ${maestroNombre}`, userIds } });
     }
     setColectaRegaloModal(null);
@@ -244,12 +255,12 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
   return (
     <div>
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?._responsable_hijo?.id||null, comprado:cumpleMap[editando.id]?.comprado||false}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
-      {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
+      {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={festejoModal.cursoId ?? cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijosUniq||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños en el curso</div>
+        <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}</div>
         {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
       </div>
 
@@ -271,9 +282,9 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
               {fest
                 ? <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
                     <button onClick={()=>setFestejoDetalle(fest)} style={{padding:"6px 12px",borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>🎉 Ver festejo</button>
-                    <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"white",cursor:"pointer",fontSize:11,color:"#10B981",fontWeight:600}}>Editar</button>
+                    <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"white",cursor:"pointer",fontSize:11,color:"#10B981",fontWeight:600}}>Editar</button>
                   </div>
-                : <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{padding:"8px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>+ Crear festejo</button>
+                : <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{padding:"8px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>+ Crear festejo</button>
               }
             </div>
           );
@@ -313,6 +324,7 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
             const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
             const fest     = isAlumno ? festejoMap[a.rawId] : null;
             const resp = cumple.responsable;
+            const tag  = tagDeCurso(a.curso_id); // solo devuelve algo en vista Todos
             return (
               <div key={a.id} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:14,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
                 <div style={{flex:1,minWidth:0}}>
@@ -320,6 +332,12 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                     <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:a.tipo==="Maestro"?"#F5F3FF":"#EFF6FF",color:a.tipo==="Maestro"?"#8B5CF6":"#3B82F6"}}>{a.tipo==="Maestro"?"👨‍🏫 Maestro":"🎒 Alumno"}</span>
                     <span style={{fontSize:11,color:"#94A3B8"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>
+                    {tag&&(
+                      <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                        <span style={{fontSize:10,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
+                      </span>
+                    )}
                   </div>
                   {(cumple._responsable_hijo||cumple.responsable)&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>🎁 Regala: <strong>{cumple._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : fmtNombre(cumple.responsable)}</strong></div>}
                   {cumple.comprado&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:2,display:"inline-block"}}>✓ Regalo comprado</span>}
@@ -330,9 +348,9 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
                     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
                       {fest
                         ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
-                           {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>Editar</button>}</>
+                           {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>Editar</button>}</>
                         : (esMiHijo
-                          ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
+                          ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
                           : null)
                       }
                     </div>
@@ -340,7 +358,7 @@ export function Cumpleanios({ cursoId, userId, isAdmin, misHijos=[], hijoActivo=
                   {isAdmin&&(
                     <div style={{display:"flex",gap:4}}>
                       <button onClick={()=>setEditando(a)} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>🎁 Regalo</button>
-                      {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
+                      {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId,cursoId:a.curso_id})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
                     </div>
                   )}
                 </div>

@@ -16,12 +16,11 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, active, misHijosItems=[], onBadgeChange }) {
+export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
-  const [verTodos,      setVerTodos]      = useState(false);
   const [modal,         setModal]         = useState(null);
-  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});
+  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:null});
   const [saving,        setSaving]        = useState(false);
   const [subiendoAdj,   setSubiendoAdj]   = useState(false);
   const [alerta,        setAlerta]        = useState(null);
@@ -38,47 +37,48 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
   const PRIO = { alta:{l:"Alta",c:"#EF4444",bg:"#FEF2F2"}, media:{l:"Media",c:"#F59E0B",bg:"#FFFBEB"}, baja:{l:"Baja",c:"#10B981",bg:"#F0FDF4"} };
   const hoyStr = new Date().toISOString().split("T")[0];
 
-  // Cursos distintos donde el apoderado tiene hijos. Si hay más de uno, ofrecemos la vista unificada.
-  // (No importa si además es Room Parent: si tiene hijos en varios cursos, puede ver todo junto.)
-  const cursosHijos = [...new Set((misHijosItems||[]).map(h=>h.curso_id).filter(Boolean))];
-  const puedeVerTodos = cursosHijos.length > 1;
-  // Si dejó de aplicar (cambió de perfil/curso), apagamos el modo unificado
-  useEffect(()=>{ if(!puedeVerTodos && verTodos) setVerTodos(false); },[puedeVerTodos]);
-
-  // Nombre(s) del/los hijo(s) de un curso dado — para la etiqueta en la vista unificada
-  const hijosDeCurso = (cId) => (misHijosItems||[]).filter(h=>h.curso_id===cId).map(h=>h.nombre).filter(Boolean).join(", ");
+  // Opciones de curso destino para el alta en vista "Todos" (label = hijo/s).
+  const cursosOpciones = esVistaTodos
+    ? cursoIds.map(cid=>({curso_id:cid, tag:tagDeCurso?.(cid)})).filter(o=>o.tag)
+    : [];
 
   const cargar = async () => {
-    const usarTodos = puedeVerTodos && verTodos;
-    const recsQuery = usarTodos
-      ? supabase.from("recordatorios").select("*").in("curso_id",cursosHijos).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false})
-      : supabase.from("recordatorios").select("*").eq("curso_id",cursoId).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false});
+    if(!cursoIds?.length) return;
     const [recs, leidos, al] = await Promise.all([
-      recsQuery,
+      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
-      supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1),
+      cursoId
+        ? supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1)
+        : Promise.resolve({data:[]}),
     ]);
     setRecordatorios(recs.data||[]);
     setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
     setAlerta((al.data||[])[0]||null);
   };
 
-  useEffect(()=>{ cargar(); },[cursoId, verTodos]);
+  useEffect(()=>{ cargar(); },[cursoIds]);
   useEffect(()=>{ if(active) cargar(); },[active]);
 
   const esPropio = (r) => r.creado_por === userId;
-  const puedeEditar = (r) => isAdmin || esPropio(r);
+  // En vista "Todos" el permiso se resuelve contra el rol en el curso de la fila.
+  const puedeEditar = (r) => esVistaTodos ? (esPropio(r) || cursosAdmin.includes(r.curso_id)) : (isAdmin || esPropio(r));
 
   const guardar = async () => {
     if(!form.texto?.trim()) return;
+    // En vista "Todos" el alta exige un curso destino elegido en el modal.
+    const cursoDestino = cursoId || form.curso_id;
+    if(!modal?.id && !cursoDestino) return;
     setSaving(true);
-    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoId };
+    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
     if(modal?.id) {
-      await supabase.from("recordatorios").update(payload).eq("id",modal.id);
+      // Al editar no se pisa curso_id: en vista "Todos" la fila puede ser de
+      // otro curso y el payload la movería.
+      const { curso_id:_cid, ...upd } = payload;
+      await supabase.from("recordatorios").update(upd).eq("id",modal.id);
     } else {
       await supabase.from("recordatorios").insert({...payload, creado_por:userId});
       if(isAdmin) {
-        const userIds = await getUserIdsByCurso(cursoId);
+        const userIds = await getUserIdsByCurso(cursoDestino);
         await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
       }
     }
@@ -177,6 +177,22 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
           <div style={{minHeight:"100%",display:"flex",alignItems:"center",justifyContent:"center",padding:20,boxSizing:"border-box"}}>
           <Card style={{padding:24,width:"100%",maxWidth:420}}>
             <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
+            {!modal?.id&&cursosOpciones.length>0&&(
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PARA EL CURSO DE</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {cursosOpciones.map(o=>{
+                    const act = form.curso_id===o.curso_id;
+                    return (
+                      <button key={o.curso_id} onClick={()=>setForm(p=>({...p,curso_id:o.curso_id}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${act?"#3B82F6":"#E2E8F0"}`,background:act?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:act?"#3B82F6":"#94A3B8"}}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:o.tag.color,display:"inline-block"}}/>
+                        {o.tag.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
               <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunion de padres el viernes" rows={3} style={{...inp,resize:"vertical"}}/>
@@ -200,7 +216,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
             </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ADJUNTOS (opcional)</div>
-              <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoId} onUploadingChange={setSubiendoAdj}/>
+              <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId={cursoId||form.curso_id} onUploadingChange={setSubiendoAdj}/>
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
@@ -229,12 +245,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
           <option value="noleidos">Sin leer</option>
           <option value="leidos">Leídos</option>
         </select>
-        {puedeVerTodos&&(
-          <button onClick={()=>{setVerTodos(v=>!v);setPagina(1);}} style={{padding:"7px 12px",borderRadius:8,border:`1.5px solid ${verTodos?"#3B82F6":"#E2E8F0"}`,background:verTodos?"#EFF6FF":"white",color:verTodos?"#3B82F6":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>
-            {verTodos?"👨‍👩‍👧 Todos mis hijos":"Ver todos"}
-          </button>
-        )}
-        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[]});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
       </div>
       {filtroRango==="personalizado"&&(
         <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
@@ -272,7 +283,7 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                {verTodos&&hijosDeCurso(r.curso_id)&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0FDF4",color:"#10B981"}}>👤 {hijosDeCurso(r.curso_id)}</span>}
+                {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
                   : r.tipo==="colecta_vence"
@@ -313,23 +324,24 @@ export function RecordatoriosTab({ cursoId, userId, isAdmin, isSuper=false, acti
       )}
 
       {/* ── Historial de comunicados ────────────────────────────────── */}
-      <HistorialComunicados cursoId={cursoId} isAdmin={isAdmin} />
+      <HistorialComunicados cursoIds={cursoIds} tagDeCurso={tagDeCurso} isAdmin={isAdmin} />
     </div>
   );
 }
 
-function HistorialComunicados({ cursoId, isAdmin }) {
+function HistorialComunicados({ cursoIds=[], tagDeCurso=null, isAdmin }) {
   const [alertas,    setAlertas]    = useState([]);
   const [busqueda,   setBusqueda]   = useState("");
   const [abierto,    setAbierto]    = useState(false);
   const [cargando,   setCargando]   = useState(false);
 
   const cargar = async () => {
+    if(!cursoIds?.length) return;
     setCargando(true);
     const { data } = await supabase
       .from("alertas")
       .select("*")
-      .eq("curso_id", cursoId)
+      .in("curso_id", cursoIds)
       .order("creado_en", { ascending: false })
       .limit(100);
     setAlertas(data||[]);
@@ -402,6 +414,12 @@ function HistorialComunicados({ cursoId, isAdmin }) {
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontSize:11,color:"#94A3B8"}}>{fmtFecha(a.creado_en)}</span>
+                    {tagDeCurso?.(a.curso_id) && (
+                      <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#64748B"}}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(a.curso_id).color,display:"inline-block"}}/>
+                        {tagDeCurso(a.curso_id).nombre}
+                      </span>
+                    )}
                     {a.activa && (
                       <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,
                         background:"#FEE2E2",color:"#EF4444"}}>Activa</span>
