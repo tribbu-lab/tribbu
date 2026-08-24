@@ -14,9 +14,15 @@ export const TAB_MAP = {
   festejo: "/(tabs)/cumples",
 };
 
+// Además del tab, arma los params de deep-link específicos por tipo (mismo
+// patrón que usa el Muro: openFecha para eventos) para no dejar al usuario
+// en la pantalla "en blanco" del tab.
 const routeForData = (data) => {
   const type = data?.type;
-  return type ? TAB_MAP[type] : null;
+  const route = type ? TAB_MAP[type] : null;
+  if (!route) return null;
+  const params = type === "evento" && data?.fecha ? { openFecha: data.fecha } : {};
+  return { pathname: route, params };
 };
 
 /** Engancha los listeners de respuesta a notificaciones y navega al tab destino. */
@@ -31,15 +37,15 @@ export function useNotificationRouting(ready) {
     if (!handledColdStart.current) {
       handledColdStart.current = true;
       Notifications.getLastNotificationResponseAsync().then((response) => {
-        const route = routeForData(response?.notification?.request?.content?.data);
-        if (route) router.push(route);
+        const target = routeForData(response?.notification?.request?.content?.data);
+        if (target) router.push(target);
       });
     }
 
     // Foreground/background: toque de notificación con la app viva.
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const route = routeForData(response?.notification?.request?.content?.data);
-      if (route) router.push(route);
+      const target = routeForData(response?.notification?.request?.content?.data);
+      if (target) router.push(target);
     });
 
     return () => sub.remove();

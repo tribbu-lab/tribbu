@@ -4,10 +4,10 @@
 // Deep-link: openFecha selecciona el día en la vista Mes. Los festejos se
 // gestionan en Cumpleaños (no se abre su modal acá).
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { fmtNombre, safeUrl } from "@shared/helpers";
+import { fmtNombre, safeUrl, fmtRangoFecha } from "@shared/helpers";
 import { MESES, T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -17,6 +17,7 @@ import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
+import BotonAgregarCalendario from "./BotonAgregarCalendario";
 
 const t = THEMES.light;
 
@@ -49,6 +50,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [eventoDetalle, setEventoDetalle] = useState(null);
   const [filtroRango, setFiltroRango] = useState("90");
   const [filtroTipo, setFiltroTipo] = useState("todos");
+
+  // Deep-link (openFecha): la tarjeta del día queda debajo de la grilla del
+  // mes en el mismo ScrollView — sin este scroll automático el usuario no ve
+  // que la navegación surtió efecto. En vista "mes" la tarjeta del día es
+  // siempre lo último del contenido, así que scrollToEnd alcanza.
+  const scrollRef = useRef(null);
+  const pendingScroll = useRef(false);
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
@@ -95,8 +103,19 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     setMes(new Date(d.getFullYear(), d.getMonth(), 1));
     setDiaSelec({ year: d.getFullYear(), month: d.getMonth(), day: d.getDate() });
     setVista("mes");
+    pendingScroll.current = true;
     onClearOpenFecha?.();
   }, [openFecha, onClearOpenFecha]);
+
+  // Una vez que la tarjeta del día se montó, si el cambio vino de un
+  // deep-link la llevamos a la vista.
+  useEffect(() => {
+    if (!pendingScroll.current || !diaSelec) return;
+    pendingScroll.current = false;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }, [diaSelec]);
 
   const eliminar = async (id) => {
     await supabase.from("eventos").delete().eq("id", id);
@@ -104,9 +123,10 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     cargar();
   };
 
+  // Un evento multi-día (fecha_fin) aparece en cada día de su rango.
   const eventosDelDia = (year, month, day) => {
     const fecha = `${year}-${pad(month + 1)}-${pad(day)}`;
-    const reales = eventos.filter((e) => e.fecha === fecha);
+    const reales = eventos.filter((e) => e.fecha <= fecha && (e.fecha_fin || e.fecha) >= fecha);
     const bday = cumples
       .filter((c) => {
         const d = new Date(c.fecha_nacimiento + "T00:00:00");
@@ -129,8 +149,9 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     hasta.setDate(hasta.getDate() + Number(filtroRango));
     const reales = eventos
       .filter((e) => {
-        const d = new Date(e.fecha + "T00:00:00");
-        return d >= desde && d <= hasta;
+        const ini = new Date(e.fecha + "T00:00:00");
+        const fin = e.fecha_fin ? new Date(e.fecha_fin + "T00:00:00") : ini;
+        return fin >= desde && ini <= hasta; // solapa el rango del filtro
       })
       .map((e) => ({ ...e, _fecha: new Date(e.fecha + "T00:00:00") }));
     const bday = cumples
@@ -149,7 +170,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const evDiaSelec = diaSelec ? eventosDelDia(diaSelec.year, diaSelec.month, diaSelec.day) : [];
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <Text style={styles.h1}>Calendario</Text>
         {isAdmin ? (
@@ -159,6 +180,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         ) : null}
       </View>
       <Text style={styles.subtitle}>Clases, eventos y cumpleaños</Text>
+
+      <BotonAgregarCalendario userId={userId} />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         {[
@@ -300,7 +323,10 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
           {listaEventos().map((e, i) => {
             const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
             const d = new Date(e.fecha + "T00:00:00");
-            const dias = Math.round((d - hoy) / 86400000);
+            const dFin = e.fecha_fin ? new Date(e.fecha_fin + "T00:00:00") : d;
+            const enCurso = hoy >= d && hoy <= dFin;
+            const dias = enCurso ? 0 : Math.round((d - hoy) / 86400000);
+            const diasTxt = enCurso ? "En curso" : dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : `${dias}d`;
             return (
               <Card key={e.id || i} style={[styles.listCard, { borderLeftColor: cfg.color }]}>
                 <View style={styles.listRow}>
@@ -311,7 +337,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     <Text style={styles.eventoTitulo}>{e.titulo}</Text>
                     <TagHijo tag={tagDeCurso(e.curso_id)} />
                     <Text style={styles.eventoMeta}>
-                      {d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                      {fmtRangoFecha(e.fecha, e.fecha_fin)}
                       {e.hora && !e.todo_el_dia ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
                     </Text>
                     {e.lugar ? (
@@ -329,9 +355,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                   </View>
                   <View style={styles.listRight}>
                     <View style={styles.diasTag}>
-                      <Text style={styles.diasTagTxt}>
-                        {dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : `${dias}d`}
-                      </Text>
+                      <Text style={styles.diasTagTxt}>{diasTxt}</Text>
                     </View>
                     {e.tipo !== "festejo" && e.confirma_asistencia ? (
                       <Pressable onPress={() => setEventoDetalle(e)} style={styles.asistBtn}>
@@ -530,6 +554,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     titulo: evento?.titulo || "",
     tipo: evento?.tipo || "acto",
     fecha: evento?.fecha || "",
+    fecha_fin: evento?.fecha_fin || "",
     hora: evento?.hora || "",
     hora_fin: evento?.hora_fin || "",
     lugar: evento?.lugar || "",
@@ -542,13 +567,15 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [subiendoAdj, setSubiendoAdj] = useState(false);
 
+  const fechaFinInvalida = !!(form.fecha_fin && form.fecha && form.fecha_fin < form.fecha);
   const guardar = async () => {
-    if (!form.titulo || !form.fecha) return;
+    if (!form.titulo || !form.fecha || fechaFinInvalida) return;
     setSaving(true);
     // Al editar, el curso es el del evento (nunca el de sesión); al crear, el
     // cursoId de sesión (el modal solo se abre con isAdmin, nunca en vista Todos).
     const cursoEvento = evento?.curso_id ?? cursoId;
-    const payload = { ...form, curso_id: cursoEvento, creado_por: userId };
+    // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
+    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento, creado_por: userId };
     let eventoId = evento?.id;
     if (esNuevo) {
       const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
@@ -611,16 +638,17 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             {[
               { l: "Título", k: "titulo", ph: "Ej: Acto del 25 de mayo" },
               { l: "Fecha", k: "fecha", ph: "Elegir fecha" },
+              { l: "Fecha fin (opcional, si dura varios días)", k: "fecha_fin", ph: "Elegir fecha" },
               { l: "Lugar", k: "lugar", ph: "Ej: Patio del colegio" },
               { l: "URL ubicación", k: "url_ubicacion", ph: "https://maps.google.com/..." },
               { l: "Descripción", k: "descripcion", ph: "Detalles adicionales" },
             ].map((f) => (
               <View key={f.k}>
                 <Text style={styles.label}>{f.l.toUpperCase()}</Text>
-                {f.k === "fecha" ? (
+                {f.k === "fecha" || f.k === "fecha_fin" ? (
                   <DateField
-                    value={form.fecha}
-                    onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
+                    value={form[f.k]}
+                    onChange={(v) => setForm((p) => ({ ...p, [f.k]: v }))}
                     placeholder={f.ph}
                     style={styles.input}
                   />
@@ -634,6 +662,9 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
                     style={styles.input}
                   />
                 )}
+                {f.k === "fecha_fin" && fechaFinInvalida ? (
+                  <Text style={styles.errorTxt}>La fecha fin no puede ser anterior a la fecha de inicio</Text>
+                ) : null}
               </View>
             ))}
 
@@ -688,7 +719,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
               </Pressable>
-              <Pressable onPress={guardar} disabled={saving || subiendoAdj} style={[styles.saveBtn, subiendoAdj && { opacity: 0.5 }]}>
+              <Pressable onPress={guardar} disabled={saving || subiendoAdj || fechaFinInvalida} style={[styles.saveBtn, (subiendoAdj || fechaFinInvalida) && { opacity: 0.5 }]}>
                 <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
               </Pressable>
             </View>
@@ -759,13 +790,7 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
             <View style={styles.flex1}>
               <Text style={styles.modalTitle}>{evento.titulo}</Text>
               <TagHijo tag={tag} />
-              <Text style={styles.eventoMeta}>
-                {new Date(evento.fecha + "T00:00:00").toLocaleDateString("es-AR", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </Text>
+              <Text style={styles.eventoMeta}>{fmtRangoFecha(evento.fecha, evento.fecha_fin)}</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8}>
               <Text style={styles.closeTxt}>✕</Text>
@@ -922,6 +947,7 @@ const styles = StyleSheet.create({
   confirmCard: { width: "100%", maxWidth: 340, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
   modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 8 },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 8 },
+  errorTxt: { fontSize: 11, color: t.danger, marginTop: 4 },
   input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: SPACE.md, fontSize: 13, color: t.text },
   tipoWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tipoChip: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: t.surface },

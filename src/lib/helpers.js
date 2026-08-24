@@ -18,6 +18,23 @@ export const fmtF = (s) =>
 /** Igual que fmtF — alias usado en algunas secciones */
 export const fmtDM = fmtF;
 
+/**
+ * Fecha o rango de un evento: "12 de marzo" (día único) o "12 al 15 de marzo"
+ * / "30 de marzo al 2 de abril" (multi-día, según crucen o no de mes).
+ * `fechaFin` es opcional/nulo para eventos de un solo día.
+ */
+export const fmtRangoFecha = (fecha, fechaFin) => {
+  if (!fechaFin || fechaFin === fecha) {
+    return new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", {
+      weekday: "long", day: "numeric", month: "long",
+    });
+  }
+  const d1 = new Date(fecha + "T00:00:00");
+  const d2 = new Date(fechaFin + "T00:00:00");
+  const mismoMes = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+  return `${mismoMes ? d1.getDate() : fmtF(fecha)} al ${fmtF(fechaFin)}`;
+};
+
 /** Días que faltan hasta una fecha (negativo = ya pasó) */
 export const dHasta = (s) => {
   const hoy = new Date();

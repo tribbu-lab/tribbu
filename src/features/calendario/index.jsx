@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoFecha,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -14,6 +14,7 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
+import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -115,10 +116,11 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
     setConfirm(null); cargar();
   };
 
-  // Devuelve todos los "eventos" (reales + cumples) para un año/mes/día dado
+  // Devuelve todos los "eventos" (reales + cumples) para un año/mes/día dado.
+  // Un evento multi-día (fecha_fin) aparece en cada día de su rango.
   const eventosDelDia = (year, month, day) => {
     const fecha = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    const reales = eventos.filter(e => e.fecha === fecha);
+    const reales = eventos.filter(e => e.fecha <= fecha && (e.fecha_fin || e.fecha) >= fecha);
     const bdayHoy = cumples.filter(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
       return d.getMonth()===month && d.getDate()===day;
@@ -143,7 +145,11 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       hasta.setDate(hasta.getDate() + Number(filtroRango));
     }
     const reales = eventos
-      .filter(e => { const d=new Date(e.fecha+"T00:00:00"); return d>=desde && d<=hasta; })
+      .filter(e => {
+        const ini = new Date(e.fecha+"T00:00:00");
+        const fin = e.fecha_fin ? new Date(e.fecha_fin+"T00:00:00") : ini;
+        return fin>=desde && ini<=hasta; // solapa el rango del filtro
+      })
       .map(e => ({ ...e, _fecha: new Date(e.fecha+"T00:00:00") }));
     const bdayList = cumples.map(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
@@ -184,6 +190,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
       </div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>Clases, eventos y cumpleaños</div>
+
+      <BotonAgregarCalendario supabase={supabase} userId={userId}/>
 
       {/* Tabs vista */}
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
@@ -314,7 +322,10 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
           {listaEventos().map((e,i)=>{
             const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
             const d   = new Date(e.fecha+"T00:00:00");
-            const dias = Math.round((d-hoy)/86400000);
+            const dFin = e.fecha_fin ? new Date(e.fecha_fin+"T00:00:00") : d;
+            const enCurso = hoy>=d && hoy<=dFin;
+            const dias = enCurso ? 0 : Math.round((d-hoy)/86400000);
+            const diasTxt = enCurso ? "En curso" : dias===0?"Hoy":dias===1?"Mañana":`${dias}d`;
             return (
               <Card key={e.id||i} style={{padding:"13px 15px",marginBottom:10,borderLeft:`3px solid ${cfg.color}`}}>
                 <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -327,7 +338,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                       <TagHijo tag={tagDeCurso(e.curso_id)}/>
                     </div>
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                      {d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+                      {fmtRangoFecha(e.fecha, e.fecha_fin)}
                       {e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}
                     </div>
                     {e.lugar&&<div style={{fontSize:11,color:"#94A3B8",display:"flex",alignItems:"center",gap:4}}>
@@ -338,7 +349,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <AdjuntosList adjuntos={e.adjuntos}/>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:enCurso||dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{diasTxt}</span>
                     {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
                     {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
                     {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&(
@@ -486,6 +497,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     titulo:      evento?.titulo      || "",
     tipo:        evento?.tipo        || "acto",
     fecha:       evento?.fecha       || "",
+    fecha_fin:   evento?.fecha_fin   || "",
     hora:        evento?.hora        || "",
     hora_fin:    evento?.hora_fin    || "",
     lugar:       evento?.lugar       || "",
@@ -499,9 +511,11 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   // Escrituras siempre sobre el curso del evento (nunca el de sesión al editar)
   const cursoEvento = evento?.curso_id ?? cursoId;
+  const fechaFinInvalida = form.fecha_fin && form.fecha && form.fecha_fin < form.fecha;
   const guardar = async () => {
-    if(!form.titulo || !form.fecha) return;
-    const payload = { ...form, curso_id: cursoEvento, creado_por: userId };
+    if(!form.titulo || !form.fecha || fechaFinInvalida) return;
+    // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
+    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento, creado_por: userId };
     let eventoId = evento?.id;
     if(esNuevo) {
       const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
@@ -541,6 +555,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         {[
           {label:"Título",      key:"titulo",      type:"text", ph:"Ej: Acto del 25 de mayo"},
           {label:"Fecha",       key:"fecha",       type:"date"},
+          {label:"Fecha fin (opcional, si dura varios días)", key:"fecha_fin", type:"date"},
           {label:"Lugar",        key:"lugar",         type:"text", ph:"Ej: Patio del colegio"},
           {label:"URL ubicación", key:"url_ubicacion", type:"url",  ph:"Ej: https://maps.google.com/..."},
           {label:"Descripción",   key:"descripcion",   type:"text", ph:"Detalles adicionales"},
@@ -548,6 +563,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
           <div key={f.key} style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
             <input type={f.type} value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+            {f.key==="fecha_fin"&&fechaFinInvalida&&<div style={{fontSize:11,color:"#EF4444",marginTop:4}}>La fecha fin no puede ser anterior a la fecha de inicio</div>}
           </div>
         ))}
         <div style={{marginBottom:16}}>
@@ -568,7 +584,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-          <button onClick={guardar} disabled={subiendoAdj} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj?"default":"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
+          <button onClick={guardar} disabled={subiendoAdj||fechaFinInvalida} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj||fechaFinInvalida?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj||fechaFinInvalida?"default":"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
         </div>
       </Card>
     </div>
@@ -626,7 +642,7 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
               <TagHijo tag={tag}/>
             </div>
             <div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>
-              {new Date(evento.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+              {fmtRangoFecha(evento.fecha, evento.fecha_fin)}
               {evento.hora?` · ${evento.hora}${evento.hora_fin?` – ${evento.hora_fin}`:""}` :""}
             </div>
             {evento.lugar&&<div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>📍 {evento.lugar}</div>}
