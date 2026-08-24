@@ -17,7 +17,10 @@ export async function hydrateHijoColors() {
     if (!hcolorKeys.length) return;
     const pairs = await AsyncStorage.multiGet(hcolorKeys);
     for (const [k, v] of pairs) {
-      if (v != null) cache.set(k, v);
+      // No pisar una clave que ya tiene un valor en caché: si el usuario
+      // escribió (setItem/reset) mientras esta lectura estaba en vuelo, esa
+      // escritura es más reciente que lo que había en disco al arrancar.
+      if (v != null && !cache.has(k)) cache.set(k, v);
     }
   } catch {
     /* noop — sin colores personalizados es un fallback aceptable */
