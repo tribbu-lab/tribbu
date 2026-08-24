@@ -214,25 +214,27 @@ export function RegistroConCodigo({ onVolver }) {
     }
     setLd(true);
     setErr("");
-    const { data, error } = await supabase
-      .from("codigos_invitacion")
-      .select("id, curso_id, usos_max, usos_actuales, activo, cursos(nombre)")
-      .eq("codigo", codigo.trim().toUpperCase())
-      .maybeSingle();
+    // Verificación server-side (RPC SECURITY DEFINER) — no expone/enumera
+    // codigos_invitacion vía la API. Ver supabase/rls-hardening.sql.
+    const { data, error } = await supabase.rpc("verificar_codigo", {
+      p_codigo: codigo.trim().toUpperCase(),
+    });
     setLd(false);
     if (error || !data) {
       setErr("Código inválido. Pedile uno nuevo al Room Parent.");
       return;
     }
-    if (!data.activo) {
-      setErr("Este código ya no está activo.");
+    if (!data.valido) {
+      setErr(
+        data.motivo === "inactivo"
+          ? "Este código ya no está activo."
+          : data.motivo === "sin_usos"
+            ? "Este código llegó al límite de usos."
+            : "Código inválido. Pedile uno nuevo al Room Parent.",
+      );
       return;
     }
-    if (data.usos_actuales >= data.usos_max) {
-      setErr("Este código llegó al límite de usos.");
-      return;
-    }
-    setCursoData({ id: data.curso_id, nombre: data.cursos?.nombre, codigo_id: data.id });
+    setCursoData({ id: data.curso_id, nombre: data.curso_nombre, codigo_id: data.codigo_id });
     setPaso(2);
   };
 
@@ -255,38 +257,18 @@ export function RegistroConCodigo({ onVolver }) {
       if (authErr) throw new Error(authErr.message);
       const auth_id = authData.user?.id;
 
-      const avatar =
-        `${nombre[0] || ""}${apellido[0] || ""}`.toUpperCase() || nombre.slice(0, 2).toUpperCase();
-      const { data: nuevoUsuario, error: dbErr } = await supabase
-        .from("usuarios")
-        .insert({
-          nombre: nombre.trim(),
-          apellido: apellido.trim() || null,
-          email: email.trim().toLowerCase(),
-          rol: "padre",
-          avatar,
-          activo: true,
-          auth_id,
-        })
-        .select()
-        .single();
-      if (dbErr) throw new Error("Error al crear el usuario");
+      // Alta + vínculo al curso + consumo del código, server-side (SECURITY
+      // DEFINER, respeta RLS: no hay INSERT directo a usuarios/usuario_cursos).
+      // Requiere supabase/rls-hardening.sql desplegado.
+      const { error: rpcErr } = await supabase.rpc("crear_apoderado", {
+        p_codigo: codigo.trim().toUpperCase(),
+        p_auth_id: auth_id,
+        p_nombre: nombre.trim(),
+        p_apellido: apellido.trim() || null,
+        p_email: email.trim().toLowerCase(),
+      });
+      if (rpcErr) throw new Error(rpcErr.message || "Error al crear el usuario");
 
-      if (cursoData?.id && nuevoUsuario?.id) {
-        await supabase
-          .from("usuario_cursos")
-          .insert({ usuario_id: nuevoUsuario.id, curso_id: cursoData.id, rol: "padre" });
-        const { data: cod } = await supabase
-          .from("codigos_invitacion")
-          .select("usos_actuales")
-          .eq("id", cursoData.codigo_id)
-          .single();
-        if (cod)
-          await supabase
-            .from("codigos_invitacion")
-            .update({ usos_actuales: (cod.usos_actuales || 0) + 1 })
-            .eq("id", cursoData.codigo_id);
-      }
       setPaso(3);
     } catch (e) {
       setErr(e.message || "Error al registrarse");
