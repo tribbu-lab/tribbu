@@ -37,3 +37,8 @@ mobile/ios/
 mobile/android/
 supabase/.temp
 mobile/.expo
+
+# Locales - no versionar
+android/
+_temp/
+edge-functions/
