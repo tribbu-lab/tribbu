@@ -12,6 +12,7 @@ export const TAB_MAP = {
   colecta: "/(tabs)/finanzas",
   alerta: "/(tabs)/muro",
   festejo: "/(tabs)/cumples",
+  encuesta: "/(tabs)/encuestas",
 };
 
 // Además del tab, arma los params de deep-link específicos por tipo (mismo

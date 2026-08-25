@@ -69,6 +69,7 @@ export default function TabsLayout() {
 
         {/* Secundarias: navegables desde "Más", fuera del bottom-bar */}
         <Tabs.Screen name="comedor" options={hidden} />
+        <Tabs.Screen name="encuestas" options={hidden} />
         <Tabs.Screen name="finanzas" options={hidden} />
         <Tabs.Screen name="info" options={hidden} />
         <Tabs.Screen name="contacto" options={hidden} />

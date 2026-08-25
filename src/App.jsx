@@ -19,6 +19,7 @@ import { InfoUtil }        from "./features/info";
 import { Contacto, Alumnos } from "./features/contacto";
 import { AdminPanel }      from "./features/admin";
 import { SuperAdmin }      from "./features/superadmin";
+import { Encuestas }       from "./features/encuestas";
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
@@ -35,6 +36,7 @@ const TAB_MAP = {
   colecta:      "finanzas",
   alerta:       "muro",
   festejo:      "cumples",
+  encuesta:     "encuestas",
 };
 
 // Inicializar OneSignal via import dinámico con reintentos
@@ -343,6 +345,7 @@ function App() {
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
     {id:"recordatorios", label:"Recordatorios", emoji:"📌"},
+    {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
@@ -362,6 +365,7 @@ function App() {
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
+      case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
       case "alumnos":  return <Alumnos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;

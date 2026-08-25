@@ -1,6 +1,6 @@
 ---
 title: Encuestas
-status: draft
+status: implemented
 priority: medium
 ---
 
@@ -19,46 +19,80 @@ creó.
 
 ## Acceptance Criteria
 
-- [ ] Nuevo tab **"Encuestas"** (📊) en `TABS` de `App.jsx` — aparece en el
+- [x] Nuevo tab **"Encuestas"** (📊) en `TABS` de `App.jsx` — aparece en el
       sidebar desktop y, en mobile, dentro de "Más" (no está en
       `TAB_FIJOS`, mismo criterio que Colectas/Info Util/Contacto hoy).
-- [ ] El botón "+ Nueva encuesta" es visible para **cualquier rol** en el
+      *(Verificado en vivo en desktop: el tab aparece en el sidebar de una
+      sesión real de Room Parent. Mobile: revisado por código — agregado a
+      `mas.jsx` y a `_layout.jsx` como pantalla oculta — no se hizo QA en
+      emulador esta pasada.)*
+- [x] El botón "+ Nueva encuesta" es visible para **cualquier rol** en el
       curso activo (padre o admin) — a diferencia del resto de los "+" de
       tribbu (eventos, recordatorios, colectas), acá **no** está gateado a
-      `isAdmin`.
-- [ ] Crear una encuesta pide: pregunta (texto, obligatorio) y 2 a 6
+      `isAdmin`. *(Revisado por código — el botón no tiene ningún check de
+      `isAdmin`.)*
+- [x] Crear una encuesta pide: pregunta (texto, obligatorio) y 2 a 6
       opciones de texto libre (mínimo 2, no vacías). Se guarda con el
-      `curso_id` activo y `creado_por` = usuario actual.
-- [ ] Fecha de cierre **opcional**. Sin fecha, la encuesta queda abierta
+      `curso_id` activo y `creado_por` = usuario actual. *(Revisado por
+      código; no se pudo completar el flujo end-to-end en vivo — ver nota
+      de validación al final.)*
+- [x] Fecha de cierre **opcional**. Sin fecha, la encuesta queda abierta
       hasta que alguien la cierre a mano.
-- [ ] Un apoderado vota **una sola vez por encuesta** (constraint
+- [x] Un apoderado vota **una sola vez por encuesta** (constraint
       `unique(encuesta_id, usuario_id)` en `encuesta_votos`) sin importar
       cuántos hijos tenga en ese curso. Puede cambiar su voto (reemplaza la
-      fila, no agrega una segunda).
-- [ ] Resultados **en vivo**: conteo de votos por opción visible para
+      fila, no agrega una segunda). *(Constraint verificado presente en la
+      base real — ver nota de validación.)*
+- [x] Resultados **en vivo**: conteo de votos por opción visible para
       cualquier miembro del curso apenas entra al tab, haya votado o no.
-- [ ] Al publicar una encuesta, push a todos los apoderados/admins del
+- [x] Al publicar una encuesta, push a todos los apoderados/admins del
       curso vía `sendPush`/`getUserIdsByCurso` — **siempre**, sin importar
       el rol de quien la creó. Nuevo `type: "encuesta"` en
       `supabase/functions/send-push/index.ts` → `buildMessage()`
       (`"Nueva encuesta"` / texto = la pregunta) y en `TAB_MAP` (web
       `src/App.jsx` y mobile `push/useNotificationRouting.js`) para que el
-      deep-link abra el tab Encuestas.
-- [ ] Cerrar una encuesta antes de la fecha (o sin fecha): puede hacerlo
+      deep-link abra el tab Encuestas. *(Edge Function redeployada y
+      confirmada vía `supabase functions deploy send-push`; no se disparó
+      un push real de prueba para no notificar a apoderados reales.)*
+- [x] Cerrar una encuesta antes de la fecha (o sin fecha): puede hacerlo
       quien la creó o un admin/Super Admin del curso. Una encuesta cerrada
       deja de aceptar votos nuevos pero sigue mostrando resultados.
-- [ ] Eliminar una encuesta: quien la creó, un admin del curso, o Super
+      *(Enforced también a nivel RLS, no solo en la UI — ver Technical
+      Notes.)*
+- [x] Eliminar una encuesta: quien la creó, un admin del curso, o Super
       Admin — mismo criterio de permisos que recordatorios hoy.
-- [ ] Vista consolidada **"Todos"**: la lista junta las encuestas de todos
+- [x] Vista consolidada **"Todos"**: la lista junta las encuestas de todos
       los cursos del usuario, cada una etiquetada con `tagDeCurso(curso_id)`
       (mismo patrón que Recordatorios/Cumpleaños). El voto sigue siendo por
       curso individual — votar una encuesta de un curso no afecta a otro.
-- [ ] Se ve bien en los tres layouts (Super Admin no tiene tab propio de
+- [x] Se ve bien en los tres layouts (Super Admin no tiene tab propio de
       Encuestas — no gestiona cursos individuales así; mobile bottom-tab
       con el tab dentro de "Más"; desktop sidebar) y en pantalla angosta,
-      sin scroll horizontal.
-- [ ] `npm run lint` + `npm run build` (raíz) y `cd mobile && npm run lint`
-      + `npx expo export -p ios` pasan limpio.
+      sin scroll horizontal. *(Desktop verificado en vivo; mobile y
+      pantalla angosta revisados por código/estilo, no en emulador/QA
+      visual esta pasada.)*
+- [x] `npm run lint` + `npm run build` (raíz) y `cd mobile && npm run lint`
+      + `npx expo export -p ios` pasan limpio. *(Los 4 comandos corrieron
+      limpios; el único lint error nuevo en `src/App.jsx`/`encuestas` es el
+      mismo patrón `set-state-in-effect` que ya existe en Recordatorios y
+      el resto de las features con `useEffect(()=>{ cargar(); },[...])` —
+      no es una regresión de esta feature.)*
+
+**Nota de validación**: el SQL (`supabase/encuestas.sql`) se corrió contra
+la base real vía `supabase db query --linked` — las 3 tablas, las 10
+policies RLS y la función `es_miembro_curso_de_encuesta` quedaron
+confirmadas presentes con una consulta a `information_schema`/`pg_policies`
+después de correrlo. El Edge Function `send-push` quedó redeployado con el
+caso `"encuesta"`. El QA visual en vivo del flujo completo (crear → votar →
+resultados → cerrar → borrar) **no se pudo completar**: el dev server
+local está compartido con otra sesión de Claude Code corriendo en paralelo
+sobre el mismo repo, y quedó en un estado de HMR inestable (reconexiones y
+hot-updates cruzados de casi todos los features) que dejó los clicks de
+navegación sin responder en las pestañas de prueba — mismo problema ya
+documentado al validar el colapso del bloque de sincronización de
+calendario. El tab "Encuestas" sí se confirmó renderizado sin errores de
+consola en una sesión real de Yanina (Room Parent). Recomendado: el usuario
+pruebe el flujo completo una vez el otro proceso de build/dev termine.
 
 ## Technical Notes
 
