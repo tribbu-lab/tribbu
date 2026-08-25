@@ -10,22 +10,11 @@ const SUPABASE_URL = 'https://gctymjhblvocvaenmdhr.supabase.co';
 //   SUPABASE_SERVICE_ROLE_KEY=tu_key node migrate_to_auth.cjs
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'PEGAR_SERVICE_ROLE_KEY_AQUI';
 
-// Contraseñas originales — completar antes de ejecutar
-// (las necesitamos porque bcrypt no es reversible)
-const PASSWORDS = {
-  'yanina@mail.com':  'yan1234',
-  'luciana@mail.com': 'luc122',
-  'dam@mail.com':     'dam1234',
-  'diego@mail.com':   'admin',
-  'admin@mail.com':   'super',
-  'super@mail.com':   'super',
-  'martin@mail.com':  'Tribbu2026!',
-  'romi@mail.com':    'Tribbu2026!',
-  'lucmotta@mail.com':'Tribbu2026!',
-  'martina@mail.com': 'Tribbu2026!',
-  'mili@mail.com':    'Tribbu2026!',
-  'nico@mail.com':    'Tribbu2026!',
-};
+// Contraseñas originales — nunca hardcodearlas acá (bcrypt no es reversible,
+// pero esto ya migró a todos los usuarios una vez; si hace falta re-correrlo,
+// pasar el JSON por variable de entorno):
+//   PASSWORDS='{"user@mail.com":"..."}' SUPABASE_SERVICE_ROLE_KEY=... node migrate_to_auth.cjs
+const PASSWORDS = JSON.parse(process.env.PASSWORDS || '{}');
 
 function request(method, path, body) {
   return new Promise((resolve, reject) => {

@@ -9,7 +9,9 @@ const SUPABASE_URL = 'https://gctymjhblvocvaenmdhr.supabase.co';
 // Nunca hardcodear la key acá — pasarla por variable de entorno al ejecutar:
 //   SUPABASE_SERVICE_ROLE_KEY=tu_key node reset_passwords.cjs
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'PEGAR_SERVICE_ROLE_KEY_AQUI';
-const NUEVA_PASS   = 'Tribbu2026!';
+// Misma idea que la key: nunca hardcodear la contraseña temporal acá.
+//   NUEVA_PASS=... SUPABASE_SERVICE_ROLE_KEY=... node reset_passwords.cjs
+const NUEVA_PASS   = process.env.NUEVA_PASS || 'PEGAR_PASSWORD_TEMPORAL_AQUI';
 const EXCLUIR      = ['admin@mail.com', 'super@mail.com'];
 
 function request(method, path, body) {
@@ -38,6 +40,7 @@ function request(method, path, body) {
 
 async function main() {
   if(SUPABASE_KEY === 'PEGAR_SERVICE_ROLE_KEY_AQUI') { console.error('ERROR: pega tu service_role key'); process.exit(1); }
+  if(NUEVA_PASS === 'PEGAR_PASSWORD_TEMPORAL_AQUI') { console.error('ERROR: definí NUEVA_PASS'); process.exit(1); }
 
   const { data: usuarios } = await request('GET', '/rest/v1/usuarios?select=id,email,auth_id&activo=eq.true');
   const hash = await bcrypt.hash(NUEVA_PASS, 10);
