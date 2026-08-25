@@ -48,6 +48,8 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [leidosMuro,setLeidosMuro] = useState(new Set());
+  const [expandidos,setExpandidos] = useState(()=>new Set());
+  const toggleExpandido = (id) => setExpandidos(p=>{ const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const [hijosNombres,setHijosNombres] = useState([]);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
@@ -258,10 +260,13 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Recordatorios</div>
           {datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>{
             const prioColor = r.tipo==="regalo_cumple" ? "#8B5CF6" : {alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"];
+            const esLargo = (r.texto||"").length > 150;
+            const expandido = expandidos.has(r.id);
             return (
-              <div key={r.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,border:"1px solid #E2E8F0",borderLeft:`3px solid ${r.urgente?"#EF4444":prioColor}`}}>
+              <div key={r.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"flex-start",gap:12,border:"1px solid #E2E8F0",borderLeft:`3px solid ${r.urgente?"#EF4444":prioColor}`}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:r.urgente?700:500}}>{r.texto}</div>
+                  <div style={{fontSize:13,fontWeight:r.urgente?700:500,...(expandido?{}:{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"})}}>{r.texto}</div>
+                  {esLargo&&<button onClick={()=>toggleExpandido(r.id)} style={{border:"none",background:"none",padding:0,marginTop:2,cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>{expandido?"Ver menos":"Ver más"}</button>}
                   <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
                     {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
                     {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}

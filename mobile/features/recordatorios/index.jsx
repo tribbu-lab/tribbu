@@ -50,6 +50,8 @@ const ORIGENES = [
 ];
 
 const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, onLeido, onEditar, onEliminar }) {
+  const [expandido, setExpandido] = useState(false);
+  const esLargo = (r.texto || "").length > 150;
   const prio = PRIO[r.prioridad || "media"];
   const dias = r.fecha
     ? Math.round((new Date(r.fecha + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 86400000)
@@ -69,7 +71,12 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
     <View style={styles.row}>
       <View style={[styles.rdot, esLeido ? styles.rdotLeido : { backgroundColor: dotColor }]} />
       <View style={styles.flex1}>
-        <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]}>{r.texto}</Text>
+        <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]} numberOfLines={expandido ? undefined : 3}>{r.texto}</Text>
+        {esLargo ? (
+          <Pressable onPress={() => setExpandido((p) => !p)} hitSlop={6}>
+            <Text style={styles.verMasTxt}>{expandido ? "Ver menos" : "Ver más"}</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
         {tag ? (
           <View style={styles.tagRow}>
@@ -578,6 +585,7 @@ const styles = StyleSheet.create({
   rdotLeido: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: SLATE[300] },
   rowTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, lineHeight: 19 },
   rowTxtLeido: { fontWeight: "500", color: t.textMuted },
+  verMasTxt: { fontSize: 11.5, fontWeight: "700", color: BLUE[600], marginTop: 2 },
   rowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   // tag de hijo en modo "Todos": dot con el color de identidad + primer(os) nombre(s)
   tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
