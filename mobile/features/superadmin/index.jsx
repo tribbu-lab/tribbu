@@ -39,6 +39,52 @@ const SECCIONES = [
 ];
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
 
+// Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
+// wrappean se vuelven enormes e inmanejables. Único componente para este
+// patrón (antes copy-pasteado en Comunicaciones/Maestros/Alumnos/Alertas/
+// Horarios/Uniformes por separado): `multi` decide checkbox (varios) vs.
+// checkmark de selección única.
+function CursoListSelector({ cursos, seleccionados, onToggle, multi = true, maxHeight = 200 }) {
+  return (
+    <ScrollView style={[cursoSelectorStyles.list, { maxHeight }]} nestedScrollEnabled>
+      {cursos.map((c, i) => {
+        const sel = seleccionados.includes(c.id);
+        return (
+          <Pressable
+            key={c.id}
+            onPress={() => onToggle(c.id)}
+            style={[cursoSelectorStyles.row, i > 0 && cursoSelectorStyles.rowBorder, sel && { backgroundColor: c.color + "1A" }]}
+          >
+            {multi ? (
+              <View style={[cursoSelectorStyles.checkbox, sel && { borderColor: c.color, backgroundColor: c.color }]}>
+                {sel ? <Text style={cursoSelectorStyles.checkboxTick}>✓</Text> : null}
+              </View>
+            ) : (
+              <View style={[cursoSelectorStyles.dot, { backgroundColor: c.color }]} />
+            )}
+            <Text style={[cursoSelectorStyles.rowTxt, sel && { fontWeight: "700", color: multi ? T.text : c.color }]}>
+              {c.avatar} {c.nombre}
+            </Text>
+            {!multi && sel ? <Text style={[cursoSelectorStyles.check, { color: c.color }]}>✓</Text> : null}
+          </Pressable>
+        );
+      })}
+      {cursos.length === 0 ? <Text style={[styles.muted, { padding: 14, textAlign: "center" }]}>Sin cursos</Text> : null}
+    </ScrollView>
+  );
+}
+
+const cursoSelectorStyles = StyleSheet.create({
+  list: { borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  rowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
+  checkboxTick: { fontSize: 11, color: "white", fontWeight: "700" },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  rowTxt: { fontSize: 13, fontWeight: "500", color: "#475569", flex: 1 },
+  check: { fontSize: 14, fontWeight: "700" },
+});
+
 const leerExcel = async () => {
   const res = await DocumentPicker.getDocumentAsync({
     type: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "*/*"],
@@ -851,22 +897,11 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             <Text style={styles.label}>CUMPLEAÑOS</Text>
             <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
             <Text style={styles.label}>CURSOS ASIGNADOS</Text>
-            <View style={styles.chipsWrap}>
-              {cursos.map((c) => {
-                const sel = (form.cursos || []).includes(c.id);
-                return (
-                  <Pressable
-                    key={c.id}
-                    onPress={() => setForm((p) => ({ ...p, cursos: sel ? p.cursos.filter((x) => x !== c.id) : [...(p.cursos || []), c.id] }))}
-                    style={[styles.chip, sel && { borderColor: c.color, backgroundColor: c.color + "22" }]}
-                  >
-                    <Text style={[styles.chipTxt, sel && { color: c.color }]}>
-                      {c.avatar} {c.nombre}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <CursoListSelector
+              cursos={cursos}
+              seleccionados={form.cursos || []}
+              onToggle={(id) => setForm((p) => { const sel = (p.cursos || []).includes(id); return { ...p, cursos: sel ? p.cursos.filter((x) => x !== id) : [...(p.cursos || []), id] }; })}
+            />
             <Text style={styles.label}>ESTADO</Text>
             <Pressable
               onPress={() => setForm((p) => ({ ...p, activo: p.activo === false }))}
@@ -888,15 +923,6 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
     </Modal>
   );
 }
-
-const alumnoModalStyles = StyleSheet.create({
-  cursoList: { maxHeight: 200, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
-  cursoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
-  cursoRowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
-  cursoDot: { width: 8, height: 8, borderRadius: 4 },
-  cursoRowTxt: { fontSize: 13, fontWeight: "500", color: "#475569", flex: 1 },
-  cursoCheck: { fontSize: 14, fontWeight: "700" },
-});
 
 function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
@@ -920,26 +946,7 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             <Text style={styles.label}>DNI</Text>
             <TextInput value={form.dni || ""} onChangeText={(t) => setForm((p) => ({ ...p, dni: t }))} placeholder="Ej: 12345678" placeholderTextColor="#94A3B8" style={styles.input} />
             <Text style={styles.label}>CURSO</Text>
-            {/* Listado seleccionable, no chips — con muchos cursos, los chips
-                que wrappean se vuelven enormes e inmanejables. */}
-            <ScrollView style={alumnoModalStyles.cursoList} nestedScrollEnabled>
-              {cursos.map((c, i) => {
-                const sel = form.curso_id === c.id;
-                return (
-                  <Pressable
-                    key={c.id}
-                    onPress={() => setForm((p) => ({ ...p, curso_id: c.id }))}
-                    style={[alumnoModalStyles.cursoRow, i > 0 && alumnoModalStyles.cursoRowBorder, sel && { backgroundColor: c.color + "1A" }]}
-                  >
-                    <View style={[alumnoModalStyles.cursoDot, { backgroundColor: c.color }]} />
-                    <Text style={[alumnoModalStyles.cursoRowTxt, sel && { fontWeight: "700", color: c.color }]}>
-                      {c.avatar} {c.nombre}
-                    </Text>
-                    {sel ? <Text style={[alumnoModalStyles.cursoCheck, { color: c.color }]}>✓</Text> : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            <CursoListSelector cursos={cursos} seleccionados={form.curso_id ? [form.curso_id] : []} onToggle={(id) => setForm((p) => ({ ...p, curso_id: id }))} multi={false} />
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
@@ -1022,14 +1029,8 @@ function AlertasAdmin({ cursos }) {
   return (
     <View>
       <Text style={styles.cardTitle}>Seleccioná un curso para enviar una alerta</Text>
-      <View style={styles.chipsWrap}>
-        {cursos.map((c) => (
-          <Pressable key={c.id} onPress={() => selCurso(c)} style={[styles.chip, cursoSel?.id === c.id && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-            <Text style={[styles.chipTxt, cursoSel?.id === c.id && { color: c.color }]}>
-              {c.avatar} {c.nombre}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={{ marginBottom: 16 }}>
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel.id] : []} onToggle={(id) => selCurso(cursos.find((c) => c.id === id))} multi={false} />
       </View>
       {cursoSel ? (
         alerta ? (
@@ -1203,29 +1204,7 @@ function ComunicacionesAdmin({ cursos }) {
           </Pressable>
         ) : null}
       </View>
-      {/* Listado seleccionable, no chips — con muchos cursos, los chips que
-          wrappean se vuelven enormes e inmanejables. */}
-      <ScrollView style={comStyles.cursoList} nestedScrollEnabled>
-        {cursos.map((c, i) => {
-          const sel = cursosSel.includes(c.id);
-          return (
-            <Pressable
-              key={c.id}
-              onPress={() => toggleCurso(c.id)}
-              style={[comStyles.cursoRow, i > 0 && comStyles.cursoRowBorder, sel && { backgroundColor: c.color + "0D" }]}
-            >
-              <View style={[comStyles.checkbox, sel && { borderColor: c.color, backgroundColor: c.color }]}>
-                {sel ? <Text style={comStyles.checkboxTick}>✓</Text> : null}
-              </View>
-              <View style={[comStyles.cursoDot, { backgroundColor: c.color }]} />
-              <Text style={[comStyles.cursoRowTxt, sel && { fontWeight: "700", color: T.text }]}>
-                {c.avatar} {c.nombre}
-              </Text>
-            </Pressable>
-          );
-        })}
-        {cursos.length === 0 ? <Text style={[styles.muted, { padding: 14, textAlign: "center" }]}>Sin cursos</Text> : null}
-      </ScrollView>
+      <CursoListSelector cursos={cursos} seleccionados={cursosSel} onToggle={toggleCurso} maxHeight={220} />
 
       {!confirmando ? (
         <Pressable
@@ -1353,13 +1332,6 @@ const comStyles = StyleSheet.create({
   linkTxt: { fontSize: 12, fontWeight: "700", color: "#3B82F6" },
   confirmBox: { backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderRadius: 12, padding: 14, marginTop: 20 },
   confirmTxt: { fontSize: 13, fontWeight: "700", color: T.text, marginBottom: 10 },
-  cursoList: { maxHeight: 220, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
-  cursoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
-  cursoRowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
-  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
-  checkboxTick: { fontSize: 11, color: "white", fontWeight: "700" },
-  cursoDot: { width: 8, height: 8, borderRadius: 4 },
-  cursoRowTxt: { fontSize: 13, fontWeight: "500", color: "#475569", flex: 1 },
   historialToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
   historialToggleTxt: { fontSize: 13, fontWeight: "700", color: T.text },
   historialToggleArrow: { fontSize: 16, color: "#94A3B8" },
@@ -1423,14 +1395,8 @@ function HorariosAdmin({ cursos }) {
 
   return (
     <View>
-      <View style={styles.chipsWrap}>
-        {cursos.map((c) => (
-          <Pressable key={c.id} onPress={() => selCurso(c)} style={[styles.chip, cursoSel?.id === c.id && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-            <Text style={[styles.chipTxt, cursoSel?.id === c.id && { color: c.color }]}>
-              {c.avatar} {c.nombre}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={{ marginBottom: 12 }}>
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel.id] : []} onToggle={(id) => selCurso(cursos.find((c) => c.id === id))} multi={false} />
       </View>
       {!cursoSel ? <Text style={styles.muted}>Seleccioná un curso para ver su horario</Text> : null}
       {cursoSel ? (
@@ -1638,18 +1604,7 @@ function UniformesAdmin({ cursos }) {
               </View>
             ))}
             <Text style={[styles.label, { marginTop: 8 }]}>CURSOS QUE USAN ESTA CATEGORÍA</Text>
-            <View style={styles.chipsWrap}>
-              {cursos.map((c) => {
-                const sel = linked.includes(c.id);
-                return (
-                  <Pressable key={c.id} onPress={() => toggleCurso(u.id, c.id)} style={[styles.chip, sel && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-                    <Text style={[styles.chipTxt, sel && { color: c.color }]}>
-                      {c.avatar} {c.nombre} {sel ? "✓" : ""}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <CursoListSelector cursos={cursos} seleccionados={linked} onToggle={(id) => toggleCurso(u.id, id)} maxHeight={150} />
           </View>
         );
       })}
@@ -1750,15 +1705,7 @@ function CodigosInvitacion({ cursos }) {
       <Text style={styles.subtitle}>Generá un código para que los apoderados se registren solos.</Text>
       <View style={styles.codNuevo}>
         <Text style={styles.label}>CURSO</Text>
-        <View style={styles.chipsWrap}>
-          {cursos.map((c) => (
-            <Pressable key={c.id} onPress={() => setCursoSel(String(c.id))} style={[styles.chip, cursoSel === String(c.id) && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-              <Text style={[styles.chipTxt, cursoSel === String(c.id) && { color: c.color }]}>
-                {c.avatar} {c.nombre}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel] : []} onToggle={(id) => setCursoSel(String(id))} multi={false} />
         <View style={styles.row}>
           <View style={{ width: 110 }}>
             <Text style={styles.label}>USOS MÁX.</Text>

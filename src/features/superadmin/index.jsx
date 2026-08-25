@@ -22,6 +22,28 @@ import * as XLSX from "xlsx";
 import { UploadMenuExcel } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 
+// Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
+// wrappean se vuelven enormes e inmanejables. Único lugar para este patrón
+// (antes copy-pasteado en Comunicaciones/Maestros/Alertas/Horarios/Uniformes
+// por separado): `multi` decide checkbox (varios) vs. radio (uno solo).
+function CursoListSelector({ cursos, seleccionados, onToggle, multi=true, maxHeight=220 }) {
+  return (
+    <div style={{border:"1.5px solid #E2E8F0",borderRadius:12,maxHeight,overflowY:"auto"}}>
+      {cursos.map((c,i)=>{
+        const sel = seleccionados.includes(c.id);
+        return (
+          <label key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderTop:i>0?"1px solid #F1F5F9":"none",background:sel?(c.color+"0D"):"white"}}>
+            <input type={multi?"checkbox":"radio"} name={multi?undefined:"curso-list-selector"} checked={sel} onChange={()=>onToggle(c.id)} style={{width:16,height:16,accentColor:c.color,cursor:"pointer",flexShrink:0}}/>
+            <span style={{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}/>
+            <span style={{fontSize:13,fontWeight:sel?700:500,color:sel?"#0F172A":"#475569",flex:1}}>{c.avatar} {c.nombre}</span>
+          </label>
+        );
+      })}
+      {cursos.length===0&&<div style={{padding:14,fontSize:12,color:"#94A3B8",textAlign:"center"}}>Sin cursos</div>}
+    </div>
+  );
+}
+
 export function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -488,9 +510,7 @@ export function SuperAdmin() {
             </div>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {cursos.map(c=>{ const sel=(form.cursos||[]).includes(c.id); return <button key={c.id} onClick={()=>setForm(p=>({...p,cursos:sel?p.cursos.filter(x=>x!==c.id):[...(p.cursos||[]),c.id]}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>; })}
-              </div>
+              <CursoListSelector cursos={cursos} seleccionados={form.cursos||[]} onToggle={id=>setForm(p=>{ const sel=(p.cursos||[]).includes(id); return {...p,cursos:sel?p.cursos.filter(x=>x!==id):[...(p.cursos||[]),id]}; })}/>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
@@ -815,10 +835,8 @@ export function AlertasAdmin({ cursos }) {
     <div>
       {modal&&<AlertaModal onClose={()=>setModal(false)} onEnviar={enviar}/>}
       <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Seleccioná un curso para enviar una alerta</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-        {cursos.map(c=>(
-          <button key={c.id} onClick={()=>selCurso(c)} style={{padding:"8px 16px",borderRadius:20,border:`2px solid ${cursoSel?.id===c.id?c.color:"#E2E8F0"}`,background:cursoSel?.id===c.id?c.color+"18":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:cursoSel?.id===c.id?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>
-        ))}
+      <div style={{marginBottom:20}}>
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel?[cursoSel.id]:[]} onToggle={id=>selCurso(cursos.find(c=>c.id===id))} multi={false}/>
       </div>
       {cursoSel&&(
         <div>
@@ -946,20 +964,8 @@ export function ComunicacionesAdmin({ cursos }) {
         <div style={{fontSize:14,fontWeight:700}}>¿A qué cursos aplica?</div>
         {cursos.length>0&&<button onClick={seleccionarTodos} style={{border:"none",background:"none",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700}}>{todosSeleccionados?"Ninguno":"Seleccionar todos"}</button>}
       </div>
-      {/* Listado seleccionable, no chips — con muchos cursos, los chips que
-          wrappean se vuelven enormes e inmanejables. */}
-      <div style={{border:"1.5px solid #E2E8F0",borderRadius:12,maxHeight:220,overflowY:"auto",marginBottom:20}}>
-        {cursos.map((c,i)=>{
-          const sel = cursosSel.includes(c.id);
-          return (
-            <label key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderTop:i>0?"1px solid #F1F5F9":"none",background:sel?(c.color+"0D"):"white"}}>
-              <input type="checkbox" checked={sel} onChange={()=>toggleCurso(c.id)} style={{width:16,height:16,accentColor:c.color,cursor:"pointer",flexShrink:0}}/>
-              <span style={{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}/>
-              <span style={{fontSize:13,fontWeight:sel?700:500,color:sel?"#0F172A":"#475569",flex:1}}>{c.avatar} {c.nombre}</span>
-            </label>
-          );
-        })}
-        {cursos.length===0&&<div style={{padding:14,fontSize:12,color:"#94A3B8",textAlign:"center"}}>Sin cursos</div>}
+      <div style={{marginBottom:20}}>
+        <CursoListSelector cursos={cursos} seleccionados={cursosSel} onToggle={toggleCurso}/>
       </div>
 
       {!confirmando ? (
@@ -1141,12 +1147,8 @@ export function HorariosAdmin({ cursos }) {
       )}
 
       {/* Selector de curso */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-        {cursos.map(c=>(
-          <button key={c.id} onClick={()=>selCurso(c)} style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:cursoSel?.id===c.id?c.color:"white",color:cursoSel?.id===c.id?"white":"#94A3B8",boxShadow:"0 1px 6px rgba(0,0,0,0.08)"}}>
-            {c.avatar} {c.nombre}
-          </button>
-        ))}
+      <div style={{marginBottom:20}}>
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel?[cursoSel.id]:[]} onToggle={id=>selCurso(cursos.find(c=>c.id===id))} multi={false}/>
       </div>
 
       {!cursoSel&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Seleccioná un curso para ver y editar su horario</div>}
@@ -1322,16 +1324,7 @@ export function UniformesAdmin({ cursos }) {
             {/* Cursos asignados */}
             <div style={{padding:"10px 14px",borderTop:"1px solid #F1F5F9",background:"#FAFAFA"}}>
               <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Cursos que usan esta categoría</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {cursos.map(c=>{
-                  const sel = cursosLinked.includes(c.id);
-                  return (
-                    <button key={c.id} onClick={()=>toggleCurso(u.id,c.id)} style={{padding:"5px 12px",borderRadius:20,border:`1.5px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",color:sel?c.color:"#94A3B8",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
-                      {c.avatar} {c.nombre} {sel?"✓":""}
-                    </button>
-                  );
-                })}
-              </div>
+              <CursoListSelector cursos={cursos} seleccionados={cursosLinked} onToggle={id=>toggleCurso(u.id,id)} maxHeight={150}/>
             </div>
           </Card>
         );
