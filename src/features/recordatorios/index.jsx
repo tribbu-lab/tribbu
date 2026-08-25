@@ -46,7 +46,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const cargar = async () => {
     if(!cursoIds?.length) return;
     const [recs, leidos, al] = await Promise.all([
-      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true,nullsFirst:false}).order("id",{ascending:false}),
+      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("creado_en",{ascending:false}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       cursoId
         ? supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1)
@@ -133,11 +133,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(filtroOrigen==="colegio" && !r.grupo_id) return false;
     if(filtroOrigen==="normal"  &&  r.grupo_id) return false;
     return true;
-  }).sort((a,b)=>{
-    if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
-    if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1;
-    return 0;
-  });
+  }).sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
 
   const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
   const pagina_ = Math.min(pagina,totalPags);

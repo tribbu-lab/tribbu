@@ -141,8 +141,7 @@ export function Recordatorios() {
         .from("recordatorios")
         .select("*")
         .in("curso_id", cursoIds)
-        .order("fecha", { ascending: true, nullsFirst: false })
-        .order("id", { ascending: false }),
+        .order("creado_en", { ascending: false }),
       userId
         ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId)
         : Promise.resolve({ data: [] }),
@@ -255,7 +254,7 @@ export function Recordatorios() {
       if (filtroOrigen === "normal" && r.grupo_id) return false;
       return true;
     })
-    .sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : 0));
+    .sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || ""));
 
   const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAG));
   const pagina_ = Math.min(pagina, totalPags);

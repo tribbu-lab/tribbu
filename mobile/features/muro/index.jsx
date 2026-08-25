@@ -115,7 +115,7 @@ export function Muro() {
       supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
       supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(1),
-      supabase.from("recordatorios").select("*").in("curso_id", cursosScope),
+      supabase.from("recordatorios").select("*").in("curso_id", cursosScope).order("creado_en", { ascending: false }),
       supabase.from("colectas").select("*").in("curso_id", cursosScope),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
       supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
@@ -174,7 +174,7 @@ export function Muro() {
         if (r.fecha && r.fecha > fecha15) return false;
         return true;
       })
-      .sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : 0));
+      .sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || ""));
 
     // Mis hijos agrupados por curso: cada colecta se evalúa contra los hijos de
     // SU curso (en modo unificado hay colectas de varios cursos en cuotas).
@@ -296,6 +296,7 @@ export function Muro() {
       accion: "Marcar leído",
       tag: tagDeCurso(r.curso_id),
       onAccion: () => marcarLeidoMuro(r.id),
+      onPress: () => router.push("/(tabs)/recordatorios"),
       derecha: r.fecha ? { dias: diasHasta(r.fecha) } : null,
     })),
     ...datos.colectasPend.map((c) => ({
@@ -307,6 +308,7 @@ export function Muro() {
       accion: "Registrar pago",
       tag: tagDeCurso(c.curso_id),
       onAccion: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
+      onPress: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
       derecha: c.monto_sugerido
         ? { monto: `${c.moneda || "$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}` }
         : null,
@@ -320,6 +322,7 @@ export function Muro() {
       accion: "Responder",
       tag: tagDeCurso(ev.curso_id),
       onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
+      onPress: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
     })),
     ...datos.encuestasPend.map((e) => ({
@@ -331,6 +334,7 @@ export function Muro() {
       accion: "Votar",
       tag: tagDeCurso(e.curso_id),
       onAccion: () => router.push("/(tabs)/encuestas"),
+      onPress: () => router.push("/(tabs)/encuestas"),
       derecha: e.fecha_cierre ? { fecha: fmtDiaMesCorto(e.fecha_cierre) } : null,
     })),
   ];
@@ -523,7 +527,7 @@ export function Muro() {
 // Card del carrusel de pendientes: tipo + título + vencimiento + acción primaria.
 function PendienteCard({ p }) {
   return (
-    <View style={styles.pcard}>
+    <Pressable onPress={p.onPress} style={styles.pcard}>
       <View style={styles.ptop}>
         <View style={styles.ptopLeft}>
           <View style={[styles.pdot, { backgroundColor: p.dot }]} />
@@ -552,7 +556,7 @@ function PendienteCard({ p }) {
           </View>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

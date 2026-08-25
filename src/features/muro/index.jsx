@@ -62,7 +62,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData,encuestasData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
-      supabase.from("recordatorios").select("*").in("curso_id",cursoIds),
+      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("creado_en",{ascending:false}),
       supabase.from("cumples").select("*").in("curso_id",cursoIds).order("id"),
       supabase.from("colectas").select("*").in("curso_id",cursoIds),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
@@ -112,7 +112,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       if(r.fecha && r.fecha < hoyStr) return false;
       if(r.fecha && r.fecha > fecha15b) return false;
       return true;
-    }).sort((a,b)=>{ if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha); if(a.fecha&&!b.fecha) return -1; if(!a.fecha&&b.fecha) return 1; return 0; });
+    }).sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
     // Colectas pendientes: cada colecta se evalúa contra MIS hijos de SU curso
     // (en vista Todos hay colectas de varios cursos; un hijo de otro curso no
     // cuenta como "impago"). Mismo patrón que mobile/features/muro.
