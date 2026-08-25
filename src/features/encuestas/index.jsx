@@ -40,7 +40,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     const ids = (encs || []).map(e => e.id);
     const [ops, vts] = await Promise.all([
       ids.length ? supabase.from("encuesta_opciones").select("*").in("encuesta_id", ids).order("orden", { ascending: true }) : Promise.resolve({ data: [] }),
-      ids.length ? supabase.from("encuesta_votos").select("*").in("encuesta_id", ids) : Promise.resolve({ data: [] }),
+      ids.length ? supabase.from("encuesta_votos").select("*, usuarios(nombre,apellido)").in("encuesta_id", ids) : Promise.resolve({ data: [] }),
     ]);
     setEncuestas(encs || []);
     setOpciones(ops.data || []);
@@ -208,22 +208,26 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ops.map(o => {
-                const cuenta = vts.filter(v => v.opcion_id === o.id).length;
+                const votantes = vts.filter(v => v.opcion_id === o.id);
+                const cuenta = votantes.length;
                 const pct = total ? Math.round((cuenta / total) * 100) : 0;
                 const esMiVoto = mio === o.id;
+                const nombres = votantes.map(v => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
                 return (
-                  <button
-                    key={o.id}
-                    onClick={() => !cerrada && votar(e.id, o.id)}
-                    disabled={cerrada}
-                    style={{ position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: cerrada ? "default" : "pointer", textAlign: "left" }}
-                  >
-                    <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: esMiVoto ? "#EFF6FF" : "#F8FAFC", transition: "width 0.3s ease" }} />
-                    <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: esMiVoto ? 700 : 500, color: "#0F172A" }}>{esMiVoto ? "✓ " : ""}{o.texto}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", flexShrink: 0 }}>{cuenta} · {pct}%</span>
-                    </div>
-                  </button>
+                  <div key={o.id}>
+                    <button
+                      onClick={() => !cerrada && votar(e.id, o.id)}
+                      disabled={cerrada}
+                      style={{ width: "100%", position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: cerrada ? "default" : "pointer", textAlign: "left" }}
+                    >
+                      <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: esMiVoto ? "#EFF6FF" : "#F8FAFC", transition: "width 0.3s ease" }} />
+                      <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: esMiVoto ? 700 : 500, color: "#0F172A" }}>{esMiVoto ? "✓ " : ""}{o.texto}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", flexShrink: 0 }}>{cuenta} · {pct}%</span>
+                      </div>
+                    </button>
+                    {cuenta > 0 && <div style={{ fontSize: 11, color: "#94A3B8", padding: "3px 12px 0" }}>{nombres}</div>}
+                  </div>
                 );
               })}
             </div>

@@ -61,7 +61,7 @@ export function Encuestas() {
     const ids = (encs || []).map((e) => e.id);
     const [ops, vts] = await Promise.all([
       ids.length ? supabase.from("encuesta_opciones").select("*").in("encuesta_id", ids).order("orden", { ascending: true }) : Promise.resolve({ data: [] }),
-      ids.length ? supabase.from("encuesta_votos").select("*").in("encuesta_id", ids) : Promise.resolve({ data: [] }),
+      ids.length ? supabase.from("encuesta_votos").select("*, usuarios(nombre,apellido)").in("encuesta_id", ids) : Promise.resolve({ data: [] }),
     ]);
     setEncuestas(encs || []);
     setOpciones(ops.data || []);
@@ -254,17 +254,22 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, tag, puedeGestionar
 
       <View style={{ gap: SPACE.xs }}>
         {opciones.map((o) => {
-          const cuenta = votos.filter((v) => v.opcion_id === o.id).length;
+          const votantes = votos.filter((v) => v.opcion_id === o.id);
+          const cuenta = votantes.length;
           const pct = total ? Math.round((cuenta / total) * 100) : 0;
           const esMiVoto = miVoto === o.id;
+          const nombres = votantes.map((v) => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
           return (
-            <Pressable key={o.id} onPress={() => !cerrada && onVotar(o.id)} disabled={cerrada} style={[styles.opcion, esMiVoto && styles.opcionOn]}>
-              <View style={[styles.opcionBar, { width: `${pct}%` }, esMiVoto && styles.opcionBarOn]} />
-              <View style={styles.opcionContent}>
-                <Text style={[styles.opcionTxt, esMiVoto && styles.opcionTxtOn]} numberOfLines={2}>{esMiVoto ? "✓ " : ""}{o.texto}</Text>
-                <Text style={styles.opcionPct}>{cuenta} · {pct}%</Text>
-              </View>
-            </Pressable>
+            <View key={o.id}>
+              <Pressable onPress={() => !cerrada && onVotar(o.id)} disabled={cerrada} style={[styles.opcion, esMiVoto && styles.opcionOn]}>
+                <View style={[styles.opcionBar, { width: `${pct}%` }, esMiVoto && styles.opcionBarOn]} />
+                <View style={styles.opcionContent}>
+                  <Text style={[styles.opcionTxt, esMiVoto && styles.opcionTxtOn]} numberOfLines={2}>{esMiVoto ? "✓ " : ""}{o.texto}</Text>
+                  <Text style={styles.opcionPct}>{cuenta} · {pct}%</Text>
+                </View>
+              </Pressable>
+              {cuenta > 0 ? <Text style={styles.opcionVotantes} numberOfLines={1}>{nombres}</Text> : null}
+            </View>
           );
         })}
       </View>
@@ -319,6 +324,7 @@ const styles = StyleSheet.create({
   opcionTxt: { fontSize: 13, fontWeight: "500", color: t.textStrong, flex: 1 },
   opcionTxtOn: { fontWeight: "700" },
   opcionPct: { fontSize: 12, fontWeight: "700", color: t.textMuted, flexShrink: 0 },
+  opcionVotantes: { fontSize: 11, color: t.textFaint, paddingHorizontal: 4, marginTop: 2 },
 
   gestionRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md },
   gestionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.border },

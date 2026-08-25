@@ -110,6 +110,7 @@ export function Muro() {
       eventosData,
       leidosData,
       invitacionesData,
+      encuestasData,
     ] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
@@ -127,6 +128,7 @@ export function Muro() {
             .in("alumno_invitado_id", misHijosIds)
             .eq("asiste", "pendiente")
         : Promise.resolve({ data: [] }),
+      supabase.from("encuestas").select("*").in("curso_id", cursosScope),
     ]);
 
     // Próxima ocurrencia de un cumpleaños: días restantes + fecha concreta.
@@ -207,6 +209,19 @@ export function Muro() {
       invitaciones.push(ev);
     }
 
+    // Encuestas activas (sin cerrar) donde el usuario todavía no votó.
+    let encuestasPend = [];
+    const encuestasActivas = (encuestasData.data || []).filter((e) => !e.cerrada_manual && (!e.fecha_cierre || e.fecha_cierre >= fechaHoy));
+    if (userId && encuestasActivas.length) {
+      const { data: misVotosData } = await supabase
+        .from("encuesta_votos")
+        .select("encuesta_id")
+        .eq("usuario_id", userId)
+        .in("encuesta_id", encuestasActivas.map((e) => e.id));
+      const votadas = new Set((misVotosData || []).map((v) => v.encuesta_id));
+      encuestasPend = encuestasActivas.filter((e) => !votadas.has(e.id));
+    }
+
     setDatos({
       alertas: alerta.data || [],
       menu: menu.data || null,
@@ -215,6 +230,7 @@ export function Muro() {
       bdayList,
       colectasPend,
       invitaciones,
+      encuestasPend,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
   }, [cursoIds, userId, misHijos, items]);
@@ -305,6 +321,17 @@ export function Muro() {
       tag: tagDeCurso(ev.curso_id),
       onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
+    })),
+    ...datos.encuestasPend.map((e) => ({
+      key: `enc-${e.id}`,
+      tipo: "Encuesta",
+      dot: BLUE[500],
+      titulo: e.pregunta,
+      meta: "Todavía no votaste",
+      accion: "Votar",
+      tag: tagDeCurso(e.curso_id),
+      onAccion: () => router.push("/(tabs)/encuestas"),
+      derecha: e.fecha_cierre ? { fecha: fmtDiaMesCorto(e.fecha_cierre) } : null,
     })),
   ];
 

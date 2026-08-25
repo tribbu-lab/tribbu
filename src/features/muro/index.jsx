@@ -59,7 +59,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
     if(!cursoIds.length) return;
     const fechaHoy = new Date().toISOString().split("T")[0];
     const fecha15  = new Date(Date.now() + 15*24*60*60*1000).toISOString().split("T")[0];
-    const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData] = await Promise.all([
+    const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData,encuestasData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
       supabase.from("recordatorios").select("*").in("curso_id",cursoIds),
@@ -70,7 +70,16 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
       (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).eq("asiste","pendiente") : Promise.resolve({data:[]}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
+      supabase.from("encuestas").select("*").in("curso_id",cursoIds),
     ]);
+    // Encuestas activas (sin cerrar) donde el usuario todavía no votó.
+    let encuestasPend = [];
+    const encuestasActivas = (encuestasData.data||[]).filter(e=>!e.cerrada_manual && (!e.fecha_cierre || e.fecha_cierre>=fechaHoy));
+    if(userId && encuestasActivas.length) {
+      const { data: misVotosData } = await supabase.from("encuesta_votos").select("encuesta_id").eq("usuario_id",userId).in("encuesta_id",encuestasActivas.map(e=>e.id));
+      const votadas = new Set((misVotosData||[]).map(v=>v.encuesta_id));
+      encuestasPend = encuestasActivas.filter(e=>!votadas.has(e.id));
+    }
     const fecha15b = new Date(Date.now() + 15*24*60*60*1000).toISOString().split("T")[0];
     const nextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -128,7 +137,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
     for(const a of (alertasRes.data||[])){
       if(!cursosConAlerta.has(a.curso_id)){ cursosConAlerta.add(a.curso_id); alertasPorCurso.push(a); }
     }
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), hijosData:hijosData.data||[] });
   };
 
   const marcarLeidoMuro = async (recId) => {
@@ -290,6 +299,23 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           ))}
         </div>
       )}
+      {(datos.encuestasPend||[]).length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📊 Encuestas sin responder</div>
+          {datos.encuestasPend.map(e=>(
+            <div key={e.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:"1px solid #E2E8F0",borderLeft:"3px solid #3B82F6",cursor:"pointer"}} onClick={()=>onNavigate?.("encuestas")}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600}}>{e.pregunta}</div>
+                <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
+                  {e.fecha_cierre&&<span style={{fontSize:11,color:"#94A3B8"}}>Cierra {new Date(e.fecha_cierre+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
+                  <TagHijo tag={tagDe(e.curso_id)}/>
+                </div>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,padding:"4px 8px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>Votar</span>
+            </div>
+          ))}
+        </div>
+      )}
       {datos.eventos?.length>0&&(
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Eventos del mes</div>
@@ -325,6 +351,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
        !(datos.invitaciones?.length) &&
        !(datos.recordatorios?.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").length) &&
        !(datos.colectasPend?.length) &&
+       !(datos.encuestasPend?.length) &&
        !(datos.eventos?.length) && (
         <div style={{textAlign:"center",padding:"32px 16px",background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.04)",marginBottom:14}}>
           <div style={{fontSize:32,marginBottom:10}}>📭</div>
