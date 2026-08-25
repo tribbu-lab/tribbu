@@ -315,10 +315,13 @@ function App() {
   const hijoColorKey = itemActual?._tipo==="hijo" && itemActual ? `${usuario?.id}_${itemActual.id}` : null;
   const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
   const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
-  // El color del hijo activo tiñe el header: el personalizado si eligió uno, si
-  // no el color por defecto del hijo (hijos.color, asignado al crearlo) — mismo
-  // fix que mobile/components/AppHeader.jsx.
-  const headerBg  = hijoColor || (itemActual?._tipo==="hijo" && itemActual.color) || "#0F172A";
+  // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
+  // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer color"
+  // realmente vuelva al estado sin personalizar. No usar item.color acá (eso
+  // es el color de identidad del hijo en la BD, no un "color por defecto de
+  // vista" — se sigue usando en hijoDotColor/tagDeCurso para diferenciar hijos
+  // en listas, pero no debe teñir el header entero).
+  const headerBg  = hijoColor || "#0F172A";
   const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || "#3B82F6";
 
   const cambiarColorHijo = (idx, color) => {

@@ -45,12 +45,12 @@ export function AppHeader() {
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
-  // El color del hijo activo tiñe el header: el personalizado si eligió uno,
-  // si no el color por defecto del hijo (hijos.color, asignado al crearlo).
-  const headerBg =
-    colorCustomDeItem(itemActual) ||
-    (itemActual?._tipo === "hijo" && itemActual.color) ||
-    dk.bg;
+  // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
+  // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer
+  // color" realmente vuelva al estado sin personalizar. item.color (el color
+  // de identidad del hijo en la BD) se sigue usando en los puntitos del
+  // selector para diferenciar hijos, pero no debe teñir el header entero.
+  const headerBg = colorCustomDeItem(itemActual) || dk.bg;
 
   return (
     <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
