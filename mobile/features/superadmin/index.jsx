@@ -1186,19 +1186,29 @@ function ComunicacionesAdmin({ cursos }) {
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.chipsWrap}>
-        {cursos.map((c) => {
+      {/* Listado seleccionable, no chips — con muchos cursos, los chips que
+          wrappean se vuelven enormes e inmanejables. */}
+      <ScrollView style={comStyles.cursoList} nestedScrollEnabled>
+        {cursos.map((c, i) => {
           const sel = cursosSel.includes(c.id);
           return (
-            <Pressable key={c.id} onPress={() => toggleCurso(c.id)} style={[styles.chip, sel && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-              <Text style={[styles.chipTxt, sel && { color: c.color, fontWeight: "700" }]}>
-                {sel ? "✓ " : ""}
+            <Pressable
+              key={c.id}
+              onPress={() => toggleCurso(c.id)}
+              style={[comStyles.cursoRow, i > 0 && comStyles.cursoRowBorder, sel && { backgroundColor: c.color + "0D" }]}
+            >
+              <View style={[comStyles.checkbox, sel && { borderColor: c.color, backgroundColor: c.color }]}>
+                {sel ? <Text style={comStyles.checkboxTick}>✓</Text> : null}
+              </View>
+              <View style={[comStyles.cursoDot, { backgroundColor: c.color }]} />
+              <Text style={[comStyles.cursoRowTxt, sel && { fontWeight: "700", color: T.text }]}>
                 {c.avatar} {c.nombre}
               </Text>
             </Pressable>
           );
         })}
-      </View>
+        {cursos.length === 0 ? <Text style={[styles.muted, { padding: 14, textAlign: "center" }]}>Sin cursos</Text> : null}
+      </ScrollView>
 
       {!confirmando ? (
         <Pressable
@@ -1223,9 +1233,97 @@ function ComunicacionesAdmin({ cursos }) {
           </View>
         </View>
       )}
+
+      <HistorialComunicaciones cursos={cursos} recargarVer={ok} />
     </View>
   );
 }
+
+function HistorialComunicaciones({ cursos, recargarVer }) {
+  const [comunicaciones, setComunicaciones] = useState([]);
+  const [abierto, setAbierto] = useState(false);
+  const [cargando, setCargando] = useState(false);
+
+  const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
+
+  const cargar = async () => {
+    setCargando(true);
+    const { data } = await supabase
+      .from("recordatorios")
+      .select("id,texto,fecha,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .not("grupo_id", "is", null)
+      .order("creado_en", { ascending: false })
+      .limit(300);
+    // Una comunicación multi-curso genera N filas (una por curso) con el mismo
+    // grupo_id — se agrupan en una sola entrada del historial.
+    const grupos = new Map();
+    for (const r of data || []) {
+      const g = grupos.get(r.grupo_id);
+      if (g) g.cursoIds.push(r.curso_id);
+      else grupos.set(r.grupo_id, { ...r, cursoIds: [r.curso_id] });
+    }
+    setComunicaciones([...grupos.values()].sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || "")));
+    setCargando(false);
+  };
+
+  const toggle = () => {
+    if (!abierto && comunicaciones.length === 0) cargar();
+    setAbierto((p) => !p);
+  };
+
+  // Recargar cuando se publica una nueva comunicación (ok pasa de null a un mensaje).
+  useEffect(() => { if (recargarVer && abierto) cargar(); }, [recargarVer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fmtFecha = (iso) =>
+    iso ? new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+
+  return (
+    <View style={{ marginTop: 24 }}>
+      <Pressable onPress={toggle} style={comStyles.historialToggle}>
+        <Text style={comStyles.historialToggleTxt}>📋 Historial de comunicaciones</Text>
+        <Text style={comStyles.historialToggleArrow}>{abierto ? "▴" : "▾"}</Text>
+      </Pressable>
+
+      {abierto ? (
+        <View style={{ marginTop: 8 }}>
+          {cargando ? <Text style={[styles.muted, { textAlign: "center", padding: 24 }]}>Cargando...</Text> : null}
+          {!cargando && comunicaciones.length === 0 ? (
+            <Text style={[styles.muted, { textAlign: "center", padding: 24 }]}>Todavía no se publicó ninguna comunicación este año.</Text>
+          ) : null}
+          {!cargando &&
+            comunicaciones.map((c) => (
+              <View key={c.grupo_id} style={[comStyles.historialCard, c.urgente && { borderLeftColor: "#EF4444" }]}>
+                <Text style={comStyles.historialTexto}>{c.texto}</Text>
+                <View style={comStyles.historialMetaRow}>
+                  <Text style={comStyles.historialMeta}>{fmtFecha(c.creado_en)}</Text>
+                  <View style={comStyles.historialBadge}>
+                    <Text style={comStyles.historialBadgeTxt}>{c.cursoIds.length} curso{c.cursoIds.length !== 1 ? "s" : ""}</Text>
+                  </View>
+                  {c.urgente ? (
+                    <View style={[comStyles.historialBadge, { backgroundColor: "#FEF2F2" }]}>
+                      <Text style={[comStyles.historialBadgeTxt, { color: "#EF4444" }]}>Urgente</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={comStyles.historialCursosRow}>
+                  {c.cursoIds.map((cid) => {
+                    const curso = cursoPorId.get(cid);
+                    if (!curso) return null;
+                    return (
+                      <View key={cid} style={comStyles.historialCursoChip}>
+                        <Text style={comStyles.historialCursoChipTxt}>{curso.avatar} {curso.nombre}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const comStyles = StyleSheet.create({
   okBox: { backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 10, padding: 12, marginBottom: 14 },
   okTxt: { fontSize: 12, fontWeight: "700", color: "#10B981" },
@@ -1238,6 +1336,25 @@ const comStyles = StyleSheet.create({
   linkTxt: { fontSize: 12, fontWeight: "700", color: "#3B82F6" },
   confirmBox: { backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderRadius: 12, padding: 14, marginTop: 20 },
   confirmTxt: { fontSize: 13, fontWeight: "700", color: T.text, marginBottom: 10 },
+  cursoList: { maxHeight: 220, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
+  cursoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  cursoRowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
+  checkboxTick: { fontSize: 11, color: "white", fontWeight: "700" },
+  cursoDot: { width: 8, height: 8, borderRadius: 4 },
+  cursoRowTxt: { fontSize: 13, fontWeight: "500", color: "#475569", flex: 1 },
+  historialToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  historialToggleTxt: { fontSize: 13, fontWeight: "700", color: T.text },
+  historialToggleArrow: { fontSize: 16, color: "#94A3B8" },
+  historialCard: { padding: 14, marginBottom: 6, borderRadius: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderLeftWidth: 3, borderLeftColor: "#3B82F6" },
+  historialTexto: { fontSize: 13, fontWeight: "600", color: T.text, lineHeight: 18, marginBottom: 6 },
+  historialMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  historialMeta: { fontSize: 11, color: "#94A3B8" },
+  historialBadge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#EFF6FF" },
+  historialBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#3B82F6" },
+  historialCursosRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 6 },
+  historialCursoChip: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#F1F5F9" },
+  historialCursoChipTxt: { fontSize: 10, fontWeight: "700", color: "#64748B" },
 });
 
 // ── HorariosAdmin (super: selector de curso) ─────────────────────────────────────

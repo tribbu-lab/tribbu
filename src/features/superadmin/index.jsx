@@ -943,15 +943,20 @@ export function ComunicacionesAdmin({ cursos }) {
         <div style={{fontSize:14,fontWeight:700}}>¿A qué cursos aplica?</div>
         {cursos.length>0&&<button onClick={seleccionarTodos} style={{border:"none",background:"none",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700}}>{todosSeleccionados?"Ninguno":"Seleccionar todos"}</button>}
       </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-        {cursos.map(c=>{
+      {/* Listado seleccionable, no chips — con muchos cursos, los chips que
+          wrappean se vuelven enormes e inmanejables. */}
+      <div style={{border:"1.5px solid #E2E8F0",borderRadius:12,maxHeight:220,overflowY:"auto",marginBottom:20}}>
+        {cursos.map((c,i)=>{
           const sel = cursosSel.includes(c.id);
           return (
-            <button key={c.id} onClick={()=>toggleCurso(c.id)} style={{padding:"8px 16px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:sel?c.color:"#94A3B8"}}>
-              {sel?"✓ ":""}{c.avatar} {c.nombre}
-            </button>
+            <label key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderTop:i>0?"1px solid #F1F5F9":"none",background:sel?(c.color+"0D"):"white"}}>
+              <input type="checkbox" checked={sel} onChange={()=>toggleCurso(c.id)} style={{width:16,height:16,accentColor:c.color,cursor:"pointer",flexShrink:0}}/>
+              <span style={{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}/>
+              <span style={{fontSize:13,fontWeight:sel?700:500,color:sel?"#0F172A":"#475569",flex:1}}>{c.avatar} {c.nombre}</span>
+            </label>
           );
         })}
+        {cursos.length===0&&<div style={{padding:14,fontSize:12,color:"#94A3B8",textAlign:"center"}}>Sin cursos</div>}
       </div>
 
       {!confirmando ? (
@@ -965,6 +970,81 @@ export function ComunicacionesAdmin({ cursos }) {
             <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
             <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
           </div>
+        </div>
+      )}
+
+      <HistorialComunicaciones cursos={cursos} recargarVer={ok}/>
+    </div>
+  );
+}
+
+function HistorialComunicaciones({ cursos, recargarVer }) {
+  const [comunicaciones, setComunicaciones] = useState([]);
+  const [abierto,        setAbierto]        = useState(false);
+  const [cargando,       setCargando]       = useState(false);
+
+  const cursoPorId = new Map(cursos.map(c=>[c.id,c]));
+
+  const cargar = async () => {
+    setCargando(true);
+    const { data } = await supabase
+      .from("recordatorios")
+      .select("id,texto,fecha,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .not("grupo_id","is",null)
+      .order("creado_en",{ascending:false})
+      .limit(300);
+    // Una comunicación multi-curso genera N filas (una por curso) con el mismo
+    // grupo_id — se agrupan en una sola entrada del historial.
+    const grupos = new Map();
+    for(const r of (data||[])) {
+      const g = grupos.get(r.grupo_id);
+      if(g) g.cursoIds.push(r.curso_id);
+      else grupos.set(r.grupo_id, { ...r, cursoIds:[r.curso_id] });
+    }
+    setComunicaciones([...grupos.values()].sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||"")));
+    setCargando(false);
+  };
+
+  const toggle = () => {
+    if(!abierto && comunicaciones.length===0) cargar();
+    setAbierto(p=>!p);
+  };
+
+  // Recargar cuando se publica una nueva comunicación (ok pasa de null a un mensaje).
+  useEffect(()=>{ if(recargarVer && abierto) cargar(); },[recargarVer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fmtFecha = (iso) => iso ? new Date(iso).toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+
+  return (
+    <div style={{marginTop:24}}>
+      <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
+        <span>📋 Historial de comunicaciones</span>
+        <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
+      </button>
+
+      {abierto && (
+        <div style={{marginTop:8}}>
+          {cargando && <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Cargando...</div>}
+          {!cargando && comunicaciones.length===0 && (
+            <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Todavía no se publicó ninguna comunicación este año.</div>
+          )}
+          {!cargando && comunicaciones.map(c=>(
+            <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",borderLeft:`3px solid ${c.urgente?"#EF4444":"#3B82F6"}`}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#0F172A",lineHeight:1.4,marginBottom:6}}>{c.texto}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:11,color:"#94A3B8"}}>{fmtFecha(c.creado_en)}</span>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>{c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>
+                {c.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
+              </div>
+              <div style={{display:"flex",gap:5,marginTop:6,flexWrap:"wrap"}}>
+                {c.cursoIds.map(cid=>{
+                  const curso = cursoPorId.get(cid);
+                  if(!curso) return null;
+                  return <span key={cid} style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B"}}>{curso.avatar} {curso.nombre}</span>;
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
