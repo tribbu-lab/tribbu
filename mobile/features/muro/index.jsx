@@ -26,7 +26,7 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { fmtNombre } from "@shared/helpers";
+import { fmtNombre, fmtRangoHora } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -292,7 +292,7 @@ export function Muro() {
       tipo: "Recordatorio",
       dot: t.danger,
       titulo: r.texto,
-      meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}`,
+      meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}`,
       accion: "Marcar leído",
       tag: tagDeCurso(r.curso_id),
       onAccion: () => marcarLeidoMuro(r.id),

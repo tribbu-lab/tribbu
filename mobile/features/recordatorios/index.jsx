@@ -9,7 +9,7 @@ import { View, Text, Pressable, TextInput, FlatList, Modal, StyleSheet } from "r
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize } from "@shared/helpers";
+import { sanitize, fmtRangoHora } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -54,7 +54,8 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
   const fechaCorta = r.fecha
     ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" })
     : null;
-  const meta = [fechaCorta, rel, prio.l, r.urgente ? "Urgente" : null].filter(Boolean).join(" · ") || "Sin fecha";
+  const horaRango = fmtRangoHora(r.hora_inicio, r.hora_fin);
+  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null].filter(Boolean).join(" · ") || "Sin fecha";
   const dotColor = r.urgente ? t.danger : prio.c;
 
   return (

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora,
          sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -875,7 +875,7 @@ export function AlertasAdmin({ cursos }) {
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
+  const [form, setForm] = useState({ texto:"", fecha:"", hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -904,8 +904,8 @@ export function ComunicacionesAdmin({ cursos }) {
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map(curso_id=>({
-        texto: sanitize(form.texto), fecha: form.fecha||null, prioridad: form.prioridad||"media",
-        urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
+        texto: sanitize(form.texto), fecha: form.fecha||null, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
+        prioridad: form.prioridad||"media", urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if(insertErr) throw insertErr;
@@ -913,7 +913,7 @@ export function ComunicacionesAdmin({ cursos }) {
       if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
-      setForm({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
+      setForm({ texto:"", fecha:"", hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {
@@ -937,9 +937,17 @@ export function ComunicacionesAdmin({ cursos }) {
         <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunión general de padres el viernes 15 a las 18hs" rows={3} style={{...inp,resize:"vertical"}}/>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:160}}>
+        <div style={{flex:1,minWidth:140}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
           <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
+        </div>
+        <div style={{minWidth:100}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO (opcional)</div>
+          <input type="time" value={form.hora_inicio||""} onChange={e=>setForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
+        </div>
+        <div style={{minWidth:100}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN (opcional)</div>
+          <input type="time" value={form.hora_fin||""} onChange={e=>setForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
         </div>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
@@ -998,7 +1006,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     setCargando(true);
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,texto,fecha,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
       .not("grupo_id","is",null)
       .order("creado_en",{ascending:false})
       .limit(300);
@@ -1041,10 +1049,16 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
             <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",borderLeft:`3px solid ${c.urgente?"#EF4444":"#3B82F6"}`}}>
               <div style={{fontSize:13,fontWeight:600,color:"#0F172A",lineHeight:1.4,marginBottom:6}}>{c.texto}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span style={{fontSize:11,color:"#94A3B8"}}>{fmtFecha(c.creado_en)}</span>
+                <span style={{fontSize:11,color:"#94A3B8"}}>Publicado {fmtFecha(c.creado_en)}</span>
                 <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>{c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>
                 {c.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
+              {(c.fecha||c.hora_inicio)&&(
+                <div style={{fontSize:11,color:"#64748B",marginTop:4}}>
+                  📅 {c.fecha?new Date(c.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"Sin fecha"}
+                  {fmtRangoHora(c.hora_inicio,c.hora_fin)?` · 🕐 ${fmtRangoHora(c.hora_inicio,c.hora_fin)}`:""}
+                </div>
+              )}
               <div style={{display:"flex",gap:5,marginTop:6,flexWrap:"wrap"}}>
                 {c.cursoIds.map(cid=>{
                   const curso = cursoPorId.get(cid);

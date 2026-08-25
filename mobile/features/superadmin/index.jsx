@@ -13,7 +13,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
-import { fmtNombre, fmtF, sanitize, uuidLite } from "@shared/helpers";
+import { fmtNombre, fmtF, fmtRangoHora, sanitize, uuidLite } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -1095,7 +1095,7 @@ const PRIO = {
 function ComunicacionesAdmin({ cursos }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1115,6 +1115,8 @@ function ComunicacionesAdmin({ cursos }) {
       const rows = cursosSel.map((curso_id) => ({
         texto: sanitize(form.texto),
         fecha: form.fecha || null,
+        hora_inicio: form.hora_inicio || null,
+        hora_fin: form.hora_fin || null,
         prioridad: form.prioridad || "media",
         urgente: form.urgente || false,
         adjuntos: form.adjuntos || [],
@@ -1128,7 +1130,7 @@ function ComunicacionesAdmin({ cursos }) {
       if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-      setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setForm({ texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
       setCursosSel([]);
       setTimeout(() => setOk(null), 4000);
     } catch (e) {
@@ -1169,6 +1171,17 @@ function ComunicacionesAdmin({ cursos }) {
 
       <Text style={styles.label}>FECHA (OPCIONAL)</Text>
       <DateField value={form.fecha || ""} onChange={(v) => setForm((p) => ({ ...p, fecha: v }))} clearable style={styles.input} />
+
+      <View style={comStyles.prioRow}>
+        <View style={styles.flex1}>
+          <Text style={styles.label}>HORA INICIO (OPCIONAL)</Text>
+          <TextInput value={form.hora_inicio} onChangeText={(t) => setForm((p) => ({ ...p, hora_inicio: t }))} placeholder="18:00" placeholderTextColor="#94A3B8" style={styles.input} />
+        </View>
+        <View style={styles.flex1}>
+          <Text style={styles.label}>HORA FIN (OPCIONAL)</Text>
+          <TextInput value={form.hora_fin} onChangeText={(t) => setForm((p) => ({ ...p, hora_fin: t }))} placeholder="19:00" placeholderTextColor="#94A3B8" style={styles.input} />
+        </View>
+      </View>
 
       <Text style={styles.label}>PRIORIDAD</Text>
       <View style={comStyles.prioRow}>
@@ -1246,7 +1259,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     setCargando(true);
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,texto,fecha,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
       .not("grupo_id", "is", null)
       .order("creado_en", { ascending: false })
       .limit(300);
@@ -1291,7 +1304,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
               <View key={c.grupo_id} style={[comStyles.historialCard, c.urgente && { borderLeftColor: "#EF4444" }]}>
                 <Text style={comStyles.historialTexto}>{c.texto}</Text>
                 <View style={comStyles.historialMetaRow}>
-                  <Text style={comStyles.historialMeta}>{fmtFecha(c.creado_en)}</Text>
+                  <Text style={comStyles.historialMeta}>Publicado {fmtFecha(c.creado_en)}</Text>
                   <View style={comStyles.historialBadge}>
                     <Text style={comStyles.historialBadgeTxt}>{c.cursoIds.length} curso{c.cursoIds.length !== 1 ? "s" : ""}</Text>
                   </View>
@@ -1301,6 +1314,12 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                     </View>
                   ) : null}
                 </View>
+                {c.fecha || c.hora_inicio ? (
+                  <Text style={comStyles.historialMeta}>
+                    📅 {c.fecha ? new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" }) : "Sin fecha"}
+                    {fmtRangoHora(c.hora_inicio, c.hora_fin) ? ` · 🕐 ${fmtRangoHora(c.hora_inicio, c.hora_fin)}` : ""}
+                  </Text>
+                ) : null}
                 <View style={comStyles.historialCursosRow}>
                   {c.cursoIds.map((cid) => {
                     const curso = cursoPorId.get(cid);

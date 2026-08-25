@@ -49,6 +49,21 @@ export const fmtRangoFecha = (fecha, fechaFin) => {
   return `${mismoMes ? d1.getDate() : fmtF(fecha)} al ${fmtF(fechaFin)}`;
 };
 
+/** "10:00" desde un `time` de Postgres ("10:00:00") — null si no hay hora. */
+export const fmtHora = (h) => (h ? h.slice(0, 5) : null);
+
+/**
+ * "10:00" (solo inicio) o "10:00 – 12:00" (con fin) — para comunicaciones/
+ * recordatorios con horario. Ambas son opcionales e independientes; null si
+ * no hay ni siquiera hora de inicio.
+ */
+export const fmtRangoHora = (horaInicio, horaFin) => {
+  const ini = fmtHora(horaInicio);
+  if (!ini) return null;
+  const fin = fmtHora(horaFin);
+  return fin ? `${ini} – ${fin}` : ini;
+};
+
 /** Días que faltan hasta una fecha (negativo = ya pasó) */
 export const dHasta = (s) => {
   const hoy = new Date();

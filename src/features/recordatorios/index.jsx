@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -284,6 +284,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}
+                {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:10,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
                   : r.tipo==="colecta_vence"
