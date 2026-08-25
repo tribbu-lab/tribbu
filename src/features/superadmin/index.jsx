@@ -859,6 +859,7 @@ export function ComunicacionesAdmin({ cursos }) {
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
   const [ok, setOk] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
@@ -878,19 +879,28 @@ export function ComunicacionesAdmin({ cursos }) {
   const publicar = async () => {
     if(!form.texto?.trim() || cursosSel.length===0) return;
     setPublicando(true);
-    const grupo_id = uuidLite();
-    const rows = cursosSel.map(curso_id=>({
-      texto: sanitize(form.texto), fecha: form.fecha||null, prioridad: form.prioridad||"media",
-      urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
-    }));
-    await supabase.from("recordatorios").insert(rows);
-    const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-    if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
-    setPublicando(false); setConfirmando(false);
-    setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
-    setForm({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
-    setCursosSel([]);
-    setTimeout(()=>setOk(null),4000);
+    setError(null);
+    try {
+      const grupo_id = uuidLite();
+      const rows = cursosSel.map(curso_id=>({
+        texto: sanitize(form.texto), fecha: form.fecha||null, prioridad: form.prioridad||"media",
+        urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
+      }));
+      const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
+      if(insertErr) throw insertErr;
+      const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+      if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+      setConfirmando(false);
+      setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
+      setForm({ texto:"", fecha:"", prioridad:"media", urgente:false, adjuntos:[] });
+      setCursosSel([]);
+      setTimeout(()=>setOk(null),4000);
+    } catch(e) {
+      console.error("ComunicacionesAdmin.publicar:", e);
+      setError(e?.message || "No se pudo publicar. Probá de nuevo.");
+    } finally {
+      setPublicando(false);
+    }
   };
 
   return (
@@ -899,6 +909,7 @@ export function ComunicacionesAdmin({ cursos }) {
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Se publica como un recordatorio independiente en cada curso elegido.</div>
 
       {ok&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#10B981"}}>✓ {ok}</div>}
+      {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#EF4444"}}>⚠️ {error}</div>}
 
       <div style={{marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>

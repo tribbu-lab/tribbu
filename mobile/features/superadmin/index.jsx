@@ -1082,6 +1082,7 @@ function ComunicacionesAdmin({ cursos }) {
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
   const [ok, setOk] = useState(null);
+  const [error, setError] = useState(null);
 
   const toggleCurso = (id) => setCursosSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const todosSeleccionados = cursos.length > 0 && cursosSel.length === cursos.length;
@@ -1090,26 +1091,34 @@ function ComunicacionesAdmin({ cursos }) {
   const publicar = async () => {
     if (!form.texto?.trim() || cursosSel.length === 0) return;
     setPublicando(true);
-    const grupo_id = uuidLite();
-    const rows = cursosSel.map((curso_id) => ({
-      texto: sanitize(form.texto),
-      fecha: form.fecha || null,
-      prioridad: form.prioridad || "media",
-      urgente: form.urgente || false,
-      adjuntos: form.adjuntos || [],
-      curso_id,
-      grupo_id,
-      creado_por: usuario?.id ?? null,
-    }));
-    await supabase.from("recordatorios").insert(rows);
-    const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-    if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
-    setPublicando(false);
-    setConfirmando(false);
-    setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-    setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
-    setCursosSel([]);
-    setTimeout(() => setOk(null), 4000);
+    setError(null);
+    try {
+      const grupo_id = uuidLite();
+      const rows = cursosSel.map((curso_id) => ({
+        texto: sanitize(form.texto),
+        fecha: form.fecha || null,
+        prioridad: form.prioridad || "media",
+        urgente: form.urgente || false,
+        adjuntos: form.adjuntos || [],
+        curso_id,
+        grupo_id,
+        creado_por: usuario?.id ?? null,
+      }));
+      const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
+      if (insertErr) throw insertErr;
+      const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+      if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
+      setConfirmando(false);
+      setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
+      setForm({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setCursosSel([]);
+      setTimeout(() => setOk(null), 4000);
+    } catch (e) {
+      console.error("ComunicacionesAdmin.publicar:", e);
+      setError(e?.message || "No se pudo publicar. Probá de nuevo.");
+    } finally {
+      setPublicando(false);
+    }
   };
 
   const puedePublicar = !!form.texto?.trim() && cursosSel.length > 0 && !subiendoAdj;
@@ -1122,6 +1131,11 @@ function ComunicacionesAdmin({ cursos }) {
       {ok ? (
         <View style={comStyles.okBox}>
           <Text style={comStyles.okTxt}>✓ {ok}</Text>
+        </View>
+      ) : null}
+      {error ? (
+        <View style={comStyles.errorBox}>
+          <Text style={comStyles.errorTxt}>⚠️ {error}</Text>
         </View>
       ) : null}
 
@@ -1215,6 +1229,8 @@ function ComunicacionesAdmin({ cursos }) {
 const comStyles = StyleSheet.create({
   okBox: { backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 10, padding: 12, marginBottom: 14 },
   okTxt: { fontSize: 12, fontWeight: "700", color: "#10B981" },
+  errorBox: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA", borderRadius: 10, padding: 12, marginBottom: 14 },
+  errorTxt: { fontSize: 12, fontWeight: "700", color: "#EF4444" },
   prioRow: { flexDirection: "row", gap: 6 },
   prioBtn: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "white" },
   prioTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },

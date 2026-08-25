@@ -22,8 +22,8 @@ export const ROL_COLOR = { padre: "#3B82F6",   admin: "#10B981",    super: "#8B5
 export const ROL_BG    = { padre: "#EFF6FF",   admin: "#F0FDF4",    super: "#F5F3FF" };
 
 export const HIJO_COLORS_CUSTOM = [
-  "#3B82F6","#10B981","#F59E0B","#EF4444",
-  "#8B5CF6","#EC4899","#06B6D4","#F97316","#6366F1","#14B8A6",
+  "#F43F5E","#F97316","#EAB308","#22C55E",
+  "#14B8A6","#3B82F6","#8B5CF6","#EC4899",
 ];
 export const HIJO_COLOR_DEFAULT = "#0F172A";
 
