@@ -104,6 +104,14 @@ export default {
           color: "#0F172A",
         },
       ],
+      [
+        // Desbloqueo con huella/Face ID (ver specs/desbloqueo-con-huella-digital.md).
+        // Sin este string en Info.plist, iOS rechaza el pedido de Face ID.
+        "expo-local-authentication",
+        {
+          faceIDPermission: "tribbu usa Face ID para desbloquear la app más rápido.",
+        },
+      ],
     ],
     extra: {
       // EAS project id (@albatross-tech/tribbu). No es secreto; va hardcodeado

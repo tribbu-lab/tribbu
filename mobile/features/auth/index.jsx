@@ -20,7 +20,12 @@ import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
 
 // ── Login ─────────────────────────────────────────────────────────────────
-export function Login() {
+// onSuccess: opcional — lo usa BiometricGate como fallback de identidad
+// cuando la huella/Face ID falla o se cancela (mismo signInWithPassword de
+// siempre, solo agrega un aviso de que ya terminó). El gate raíz (mobile/app/
+// login.jsx) no lo pasa: ahí el SessionProvider reacciona solo al cambio de
+// auth, como siempre.
+export function Login({ onSuccess } = {}) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
@@ -54,6 +59,7 @@ export function Login() {
         return;
       }
       // El SessionProvider detecta el cambio de auth y carga el usuario.
+      onSuccess?.();
     } catch (e) {
       setLd(false);
       console.warn("signIn threw:", e);

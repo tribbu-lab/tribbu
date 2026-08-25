@@ -4,9 +4,10 @@
 // cerrar sesión) viven acá desde el patrón A3 (el header quedó solo con
 // notificaciones + chip del hijo).
 
-import { useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { useState, useEffect } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
 import { useRouter } from "expo-router";
+import * as LocalAuthentication from "expo-local-authentication";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
@@ -14,6 +15,7 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
 import { deleteMyAccount } from "../../lib/authAdmin";
+import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
 
 const t = THEMES.light;
 
@@ -34,7 +36,34 @@ export default function MasScreen() {
   const { isAdmin, usuario, logout } = useSession();
   const [cambiarPass, setCambiarPass] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [bioEnabled, setBioEnabledState] = useState(false);
   const opciones = isAdmin ? [...BASE, ...ADMIN] : BASE;
+
+  useEffect(() => {
+    if (!usuario?.id) return;
+    getBiometricPref(usuario.id).then(setBioEnabledState);
+  }, [usuario?.id]);
+
+  // Activar pide confirmar que el dispositivo realmente tiene huella/Face ID
+  // configurado — sin eso el candado de apertura (BiometricGate) fallaría
+  // siempre y dejaría al usuario encerrado hasta caer al fallback de contraseña.
+  const toggleBiometria = async (valor) => {
+    if (valor) {
+      const [tieneHardware, tieneEnrolado] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.isEnrolledAsync(),
+      ]);
+      if (!tieneHardware || !tieneEnrolado) {
+        Alert.alert(
+          "No disponible",
+          "Tu dispositivo no tiene huella digital o Face ID configurado. Activalo en los ajustes del teléfono primero."
+        );
+        return;
+      }
+    }
+    setBioEnabledState(valor);
+    setBiometricPref(usuario.id, valor);
+  };
 
   // Apple 5.1.1(v): la eliminación de cuenta debe poder iniciarse en la app.
   // Doble confirmación destructiva → Edge Function delete-account → signOut.
@@ -101,6 +130,14 @@ export default function MasScreen() {
           </View>
           <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
         </Pressable>
+        <View style={[styles.crow, styles.crowBorde]}>
+          <MaterialCommunityIcons name="fingerprint" size={19} color={t.textMuted} />
+          <View style={styles.flex1}>
+            <Text style={styles.crowTitulo}>Desbloqueo con huella/Face ID</Text>
+            <Text style={styles.crowMeta}>Pide biometría al abrir la app</Text>
+          </View>
+          <Switch value={bioEnabled} onValueChange={toggleBiometria} trackColor={{ true: t.accent }} />
+        </View>
         <Pressable onPress={logout} style={[styles.crow, styles.crowBorde]}>
           <MaterialCommunityIcons name="logout" size={19} color={t.danger} />
           <View style={styles.flex1}>

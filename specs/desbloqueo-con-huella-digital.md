@@ -1,6 +1,6 @@
 ---
 title: Desbloqueo con huella digital
-status: draft
+status: implemented
 priority: medium
 ---
 
@@ -17,31 +17,47 @@ Supabase, solo agrega una verificación local antes de mostrarla.
 
 ## Acceptance Criteria
 
-- [ ] Nueva dependencia `expo-local-authentication`.
-- [ ] Toggle "Desbloqueo con huella/Face ID" en Más → Cuenta, junto a
+- [x] Nueva dependencia `expo-local-authentication` (instalada vía
+      `npx expo install`, versión resuelta contra el SDK del proyecto).
+- [x] Toggle "Desbloqueo con huella/Face ID" en Más → Cuenta, junto a
       "Cambiar contraseña"/"Cerrar sesión". **Apagado por defecto** (opt-in).
-- [ ] Al intentar activarlo, se verifica que el dispositivo tenga hardware
+- [x] Al intentar activarlo, se verifica que el dispositivo tenga hardware
       biométrico y algo enrolado (`hasHardwareAsync` + `isEnrolledAsync`).
       Si no, el toggle no se activa y se explica por qué ("Tu dispositivo no
       tiene huella/Face ID configurado").
-- [ ] La preferencia se guarda localmente por usuario (AsyncStorage, clave
+- [x] La preferencia se guarda localmente por usuario (AsyncStorage, clave
       `biometric_enabled_<usuario.id>` — no es información sensible, es solo
       un booleano de UI) — no se manda al servidor.
-- [ ] Con la preferencia activada y una sesión válida: al abrir la app en
+- [x] Con la preferencia activada y una sesión válida: al abrir la app en
       frío, antes de mostrar el contenido (tabs o Super Admin) aparece una
       pantalla de bloqueo pidiendo autenticación biométrica.
-- [ ] Autenticación exitosa → pasa directo al contenido. La sesión de
+- [x] Autenticación exitosa → pasa directo al contenido. La sesión de
       Supabase es la misma de siempre — no se re-loguea ni se toca el token.
-- [ ] Si la biometría falla, se cancela, o no está disponible en ese
+- [x] Si la biometría falla, se cancela, o no está disponible en ese
       momento: botón "Ingresar con contraseña" que lleva al login normal ya
-      existente (mismo `signInWithPassword` de siempre) — no se inventa un
-      mecanismo nuevo de reautenticación.
-- [ ] Sin sesión activa, o con la preferencia desactivada: comportamiento
+      existente (mismo `signInWithPassword` de siempre, vía un `onSuccess`
+      opcional agregado a `Login` — no se inventa un mecanismo nuevo).
+- [x] Sin sesión activa, o con la preferencia desactivada: comportamiento
       idéntico al actual (va directo, o pide login normal si no hay sesión).
-- [ ] Aplica igual a los dos flujos que arrancan desde el mismo gate raíz
-      (`(tabs)` para apoderado/admin y `(super)` para Super Admin).
-- [ ] Se ve bien en pantalla angosta y respeta `env(safe-area-inset-*)`
-      como el resto de las pantallas de auth.
+- [x] Aplica igual a los dos flujos que arrancan desde el mismo gate raíz
+      (`(tabs)` para apoderado/admin y `(super)` para Super Admin) — el hook
+      vive en `RootNavigator`, antes de la rama que decide entre ambos.
+- [x] Se ve bien en pantalla angosta y respeta `env(safe-area-inset-*)`
+      (`useSafeAreaInsets`, mismo patrón que el resto de las pantallas de
+      auth) — *revisado por código, no verificado visualmente en dispositivo
+      (ver nota de validación abajo)*.
+
+**Nota de validación**: `cd mobile && npm run lint` y `npx expo export -p
+ios` corrieron limpios. **No se hizo QA en dispositivo/emulador real** — el
+usuario pidió explícitamente no generar la APK todavía, y `expo-local-authentication`
+es una dependencia **nativa nueva**: la carpeta `mobile/android/` (gitignoreada,
+generada por prebuild) fue construida antes de agregar esta dependencia, así
+que necesita un `expo prebuild` (o equivalente) antes de que el próximo build
+de la APK realmente incluya el módulo nativo — si se salta ese paso, el botón
+de biometría fallaría en tiempo de ejecución aunque el JS compile bien. Ese
+prebuild también borra el fix de `debuggableVariants = []` en
+`android/app/build.gradle` (ver memoria de la sesión) — hay que reaplicarlo
+antes del siguiente `gradlew assembleDebug`.
 
 ## Technical Notes
 
