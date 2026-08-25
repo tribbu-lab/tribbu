@@ -1126,7 +1126,7 @@ const PRIO = {
 function ComunicacionesAdmin({ cursos }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ texto: "", fecha: new Date().toISOString().split("T")[0], hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1138,14 +1138,14 @@ function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map((c) => c.id));
 
   const publicar = async () => {
-    if (!form.texto?.trim() || cursosSel.length === 0) return;
+    if (!form.texto?.trim() || !form.fecha || cursosSel.length === 0) return;
     setPublicando(true);
     setError(null);
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map((curso_id) => ({
         texto: sanitize(form.texto),
-        fecha: form.fecha || null,
+        fecha: form.fecha,
         hora_inicio: form.hora_inicio || null,
         hora_fin: form.hora_fin || null,
         prioridad: form.prioridad || "media",
@@ -1161,7 +1161,7 @@ function ComunicacionesAdmin({ cursos }) {
       if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-      setForm({ texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setForm({ texto: "", fecha: new Date().toISOString().split("T")[0], hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
       setCursosSel([]);
       setTimeout(() => setOk(null), 4000);
     } catch (e) {
@@ -1172,7 +1172,7 @@ function ComunicacionesAdmin({ cursos }) {
     }
   };
 
-  const puedePublicar = !!form.texto?.trim() && cursosSel.length > 0 && !subiendoAdj;
+  const puedePublicar = !!form.texto?.trim() && !!form.fecha && cursosSel.length > 0 && !subiendoAdj;
 
   return (
     <View>
@@ -1200,7 +1200,7 @@ function ComunicacionesAdmin({ cursos }) {
         style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
       />
 
-      <Text style={styles.label}>FECHA (OPCIONAL)</Text>
+      <Text style={styles.label}>FECHA</Text>
       <DateField value={form.fecha || ""} onChange={(v) => setForm((p) => ({ ...p, fecha: v }))} clearable style={styles.input} />
 
       <View style={comStyles.prioRow}>

@@ -1077,7 +1077,7 @@ export function AlertasAdmin({ cursos }) {
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto:"", fecha:"", hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
+  const [form, setForm] = useState({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1100,13 +1100,13 @@ export function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map(c=>c.id));
 
   const publicar = async () => {
-    if(!form.texto?.trim() || cursosSel.length===0) return;
+    if(!form.texto?.trim() || !form.fecha || cursosSel.length===0) return;
     setPublicando(true);
     setError(null);
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map(curso_id=>({
-        texto: sanitize(form.texto), fecha: form.fecha||null, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
+        texto: sanitize(form.texto), fecha: form.fecha, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
         prioridad: form.prioridad||"media", urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
@@ -1115,7 +1115,7 @@ export function ComunicacionesAdmin({ cursos }) {
       if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
-      setForm({ texto:"", fecha:"", hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
+      setForm({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {
@@ -1140,7 +1140,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:140}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA</div>
           <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
         </div>
         <div style={{minWidth:100}}>
@@ -1179,7 +1179,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
 
       {!confirmando ? (
-        <button onClick={()=>setConfirmando(true)} disabled={!form.texto?.trim()||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
+        <button onClick={()=>setConfirmando(true)} disabled={!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
           Publicar
         </button>
       ) : (
