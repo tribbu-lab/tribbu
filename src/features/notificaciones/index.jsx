@@ -190,6 +190,9 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
                       {n.urgente&&!esAlerta&&(
                         <span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 6px",borderRadius:6}}>Urgente</span>
                       )}
+                      {!esAlerta&&n.grupo_id&&(
+                        <span style={{fontSize:10,fontWeight:700,color:"#6366F1",background:"#EEF2FF",padding:"2px 6px",borderRadius:6,whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>
+                      )}
                       {tag && (
                         <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
                           <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,display:"inline-block",flexShrink:0}}/>

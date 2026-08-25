@@ -43,6 +43,11 @@ const LEIDOS = [
   { value: "noleidos", label: "No leídos" },
   { value: "leidos", label: "Leídos" },
 ];
+const ORIGENES = [
+  { value: "all", label: "Todos" },
+  { value: "colegio", label: "Del colegio" },
+  { value: "normal", label: "Normales" },
+];
 
 const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, onLeido, onEditar, onEliminar }) {
   const prio = PRIO[r.prioridad || "media"];
@@ -55,7 +60,9 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
     ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" })
     : null;
   const horaRango = fmtRangoHora(r.hora_inicio, r.hora_fin);
-  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null].filter(Boolean).join(" · ") || "Sin fecha";
+  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null, r.grupo_id ? "🏫 Comunicación del colegio" : null]
+    .filter(Boolean)
+    .join(" · ") || "Sin fecha";
   const dotColor = r.urgente ? t.danger : prio.c;
 
   return (
@@ -109,6 +116,7 @@ export function Recordatorios() {
   const [filtroRango, setFiltroRango] = useState("all");
   const [filtroPrio, setFiltroPrio] = useState("all");
   const [filtroLeido, setFiltroLeido] = useState("all");
+  const [filtroOrigen, setFiltroOrigen] = useState("all");
   const [pagina, setPagina] = useState(1);
 
   const hoyStr = new Date().toISOString().split("T")[0];
@@ -243,6 +251,8 @@ export function Recordatorios() {
       if (filtroPrio !== "all" && r.prioridad !== filtroPrio) return false;
       if (filtroLeido === "leidos" && !leidosSet.has(r.id)) return false;
       if (filtroLeido === "noleidos" && leidosSet.has(r.id)) return false;
+      if (filtroOrigen === "colegio" && !r.grupo_id) return false;
+      if (filtroOrigen === "normal" && r.grupo_id) return false;
       return true;
     })
     .sort((a, b) => (a.fecha && b.fecha ? a.fecha.localeCompare(b.fecha) : a.fecha ? -1 : b.fecha ? 1 : 0));
@@ -313,6 +323,16 @@ export function Recordatorios() {
                 options={LEIDOS}
                 onChange={(v) => {
                   setFiltroLeido(v);
+                  setPagina(1);
+                }}
+              />
+              <SelectChip
+                label="Origen"
+                icon="school-outline"
+                value={filtroOrigen}
+                options={ORIGENES}
+                onChange={(v) => {
+                  setFiltroOrigen(v);
                   setPagina(1);
                 }}
               />

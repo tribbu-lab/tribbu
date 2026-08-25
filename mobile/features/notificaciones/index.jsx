@@ -134,6 +134,11 @@ function NotifRow({ item, leido, tag, onPress }) {
                 <Text style={[styles.tagTxt, { color: "#EF4444" }]}>Urgente</Text>
               </View>
             ) : null}
+            {!esAlerta && item.grupo_id ? (
+              <View style={[styles.tag, { backgroundColor: "#EEF2FF" }]}>
+                <Text style={[styles.tagTxt, { color: "#6366F1" }]}>🏫 Comunicación del colegio</Text>
+              </View>
+            ) : null}
             {tag ? (
               <View style={styles.hijoTag}>
                 <View style={[styles.hijoDot, { backgroundColor: tag.color }]} />

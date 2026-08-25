@@ -266,6 +266,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
                     {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
                     {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
                     {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:11,color:"#94A3B8"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
+                    {r.grupo_id&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EEF2FF",color:"#6366F1",whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>}
                     <TagHijo tag={tagDe(r.curso_id)}/>
                   </div>
                 </div>

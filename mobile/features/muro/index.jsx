@@ -292,7 +292,7 @@ export function Muro() {
       tipo: "Recordatorio",
       dot: t.danger,
       titulo: r.texto,
-      meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}`,
+      meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}${r.grupo_id ? " · 🏫 Comunicación del colegio" : ""}`,
       accion: "Marcar leído",
       tag: tagDeCurso(r.curso_id),
       onAccion: () => marcarLeidoMuro(r.id),

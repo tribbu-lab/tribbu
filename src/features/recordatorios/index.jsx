@@ -30,6 +30,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [filtroHasta,   setFiltroHasta]   = useState("");
   const [filtroPrio,    setFiltroPrio]    = useState("all");
   const [filtroLeido,   setFiltroLeido]   = useState("all");
+  const [filtroOrigen,  setFiltroOrigen]  = useState("all");
   const [pagina,        setPagina]        = useState(1);
   const POR_PAG = 10;
 
@@ -129,6 +130,8 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(filtroPrio!=="all" && r.prioridad!==filtroPrio) return false;
     if(filtroLeido==="leidos"   && !leidosSet.has(r.id)) return false;
     if(filtroLeido==="noleidos" &&  leidosSet.has(r.id)) return false;
+    if(filtroOrigen==="colegio" && !r.grupo_id) return false;
+    if(filtroOrigen==="normal"  &&  r.grupo_id) return false;
     return true;
   }).sort((a,b)=>{
     if(a.fecha&&b.fecha) return a.fecha.localeCompare(b.fecha);
@@ -245,6 +248,11 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
           <option value="noleidos">Sin leer</option>
           <option value="leidos">Leídos</option>
         </select>
+        <select value={filtroOrigen} onChange={e=>{setFiltroOrigen(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+          <option value="all">Todos los orígenes</option>
+          <option value="colegio">🏫 Comunicaciones del colegio</option>
+          <option value="normal">Recordatorios normales</option>
+        </select>
         <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
       </div>
       {filtroRango==="personalizado"&&(
@@ -284,6 +292,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
               <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4}}>{r.texto}</div>
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}
+                {r.grupo_id&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EEF2FF",color:"#6366F1",whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>}
                 {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:10,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
