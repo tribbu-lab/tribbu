@@ -25,18 +25,30 @@ import { useListControls } from "../../lib/useListControls";
 import { useSession } from "../../context/Session";
 import { UploadMenuExcel } from "../comedor";
 
+// Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
+// para que el mismo mental model funcione en las dos plataformas. "Colegio" y
+// "Promoción" no tienen módulo acá porque son web-only (ver CLAUDE.md).
 const SECCIONES = [
-  { id: "usuarios", l: "👤 Usuarios" },
-  { id: "cursos", l: "🏫 Cursos" },
-  { id: "maestros", l: "👨‍🏫 Maestros" },
-  { id: "alumnos", l: "🎒 Alumnos" },
-  { id: "codigos", l: "🔑 Códigos" },
-  { id: "horarios", l: "🕐 Horarios" },
-  { id: "uniformes", l: "👕 Uniformes" },
-  { id: "alertas", l: "🚨 Alertas" },
-  { id: "comunicaciones", l: "📢 Comunicaciones" },
-  { id: "menu", l: "🍽️ Menú" },
+  { grupo: "Personas", items: [
+    { id: "usuarios", l: "👤 Usuarios" },
+    { id: "maestros", l: "👨‍🏫 Maestros" },
+    { id: "alumnos", l: "🎒 Alumnos" },
+    { id: "codigos", l: "🔑 Códigos" },
+  ]},
+  { grupo: "Cursos", items: [
+    { id: "cursos", l: "🏫 Cursos" },
+    { id: "horarios", l: "🕐 Horarios" },
+    { id: "uniformes", l: "👕 Uniformes" },
+  ]},
+  { grupo: "Comunidad", items: [
+    { id: "alertas", l: "🚨 Alertas" },
+    { id: "comunicaciones", l: "📢 Comunicaciones" },
+  ]},
+  { grupo: "Colegio", items: [
+    { id: "menu", l: "🍽️ Menú" },
+  ]},
 ];
+const TODAS_SECCIONES = SECCIONES.flatMap((g) => g.items);
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
@@ -98,7 +110,7 @@ const leerExcel = async () => {
 };
 
 export function SuperAdmin() {
-  const [sec, setSec] = useState("usuarios");
+  const [sec, setSec] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [cursos, setCursos] = useState([]);
   const [hijos, setHijos] = useState([]);
@@ -408,13 +420,30 @@ export function SuperAdmin() {
         ))}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.secTabs}>
-        {SECCIONES.map((t) => (
-          <Pressable key={t.id} onPress={() => setSec(t.id)} style={[styles.secTab, sec === t.id && styles.secTabOn]}>
-            <Text style={[styles.secTabTxt, sec === t.id && styles.secTabTxtOn]}>{t.l}</Text>
+      {sec === null ? (
+        <View>
+          {SECCIONES.map((g) => (
+            <View key={g.grupo} style={styles.grupoWrap}>
+              <Text style={styles.grupoLabel}>{g.grupo}</Text>
+              <View style={styles.moduloGrid}>
+                {g.items.map((t) => {
+                  const [emoji, ...resto] = t.l.split(" ");
+                  return (
+                    <Pressable key={t.id} onPress={() => setSec(t.id)} style={styles.moduloCard}>
+                      <Text style={styles.moduloEmoji}>{emoji}</Text>
+                      <Text style={styles.moduloLabel}>{resto.join(" ")}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View>
+          <Pressable onPress={() => setSec(null)} style={styles.volverBtn} hitSlop={8}>
+            <Text style={styles.volverTxt}>← {TODAS_SECCIONES.find((t) => t.id === sec)?.l || "Volver"}</Text>
           </Pressable>
-        ))}
-      </ScrollView>
 
       {sec === "usuarios" ? (
         <View>
@@ -633,6 +662,8 @@ export function SuperAdmin() {
           <UploadMenuExcel onDone={() => {}} />
         </View>
       ) : null}
+        </View>
+      )}
 
       {/* ── Modales CRUD ── */}
       {modal === "nuevo_usuario" || modal?.edit ? (
@@ -1903,11 +1934,14 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 26, fontWeight: "900" },
   statLbl: { fontSize: 10, color: "#94A3B8", fontWeight: "700", marginTop: 4, textAlign: "center" },
 
-  secTabs: { flexGrow: 0, marginBottom: 16 },
-  secTab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", marginRight: 6 },
-  secTabOn: { backgroundColor: T.primary, borderColor: T.primary },
-  secTabTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
-  secTabTxtOn: { color: "white" },
+  grupoWrap: { marginBottom: 18 },
+  grupoLabel: { fontSize: 10, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8, marginLeft: 2 },
+  moduloGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  moduloCard: { width: "31%", minWidth: 90, backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 14, alignItems: "center", gap: 4 },
+  moduloEmoji: { fontSize: 22 },
+  moduloLabel: { fontSize: 11, fontWeight: "700", color: "#334155", textAlign: "center" },
+  volverBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 4, marginBottom: 10 },
+  volverTxt: { fontSize: 14, fontWeight: "800", color: T.text },
 
   dashedBtn: { borderWidth: 2, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 14 },
   dashedTxt: { fontSize: 13, fontWeight: "700" },

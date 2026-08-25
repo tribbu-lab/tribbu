@@ -44,6 +44,31 @@ function CursoListSelector({ cursos, seleccionados, onToggle, multi=true, maxHei
   );
 }
 
+// Navegación agrupada por categoría (antes: 12 chips en una sola fila que
+// wrappeaba y se volvía inmanejable). Mismo agrupamiento en mobile.
+const SECCIONES = [
+  { grupo: "Personas", items: [
+    {id:"usuarios",l:"👤 Usuarios"},
+    {id:"maestros",l:"👨‍🏫 Maestros"},
+    {id:"alumnos",l:"🎒 Alumnos"},
+    {id:"codigos",l:"🔑 Códigos"},
+  ]},
+  { grupo: "Cursos", items: [
+    {id:"cursos",l:"🏫 Cursos"},
+    {id:"promocion",l:"🎓 Promoción"},
+    {id:"horarios",l:"🕐 Horarios"},
+    {id:"uniformes",l:"👕 Uniformes"},
+  ]},
+  { grupo: "Comunidad", items: [
+    {id:"alertas",l:"🚨 Alertas"},
+    {id:"comunicaciones",l:"📢 Comunicaciones"},
+  ]},
+  { grupo: "Colegio", items: [
+    {id:"colegio",l:"🏫 Colegio"},
+    {id:"menu",l:"🍽️ Menú"},
+  ]},
+];
+
 export function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -58,6 +83,9 @@ export function SuperAdmin() {
   const [cursoFiltro,setCursoFiltro] = useState(null);
   const [verApodSA,setVerApodSA]     = useState(null);
   const [authSyncMsg,setAuthSyncMsg] = useState(null);
+  const [anoActual,setAnoActual]     = useState(new Date().getFullYear());
+  const [anoCursosSel,setAnoCursosSel] = useState(null);
+  const isMobile = useIsMobile();
   const { showToast, Toast } = useToast();
 
   const ctrlUsuarios = useListControls(usuarios, {
@@ -80,7 +108,16 @@ export function SuperAdmin() {
     pageSize:12,
   });
 
-  const ctrlCursos = useListControls(cursos, {
+  // Selectores de curso fuera de "Cursos" solo muestran el año lectivo vigente
+  // — evita acumular años viejos en cada picker (Maestros/Alumnos/Alertas/
+  // Horarios/Comunicaciones/Uniformes/Códigos). La pantalla "Cursos" en sí
+  // usa `cursosParaListado`, que respeta su propio selector de año.
+  const cursosAnoActual = cursos.filter(c=>c.año_lectivo===anoActual);
+  const añosDisponibles = [...new Set(cursos.map(c=>c.año_lectivo))].sort((a,b)=>b-a);
+  const anoCursosMostrado = anoCursosSel ?? anoActual;
+  const cursosParaListado = cursos.filter(c=>c.año_lectivo===anoCursosMostrado);
+
+  const ctrlCursos = useListControls(cursosParaListado, {
     searchFn: (c,q)=> c.nombre.toLowerCase().includes(q),
     sortOptions: [
       {key:"nombre", label:"Nombre", val:c=>c.nombre},
@@ -124,16 +161,18 @@ export function SuperAdmin() {
 
   const cargar = async () => {
     setLoading(true);
-    const [u,c,h,m,mc] = await Promise.all([
+    const [u,c,h,m,mc,col] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
       supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
+      supabase.from("colegio").select("año_lectivo_actual").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
     ]);
     setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id)})));
     setCursos(c.data||[]);
     setHijos(h.data||[]);
+    if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
     const mcData = mc.data||[];
     setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
     const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))").order("nombre");
@@ -209,16 +248,40 @@ export function SuperAdmin() {
     setModal(null); cargar();
   };
 
+  // Clona la configuración estática de un curso (horarios, Room Parent, maestro,
+  // uniformes/útiles/libros) a un curso nuevo — usado por "Duplicar para el año
+  // siguiente". Los alumnos NO se copian acá: eso lo hace la Promoción de curso.
+  const clonarConfiguracionCurso = async (origenId, destinoId) => {
+    const withCurso = (rows) => (rows||[]).map(r=>({...r,curso_id:destinoId}));
+    const [hor,uc,mc,unic,ut,lib] = await Promise.all([
+      supabase.from("horarios").select("dia,hora_inicio,hora_fin,materia,docente,color").eq("curso_id",origenId),
+      supabase.from("usuario_cursos").select("usuario_id,rol").eq("curso_id",origenId),
+      supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",origenId),
+      supabase.from("uniforme_cursos").select("uniforme_id").eq("curso_id",origenId),
+      supabase.from("utiles").select("item,obligatorio,categoria,cantidad,comentario").eq("curso_id",origenId),
+      supabase.from("libros").select("nombre,obligatorio,editorial,materia,imagen_url,url_descarga").eq("curso_id",origenId),
+    ]);
+    await Promise.all([
+      hor.data?.length  ? supabase.from("horarios").insert(withCurso(hor.data))       : null,
+      uc.data?.length   ? supabase.from("usuario_cursos").insert(withCurso(uc.data))  : null,
+      mc.data?.length   ? supabase.from("maestro_cursos").insert(withCurso(mc.data))  : null,
+      unic.data?.length ? supabase.from("uniforme_cursos").insert(withCurso(unic.data)): null,
+      ut.data?.length   ? supabase.from("utiles").insert(withCurso(ut.data))          : null,
+      lib.data?.length  ? supabase.from("libros").insert(withCurso(lib.data))         : null,
+    ]);
+  };
+
   const guardarCurso = async () => {
-    if(!form.nombre) return;
-    const { error } = await supabase.from("cursos").insert({nombre:form.nombre,avatar:form.avatar||"🏫",color:form.color||"#3B82F6"});
+    if(!form.nombre||!form.año_lectivo) return;
+    const { data, error } = await supabase.from("cursos").insert({nombre:form.nombre,avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo}).select().single();
     if(error) { showToast("Error al guardar el curso", "error"); return; }
+    if(form._duplicarDeId && data) await clonarConfiguracionCurso(form._duplicarDeId, data.id);
     setModal(null); cargar();
   };
 
   const actualizarCurso = async () => {
-    if(!form.nombre) return;
-    const { error } = await supabase.from("cursos").update({nombre:form.nombre,avatar:form.avatar,color:form.color}).eq("id",form.id);
+    if(!form.nombre||!form.año_lectivo) return;
+    const { error } = await supabase.from("cursos").update({nombre:form.nombre,avatar:form.avatar,color:form.color,año_lectivo:form.año_lectivo}).eq("id",form.id);
     if(error) { showToast("Error al actualizar el curso", "error"); return; }
     setModal(null); cargar();
   };
@@ -468,7 +531,8 @@ export function SuperAdmin() {
       {(modal==="nuevo_curso"||modal==="editar_curso") && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":"Nuevo curso"}</div>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":form._duplicarDeId?"Duplicar curso":"Nuevo curso"}</div>
+            {form._duplicarDeId&&<div style={{fontSize:12,color:"#94A3B8",marginTop:-10,marginBottom:14}}>Se copian horarios, Room Parent, maestro, uniformes, útiles y libros al curso nuevo.</div>}
             <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre del curso</div>
                 <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: 4°B — Primaria" style={inp}/>
@@ -485,9 +549,13 @@ export function SuperAdmin() {
                 ))}
               </div>
             </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Año lectivo</div>
+              <input type="number" value={form.año_lectivo||""} onChange={e=>setForm(p=>({...p,año_lectivo:Number(e.target.value)||""}))} placeholder="Ej: 2026" style={inp}/>
+            </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={modal==="editar_curso"?actualizarCurso:guardarCurso} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="editar_curso"?"Guardar cambios":"Crear curso"}</button>
+              <button onClick={modal==="editar_curso"?actualizarCurso:guardarCurso} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="editar_curso"?"Guardar cambios":form._duplicarDeId?"Crear duplicado":"Crear curso"}</button>
             </div>
           </Card>
         </div>
@@ -510,7 +578,7 @@ export function SuperAdmin() {
             </div>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
-              <CursoListSelector cursos={cursos} seleccionados={form.cursos||[]} onToggle={id=>setForm(p=>{ const sel=(p.cursos||[]).includes(id); return {...p,cursos:sel?p.cursos.filter(x=>x!==id):[...(p.cursos||[]),id]}; })}/>
+              <CursoListSelector cursos={cursosAnoActual} seleccionados={form.cursos||[]} onToggle={id=>setForm(p=>{ const sel=(p.cursos||[]).includes(id); return {...p,cursos:sel?p.cursos.filter(x=>x!==id):[...(p.cursos||[]),id]}; })}/>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
@@ -562,7 +630,7 @@ export function SuperAdmin() {
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Curso</div>
               <select value={form.curso_id||""} onChange={e=>setForm(p=>({...p,curso_id:e.target.value}))} style={{...inp,cursor:"pointer"}}>
                 <option value="" disabled>Elegir curso...</option>
-                {cursos.map(c=>(
+                {cursosAnoActual.map(c=>(
                   <option key={c.id} value={c.id}>{c.avatar} {c.nombre}</option>
                 ))}
               </select>
@@ -582,6 +650,20 @@ export function SuperAdmin() {
         </div>
         <div style={{fontSize:13,color:"#94A3B8"}}>Gestión global de usuarios, roles y cursos</div>
       </div>
+      <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?0:32,alignItems:"flex-start"}}>
+        <nav style={isMobile?{width:"100%",marginBottom:16}:{width:196,flexShrink:0,position:"sticky",top:20}}>
+          {SECCIONES.map(g=>(
+            <div key={g.grupo} style={{marginBottom:isMobile?10:18}}>
+              <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:isMobile?"0 0 6px":"0 12px 6px"}}>{g.grupo}</div>
+              <div style={{display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?6:0}}>
+                {g.items.map(t=>(
+                  <button key={t.id} onClick={()=>setSec(t.id)} style={isMobile?{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}:{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"transparent",color:sec===t.id?"white":"#475569",marginBottom:2}}>{t.l}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+        <div style={{flex:1,minWidth:0,width:isMobile?"100%":undefined}}>
       <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
         {[
           {n:usuarios.filter(u=>u.activo).length,  l:"Usuarios activos",   c:"#10B981", bg:"#F0FDF4"},
@@ -593,11 +675,6 @@ export function SuperAdmin() {
             <div style={{fontSize:30,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</div>
             <div style={{fontSize:11,color:"#94A3B8",fontWeight:700,marginTop:4}}>{s.l}</div>
           </div>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[{id:"usuarios",l:"👤 Usuarios"},{id:"cursos",l:"🏫 Cursos"},{id:"maestros",l:"👨‍🏫 Maestros"},{id:"alumnos",l:"🎒 Alumnos"},{id:"codigos",l:"🔑 Códigos"},{id:"horarios",l:"🕐 Horarios"},{id:"uniformes",l:"👕 Uniformes"},{id:"colegio",l:"🏫 Colegio"},{id:"alertas",l:"🚨 Alertas"},{id:"comunicaciones",l:"📢 Comunicaciones"},{id:"menu",l:"🍽️ Menú"}].map(t=>(
-          <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#94A3B8",boxShadow:sec===t.id?"0 3px 10px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
         ))}
       </div>
 
@@ -640,7 +717,15 @@ export function SuperAdmin() {
 
       {sec==="cursos" && (
         <>
-          <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6"}); setModal("nuevo_curso"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo curso</button>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <span style={{fontSize:12,fontWeight:700,color:"#94A3B8"}}>Año lectivo</span>
+            <select value={anoCursosMostrado} onChange={e=>setAnoCursosSel(Number(e.target.value))} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:700,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+              {(añosDisponibles.includes(anoActual+1)?añosDisponibles:[...añosDisponibles,anoActual+1]).sort((a,b)=>b-a).map(a=>(
+                <option key={a} value={a}>{a}{a===anoActual?" (vigente)":""}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6",año_lectivo:anoCursosMostrado}); setModal("nuevo_curso"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo curso</button>
           <ListToolbar busqueda={ctrlCursos.busqueda} setBusqueda={ctrlCursos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"id",label:"Más reciente"}]} sortKey={ctrlCursos.sortKey} sortAsc={ctrlCursos.sortAsc} toggleSort={ctrlCursos.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrlCursos.resetFiltros} total={ctrlCursos.total} placeholder="Buscar curso..."/>
           {ctrlCursos.items.map(c=>{
             const admins=usuarios.filter(u=>u.rol==="admin"&&u.cursos.includes(c.id));
@@ -654,6 +739,7 @@ export function SuperAdmin() {
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{admins.length} Room Parent{admins.length!==1?"s":""} · {padres.length} familias</div>
                     {admins.length>0&&<div style={{fontSize:11,color:"#94A3B8"}}>Admin: {admins.map(a=>a.nombre).join(", ")}</div>}
                   </div>
+                  <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,marginRight:6}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
                   <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,marginRight:6}}>✏️</button>
                   <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Se eliminarán todos los datos asociados al curso.",action:()=>eliminarCurso(c.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                 </div>
@@ -665,8 +751,8 @@ export function SuperAdmin() {
       )}
       {sec==="alumnos" && (
         <>
-          <UploadAlumnosExcel cursos={cursos} onDone={cargar}/>
-          <button onClick={()=>{ setForm({nombre:"",curso_id:cursos[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
+          <UploadAlumnosExcel cursos={cursosAnoActual} onDone={cargar}/>
+          <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
           <ListToolbar busqueda={ctrlAlumnos.busqueda} setBusqueda={ctrlAlumnos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrlAlumnos.sortKey} sortAsc={ctrlAlumnos.sortAsc} toggleSort={ctrlAlumnos.toggleSort} filterOptions={[{key:"curso",label:"Curso",options:cursos.map(c=>({value:String(c.id),label:c.nombre}))}]} filtros={ctrlAlumnos.filtros} setFiltro={ctrlAlumnos.setFiltro} resetFiltros={ctrlAlumnos.resetFiltros} total={ctrlAlumnos.total} placeholder="Buscar alumno..."/>
           {ctrlAlumnos.items.map(a=>{
             const curso = cursos.find(c=>c.id===a.curso_id);
@@ -727,20 +813,23 @@ export function SuperAdmin() {
       )}
 
       {sec==="codigos"&&(
-        <CodigosInvitacion cursos={cursos}/>
+        <CodigosInvitacion cursos={cursosAnoActual}/>
       )}
 
+      {sec==="promocion"&&(
+        <PromocionCurso cursos={cursos} anoActual={anoActual}/>
+      )}
       {sec==="alertas"&&(
-        <AlertasAdmin cursos={cursos}/>
+        <AlertasAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="comunicaciones"&&(
-        <ComunicacionesAdmin cursos={cursos}/>
+        <ComunicacionesAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="horarios"&&(
-        <HorariosAdmin cursos={cursos}/>
+        <HorariosAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="uniformes"&&(
-        <UniformesAdmin cursos={cursos}/>
+        <UniformesAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="colegio"&&(
         <Contacto isSuperAdmin={true}/>
@@ -773,6 +862,119 @@ export function SuperAdmin() {
             <div style={{marginTop:12,fontSize:11,color:"#94A3B8"}}>⚠️ Los nombres de columna se detectan automáticamente por palabra clave — cualquier columna que contenga "fecha", "plato", "postre", etc. es reconocida.</div>
           </div>
         </div>
+      )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Promoción de curso: bloque origen (año vigente) → destino (año siguiente,
+// ya creado vía "Duplicar" en Cursos), lista de alumnos pre-tildada con
+// posibilidad de destildar repitentes/egresados antes de confirmar. Un solo
+// update en bloque de hijos.curso_id — recordatorios/eventos/colectas/etc.
+// del curso de origen quedan intactos, atados a esa fila de curso vieja.
+function PromocionCurso({ cursos, anoActual }) {
+  const [origenId, setOrigenId]         = useState(null);
+  const [destinoId, setDestinoId]       = useState(null);
+  const [alumnos, setAlumnos]           = useState([]);
+  const [seleccionados, setSeleccionados] = useState([]);
+  const [cargando, setCargando]         = useState(false);
+  const [confirmando, setConfirmando]   = useState(false);
+  const [promoviendo, setPromoviendo]   = useState(false);
+  const [hecho, setHecho]               = useState(null);
+  const { showToast, Toast } = useToast();
+
+  const cursosOrigen  = cursos.filter(c=>c.año_lectivo===anoActual);
+  const cursosDestino = cursos.filter(c=>c.año_lectivo===anoActual+1);
+
+  const elegirOrigen = async (id) => {
+    setOrigenId(id); setDestinoId(null); setHecho(null); setConfirmando(false);
+    setCargando(true);
+    const { data } = await supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",id).order("nombre");
+    setAlumnos(data||[]);
+    setSeleccionados((data||[]).map(a=>a.id));
+    setCargando(false);
+  };
+
+  const toggleAlumno = (id) => setSeleccionados(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+
+  const confirmar = async () => {
+    if(!destinoId||!seleccionados.length) return;
+    setPromoviendo(true);
+    const { error } = await supabase.from("hijos").update({curso_id:destinoId}).in("id",seleccionados);
+    setPromoviendo(false); setConfirmando(false);
+    if(error) { showToast("Error al promover alumnos", "error"); return; }
+    setHecho({ n:seleccionados.length, cursoNombre: cursosDestino.find(c=>c.id===destinoId)?.nombre });
+    setOrigenId(null); setDestinoId(null); setAlumnos([]); setSeleccionados([]);
+  };
+
+  return (
+    <div>
+      <Toast />
+      <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🎓 Promoción de curso</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Pasá a los alumnos de un curso al año siguiente. Los recordatorios, eventos, colectas y demás información del curso de origen quedan intactos — no se mueven ni se mezclan con el curso nuevo.</div>
+
+      {hecho&&(
+        <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:12,padding:"12px 16px",marginBottom:16,fontSize:13,fontWeight:700,color:"#10B981"}}>
+          ✅ {hecho.n} alumno{hecho.n!==1?"s":""} promovido{hecho.n!==1?"s":""} a {hecho.cursoNombre}.
+        </div>
+      )}
+
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Curso de origen ({anoActual})</div>
+        <CursoListSelector cursos={cursosOrigen} seleccionados={origenId?[origenId]:[]} onToggle={elegirOrigen} multi={false}/>
+      </div>
+
+      {origenId&&(
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Curso de destino ({anoActual+1})</div>
+          {cursosDestino.length===0?(
+            <div style={{fontSize:12,color:"#94A3B8",padding:14,border:"1.5px dashed #E2E8F0",borderRadius:12,textAlign:"center"}}>Todavía no hay ningún curso creado para {anoActual+1}. Duplicá el curso desde "🏫 Cursos" primero.</div>
+          ):(
+            <CursoListSelector cursos={cursosDestino} seleccionados={destinoId?[destinoId]:[]} onToggle={setDestinoId} multi={false}/>
+          )}
+        </div>
+      )}
+
+      {origenId&&cargando&&<Spinner/>}
+
+      {origenId&&!cargando&&alumnos.length>0&&(
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6}}>Alumnos ({seleccionados.length}/{alumnos.length})</div>
+            <button onClick={()=>setSeleccionados(seleccionados.length===alumnos.length?[]:alumnos.map(a=>a.id))} style={{fontSize:11,fontWeight:700,color:"#3B82F6",background:"none",border:"none",cursor:"pointer"}}>{seleccionados.length===alumnos.length?"Ninguno":"Todos"}</button>
+          </div>
+          <div style={{border:"1.5px solid #E2E8F0",borderRadius:12,maxHeight:280,overflowY:"auto"}}>
+            {alumnos.map((a,i)=>{
+              const sel = seleccionados.includes(a.id);
+              return (
+                <label key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderTop:i>0?"1px solid #F1F5F9":"none",background:sel?"#EFF6FF":"white"}}>
+                  <input type="checkbox" checked={sel} onChange={()=>toggleAlumno(a.id)} style={{width:16,height:16,cursor:"pointer",flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:sel?700:500,color:sel?"#0F172A":"#475569"}}>{fmtNombre(a)}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {origenId&&!cargando&&alumnos.length===0&&(
+        <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Este curso no tiene alumnos.</div>
+      )}
+
+      {origenId&&destinoId&&seleccionados.length>0&&(
+        confirmando?(
+          <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#92400E",marginBottom:10}}>¿Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""} a {cursosDestino.find(c=>c.id===destinoId)?.nombre}?</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={confirmar} disabled={promoviendo} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{promoviendo?"Promoviendo...":"Sí, promover"}</button>
+            </div>
+          </div>
+        ):(
+          <button onClick={()=>setConfirmando(true)} style={{width:"100%",padding:12,borderRadius:12,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""}</button>
+        )
       )}
     </div>
   );

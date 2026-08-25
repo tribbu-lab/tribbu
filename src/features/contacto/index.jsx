@@ -38,6 +38,7 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
   const guardarColegio = async () => {
     setSaving(true);
     const {id:_id, ...colegioData} = colegioForm;
+    if(colegioData.año_lectivo_actual!=null) colegioData.año_lectivo_actual = Number(colegioData.año_lectivo_actual)||null;
     await supabase.from("colegio").update(colegioData).eq("id","d31b5547-246b-46fa-906e-950e51d4af58");
     setSaving(false); setEditColegio(false); cargar();
   };
@@ -76,6 +77,11 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
                 <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
               </div>
             ))}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>AÑO LECTIVO ACTUAL</div>
+              <input type="number" value={colegioForm.año_lectivo_actual??""} onChange={e=>setColegioForm(p=>({...p,año_lectivo_actual:e.target.value}))} placeholder="Ej: 2026" style={inp}/>
+              <div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Define qué cursos son "el año vigente" en toda la app. Cambialo al empezar un ciclo lectivo nuevo.</div>
+            </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setEditColegio(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardarColegio} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>

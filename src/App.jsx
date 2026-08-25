@@ -323,7 +323,7 @@ function App() {
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
         </div>
       </div>
-      <div style={{padding:"24px 20px",maxWidth:800,margin:"0 auto"}}><SuperAdmin/></div>
+      <div style={{padding:"24px 20px",maxWidth:1200,margin:"0 auto"}}><SuperAdmin/></div>
     </div>
   );
 
