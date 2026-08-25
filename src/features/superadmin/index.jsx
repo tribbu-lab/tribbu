@@ -104,7 +104,7 @@ export function SuperAdmin() {
     setLoading(true);
     const [u,c,h,m,mc] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
-      supabase.from("cursos").select("*").order("id"),
+      supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
@@ -540,9 +540,12 @@ export function SuperAdmin() {
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Curso</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {cursos.map(c=>{ const sel=form.curso_id===c.id; return <button key={c.id} onClick={()=>setForm(p=>({...p,curso_id:c.id}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${sel?c.color:"#E2E8F0"}`,background:sel?c.color+"18":"white",cursor:"pointer",fontSize:12,fontWeight:600,color:sel?c.color:"#94A3B8"}}>{c.avatar} {c.nombre}</button>; })}
-              </div>
+              <select value={form.curso_id||""} onChange={e=>setForm(p=>({...p,curso_id:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+                <option value="" disabled>Elegir curso...</option>
+                {cursos.map(c=>(
+                  <option key={c.id} value={c.id}>{c.avatar} {c.nombre}</option>
+                ))}
+              </select>
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>

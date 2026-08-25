@@ -68,7 +68,7 @@ export function SuperAdmin() {
     setLoading(true);
     const [u, c, h, m, mc] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
-      supabase.from("cursos").select("*").order("id"),
+      supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
@@ -889,6 +889,15 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   );
 }
 
+const alumnoModalStyles = StyleSheet.create({
+  cursoList: { maxHeight: 200, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
+  cursoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  cursoRowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  cursoDot: { width: 8, height: 8, borderRadius: 4 },
+  cursoRowTxt: { fontSize: 13, fontWeight: "500", color: "#475569", flex: 1 },
+  cursoCheck: { fontSize: 14, fontWeight: "700" },
+});
+
 function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -911,18 +920,26 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             <Text style={styles.label}>DNI</Text>
             <TextInput value={form.dni || ""} onChangeText={(t) => setForm((p) => ({ ...p, dni: t }))} placeholder="Ej: 12345678" placeholderTextColor="#94A3B8" style={styles.input} />
             <Text style={styles.label}>CURSO</Text>
-            <View style={styles.chipsWrap}>
-              {cursos.map((c) => {
+            {/* Listado seleccionable, no chips — con muchos cursos, los chips
+                que wrappean se vuelven enormes e inmanejables. */}
+            <ScrollView style={alumnoModalStyles.cursoList} nestedScrollEnabled>
+              {cursos.map((c, i) => {
                 const sel = form.curso_id === c.id;
                 return (
-                  <Pressable key={c.id} onPress={() => setForm((p) => ({ ...p, curso_id: c.id }))} style={[styles.chip, sel && { borderColor: c.color, backgroundColor: c.color + "22" }]}>
-                    <Text style={[styles.chipTxt, sel && { color: c.color }]}>
+                  <Pressable
+                    key={c.id}
+                    onPress={() => setForm((p) => ({ ...p, curso_id: c.id }))}
+                    style={[alumnoModalStyles.cursoRow, i > 0 && alumnoModalStyles.cursoRowBorder, sel && { backgroundColor: c.color + "1A" }]}
+                  >
+                    <View style={[alumnoModalStyles.cursoDot, { backgroundColor: c.color }]} />
+                    <Text style={[alumnoModalStyles.cursoRowTxt, sel && { fontWeight: "700", color: c.color }]}>
                       {c.avatar} {c.nombre}
                     </Text>
+                    {sel ? <Text style={[alumnoModalStyles.cursoCheck, { color: c.color }]}>✓</Text> : null}
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
