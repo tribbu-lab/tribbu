@@ -127,16 +127,29 @@ function App() {
     return _cursoId ? [_cursoId] : [];
   },[items, _esVistaTodos, _cursoId]);
 
+  // Color de un item: el personalizado si guardó uno (cambiarColorHijo), si
+  // no null — un solo lugar para esta regla, antes copiada suelta 5 veces
+  // (headerBg, el dot del selector, el picker, tagDeCurso...), lo que ya
+  // causó un bug real (headerBg quedó con el fallback viejo en un solo sitio
+  // sin arreglar los demás). getHijoColorEfectivo agrega el fallback final a
+  // item.color/"#3B82F6" para los usos que sí quieren mostrar algo siempre
+  // (dots, tags) — headerBg usa el custom solo, sin ese último fallback.
+  const getHijoColorCustom = (item) => {
+    if(!item) return null;
+    const sc = hijoColorsMap[`${usuario?.id}_${item.id}`] || getHijoColor(usuario?.id, item.id) || null;
+    return (sc && sc!==HIJO_COLOR_DEFAULT) ? sc : null;
+  };
+  const getHijoColorEfectivo = (item) => getHijoColorCustom(item) || (item?.color || "#3B82F6");
+
   // {nombre, color} de los hijos de un curso, SOLO en vista Todos (null por
   // hijo): las pantallas lo llaman incondicionalmente para etiquetar filas.
   const tagDeCurso = (cid) => {
     if(!_esVistaTodos || !cid) return null;
     const hs = items.filter(i=>i._tipo==="hijo" && i.curso_id===cid);
     if(!hs.length) return null;
-    const sc = hijoColorsMap[`${usuario?.id}_${hs[0].id}`] || getHijoColor(usuario?.id, hs[0].id) || null;
     return {
       nombre: hs.map(h=>h.nombre?.split(" ")[0]).filter(Boolean).join(", "),
-      color: (sc && sc!==HIJO_COLOR_DEFAULT) ? sc : (hs[0].color || "#3B82F6"),
+      color: getHijoColorEfectivo(hs[0]),
     };
   };
 
@@ -314,9 +327,7 @@ function App() {
     </div>
   );
 
-  const hijoColorKey = itemActual?._tipo==="hijo" && itemActual ? `${usuario?.id}_${itemActual.id}` : null;
-  const _savedColor = hijoColorKey ? (hijoColorsMap[hijoColorKey] || getHijoColor(usuario?.id, itemActual?.id)) : null;
-  const hijoColor = (_savedColor && _savedColor !== HIJO_COLOR_DEFAULT) ? _savedColor : null;
+  const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
   // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
   // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer color"
   // realmente vuelva al estado sin personalizar. No usar item.color acá (eso
@@ -386,7 +397,7 @@ function App() {
             <div key={i} style={{position:"relative",marginBottom:2}}>
               <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8,WebkitTextFillColor:"white"}}>
                 {item._tipo==="todos"&&<span style={{fontSize:12,flexShrink:0}}>👥</span>}
-                {item._tipo==="hijo"&&<span style={{width:10,height:10,borderRadius:"50%",background:(()=>{ const sc=hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null; return (sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6"); })(),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
+                {item._tipo==="hijo"&&<span style={{width:10,height:10,borderRadius:"50%",background:getHijoColorEfectivo(item),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
                 <span style={{flex:1,color:"white"}}>{item._tipo==="hijo"||item._tipo==="todos"?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
                 {item._tipo==="hijo"&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer",color:"white"}}>🎨</span>}
               </button>
@@ -400,8 +411,7 @@ function App() {
   // Color picker overlay (compartido)
   const ColorPicker = () => {
     if(!pickerItem) return null;
-    const pickerSavedColor = hijoColorsMap[`${usuario?.id}_${pickerItem.id}`] || getHijoColor(usuario?.id, pickerItem.id) || null;
-    const pickerActiveColor = (pickerSavedColor && pickerSavedColor !== HIJO_COLOR_DEFAULT) ? pickerSavedColor : null;
+    const pickerActiveColor = getHijoColorCustom(pickerItem);
     return (
       <div style={{position:"fixed",inset:0,zIndex:500}} onClick={()=>setColorPickerIdx(null)}>
         <div style={{position:"absolute",...(isMobile?{top:60}:{bottom:0}),left:0,width:isMobile?"100%":220,background:"#1E293B",padding:16,boxShadow:"4px 4px 20px rgba(0,0,0,0.4)",borderRadius:isMobile?"0 0 16px 16px":"0 16px 0 0"}} onClick={e=>e.stopPropagation()}>
@@ -451,8 +461,7 @@ function App() {
           <div style={{display:"flex",gap:6,padding:"0 16px 10px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
             {items.map((item,i)=>{
               const active = i===cursoIdx;
-              const sc = hijoColorsMap[`${usuario?.id}_${item.id}`]||getHijoColor(usuario?.id,item.id)||null;
-              const iColor = item._tipo==="hijo" ? ((sc&&sc!==HIJO_COLOR_DEFAULT)?sc:(item.color||"#3B82F6")) : (item.color||"#3B82F6");
+              const iColor = getHijoColorEfectivo(item);
               return (
                 <div key={i} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                   <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",background:active?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.07)",color:"white",fontSize:12,fontWeight:active?700:400,display:"flex",alignItems:"center",gap:5}}>

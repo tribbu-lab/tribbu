@@ -6,8 +6,10 @@
 // solo calendario. Cada VEVENT lleva el nombre del curso en el SUMMARY para
 // que un apoderado con hijos en más de un curso pueda diferenciarlos.
 //
-// Gateado únicamente por `?token=` (usuarios.calendar_token, generado vía la
-// RPC regenerar_calendar_token — ver supabase/calendar-sync.sql). Lo consultan
+// Gateado únicamente por `?token=` (usuario_calendar_tokens.token, generado vía
+// la RPC regenerar_calendar_token — ver supabase/calendar-token-hardening.sql,
+// que movió el token a su propia tabla porque usuarios_select lo exponía a
+// cualquier compañero de curso). Lo consultan
 // Google/Apple/Outlook directamente, sin sesión de Supabase, así que este
 // función se despliega SIN verificación de JWT:
 //   supabase functions deploy calendar-feed --no-verify-jwt
@@ -135,8 +137,13 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
-    const { data: usuario } = await supabase.from("usuarios").select("id").eq("calendar_token", token).maybeSingle();
-    if (!usuario) return new Response("Not found", { status: 404 });
+    const { data: tokenRow } = await supabase
+      .from("usuario_calendar_tokens")
+      .select("usuario_id")
+      .eq("token", token)
+      .maybeSingle();
+    if (!tokenRow) return new Response("Not found", { status: 404 });
+    const usuario = { id: tokenRow.usuario_id };
 
     // Cursos vía hijos (dos pasos, sin depender de nombres de FK para el join anidado).
     const { data: uh } = await supabase.from("usuario_hijos").select("hijo_id").eq("usuario_id", usuario.id);

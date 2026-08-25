@@ -24,8 +24,13 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const [modal,     setModal]     = useState(false);
   const [form,      setForm]      = useState({ pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: null });
   const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState(null);
+  const [votando,   setVotando]   = useState(null); // id de la encuesta con un voto en vuelo (evita doble-tap/carrera)
 
-  const hoyStr = new Date().toISOString().split("T")[0];
+  // Fecha local del dispositivo (no UTC — toISOString() corre la fecha antes
+  // de tiempo para usuarios al oeste de UTC en la noche, ej. Argentina).
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}-${String(hoy.getDate()).padStart(2,"0")}`;
   const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
 
   // Opciones de curso destino para el alta en vista "Todos" (mismo patrón que Recordatorios).
@@ -70,12 +75,15 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     const opcionesLimpias = form.opciones.map(o => o.trim()).filter(Boolean);
     if (!form.pregunta?.trim() || opcionesLimpias.length < MIN_OPCIONES || !cursoDestino) return;
     setSaving(true);
+    setError(null);
+    let encuestaCreada = null;
     try {
-      const { data: enc, error } = await supabase
+      const { data: enc, error: encErr } = await supabase
         .from("encuestas")
         .insert({ pregunta: sanitize(form.pregunta), curso_id: cursoDestino, creado_por: userId, fecha_cierre: form.fecha_cierre || null })
         .select().single();
-      if (error) throw error;
+      if (encErr) throw encErr;
+      encuestaCreada = enc;
       const { error: opError } = await supabase
         .from("encuesta_opciones")
         .insert(opcionesLimpias.map((texto, i) => ({ encuesta_id: enc.id, texto: sanitize(texto), orden: i })));
@@ -86,21 +94,46 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
       cargar();
     } catch (e) {
       console.error("Encuestas.crear:", e);
+      // Si la encuesta ya se creó pero las opciones fallaron, no dejar una
+      // fila huérfana (pregunta sin opciones) visible para todo el curso.
+      if (encuestaCreada) await supabase.from("encuestas").delete().eq("id", encuestaCreada.id);
+      setError("No se pudo publicar la encuesta. Probá de nuevo.");
     } finally {
       setSaving(false);
     }
   };
 
   const votar = async (eid, oid) => {
-    if (!userId) return;
+    if (!userId || votando) return;
+    setVotando(eid);
+    setError(null);
     // Actualización optimista: se ve el voto propio al instante, sin esperar el roundtrip.
+    const votoAnterior = votos.find(v => v.encuesta_id === eid && v.usuario_id === userId) || null;
     setVotos(p => [...p.filter(v => !(v.encuesta_id === eid && v.usuario_id === userId)), { encuesta_id: eid, opcion_id: oid, usuario_id: userId }]);
-    await supabase.from("encuesta_votos").upsert({ encuesta_id: eid, opcion_id: oid, usuario_id: userId }, { onConflict: "encuesta_id,usuario_id" });
-    cargar();
+    const { error: voteErr } = await supabase.from("encuesta_votos").upsert({ encuesta_id: eid, opcion_id: oid, usuario_id: userId }, { onConflict: "encuesta_id,usuario_id" });
+    if (voteErr) {
+      console.error("Encuestas.votar:", voteErr);
+      // No confiar en que el próximo cargar() corrija solo — revertir ya.
+      setVotos(p => {
+        const sinOptimista = p.filter(v => !(v.encuesta_id === eid && v.usuario_id === userId));
+        return votoAnterior ? [...sinOptimista, votoAnterior] : sinOptimista;
+      });
+      setError("No se pudo registrar tu voto. Probá de nuevo.");
+    }
+    await cargar();
+    setVotando(null);
   };
 
-  const cerrar = async (id) => { await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id); cargar(); };
-  const eliminar = async (id) => { await supabase.from("encuestas").delete().eq("id", id); cargar(); };
+  const cerrar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id);
+    if (err) { console.error("Encuestas.cerrar:", err); setError("No se pudo cerrar la encuesta."); return; }
+    cargar();
+  };
+  const eliminar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").delete().eq("id", id);
+    if (err) { console.error("Encuestas.eliminar:", err); setError("No se pudo eliminar la encuesta."); return; }
+    cargar();
+  };
 
   const visibles = encuestas.filter(e => filtro === "activas" ? !estaCerrada(e) : estaCerrada(e));
 
@@ -157,6 +190,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
                 <input type="date" value={form.fecha_cierre || ""} onChange={e => setForm(p => ({ ...p, fecha_cierre: e.target.value }))} style={inp} />
               </div>
 
+              {error && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>⚠️ {error}</div>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => setModal(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#94A3B8" }}>Cancelar</button>
                 <button onClick={crear} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: "none", background: saving ? "#93C5FD" : T.accent, color: "white", cursor: saving ? "default" : "pointer", fontSize: 13, fontWeight: 700 }}>{saving ? "Publicando..." : "Publicar encuesta"}</button>
@@ -172,6 +206,8 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
         ))}
         <button onClick={abrirModal} style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 8, border: "none", background: T.accent, color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>+ Nueva encuesta</button>
       </div>
+
+      {error && !modal && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>⚠️ {error}</div>}
 
       {cargando && <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Cargando...</div>}
       {!cargando && visibles.length === 0 && (
@@ -213,12 +249,13 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
                 const pct = total ? Math.round((cuenta / total) * 100) : 0;
                 const esMiVoto = mio === o.id;
                 const nombres = votantes.map(v => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
+                const votandoEsta = votando === e.id;
                 return (
                   <div key={o.id}>
                     <button
-                      onClick={() => !cerrada && votar(e.id, o.id)}
-                      disabled={cerrada}
-                      style={{ width: "100%", position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: cerrada ? "default" : "pointer", textAlign: "left" }}
+                      onClick={() => !cerrada && !votandoEsta && votar(e.id, o.id)}
+                      disabled={cerrada || votandoEsta}
+                      style={{ width: "100%", position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: (cerrada || votandoEsta) ? "default" : "pointer", textAlign: "left", opacity: votandoEsta ? 0.6 : 1 }}
                     >
                       <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: esMiVoto ? "#EFF6FF" : "#F8FAFC", transition: "width 0.3s ease" }} />
                       <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>

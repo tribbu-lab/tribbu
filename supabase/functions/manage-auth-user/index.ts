@@ -48,14 +48,23 @@ serve(async (req) => {
       });
     }
 
-    // Verificar rol en tabla usuarios
+    // Verificar rol en tabla usuarios. Solo "super": "admin" es Room Parent de UN
+    // curso (rol global en `usuarios.rol`, no acotado por curso — ver
+    // src/features/superadmin/index.jsx:128), y esta función opera sobre
+    // CUALQUIER usuario del sistema (create/update/find no reciben curso_id ni
+    // lo validan) — permitir "admin" acá dejaba a cualquier Room Parent tomar
+    // la cuenta de cualquier otro usuario, incluido el Super Admin. Ningún flujo
+    // real usa esta función como "admin" hoy (todos sus call sites viven en
+    // SuperAdmin, gateado client-side a rol==="super"); los Room Parents ya
+    // invitan apoderados por su propio mecanismo (crear_apoderado/
+    // verificar_codigo, RPC security definer acotado al curso).
     const { data: userData } = await userClient
       .from("usuarios")
       .select("rol")
       .eq("auth_id", user.id)
       .single();
 
-    if (!userData || !["super", "admin"].includes(userData.rol)) {
+    if (!userData || userData.rol !== "super") {
       return new Response(JSON.stringify({ error: "Sin permisos suficientes" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

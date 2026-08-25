@@ -13,11 +13,16 @@ import { getRuntimeConfig } from "@shared/runtimeConfig";
 export const sendPush = async ({ type, payload }) => {
   const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
   try {
+    // El Edge Function exige una sesión real (no solo la anon key, que es
+    // pública) — manda el access_token del usuario logueado como bearer.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
     const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({ type, payload }),
     });

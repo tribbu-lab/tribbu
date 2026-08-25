@@ -27,16 +27,23 @@ create table public.encuesta_opciones (
   id           uuid primary key default gen_random_uuid(),
   encuesta_id  uuid not null references public.encuestas(id) on delete cascade,
   texto        text not null,
-  orden        int not null default 0
+  orden        int not null default 0,
+  -- Unique redundante sobre (id, encuesta_id) para ser el destino de la FK
+  -- compuesta de encuesta_votos abajo — así la base misma impide que un voto
+  -- tenga una opción que no pertenece a esa encuesta (integridad relacional,
+  -- no solo autorización vía RLS).
+  unique (id, encuesta_id)
 );
 
 create table public.encuesta_votos (
   id           uuid primary key default gen_random_uuid(),
   encuesta_id  uuid not null references public.encuestas(id) on delete cascade,
-  opcion_id    uuid not null references public.encuesta_opciones(id) on delete cascade,
+  opcion_id    uuid not null,
   usuario_id   uuid not null references public.usuarios(id),
   creado_en    timestamptz not null default now(),
-  unique (encuesta_id, usuario_id)
+  unique (encuesta_id, usuario_id),
+  foreign key (opcion_id, encuesta_id)
+    references public.encuesta_opciones (id, encuesta_id) on delete cascade
 );
 
 create index encuesta_opciones_encuesta_id_idx on public.encuesta_opciones(encuesta_id);

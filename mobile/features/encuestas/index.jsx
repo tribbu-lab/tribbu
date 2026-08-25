@@ -36,8 +36,13 @@ export function Encuestas() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [votando, setVotando] = useState(null); // id de la encuesta con un voto en vuelo (evita doble-tap/carrera)
 
-  const hoyStr = new Date().toISOString().split("T")[0];
+  // Fecha local del dispositivo (no UTC — toISOString() corre la fecha antes
+  // de tiempo para usuarios al oeste de UTC en la noche, ej. Argentina).
+  const hoyDate = new Date();
+  const hoyStr = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth()+1).padStart(2,"0")}-${String(hoyDate.getDate()).padStart(2,"0")}`;
 
   // En vista "Todos" el permiso de gestión se resuelve contra el rol en el
   // curso de cada fila, no contra el isAdmin de sesión (que en Todos es false).
@@ -91,13 +96,16 @@ export function Encuestas() {
     const opcionesLimpias = form.opciones.map((o) => o.trim()).filter(Boolean);
     if (!form.pregunta?.trim() || opcionesLimpias.length < MIN_OPCIONES || !cursoDestino) return;
     setSaving(true);
+    setError(null);
+    let encuestaCreada = null;
     try {
-      const { data: enc, error } = await supabase
+      const { data: enc, error: encErr } = await supabase
         .from("encuestas")
         .insert({ pregunta: sanitize(form.pregunta), curso_id: cursoDestino, creado_por: userId, fecha_cierre: form.fecha_cierre || null })
         .select()
         .single();
-      if (error) throw error;
+      if (encErr) throw encErr;
+      encuestaCreada = enc;
       const { error: opError } = await supabase
         .from("encuesta_opciones")
         .insert(opcionesLimpias.map((texto, i) => ({ encuesta_id: enc.id, texto: sanitize(texto), orden: i })));
@@ -108,20 +116,44 @@ export function Encuestas() {
       cargar();
     } catch (e) {
       console.warn("Encuestas.crear:", e?.message);
+      // Si la encuesta ya se creó pero las opciones fallaron, no dejar una
+      // fila huérfana (pregunta sin opciones) visible para todo el curso.
+      if (encuestaCreada) await supabase.from("encuestas").delete().eq("id", encuestaCreada.id);
+      setError("No se pudo publicar la encuesta. Probá de nuevo.");
     } finally {
       setSaving(false);
     }
   };
 
   const votar = async (eid, oid) => {
-    if (!userId) return;
+    if (!userId || votando) return;
+    setVotando(eid);
+    setError(null);
+    const votoAnterior = votos.find((v) => v.encuesta_id === eid && v.usuario_id === userId) || null;
     setVotos((p) => [...p.filter((v) => !(v.encuesta_id === eid && v.usuario_id === userId)), { encuesta_id: eid, opcion_id: oid, usuario_id: userId }]);
-    await supabase.from("encuesta_votos").upsert({ encuesta_id: eid, opcion_id: oid, usuario_id: userId }, { onConflict: "encuesta_id,usuario_id" });
-    cargar();
+    const { error: voteErr } = await supabase.from("encuesta_votos").upsert({ encuesta_id: eid, opcion_id: oid, usuario_id: userId }, { onConflict: "encuesta_id,usuario_id" });
+    if (voteErr) {
+      console.warn("Encuestas.votar:", voteErr?.message);
+      setVotos((p) => {
+        const sinOptimista = p.filter((v) => !(v.encuesta_id === eid && v.usuario_id === userId));
+        return votoAnterior ? [...sinOptimista, votoAnterior] : sinOptimista;
+      });
+      setError("No se pudo registrar tu voto. Probá de nuevo.");
+    }
+    await cargar();
+    setVotando(null);
   };
 
-  const cerrar = async (id) => { await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id); cargar(); };
-  const eliminar = async (id) => { await supabase.from("encuestas").delete().eq("id", id); cargar(); };
+  const cerrar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id);
+    if (err) { console.warn("Encuestas.cerrar:", err?.message); setError("No se pudo cerrar la encuesta."); return; }
+    cargar();
+  };
+  const eliminar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").delete().eq("id", id);
+    if (err) { console.warn("Encuestas.eliminar:", err?.message); setError("No se pudo eliminar la encuesta."); return; }
+    cargar();
+  };
 
   const visibles = encuestas.filter((e) => (filtro === "activas" ? !estaCerrada(e) : estaCerrada(e)));
 
@@ -145,6 +177,7 @@ export function Encuestas() {
               </View>
               <Button title="+ Nueva" onPress={abrirModal} size="sm" />
             </View>
+            {error && !modal ? <Text style={styles.errorTxt}>⚠️ {error}</Text> : null}
           </>
         }
         ListEmptyComponent={
@@ -163,6 +196,7 @@ export function Encuestas() {
             votos={votosDe(e.id)}
             miVoto={miVoto(e.id)}
             cerrada={estaCerrada(e)}
+            votando={votando === e.id}
             tag={tagDeCurso(e.curso_id)}
             puedeGestionar={puedeGestionar(e)}
             onVotar={(oid) => votar(e.id, oid)}
@@ -220,13 +254,14 @@ export function Encuestas() {
         <Text style={styles.label}>Fecha de cierre (opcional)</Text>
         <DateField value={form.fecha_cierre} onChange={(v) => setForm((p) => ({ ...p, fecha_cierre: v }))} placeholder="Sin fecha límite" clearable style={styles.input} />
 
+        {error && modal ? <Text style={styles.errorTxt}>⚠️ {error}</Text> : null}
         <Button title={saving ? "Publicando..." : "Publicar encuesta"} onPress={crear} disabled={saving} loading={saving} style={{ marginTop: SPACE.lg }} />
       </Sheet>
     </View>
   );
 }
 
-function EncuestaCard({ e, opciones, votos, miVoto, cerrada, tag, puedeGestionar, onVotar, onCerrar, onEliminar }) {
+function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puedeGestionar, onVotar, onCerrar, onEliminar }) {
   const total = votos.length;
   return (
     <Card>
@@ -261,7 +296,7 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, tag, puedeGestionar
           const nombres = votantes.map((v) => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
           return (
             <View key={o.id}>
-              <Pressable onPress={() => !cerrada && onVotar(o.id)} disabled={cerrada} style={[styles.opcion, esMiVoto && styles.opcionOn]}>
+              <Pressable onPress={() => !cerrada && !votando && onVotar(o.id)} disabled={cerrada || votando} style={[styles.opcion, esMiVoto && styles.opcionOn, votando && styles.opcionVotando]}>
                 <View style={[styles.opcionBar, { width: `${pct}%` }, esMiVoto && styles.opcionBarOn]} />
                 <View style={styles.opcionContent}>
                   <Text style={[styles.opcionTxt, esMiVoto && styles.opcionTxtOn]} numberOfLines={2}>{esMiVoto ? "✓ " : ""}{o.texto}</Text>
@@ -325,6 +360,8 @@ const styles = StyleSheet.create({
   opcionTxtOn: { fontWeight: "700" },
   opcionPct: { fontSize: 12, fontWeight: "700", color: t.textMuted, flexShrink: 0 },
   opcionVotantes: { fontSize: 11, color: t.textFaint, paddingHorizontal: 4, marginTop: 2 },
+  opcionVotando: { opacity: 0.6 },
+  errorTxt: { fontSize: 12, color: t.danger, backgroundColor: t.dangerSoft, borderRadius: RADIUS.sm, padding: SPACE.sm, marginTop: SPACE.sm },
 
   gestionRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md },
   gestionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.border },

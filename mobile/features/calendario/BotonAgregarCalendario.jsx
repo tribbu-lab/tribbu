@@ -12,6 +12,10 @@
 // abajo: el trigger es una sola línea, y una vez que el usuario ya usó
 // alguna acción queda marcado como "sincronizado" (AsyncStorage) para no
 // insistir con el mismo bloque en cada visita.
+//
+// El token vive en su propia tabla (usuario_calendar_tokens, no en
+// usuarios) para que usuarios_select no lo exponga a compañeros de curso —
+// ver supabase/calendar-token-hardening.sql.
 
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform, Linking, StyleSheet } from "react-native";
@@ -57,11 +61,11 @@ export default function BotonAgregarCalendario({ userId }) {
         return;
       }
       try {
-        const { data, error } = await supabase.from("usuarios").select("calendar_token").eq("id", userId).single();
+        const { data, error } = await supabase.from("usuario_calendar_tokens").select("token").eq("usuario_id", userId).maybeSingle();
         if (!activo) return;
         if (error) throw error;
-        if (data?.calendar_token) {
-          setToken(data.calendar_token);
+        if (data?.token) {
+          setToken(data.token);
         } else {
           const { data: nuevoToken, error: rpcErr } = await supabase.rpc("regenerar_calendar_token");
           if (!activo) return;

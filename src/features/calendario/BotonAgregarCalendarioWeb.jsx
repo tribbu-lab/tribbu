@@ -3,10 +3,11 @@
 // Botón para la vista de Calendario web: suscribe el feed ICS de tribbu
 // (eventos + cumpleaños + festejos de todos los cursos del usuario) al
 // Google Calendar del apoderado, o copia el enlace para Apple/Outlook.
-// El token (usuarios.calendar_token) se crea solo la primera vez que se
-// monta (RPC regenerar_calendar_token, ver supabase/calendar-sync.sql —
-// la policy usuarios_update solo permite super, así que no se puede
-// escribir la fila usuarios directo desde el cliente).
+// El token (tabla usuario_calendar_tokens, propia para no exponerse vía
+// usuarios_select a compañeros de curso — ver supabase/calendar-token-hardening.sql)
+// se crea solo la primera vez que se monta, vía la RPC security definer
+// regenerar_calendar_token (no se puede escribir esa tabla directo desde el
+// cliente, solo tiene policy de SELECT).
 //
 // UI colapsada en un modal para no empujar el calendario hacia abajo: el
 // trigger es una sola línea, y una vez que el usuario ya usó alguna de las
@@ -49,14 +50,14 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
       }
       try {
         const { data, error } = await supabase
-          .from("usuarios")
-          .select("calendar_token")
-          .eq("id", userId)
-          .single();
+          .from("usuario_calendar_tokens")
+          .select("token")
+          .eq("usuario_id", userId)
+          .maybeSingle();
         if (!activo) return;
         if (error) throw error;
-        if (data?.calendar_token) {
-          setToken(data.calendar_token);
+        if (data?.token) {
+          setToken(data.token);
         } else {
           // Primera vez: se crea solo, sin pedirle nada al usuario.
           const { data: nuevoToken, error: rpcErr } = await supabase.rpc("regenerar_calendar_token");

@@ -16,6 +16,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
@@ -101,6 +102,23 @@ serve(async (req) => {
   }
 
   try {
+    // Exige una sesión real (no solo la anon key, que es pública en todo
+    // bundle/APK) — sin esto, cualquiera podía mandar push con texto libre a
+    // cualquier usuario_id sin siquiera tener una cuenta. No se exige rol
+    // super/admin (a propósito: cualquier apoderado dispara push hoy al crear
+    // un recordatorio/festejo/encuesta), solo estar logueado.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return json({ error: "No autorizado" }, 401);
+    }
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return json({ error: "Token inválido" }, 401);
+    }
+
     const { type, payload } = await req.json();
     // `userIds` se usa solo para resolver destinatarios; no viaja en la
     // notificación (no exponemos la lista de destinatarios a cada dispositivo).
