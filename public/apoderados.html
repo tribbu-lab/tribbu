@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bienvenidos a tribbu</title>
+<meta name="description" content="Guía de bienvenida para apoderados: qué encontrás en cada pantalla de tribbu y cómo empezar a usarla.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBF7F0; --bg-card:#FFFFFF; --bg-card-alt:#F6F1E8;
+    --ink:#1B2130; --ink-soft:#5B6472; --ink-faint:#8B93A1;
+    --navy:#0F172A; --navy-soft:#E7EAF0;
+    --blue:#3B82F6; --blue-ink:#1D4ED8; --blue-soft:#EFF6FF;
+    --green:#0F9D6E; --green-soft:#EAFBF3;
+    --purple:#7C5CE0; --purple-soft:#F3F0FE;
+    --amber:#C67B10; --amber-soft:#FFF6E5;
+    --coral:#DC4B47; --coral-soft:#FDEEED;
+    --pink:#D14F87; --pink-soft:#FCEEF4;
+    --border:rgba(15,23,42,0.09); --border-strong:rgba(15,23,42,0.16);
+    --shadow:0 1px 2px rgba(20,20,15,0.04), 0 10px 30px rgba(20,20,15,0.05);
+    --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+    --font-body:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14171F; --bg-card:#1C202B; --bg-card-alt:#20242F;
+      --ink:#EDEFF3; --ink-soft:#AEB4C0; --ink-faint:#7B8291;
+      --navy:#E7EAF0; --navy-soft:#252A38;
+      --blue:#6EA8FA; --blue-ink:#9DC2FD; --blue-soft:#1D2A45;
+      --green:#4FD3A0; --green-soft:#132B25;
+      --purple:#B29CF2; --purple-soft:#241F3B;
+      --amber:#F0B84F; --amber-soft:#332508;
+      --coral:#F0857F; --coral-soft:#3A1A19;
+      --pink:#EE9AC0; --pink-soft:#33202A;
+      --border:rgba(237,239,243,0.09); --border-strong:rgba(237,239,243,0.18);
+      --shadow:0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.35);
+    }
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-body);margin:0;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px 80px}
+  h1,h2,h3{font-family:var(--font-display);font-weight:600;color:var(--ink);text-wrap:balance;margin:0}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--blue-ink)}
+
+  .hero{padding:64px 0 40px;text-align:center}
+  .hero .mark{font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--ink-soft);margin-bottom:22px;display:inline-flex;align-items:center;gap:8px}
+  .hero .mark .dot{color:var(--blue)}
+  .hero h1{font-size:clamp(32px,6vw,46px);line-height:1.12;margin-bottom:16px}
+  .hero h1 em{font-style:italic;color:var(--blue-ink)}
+  .hero p{font-size:17px;color:var(--ink-soft);max-width:520px;margin:0 auto 28px}
+  .hero-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .hbadge{font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;background:var(--bg-card);border:1px solid var(--border);color:var(--ink-soft)}
+
+  .shot{max-width:560px;margin:36px auto 0;background:var(--navy);border-radius:16px;padding:8px;box-shadow:var(--shadow)}
+  .shot img{display:block;width:100%;border-radius:10px}
+
+  section{margin-top:56px}
+  .section-head{margin-bottom:22px}
+  .section-head h2{font-size:26px}
+  .section-head p{color:var(--ink-soft);font-size:15px;margin-top:6px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+  .card .icon{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:12px}
+  .card h3{font-size:15.5px;font-weight:700;font-family:var(--font-body);margin-bottom:5px}
+  .card p{font-size:13.5px;color:var(--ink-soft);margin:0}
+
+  .feature{background:var(--bg-card);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+  .feature .txt{margin-bottom:16px}
+  .feature .txt .eyebrow{display:block;margin-bottom:8px}
+  .feature .txt h3{font-size:20px;margin-bottom:8px;font-family:var(--font-display);font-weight:600}
+  .feature .txt p{color:var(--ink-soft);font-size:14.5px}
+  .feature .mock{background:var(--navy);border-radius:12px;padding:6px}
+  .feature .mock img{display:block;width:100%;border-radius:8px}
+  .tag-pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:7px;margin-top:2px}
+
+  .steps{counter-reset:step;display:flex;flex-direction:column;gap:14px}
+  .step{display:flex;gap:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+  .step .num{counter-increment:step;width:26px;height:26px;border-radius:50%;background:var(--blue-soft);color:var(--blue-ink);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step .num::before{content:counter(step)}
+  .step h3{font-size:14.5px;font-weight:700;margin-bottom:3px;font-family:var(--font-body)}
+  .step p{font-size:13.5px;color:var(--ink-soft);margin:0}
+
+  footer{margin-top:64px;padding-top:28px;border-top:1px solid var(--border);text-align:center}
+  footer p{font-size:13px;color:var(--ink-faint);margin:4px 0}
+
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="mark">tribbu<span class="dot">.</span> &nbsp;·&nbsp; comunidad escolar</div>
+    <h1>Todo el curso,<br><em>en un solo lugar</em></h1>
+    <p>Recordatorios, calendario, menú del comedor, colectas y más — sin grupos de WhatsApp perdidos ni carpetas que se traspapelan.</p>
+    <div class="hero-badges">
+      <span class="hbadge">🏠 Inicio</span>
+      <span class="hbadge">📌 Recordatorios</span>
+      <span class="hbadge">📅 Calendario</span>
+      <span class="hbadge">🍽️ Comedor</span>
+      <span class="hbadge">💳 Colectas</span>
+    </div>
+    <div class="shot"><img src="/apoderados-media/tribbu-inicio-mi-acceso.gif" alt="Pantalla de Inicio de tribbu, mostrando el menú del día y los pendientes del curso"></div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Qué vas a poder hacer</span>
+      <h2>Once pantallas, una sola app</h2>
+      <p>Un recorrido rápido por todo lo que tenés a mano apenas entrás.</p>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="icon" style="background:var(--blue-soft)">🏠</div><h3>Inicio</h3><p>El menú del día y todo lo pendiente: recordatorios sin leer, colectas por pagar, invitaciones por confirmar.</p></div>
+      <div class="card"><div class="icon" style="background:var(--coral-soft)">📌</div><h3>Recordatorios</h3><p>Los avisos del curso, ordenados por fecha y prioridad. Marcás como leído cuando corresponde.</p></div>
+      <div class="card"><div class="icon" style="background:var(--blue-soft)">📅</div><h3>Calendario</h3><p>Actos, salidas y reuniones — por mes o en lista, con confirmación de asistencia.</p></div>
+      <div class="card"><div class="icon" style="background:var(--green-soft)">🍽️</div><h3>Comedor</h3><p>El menú completo del mes, día por día.</p></div>
+      <div class="card"><div class="icon" style="background:var(--pink-soft)">🎂</div><h3>Cumpleaños</h3><p>Festejos del curso, confirmación de asistencia y colecta para el regalo.</p></div>
+      <div class="card"><div class="icon" style="background:var(--purple-soft)">📊</div><h3>Encuestas</h3><p>Cualquier familia puede armar una consulta rápida — un voto por persona, resultados en vivo.</p></div>
+      <div class="card"><div class="icon" style="background:var(--amber-soft)">💳</div><h3>Colectas</h3><p>Cuánto se juntó, cuánto falta, y tu pago registrado en el momento.</p></div>
+      <div class="card"><div class="icon" style="background:var(--green-soft)">📋</div><h3>Info útil</h3><p>Lista de útiles, uniformes y libros del curso.</p></div>
+      <div class="card"><div class="icon" style="background:var(--blue-soft)">📞</div><h3>Contacto</h3><p>Teléfonos y mails del colegio y las secretarías.</p></div>
+      <div class="card"><div class="icon" style="background:var(--coral-soft)">🔔</div><h3>Notificaciones</h3><p>La campanita avisa apenas hay algo nuevo, sin tener que ir a buscarlo.</p></div>
+      <div class="card"><div class="icon" style="background:var(--purple-soft)">🔒</div><h3>Huella digital</h3><p>En el celular, entrás con huella o Face ID en vez de tipear la clave cada vez.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">En detalle</span>
+      <h2>Las que más vas a usar</h2>
+    </div>
+
+    <div class="feature">
+      <div class="txt">
+        <span class="eyebrow" style="color:var(--blue-ink)">Inicio</span>
+        <h3>Lo importante, arriba de todo</h3>
+        <p>Apenas entrás ves el menú de hoy y una sección "Pendientes" con todo lo que necesita tu atención. Si tenés más de un hijo, cambiás entre ellos (o ves "Todos" juntos) desde el mismo lugar.</p>
+      </div>
+      <div class="mock"><img src="/apoderados-media/tribbu-inicio-mi-acceso.gif" alt="Pantalla de Inicio cambiando entre los hijos con el selector Mi acceso"></div>
+    </div>
+
+    <div class="feature">
+      <div class="txt">
+        <span class="eyebrow" style="color:var(--coral)">Recordatorios</span>
+        <h3>Sabés quién avisa qué</h3>
+        <p>Los avisos de tu curso y las comunicaciones de todo el colegio conviven en la misma lista, pero se distinguen con una etiqueta.</p>
+        <span class="tag-pill" style="background:var(--purple-soft);color:var(--purple)">🏫 Comunicación del colegio</span>
+      </div>
+      <div class="mock"><img src="/apoderados-media/tribbu-recordatorios-badge.gif" alt="Filtro de Recordatorios mostrando la etiqueta Comunicación del colegio"></div>
+    </div>
+
+    <div class="feature">
+      <div class="txt">
+        <span class="eyebrow" style="color:var(--blue-ink)">Calendario</span>
+        <h3>Todo el año, de un vistazo</h3>
+        <p>Vista por mes o en lista, con la fecha de cada evento y cuánto falta para que llegue.</p>
+      </div>
+      <div class="mock"><img src="/apoderados-media/tribbu-calendario.gif" alt="Calendario en vista de mes y en vista de lista"></div>
+    </div>
+
+    <div class="feature">
+      <div class="txt">
+        <span class="eyebrow" style="color:var(--purple)">Encuestas</span>
+        <h3>Decisiones rápidas, en el momento</h3>
+        <p>Cualquier apoderado puede armar una encuesta para el curso. Un voto por familia, y los resultados se ven en vivo, con nombre y todo — como una encuesta de WhatsApp, pero ordenada.</p>
+      </div>
+      <div class="mock"><img src="/apoderados-media/tribbu-encuestas.gif" alt="Encuestas activas y cerradas, con los resultados y quién votó cada opción"></div>
+    </div>
+
+    <div class="feature">
+      <div class="txt">
+        <span class="eyebrow" style="color:var(--amber)">Colectas</span>
+        <h3>Sin planillas ni "¿ya pagaste?"</h3>
+        <p>Cada colecta muestra cuánto se juntó y cuánto falta. Registrás tu aporte una sola vez y queda a la vista de todo el curso.</p>
+      </div>
+      <div class="mock"><img src="/apoderados-media/tribbu-colectas.gif" alt="Colectas del curso con el monto recaudado y el estado de pago"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Para arrancar</span>
+      <h2>Cómo entrar por primera vez</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="num"></div><div><h3>Recibís un código de invitación</h3><p>El colegio les comparte un código por curso, junto con el mail que van a usar para entrar.</p></div></div>
+      <div class="step"><div class="num"></div><div><h3>Te registrás con ese código</h3><p>Desde la pantalla de ingreso, tocá "Registrarme con código de invitación" y elegí tu contraseña.</p></div></div>
+      <div class="step"><div class="num"></div><div><h3>Ya podés entrar cuando quieras</h3><p>Con tu mail y tu contraseña — y en el celular, con huella digital si preferís no escribirla cada vez.</p></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Cualquier duda, contactanos a <a href="mailto:info@tribbu.ar" style="color:var(--blue-ink);text-decoration:none;font-weight:600">info@tribbu.ar</a></p>
+    <p>tribbu · comunidad escolar</p>
+  </footer>
+
+</div>
+</body>
+</html>
