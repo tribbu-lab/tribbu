@@ -4,7 +4,9 @@ const https    = require('https');
 const bcrypt   = require('bcryptjs');
 
 const SUPABASE_URL = 'https://gctymjhblvocvaenmdhr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjdHltamhibHZvY3ZhZW5tZGhyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE1MDQ4MSwiZXhwIjoyMDg4NzI2NDgxfQ.1zMREgpJ9jgD-WjtpaqL9tV-1qz0Wjb33NqlTZByvfg';
+// Nunca hardcodear la key acá — pasarla por variable de entorno al ejecutar:
+//   SUPABASE_SERVICE_ROLE_KEY=tu_key node hash_passwords.cjs
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'PEGAR_SERVICE_ROLE_KEY_AQUI';
 
 function request(method, path, body) {
   return new Promise((resolve, reject) => {

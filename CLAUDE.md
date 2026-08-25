@@ -89,4 +89,4 @@ These skills are available locally — use them when a task matches. Load the sk
 
 ## Repository hygiene
 
-The root `*.cjs` scripts (`hash_passwords`, `migrate_to_auth`, `migrate_remaining`, `reset_passwords`, `backup_tribbu`) are **one-time** Node migration/backup utilities run manually with `node <file>.cjs`. They contain hardcoded Supabase service-role keys and connect to the live project — do not run them casually, and do not copy that key pattern into `src/`.
+The root `*.cjs` scripts (`hash_passwords`, `migrate_to_auth`, `migrate_remaining`, `reset_passwords`, `backup_tribbu`) are **one-time** Node migration/backup utilities that connect to the live project with the service-role key, read from `SUPABASE_SERVICE_ROLE_KEY` in the environment (never hardcoded — run as `SUPABASE_SERVICE_ROLE_KEY=... node <file>.cjs`, a real key was found hardcoded in all five and rotated 2026-08-25). Do not run them casually, and do not put a real key back in the file or copy that pattern into `src/`.
