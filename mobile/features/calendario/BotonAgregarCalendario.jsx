@@ -5,8 +5,9 @@
 // todos los cursos del usuario) y, en iOS, ofrece abrirlo directo con
 // webcal:// (el SO resuelve el flujo nativo de suscripción). Android no tiene
 // un "suscribirse por URL" a nivel de sistema, así que ahí solo se copia el
-// enlace — el usuario lo pega en Google Calendar (web/desktop) → Otros
-// calendarios → Desde URL.
+// enlace — el usuario lo pega en la app de calendario que use, en su opción
+// de agregar/suscribirse por URL (ej. Google Calendar web → Otros
+// calendarios → Desde URL).
 //
 // UI colapsada en un Sheet para no empujar el resto de Calendario hacia
 // abajo: el trigger es una sola línea, y una vez que el usuario ya usó
@@ -130,7 +131,7 @@ export default function BotonAgregarCalendario({ userId }) {
       <Sheet visible={abierto} onClose={() => setAbierto(false)} title="Sincronizar calendario">
         <Text style={styles.hint}>
           Los eventos de la escuela aparecerán en tu calendario y se actualizan solos.{" "}
-          {Platform.OS === "android" ? "En Android, pegá el enlace en Google Calendar (web) → Otros calendarios → Desde URL. " : ""}
+          {Platform.OS === "android" ? "En Android, pegá el enlace en tu app de calendario, en la opción de agregar o suscribirte por URL (en Google Calendar, por ejemplo: web → Otros calendarios → Desde URL). " : ""}
           Google puede tardar unas horas en reflejar los cambios.
         </Text>
 
