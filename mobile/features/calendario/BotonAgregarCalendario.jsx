@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform, Linking, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
@@ -120,15 +121,21 @@ export default function BotonAgregarCalendario({ userId }) {
 
   // Android: mismo link que abrirEnGoogle en la web (cid= necesita esquema
   // webcal:// para que Google lo reconozca como suscripción a un feed
-  // externo). Se abre en el navegador del teléfono porque no hay atajo
-  // nativo — Google confirma con su propio cartel de "Add calendar".
-  const abrirGoogleCalendar = () => {
+  // externo). Se abre con expo-web-browser (Custom Tab) en vez de
+  // Linking.openURL: calendar.google.com está verificado como App Link de la
+  // app de Google Calendar, así que un Linking.openURL normal se lo entrega
+  // directo a esa app — que ignora el ?cid= y nunca muestra el cartel de
+  // "Add calendar" — en vez de abrirlo como página web. Una Custom Tab evita
+  // ese hand-off y garantiza que se vea la confirmación de Google.
+  const abrirGoogleCalendar = async () => {
     if (!feedUrl) return;
     const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
     const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
-    Linking.openURL(googleUrl).catch((e) =>
-      console.warn("No se pudo abrir Google Calendar:", e?.message)
-    );
+    try {
+      await WebBrowser.openBrowserAsync(googleUrl);
+    } catch (e) {
+      console.warn("No se pudo abrir Google Calendar:", e?.message);
+    }
     marcarSincronizado("google");
   };
 

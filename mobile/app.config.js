@@ -112,6 +112,13 @@ export default {
           faceIDPermission: "tribbu usa Face ID para desbloquear la app más rápido.",
         },
       ],
+      // Abre el link de "Agregar a Google Calendar" en una Custom Tab en vez
+      // de Linking.openURL: calendar.google.com está verificado como App Link
+      // de la app de Google Calendar en Android, así que un Linking.openURL
+      // normal se lo entrega directo a esa app (que ignora el ?cid=) en vez
+      // de mostrarlo como página web — la app nunca ve el cartel de "Add
+      // calendar" y no se suscribe nada (ver BotonAgregarCalendario.jsx).
+      "expo-web-browser",
     ],
     extra: {
       // EAS project id (@albatross-tech/tribbu). No es secreto; va hardcodeado
