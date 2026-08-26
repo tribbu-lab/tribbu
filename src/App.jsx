@@ -194,7 +194,11 @@ function App() {
     cargarItems();
   },[usuario]);
 
-  // Badge: recarga cada vez que cambia tab, curso o usuario, y cada 30s
+  // Badge: recarga al cambiar de curso/usuario, cada 30s, y explícitamente
+  // desde Recordatorios cuando cambia el estado de lectura (onBadgeChange) —
+  // NO al cambiar de tab: la cuenta de no leídos no depende de qué pantalla
+  // se está mirando, así que recalcularla en cada navegación solo agrega un
+  // round-trip innecesario a cada cambio de módulo.
   const cargarBadge = (usr, itmList, idx) => {
     if(!usr) return;
     const itm_ = itmList[idx];
@@ -217,7 +221,7 @@ function App() {
     cargarBadge(usuario, items, cursoIdx);
     const iv = setInterval(()=>cargarBadge(usuario, items, cursoIdx), 30000);
     return ()=>clearInterval(iv);
-  },[usuario, items, cursoIdx, tab]);
+  },[usuario, items, cursoIdx]);
 
   // Restaurar sesión al recargar la página
   useEffect(()=>{
