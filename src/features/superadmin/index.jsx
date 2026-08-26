@@ -240,9 +240,15 @@ export function SuperAdmin() {
           }
         } catch(e) { setAuthSyncMsg({ ok:false, msg:`⚠️ Error: ${e.message}` }); }
       }
-      await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id);
+      // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
+      // crear_apoderado en el registro) no se tocan — borrarlas dejaba al
+      // apoderado sin membresía de curso.
+      await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).eq("rol","admin");
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
-      if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:form.id,curso_id:cid,rol:"admin"})));
+      if((form.cursosAdmin||[]).length) {
+        await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).in("curso_id",form.cursosAdmin);
+        await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:form.id,curso_id:cid,rol:"admin"})));
+      }
       if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
     }
     setModal(null); cargar();

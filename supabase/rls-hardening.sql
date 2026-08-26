@@ -92,6 +92,11 @@ as $$
 $$;
 
 -- ¿el usuario actual es miembro (cualquier rol) del curso dado?
+-- Membresía = usuario_cursos O hijo vinculado en el curso (el modelo "Mi
+-- acceso" del cliente deriva el acceso de hijos.curso_id; sin la segunda
+-- fuente, un padre sin fila usuario_cursos —alta/edición por Super Admin,
+-- hijo promovido de curso— no leía NADA de su curso; fix 2026-08-26, ver
+-- rls-membresia-por-hijo.sql).
 create or replace function public.es_miembro_curso(p_curso uuid)
 returns boolean
 language sql stable security definer set search_path = public, pg_temp
@@ -101,6 +106,12 @@ as $$
     from public.usuario_cursos uc
     join public.usuarios u on u.id = uc.usuario_id
     where u.auth_id = auth.uid() and uc.curso_id = p_curso
+  ) or exists(
+    select 1
+    from public.usuario_hijos uh
+    join public.usuarios u on u.id = uh.usuario_id
+    join public.hijos h on h.id = uh.hijo_id
+    where u.auth_id = auth.uid() and h.curso_id = p_curso
   )
 $$;
 
@@ -132,16 +143,36 @@ $$;
 
 -- ¿el usuario actual comparte al menos un curso con el usuario objetivo?
 -- (visibilidad "mismo curso" para listar compañeros: Contacto/Alumnos/Finanzas/Cumples)
+-- Los cursos de cada lado = usuario_cursos ∪ cursos de sus hijos vinculados
+-- (misma unión que es_miembro_curso; fix 2026-08-26, ver rls-membresia-por-hijo.sql).
 create or replace function public.comparte_curso(p_usuario uuid)
 returns boolean
 language sql stable security definer set search_path = public, pg_temp
 as $$
   select exists(
     select 1
-    from public.usuario_cursos mios
-    join public.usuarios u on u.id = mios.usuario_id and u.auth_id = auth.uid()
-    join public.usuario_cursos otros on otros.curso_id = mios.curso_id
-    where otros.usuario_id = p_usuario
+    from (
+      select uc.curso_id
+      from public.usuario_cursos uc
+      join public.usuarios u on u.id = uc.usuario_id
+      where u.auth_id = auth.uid()
+      union
+      select h.curso_id
+      from public.usuario_hijos uh
+      join public.usuarios u on u.id = uh.usuario_id
+      join public.hijos h on h.id = uh.hijo_id
+      where u.auth_id = auth.uid()
+    ) mios
+    join (
+      select uc.curso_id
+      from public.usuario_cursos uc
+      where uc.usuario_id = p_usuario
+      union
+      select h.curso_id
+      from public.usuario_hijos uh
+      join public.hijos h on h.id = uh.hijo_id
+      where uh.usuario_id = p_usuario
+    ) otros on otros.curso_id = mios.curso_id and otros.curso_id is not null
   )
 $$;
 
