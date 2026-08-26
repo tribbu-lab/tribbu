@@ -88,7 +88,12 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
 
   const abrirEnGoogle = () => {
     if (!feedUrl) return;
-    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(feedUrl);
+    // cid= espera un URL con esquema webcal:// para reconocerlo como una
+    // suscripción a un feed externo — con https:// a secas, Google intenta
+    // resolverlo como un ID de calendario propio y falla con "Unable to add
+    // calendar. Check url" (el feed en sí responde bien, probado con curl).
+    const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
+    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
     window.open(googleUrl, "_blank", "noopener,noreferrer");
     marcarSincronizado("google");
   };
