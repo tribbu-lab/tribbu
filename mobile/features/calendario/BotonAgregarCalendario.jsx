@@ -2,12 +2,15 @@
 // src/features/calendario/BotonAgregarCalendarioWeb.jsx)
 //
 // Copia el enlace del feed ICS de tribbu (eventos + cumpleaños + festejos de
-// todos los cursos del usuario) y, en iOS, ofrece abrirlo directo con
+// todos los cursos del usuario). En iOS se ofrece abrirlo directo con
 // webcal:// (el SO resuelve el flujo nativo de suscripción). Android no tiene
-// un "suscribirse por URL" a nivel de sistema, así que ahí solo se copia el
-// enlace — el usuario lo pega en la app de calendario que use, en su opción
-// de agregar/suscribirse por URL (ej. Google Calendar web → Otros
-// calendarios → Desde URL).
+// un "suscribirse por URL" a nivel de sistema ni en la app de Google Calendar,
+// así que ahí el botón principal abre calendar.google.com/.../render?cid=
+// (mismo link que usa el botón de la web) en el navegador del teléfono: Google
+// muestra su propio cartel de "Add calendar" y confirma ahí mismo — evita
+// mandar al usuario a buscar "Otros calendarios → Desde URL" a mano, un flujo
+// pensado para desktop que no existe en la app mobile de Google Calendar.
+// "Copiar enlace" queda como alternativa para quien use otro calendario.
 //
 // UI colapsada en un Sheet para no empujar el resto de Calendario hacia
 // abajo: el trigger es una sola línea, y una vez que el usuario ya usó
@@ -38,12 +41,13 @@ export default function BotonAgregarCalendario({ userId }) {
   const [regenerando, setRegenerando] = useState(false);
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  // Guarda el método usado ("webcal" | "copia"), no solo un booleano: copiar
-  // el enlace todavía no sincronizó nada (falta pegarlo en el calendario),
-  // a diferencia de abrir webcal:// en iOS, que sí completa la suscripción
-  // ahí mismo — el trigger no debe decir "sincronizado" para lo primero.
+  // Guarda el método usado ("webcal" | "google" | "copia"), no solo un
+  // booleano: copiar el enlace todavía no sincronizó nada (falta pegarlo en
+  // el calendario), a diferencia de abrir webcal:// (iOS) o Google Calendar
+  // (Android), que sí completan la suscripción ahí mismo — el trigger no
+  // debe decir "sincronizado" para lo primero.
   const [metodo, setMetodo] = useState(null);
-  const sincronizado = metodo === "webcal";
+  const sincronizado = metodo === "webcal" || metodo === "google";
   const soloCopiado = metodo === "copia" || metodo === "1"; // "1" = legacy, previo a este fix
 
   useEffect(() => {
@@ -114,6 +118,20 @@ export default function BotonAgregarCalendario({ userId }) {
     marcarSincronizado("webcal");
   };
 
+  // Android: mismo link que abrirEnGoogle en la web (cid= necesita esquema
+  // webcal:// para que Google lo reconozca como suscripción a un feed
+  // externo). Se abre en el navegador del teléfono porque no hay atajo
+  // nativo — Google confirma con su propio cartel de "Add calendar".
+  const abrirGoogleCalendar = () => {
+    if (!feedUrl) return;
+    const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
+    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
+    Linking.openURL(googleUrl).catch((e) =>
+      console.warn("No se pudo abrir Google Calendar:", e?.message)
+    );
+    marcarSincronizado("google");
+  };
+
   const regenerar = async () => {
     setRegenerando(true);
     try {
@@ -140,9 +158,7 @@ export default function BotonAgregarCalendario({ userId }) {
 
       <Sheet visible={abierto} onClose={() => setAbierto(false)} title="Sincronizar calendario">
         <Text style={styles.hint}>
-          Los eventos de la escuela aparecerán en tu calendario y se actualizan solos.{" "}
-          {Platform.OS === "android" ? "En Android, pegá el enlace en tu app de calendario, en la opción de agregar o suscribirte por URL (en Google Calendar, por ejemplo: web → Otros calendarios → Desde URL). " : ""}
-          Google puede tardar unas horas en reflejar los cambios.
+          Los eventos de la escuela aparecerán en tu calendario y se actualizan solos. Google puede tardar unas horas en reflejar los cambios.
         </Text>
 
         <View style={styles.row}>
@@ -150,9 +166,13 @@ export default function BotonAgregarCalendario({ userId }) {
             <Pressable onPress={abrirWebcal} style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryTxt}>📅 Agregar a Calendario</Text>
             </Pressable>
-          ) : null}
+          ) : (
+            <Pressable onPress={abrirGoogleCalendar} style={styles.btnPrimary}>
+              <Text style={styles.btnPrimaryTxt}>📅 Agregar a Google Calendar</Text>
+            </Pressable>
+          )}
           <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
-            <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
+            <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace (Apple, Outlook…)"}</Text>
           </Pressable>
         </View>
 
