@@ -503,7 +503,12 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     lugar:       evento?.lugar       || "",
     url_ubicacion: evento?.url_ubicacion || "",
     descripcion: evento?.descripcion || "",
-    todo_el_dia: evento?.todo_el_dia !== false,
+    // Un evento nuevo arranca CON hora (no "Todo el día") para que el admin
+    // vea el campo de hora de entrada, en vez de tener que acordarse de
+    // destildar el toggle — quedaba pasando que la hora terminaba escrita a
+    // mano en la Descripción en vez de cargada en el campo real. Al editar
+    // se respeta el valor guardado.
+    todo_el_dia: esNuevo ? false : evento.todo_el_dia !== false,
     confirma_asistencia: evento?.confirma_asistencia ?? false,
     adjuntos:    evento?.adjuntos    || [],
   });
