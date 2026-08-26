@@ -155,7 +155,7 @@ function App() {
 
   // Hook de notificaciones — siempre se llama, usa guards internos cuando no hay sesión
   const { notifs, leidos, cargando: cargandoNotifs, noLeidos,
-          marcarLeido } = useNotificaciones({
+          marcarLeido, recargar: recargarNotifs } = useNotificaciones({
     cursoIds: _cursoIds, userId: usuario?.id ?? null, active: panelNotifs,
   });
 
@@ -194,12 +194,14 @@ function App() {
     cargarItems();
   },[usuario]);
 
-  // Badge: recarga al cambiar de curso/usuario, cada 30s, y explícitamente
-  // desde Recordatorios cuando cambia el estado de lectura (onBadgeChange) —
-  // NO al cambiar de tab: la cuenta de no leídos no depende de qué pantalla
-  // se está mirando, así que recalcularla en cada navegación solo agrega un
-  // round-trip innecesario a cada cambio de módulo.
-  const cargarBadge = (usr, itmList, idx) => {
+  // Badge: recarga al cambiar de curso/usuario, cada 30s, y cuando cambia el
+  // estado de lectura — NO al cambiar de tab (ver nota más abajo). Reusa el
+  // `recordatorio_leidos` que ya trae useNotificaciones (misma consulta
+  // exacta, sin filtro de curso ni fecha) en vez de pedirlo de nuevo: antes
+  // cada cambio de hijo/curso disparaba esa consulta 3 veces en paralelo
+  // (Muro, este badge y notificaciones), cada una compitiendo por conexión
+  // con las demás.
+  const cargarBadge = (usr, itmList, idx, leidosSet) => {
     if(!usr) return;
     const itm_ = itmList[idx];
     const cids_ = itm_?._tipo==="todos"
@@ -207,21 +209,24 @@ function App() {
       : [itm_?._tipo==="hijo" ? itm_?.curso_id : itm_?.id].filter(Boolean);
     if(!cids_.length) return;
     const hoy = new Date().toISOString().split("T")[0];
-    Promise.all([
-      supabase.from("recordatorios").select("id").in("curso_id", cids_)
-        .or(`para_usuario_id.is.null,para_usuario_id.eq.${usr.id}`)
-        .or(`fecha.is.null,fecha.gte.${hoy}`),
-      supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", usr.id),
-    ]).then(([recs, leidos]) => {
-      const leidosIds = new Set((leidos.data||[]).map(r=>r.recordatorio_id));
-      setBadgeCount((recs.data||[]).filter(r=>!leidosIds.has(r.id)).length);
-    });
+    supabase.from("recordatorios").select("id").in("curso_id", cids_)
+      .or(`para_usuario_id.is.null,para_usuario_id.eq.${usr.id}`)
+      .or(`fecha.is.null,fecha.gte.${hoy}`)
+      .then(({data:recs}) => {
+        setBadgeCount((recs||[]).filter(r=>!leidosSet.has(r.id)).length);
+      });
   };
+  // NO al cambiar de tab: la cuenta de no leídos no depende de qué pantalla
+  // se está mirando, así que recalcularla en cada navegación solo agrega un
+  // round-trip innecesario a cada cambio de módulo. `leidos` en las deps
+  // hace que se recalcule solo cuando el estado de lectura realmente
+  // cambió (incluye el refresh explícito de Recordatorios vía onBadgeChange
+  // más abajo, que llama a recargarNotifs en vez de a cargarBadge directo).
   useEffect(()=>{
-    cargarBadge(usuario, items, cursoIdx);
-    const iv = setInterval(()=>cargarBadge(usuario, items, cursoIdx), 30000);
+    cargarBadge(usuario, items, cursoIdx, leidos);
+    const iv = setInterval(()=>cargarBadge(usuario, items, cursoIdx, leidos), 30000);
     return ()=>clearInterval(iv);
-  },[usuario, items, cursoIdx]);
+  },[usuario, items, cursoIdx, leidos]);
 
   // Restaurar sesión al recargar la página
   useEffect(()=>{
@@ -378,7 +383,7 @@ function App() {
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>cargarBadge(usuario,items,cursoIdx)}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
