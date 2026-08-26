@@ -1,10 +1,14 @@
 // supabase/functions/calendar-feed/index.ts
 //
 // Sirve el feed ICS de un usuario: eventos + cumpleaños (hijos y maestros) +
-// festejos de todos los cursos a los que tiene acceso (hijos + cursos donde
-// es admin — mismo cálculo que el "Mi acceso" de App.jsx), combinados en un
-// solo calendario. Cada VEVENT lleva el nombre del curso en el SUMMARY para
+// recordatorios con horario (las "citas" — reuniones, entrevistas, etc. que
+// llevan hora_inicio) de todos los cursos a los que tiene acceso (hijos +
+// cursos donde es admin — mismo cálculo que el "Mi acceso" de App.jsx),
+// combinados en un solo calendario. Un recordatorio sin hora_inicio es un
+// aviso/texto, no algo agendable, así que no entra acá (queda solo en el tab
+// de Recordatorios). Cada VEVENT lleva el nombre del curso en el SUMMARY para
 // que un apoderado con hijos en más de un curso pueda diferenciarlos.
+// (Festejos todavía no está cubierto por este feed — pendiente.)
 //
 // Gateado únicamente por `?token=` (usuario_calendar_tokens.token, generado vía
 // la RPC regenerar_calendar_token — ver supabase/calendar-token-hardening.sql,
@@ -121,10 +125,46 @@ function buildCumpleVevent(tipo: "hijo" | "maestro", id: string, nombre: string,
   return lines.map(fold).join("\r\n");
 }
 
+type Recordatorio = {
+  id: string;
+  curso_id: string;
+  texto: string;
+  fecha: string;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+};
+
+// Solo los recordatorios con horario (hora_inicio) entran al feed como citas
+// con hora — un recordatorio sin hora es un aviso/texto, no algo agendable;
+// hora_fin queda opcional (sin fin, la cita queda como instante puntual).
+function buildRecordatorioVevent(r: Recordatorio, curso: string): string {
+  const summary = esc(curso ? `${curso} — ${r.texto}` : r.texto);
+  const lines = [
+    "BEGIN:VEVENT",
+    `UID:recordatorio-${r.id}@tribbu.app`,
+    `DTSTAMP:${dtstampNow()}`,
+    `SUMMARY:${summary}`,
+    `DTSTART:${dateTimeUTC(r.fecha, r.hora_inicio!)}`,
+    `DTEND:${dateTimeUTC(r.fecha, r.hora_fin || r.hora_inicio!)}`,
+    "END:VEVENT",
+  ];
+  return lines.map(fold).join("\r\n");
+}
+
 function buildIcs(vevents: string[]): string {
   return (
-    ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//tribbu//calendar-feed//ES", "CALSCALE:GREGORIAN", ...vevents, "END:VCALENDAR"].join("\r\n") +
-    "\r\n"
+    [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//tribbu//calendar-feed//ES",
+      "CALSCALE:GREGORIAN",
+      // X-WR-CALNAME es lo que Google/Apple/Outlook muestran como nombre del
+      // calendario suscripto — sin esto, quedaba el host de la Edge Function
+      // (ej. "gctymjhblvocvaenmdhr.supabase.co") como nombre.
+      "X-WR-CALNAME:Tribbu",
+      ...vevents,
+      "END:VCALENDAR",
+    ].join("\r\n") + "\r\n"
   );
 }
 
@@ -164,16 +204,26 @@ serve(async (req) => {
     const { data: cursos } = await supabase.from("cursos").select("id,nombre").in("id", cursoIds);
     const nombrePorCurso = new Map((cursos || []).map((c) => [c.id, c.nombre as string]));
 
-    const [{ data: eventos }, { data: hijos }, { data: maestroCursos }] = await Promise.all([
+    const [{ data: eventos }, { data: hijos }, { data: maestroCursos }, { data: recordatorios }] = await Promise.all([
       supabase.from("eventos").select("*").in("curso_id", cursoIds),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,curso_id").in("curso_id", cursoIds),
       supabase.from("maestro_cursos").select("curso_id, maestros(id,nombre,fecha_nacimiento)").in("curso_id", cursoIds),
+      supabase
+        .from("recordatorios")
+        .select("id,curso_id,texto,fecha,hora_inicio,hora_fin,para_usuario_id")
+        .in("curso_id", cursoIds)
+        .not("fecha", "is", null)
+        .not("hora_inicio", "is", null)
+        .or(`para_usuario_id.is.null,para_usuario_id.eq.${usuario.id}`),
     ]);
 
     const vevents: string[] = [];
 
     for (const e of (eventos || []) as Evento[]) {
       vevents.push(buildEventoVevent(e, nombrePorCurso.get(e.curso_id) || ""));
+    }
+    for (const r of (recordatorios || []) as Recordatorio[]) {
+      vevents.push(buildRecordatorioVevent(r, nombrePorCurso.get(r.curso_id) || ""));
     }
     for (const h of hijos || []) {
       if (!h.fecha_nacimiento) continue;
