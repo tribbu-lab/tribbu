@@ -3,14 +3,19 @@
 //
 // Copia el enlace del feed ICS de tribbu (eventos + cumpleaños + festejos de
 // todos los cursos del usuario). En iOS se ofrece abrirlo directo con
-// webcal:// (el SO resuelve el flujo nativo de suscripción). Android no tiene
-// un "suscribirse por URL" a nivel de sistema ni en la app de Google Calendar,
-// así que ahí el botón principal abre calendar.google.com/.../render?cid=
-// (mismo link que usa el botón de la web) en el navegador del teléfono: Google
-// muestra su propio cartel de "Add calendar" y confirma ahí mismo — evita
-// mandar al usuario a buscar "Otros calendarios → Desde URL" a mano, un flujo
-// pensado para desktop que no existe en la app mobile de Google Calendar.
-// "Copiar enlace" queda como alternativa para quien use otro calendario.
+// webcal:// (el SO resuelve el flujo nativo de suscripción, y confirmado que
+// sí persiste). En Android NO hay atajo de un toque que funcione de verdad:
+// se probaron Linking.openURL y una Custom Tab (expo-web-browser) contra
+// calendar.google.com/.../render?cid=, pero calendar.google.com está
+// verificado como Android App Link de la app de Google Calendar — Android le
+// entrega el link a esa app en los dos casos, y la app de Calendar muestra
+// selector de cuenta + un "agregado con éxito" falso: no llega a suscribir
+// nada de verdad (ni en la app ni en calendar.google.com desde el
+// navegador — confirmado con un usuario real). Ni Google Calendar ni
+// Outlook/Samsung Calendar tienen "agregar por URL" dentro de su app mobile
+// — las tres requieren pasar por la versión web de escritorio del calendario
+// que uses. Así que en Android solo se ofrece "Copiar enlace" + instrucciones
+// para pegarlo ahí.
 //
 // UI colapsada en un Sheet para no empujar el resto de Calendario hacia
 // abajo: el trigger es una sola línea, y una vez que el usuario ya usó
@@ -25,7 +30,6 @@ import { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform, Linking, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
-import * as WebBrowser from "expo-web-browser";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
@@ -42,14 +46,15 @@ export default function BotonAgregarCalendario({ userId }) {
   const [regenerando, setRegenerando] = useState(false);
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  // Guarda el método usado ("webcal" | "google" | "copia"), no solo un
-  // booleano: copiar el enlace todavía no sincronizó nada (falta pegarlo en
-  // el calendario), a diferencia de abrir webcal:// (iOS) o Google Calendar
-  // (Android), que sí completan la suscripción ahí mismo — el trigger no
-  // debe decir "sincronizado" para lo primero.
+  // Guarda el método usado ("webcal" | "copia"), no solo un booleano: copiar
+  // el enlace todavía no sincronizó nada (falta pegarlo en el calendario), a
+  // diferencia de abrir webcal:// en iOS, que sí completa la suscripción ahí
+  // mismo — el trigger no debe decir "sincronizado" para lo primero.
+  // ("google" quedó de un intento anterior en Android que resultó ser un
+  // falso positivo — ver comentario de arriba — se trata igual que "copia".)
   const [metodo, setMetodo] = useState(null);
-  const sincronizado = metodo === "webcal" || metodo === "google";
-  const soloCopiado = metodo === "copia" || metodo === "1"; // "1" = legacy, previo a este fix
+  const sincronizado = metodo === "webcal";
+  const soloCopiado = metodo === "copia" || metodo === "google" || metodo === "1"; // "1" = legacy, previo a este fix
 
   useEffect(() => {
     if (!userId) return;
@@ -119,26 +124,6 @@ export default function BotonAgregarCalendario({ userId }) {
     marcarSincronizado("webcal");
   };
 
-  // Android: mismo link que abrirEnGoogle en la web (cid= necesita esquema
-  // webcal:// para que Google lo reconozca como suscripción a un feed
-  // externo). Se abre con expo-web-browser (Custom Tab) en vez de
-  // Linking.openURL: calendar.google.com está verificado como App Link de la
-  // app de Google Calendar, así que un Linking.openURL normal se lo entrega
-  // directo a esa app — que ignora el ?cid= y nunca muestra el cartel de
-  // "Add calendar" — en vez de abrirlo como página web. Una Custom Tab evita
-  // ese hand-off y garantiza que se vea la confirmación de Google.
-  const abrirGoogleCalendar = async () => {
-    if (!feedUrl) return;
-    const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
-    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
-    try {
-      await WebBrowser.openBrowserAsync(googleUrl);
-    } catch (e) {
-      console.warn("No se pudo abrir Google Calendar:", e?.message);
-    }
-    marcarSincronizado("google");
-  };
-
   const regenerar = async () => {
     setRegenerando(true);
     try {
@@ -173,23 +158,22 @@ export default function BotonAgregarCalendario({ userId }) {
             <Pressable onPress={abrirWebcal} style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryTxt}>📅 Agregar a Calendario</Text>
             </Pressable>
-          ) : (
-            <Pressable onPress={abrirGoogleCalendar} style={styles.btnPrimary}>
-              <Text style={styles.btnPrimaryTxt}>📅 Agregar a Google Calendar</Text>
-            </Pressable>
-          )}
-          <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
-            <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
+          ) : null}
+          <Pressable onPress={copiarUrl} style={Platform.OS === "ios" ? styles.btnSecondary : styles.btnPrimary}>
+            <Text style={Platform.OS === "ios" ? styles.btnSecondaryTxt : styles.btnPrimaryTxt}>
+              {copiado ? "¡Copiado!" : "Copiar enlace"}
+            </Text>
           </Pressable>
         </View>
 
-        {/* "Apple"/"Outlook" no aplican como botón nativo acá (esos son
-            atajos de la versión web) — en mobile, otra app de calendario que
-            no sea Google Calendar (Android) / Calendario (iOS) solo se puede
-            sumar copiando el enlace y pegándolo a mano en su propia opción
-            de "agregar desde una URL". */}
+        {/* En Android no hay atajo de un toque confiable: ni Google Calendar
+            ni Outlook ni Samsung Calendar soportan "agregar por URL" dentro
+            de su app mobile — las tres requieren pegar el enlace desde la
+            versión web de escritorio de ese calendario. */}
         <Text style={styles.hintSmall}>
-          ¿Usás otra app de calendario (Outlook, Samsung Calendar, etc.)? Copiá el enlace y pegalo ahí, en su opción de "agregar calendario desde una URL" o "suscribirse" (en Outlook, por ejemplo: outlook.com en el navegador → Configuración → Calendario → Agregar calendario → Suscribirse desde la web).
+          {Platform.OS === "ios"
+            ? '¿Usás otra app de calendario (Outlook, etc.) en vez de la de Apple? Copiá el enlace y pegalo ahí, en su opción de "agregar calendario desde una URL" o "suscribirse" (en Outlook, por ejemplo: outlook.com en el navegador → Configuración → Calendario → Agregar calendario → Suscribirse desde la web).'
+            : 'Pegá el enlace copiado en la versión web de tu calendario (no la app): en Google Calendar, calendar.google.com desde el navegador → ⚙️ Configuración → Agregar calendario → Desde URL. En Outlook: outlook.com → Configuración → Calendario → Agregar calendario → Suscribirse desde la web.'}
         </Text>
 
         {confirmarRegenerar ? (
