@@ -51,9 +51,10 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     setCargando(false);
   }, [cursoIds, userId]);
 
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
+  // Un solo efecto: antes había dos (uno incondicional + uno gateado en
+  // `active`), y como AppHeader siempre pasa active:true, ambos disparaban
+  // cargar() en cada montaje/cambio de cursoIds — duplicando recordatorios +
+  // recordatorio_leidos + alertas en cada cambio de hijo.
   useEffect(() => {
     if (active) cargar();
   }, [active, cargar]);

@@ -32,13 +32,19 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
   const [regenerando, setRegenerando] = useState(false);
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  const [sincronizado, setSincronizado] = useState(() => {
-    try { return userId ? localStorage.getItem(claveSincronizado(userId)) === "1" : false; } catch { return false; }
+  // Guarda el método usado ("google" | "webcal" | "copia"), no solo un booleano:
+  // copiar el enlace todavía no sincronizó nada (falta pegarlo en el calendario),
+  // a diferencia de abrir Google Calendar, que sí completa la suscripción ahí
+  // mismo — el trigger no debe decir "sincronizado" para lo primero.
+  const [metodo, setMetodo] = useState(() => {
+    try { return userId ? localStorage.getItem(claveSincronizado(userId)) : null; } catch { return null; }
   });
+  const sincronizado = metodo === "google";
+  const soloCopiado = metodo === "copia" || metodo === "1"; // "1" = legacy, previo a este fix
 
-  const marcarSincronizado = () => {
-    setSincronizado(true);
-    try { localStorage.setItem(claveSincronizado(userId), "1"); } catch { /* noop */ }
+  const marcarSincronizado = (m) => {
+    setMetodo(m);
+    try { localStorage.setItem(claveSincronizado(userId), m); } catch { /* noop */ }
   };
 
   useEffect(() => {
@@ -84,7 +90,7 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
     if (!feedUrl) return;
     const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(feedUrl);
     window.open(googleUrl, "_blank", "noopener,noreferrer");
-    marcarSincronizado();
+    marcarSincronizado("google");
   };
 
   const copiarUrl = async () => {
@@ -92,14 +98,14 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
     try {
       await navigator.clipboard.writeText(feedUrl);
       setCopiado(true);
-      marcarSincronizado();
+      marcarSincronizado("copia");
       setTimeout(() => setCopiado(false), 2000);
     } catch {
       // Fallback si el navegador bloquea el clipboard (o prompt() no está
       // disponible en el contexto — evita una excepción sin capturar).
       try {
         window.prompt("Copiá este enlace para tu calendario:", feedUrl);
-        marcarSincronizado();
+        marcarSincronizado("copia");
       } catch {
         // prompt() no disponible en este contexto — no hay más fallback posible.
       }
@@ -129,13 +135,13 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "6px 12px", borderRadius: 20,
-          border: `1px solid ${sincronizado ? "#E2E8F0" : T.accent}`,
-          background: sincronizado ? "white" : "#EFF6FF",
-          color: sincronizado ? T.muted : T.accent,
+          border: `1px solid ${metodo ? "#E2E8F0" : T.accent}`,
+          background: metodo ? "white" : "#EFF6FF",
+          color: metodo ? T.muted : T.accent,
           cursor: "pointer", fontSize: 12, fontWeight: 700,
         }}
       >
-        {sincronizado ? "✓ Calendario sincronizado" : "📅 Agregar a tu calendario"}
+        {sincronizado ? "✓ Calendario sincronizado" : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario"}
       </button>
 
       {abierto && (

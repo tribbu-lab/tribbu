@@ -38,20 +38,26 @@ export default function BotonAgregarCalendario({ userId }) {
   const [regenerando, setRegenerando] = useState(false);
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  const [sincronizado, setSincronizado] = useState(false);
+  // Guarda el método usado ("webcal" | "copia"), no solo un booleano: copiar
+  // el enlace todavía no sincronizó nada (falta pegarlo en el calendario),
+  // a diferencia de abrir webcal:// en iOS, que sí completa la suscripción
+  // ahí mismo — el trigger no debe decir "sincronizado" para lo primero.
+  const [metodo, setMetodo] = useState(null);
+  const sincronizado = metodo === "webcal";
+  const soloCopiado = metodo === "copia" || metodo === "1"; // "1" = legacy, previo a este fix
 
   useEffect(() => {
     if (!userId) return;
     let activo = true;
     AsyncStorage.getItem(claveSincronizado(userId))
-      .then((v) => { if (activo) setSincronizado(v === "1"); })
+      .then((v) => { if (activo) setMetodo(v); })
       .catch(() => {});
     return () => { activo = false; };
   }, [userId]);
 
-  const marcarSincronizado = () => {
-    setSincronizado(true);
-    AsyncStorage.setItem(claveSincronizado(userId), "1").catch(() => {});
+  const marcarSincronizado = (m) => {
+    setMetodo(m);
+    AsyncStorage.setItem(claveSincronizado(userId), m).catch(() => {});
   };
 
   useEffect(() => {
@@ -90,10 +96,14 @@ export default function BotonAgregarCalendario({ userId }) {
 
   const copiarUrl = async () => {
     if (!feedUrl) return;
-    await Clipboard.setStringAsync(feedUrl);
-    setCopiado(true);
-    marcarSincronizado();
-    setTimeout(() => setCopiado(false), 2000);
+    try {
+      await Clipboard.setStringAsync(feedUrl);
+      setCopiado(true);
+      marcarSincronizado("copia");
+      setTimeout(() => setCopiado(false), 2000);
+    } catch (e) {
+      console.warn("No se pudo copiar el enlace de calendario:", e?.message);
+    }
   };
 
   const abrirWebcal = () => {
@@ -101,7 +111,7 @@ export default function BotonAgregarCalendario({ userId }) {
     Linking.openURL(feedUrl.replace(/^https?:\/\//, "webcal://")).catch((e) =>
       console.warn("No se pudo abrir el enlace webcal:", e?.message)
     );
-    marcarSincronizado();
+    marcarSincronizado("webcal");
   };
 
   const regenerar = async () => {
@@ -122,9 +132,9 @@ export default function BotonAgregarCalendario({ userId }) {
 
   return (
     <View style={styles.wrap}>
-      <Pressable onPress={() => setAbierto(true)} style={[styles.trigger, sincronizado && styles.triggerHecho]}>
-        <Text style={[styles.triggerTxt, sincronizado && styles.triggerTxtHecho]}>
-          {sincronizado ? "✓ Calendario sincronizado" : "📅 Agregar a tu calendario"}
+      <Pressable onPress={() => setAbierto(true)} style={[styles.trigger, metodo && styles.triggerHecho]}>
+        <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>
+          {sincronizado ? "✓ Calendario sincronizado" : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario"}
         </Text>
       </Pressable>
 

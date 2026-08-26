@@ -10,18 +10,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
-import { useNotificaciones, NotificacionesPanel } from "../features/notificaciones";
+import { NotificacionesPanel } from "../features/notificaciones";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
-export function AppHeader() {
+// `notif` viene levantado desde app/(tabs)/_layout.jsx (mismo hook que ya
+// necesita el badge de la tab de Recordatorios) para no pedir dos veces
+// recordatorios + recordatorio_leidos + alertas en cada cambio de hijo/curso.
+export function AppHeader({ notif }) {
   const insets = useSafeAreaInsets();
   const {
-    usuario,
     items,
     cursoIdx,
     setCursoIdx,
-    cursoIds,
     itemActual,
     tagDeCurso,
     colorDeItem,
@@ -32,11 +33,7 @@ export function AppHeader() {
   const [panelNotifs, setPanelNotifs] = useState(false);
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
-  const { notifs, leidos, cargando, noLeidos, marcarLeido, recargar } = useNotificaciones({
-    cursoIds,
-    userId: usuario?.id ?? null,
-    active: true,
-  });
+  const { notifs, leidos, cargando, noLeidos, marcarLeido, recargar } = notif;
 
   const abrirNotifs = () => {
     recargar();

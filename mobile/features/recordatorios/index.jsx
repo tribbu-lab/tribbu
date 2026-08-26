@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, Modal, StyleSheet } from "react-native";
+import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -160,6 +161,16 @@ export function Recordatorios() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Expo Router mantiene los tabs montados al cambiar de pestaña (a diferencia
+  // del switch de la web, que remonta cada feature) — sin esto, volver a este
+  // tab desde un push (ej. una comunicación del colegio) mostraba la lista
+  // vieja hasta un refresh manual.
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+    }, [cargar])
+  );
 
   const guardar = async () => {
     if (!form.texto?.trim()) return;
