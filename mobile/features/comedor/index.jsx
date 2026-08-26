@@ -131,14 +131,19 @@ export function Comedor() {
             </Pressable>
           </View>
           {diaActual ? (
-            CAMPOS.filter((c) => diaActual[c.key]).map((c) => (
-              <Card key={c.key} style={[styles.platoCard, { borderLeftColor: c.color }]}>
-                <Text style={[styles.platoLabel, { color: c.color }]}>
-                  {c.emoji} {c.label.toUpperCase()}
-                </Text>
-                <Text style={styles.platoTxt}>{diaActual[c.key]}</Text>
-              </Card>
-            ))
+            <Card style={styles.menuCard}>
+              {CAMPOS.filter((c) => diaActual[c.key]).map((c, i) => (
+                <View
+                  key={c.key}
+                  style={[styles.platoRow, { borderLeftColor: c.color }, i > 0 && styles.platoRowDivider]}
+                >
+                  <Text style={[styles.platoLabel, { color: c.color }]}>
+                    {c.emoji} {c.label.toUpperCase()}
+                  </Text>
+                  <Text style={styles.platoTxt}>{diaActual[c.key]}</Text>
+                </View>
+              ))}
+            </Card>
           ) : (
             <Card style={styles.emptyCard}>
               <Text style={styles.emptyEmoji}>🍽️</Text>
@@ -356,7 +361,9 @@ const styles = StyleSheet.create({
   diaNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   diaLabel: { fontSize: 14, color: t.textStrong, fontWeight: "700", textTransform: "capitalize", flex: 1, textAlign: "center" },
   navBtn: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
-  platoCard: { padding: 14, marginBottom: 10, borderLeftWidth: 3, borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
+  menuCard: { padding: 0, overflow: "hidden", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
+  platoRow: { padding: 14, borderLeftWidth: 3 },
+  platoRowDivider: { borderTopWidth: 1, borderTopColor: t.borderStrong },
   platoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 4 },
   platoTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   emptyCard: { padding: SPACE.xxl, alignItems: "center", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },

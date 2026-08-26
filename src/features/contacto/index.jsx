@@ -253,6 +253,10 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
   useEffect(()=>{ cargar(); },[cursosKey]);
 
   const filtrados = hijos.filter(h=>fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase()));
+  // Listado de alumnos: "Apellido, Nombre" (orden de planilla escolar),
+  // acorde al order("apellido") de la query — los apoderados de abajo
+  // siguen en "Nombre Apellido" (fmtNombre), sin cambios.
+  const fmtAlumno = (h) => h?.apellido ? `${h.apellido}, ${h.nombre||""}`.trim() : fmtNombre(h);
 
   // En vista "Todos" se agrupa por curso (orden = cursoIds); en vista por hijo
   // hay un solo grupo sin encabezado, idéntico al comportamiento actual.
@@ -269,7 +273,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
       <div key={h.id} style={{background:"white",borderRadius:12,marginBottom:6,border:"1px solid #E2E8F0",overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(h)}</div>
+            <div style={{fontSize:13,fontWeight:700}}>{fmtAlumno(h)}</div>
             {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
           </div>
           {h.dni&&<div style={{fontSize:11,color:"#94A3B8"}}>DNI: {h.dni}</div>}

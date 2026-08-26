@@ -156,6 +156,10 @@ export function Alumnos() {
   const filtrados = hijos.filter((h) =>
     fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase())
   );
+  // Listado de alumnos: "Apellido, Nombre" (orden de planilla escolar),
+  // acorde al order("apellido") de la query — los apoderados de abajo
+  // siguen en "Nombre Apellido" (fmtNombre), sin cambios.
+  const fmtAlumno = (h) => (h?.apellido ? `${h.apellido}, ${h.nombre || ""}`.trim() : fmtNombre(h));
 
   // En vista "Todos" se agrupa por curso (orden = cursoIds); en vista por hijo
   // hay un solo grupo sin encabezado, idéntico al comportamiento actual.
@@ -172,7 +176,7 @@ export function Alumnos() {
       <View key={h.id} style={styles.alumnoCard}>
         <View style={styles.alumnoTop}>
           <View style={styles.flex1}>
-            <Text style={styles.alumnoNombre}>{fmtNombre(h)}</Text>
+            <Text style={styles.alumnoNombre}>{fmtAlumno(h)}</Text>
             {h.fecha_nacimiento ? (
               <Text style={styles.contactoRol}>
                 {new Date(h.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", {
