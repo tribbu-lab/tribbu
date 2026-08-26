@@ -172,9 +172,18 @@ export default function BotonAgregarCalendario({ userId }) {
             </Pressable>
           )}
           <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
-            <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace (Apple, Outlook…)"}</Text>
+            <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
           </Pressable>
         </View>
+
+        {/* "Apple"/"Outlook" no aplican como botón nativo acá (esos son
+            atajos de la versión web) — en mobile, otra app de calendario que
+            no sea Google Calendar (Android) / Calendario (iOS) solo se puede
+            sumar copiando el enlace y pegándolo a mano en su propia opción
+            de "agregar desde una URL". */}
+        <Text style={styles.hintSmall}>
+          ¿Usás otra app de calendario (Outlook, Samsung Calendar, etc.)? Copiá el enlace y pegalo ahí, en su opción de "agregar calendario desde una URL" o "suscribirse" (en Outlook, por ejemplo: outlook.com en el navegador → Configuración → Calendario → Agregar calendario → Suscribirse desde la web).
+        </Text>
 
         {confirmarRegenerar ? (
           <View style={styles.confirmRow}>
@@ -214,6 +223,7 @@ const styles = StyleSheet.create({
   btnSecondary: { borderWidth: 1.5, borderColor: t.accent, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
   btnSecondaryTxt: { color: t.accent, fontSize: 13, fontWeight: "700" },
   hint: { fontSize: 12, color: t.textMuted, lineHeight: 17 },
+  hintSmall: { fontSize: 11, color: t.textFaint, lineHeight: 15, marginTop: SPACE.md },
   link: { fontSize: 12, fontWeight: "700", color: t.accent, textDecorationLine: "underline", marginTop: SPACE.md },
   linkDanger: { fontSize: 12, fontWeight: "700", color: T.red, textDecorationLine: "underline" },
   linkMuted: { fontSize: 12, fontWeight: "700", color: t.textMuted },
