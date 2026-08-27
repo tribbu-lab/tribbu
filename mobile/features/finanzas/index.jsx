@@ -502,8 +502,33 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
 }
 
 function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose }) {
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+
   if (!colecta) return null;
   const toggleable = canToggle(colecta);
+  const faltantes = alumnos.filter((a) => getPago(colecta.id, a.id)?.estado !== "pagado");
+
+  const recordar = async () => {
+    if (!faltantes.length) return;
+    setEnviando(true);
+    setEnviado(false);
+    const { data: uh } = await supabase
+      .from("usuario_hijos")
+      .select("usuario_id")
+      .in("hijo_id", faltantes.map((a) => a.id));
+    const userIds = [...new Set((uh || []).map((r) => r.usuario_id))];
+    if (userIds.length) {
+      // "colecta" en el switch del Edge Function siempre dice "Nueva
+      // colecta" — un type fuera del switch cae al default (título
+      // genérico "tribbu" + el mensaje), que es lo que corresponde acá sin
+      // tener que tocar/redesplegar la función por un recordatorio.
+      await sendPush({ type: "recordatorio_pago", payload: { mensaje: `Recordatorio: te falta aportar a "${colecta.titulo}"`, userIds } });
+    }
+    setEnviando(false);
+    setEnviado(true);
+  };
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -549,6 +574,19 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose })
             })}
             {alumnos.length === 0 ? <Text style={styles.empty}>Sin alumnos en el curso</Text> : null}
           </ScrollView>
+
+          {toggleable && alumnos.length > 0 ? (
+            <View style={styles.pagosFooter}>
+              <Text style={styles.pagosFooterTxt}>
+                {faltantes.length === 0 ? "Todos aportaron ✓" : `Faltan ${faltantes.length} de ${alumnos.length}`}
+              </Text>
+              {faltantes.length > 0 ? (
+                <Pressable onPress={recordar} disabled={enviando} style={styles.recordarBtn}>
+                  <Text style={styles.recordarTxt}>{enviando ? "Enviando..." : enviado ? "✓ Enviado" : "Recordar a los que faltan"}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -624,4 +662,8 @@ const styles = StyleSheet.create({
   saveTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
   pagosHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   pagoAlumnoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: t.border },
+  pagosFooter: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: t.border, gap: 10 },
+  pagosFooterTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted, textAlign: "center" },
+  recordarBtn: { minHeight: 44, borderRadius: RADIUS.md, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center" },
+  recordarTxt: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
 });
