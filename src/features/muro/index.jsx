@@ -48,8 +48,6 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [leidosMuro,setLeidosMuro] = useState(new Set());
-  const [expandidos,setExpandidos] = useState(()=>new Set());
-  const toggleExpandido = (id) => setExpandidos(p=>{ const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const [hijosNombres,setHijosNombres] = useState([]);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
@@ -191,6 +189,73 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   // resumen de la aside de escritorio (no altera la lógica de colectasPend).
   const proximoCumple = (datos.bdayList||[])[0];
 
+  // ── Pendientes unificado (handoff Tribbu Apoderado Web, Parte 1/7): antes
+  // cada tipo (recordatorio/colecta/invitación/encuesta) era su propia
+  // sección con su propio estilo de card — el mockup los junta en UNA sola
+  // lista "Pendientes · N", cada card con el mismo patrón (icono + tipo/tag +
+  // título/meta + chip + botón de acción a la derecha). Mismo patrón que ya
+  // tiene mobile/features/muro/index.jsx.
+  const diasHasta = (fechaStr) => {
+    if(!fechaStr) return null;
+    const hoyD = new Date(); hoyD.setHours(0,0,0,0);
+    return Math.round((new Date(fechaStr+"T00:00:00")-hoyD)/86400000);
+  };
+  const fmtDiaMesCorto = (s) => s ? new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"}) : null;
+  const chipDias = (dias) => dias==null ? null : dias<=0 ? (dias===0?"Hoy":`hace ${-dias}d`) : dias===1 ? "Mañana" : `${dias}d`;
+
+  const pendientes = [
+    ...datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
+      key:`r-${r.id}`, tipo:"Recordatorio", color:"#DC2626", soft:"#FEF2F2", borde:"#FECACA",
+      icon:"📌", titulo:r.texto,
+      meta:`Sin leer${r.fecha?` · ${new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}`:""}${fmtRangoHora(r.hora_inicio,r.hora_fin)?` · ${fmtRangoHora(r.hora_inicio,r.hora_fin)}`:""}${r.grupo_id?" · 🏫 Comunicación del colegio":""}`,
+      accion:"Marcar leído", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
+      onAccion:(e)=>{e.stopPropagation();marcarLeidoMuro(r.id);}, onPress:()=>onNavigate?.("recordatorios"),
+      tag:tagDe(r.curso_id), chip:chipDias(diasHasta(r.fecha)),
+    })),
+    ...(datos.colectasPend||[]).map(c=>({
+      key:`c-${c.id}`, tipo:"Colecta", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
+      icon:"💳", titulo:c.titulo, meta:"Tu aporte todavía no está registrado",
+      accion:"Registrar pago", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
+      onAccion:(e)=>{e.stopPropagation();onNavigate?.("finanzas",{openColecta:c.id});}, onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
+      tag:tagDe(c.curso_id), chip: c.monto_sugerido?`${c.moneda||"$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}`:null,
+    })),
+    ...(datos.invitaciones||[]).map(inv=>({
+      key:`i-${inv.id}`, tipo:"Invitación", color:"#047857", soft:"#F0FDF4", borde:"#A7F3D0",
+      icon:"🎉", titulo:inv.evento.titulo, meta:"Falta confirmar asistencia",
+      accion:"Responder", btnBg:"#0F172A", btnFg:"white",
+      onAccion:(e)=>{e.stopPropagation();setFestejoDetalle(inv.evento);}, onPress:()=>setFestejoDetalle(inv.evento),
+      tag:tagDe(inv.evento.curso_id), chip:fmtDiaMesCorto(inv.evento.fecha),
+    })),
+    ...(datos.encuestasPend||[]).map(e=>({
+      key:`enc-${e.id}`, tipo:"Encuesta", color:"#1D4ED8", soft:"#EFF6FF", borde:"#BFDBFE",
+      icon:"📊", titulo:e.pregunta, meta:"Todavía no votaste",
+      accion:"Votar", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
+      onAccion:(e2)=>{e2.stopPropagation();onNavigate?.("encuestas");}, onPress:()=>onNavigate?.("encuestas"),
+      tag:tagDe(e.curso_id), chip:fmtDiaMesCorto(e.fecha_cierre),
+    })),
+  ];
+
+  // ── Agenda unificada: eventos + cumpleaños por proximidad, "Próximos 15
+  // días" (ambos ya vienen filtrados a esa ventana desde cargar()).
+  const agenda = [
+    ...(datos.eventos||[]).map(e=>{
+      const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
+      return { key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha), emoji:cfg.emoji,
+        titulo:e.titulo, meta:e.lugar?`📍 ${e.lugar}`:"Todo el curso", tag:tagDe(e.curso_id),
+        onPress:()=>onNavigate?.("clases",{openFecha:e.fecha}) };
+    }),
+    ...(datos.bdayList||[]).map(a=>{
+      const hoyD = new Date(); hoyD.setHours(0,0,0,0);
+      const d = new Date(a.fecha_nacimiento+"T00:00:00");
+      let next = new Date(hoyD.getFullYear(), d.getMonth(), d.getDate());
+      if(next<hoyD) next.setFullYear(hoyD.getFullYear()+1);
+      const dias = Math.round((next-hoyD)/86400000);
+      return { key:a.id, fecha:next.toISOString().split("T")[0], dias, emoji:"🎂",
+        titulo:`Cumple de ${a.nombre}`, meta:a.tipo==="Alumno"?"🎒 Alumno":"👨‍🏫 Maestro", tag:tagDe(a.curso_id),
+        onPress:()=>onNavigate?.("cumples") };
+    }),
+  ].sort((a,b)=>a.dias-b.dias);
+
   // ── Layout A: original ───────────────────────────────────────────────────
   return (
     <div>
@@ -229,28 +294,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         );
       })}
 
-      {datos.invitaciones?.length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🎉 Invitaciones pendientes</div>
-          {datos.invitaciones.map(inv=>{
-            const e = inv.evento;
-            const d = new Date(e.fecha+"T00:00:00");
-            return (
-              <div key={inv.id} style={{background:"#FFFBEB",borderRadius:12,padding:"13px 15px",marginBottom:8,border:"1px solid #FCD34D",borderLeft:"3px solid #F59E0B"}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:40,height:40,borderRadius:12,background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🎉</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{e.titulo}<TagHijo tag={tagDe(e.curso_id)}/></div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}</div>
-                  </div>
-                  <button onClick={()=>setFestejoDetalle(e)} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Responder</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {datos.menu&&(
+      {isMobile&&datos.menu&&(
         <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",gap:10,alignItems:"flex-start"}}>
           <span style={{fontSize:20,flexShrink:0}}>🍽️</span>
           <div style={{flex:1,minWidth:0}}>
@@ -261,142 +305,73 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           </div>
         </div>
       )}
-      {datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Recordatorios</div>
-          {datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>{
-            const prioColor = r.tipo==="regalo_cumple" ? "#8B5CF6" : {alta:"#EF4444",media:"#F59E0B",baja:"#10B981"}[r.prioridad||"media"];
-            const esLargo = (r.texto||"").length > 150;
-            const expandido = expandidos.has(r.id);
-            return (
-              <div key={r.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"flex-start",gap:12,border:"1px solid #E2E8F0",borderLeft:`3px solid ${r.urgente?"#EF4444":prioColor}`}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:r.urgente?700:500,...(expandido?{}:{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"})}}>{r.texto}</div>
-                  {esLargo&&<button onClick={()=>toggleExpandido(r.id)} style={{border:"none",background:"none",padding:0,marginTop:2,cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>{expandido?"Ver menos":"Ver más"}</button>}
-                  <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
-                    {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444"}}>Urgente</span>}
-                    {r.fecha&&<span style={{fontSize:11,color:"#94A3B8"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
-                    {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:11,color:"#94A3B8"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
-                    {r.grupo_id&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EEF2FF",color:"#6366F1",whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>}
-                    <TagHijo tag={tagDe(r.curso_id)}/>
-                  </div>
-                </div>
-                {r.tipo==="regalo_cumple"&&!leidosMuro.has(r.id) ? (
-                  <div style={{display:"flex",gap:4,flexShrink:0}}>
-                    <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>✅ Sí</button>
-                    <button onClick={()=>{}} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 No</button>
-                  </div>
-                ) : (
-                  <button onClick={()=>marcarLeidoMuro(r.id)} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${leidosMuro.has(r.id)?"#10B981":"#E2E8F0"}`,background:leidosMuro.has(r.id)?"#F0FDF4":"#F8FAFC",cursor:"pointer",fontSize:12,fontWeight:600,color:leidosMuro.has(r.id)?"#10B981":"#64748B",flexShrink:0}}>{leidosMuro.has(r.id)?"✓ Leído":"Leído"}</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {(datos.colectasPend||[]).length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Pendiente de pago</div>
-          {datos.colectasPend.map(c=>(
-            <div key={c.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:"1px solid #E2E8F0",borderLeft:"3px solid #F59E0B",cursor:"pointer"}} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600}}>{c.titulo}</div>
-                <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
-                  {c.monto_sugerido&&<span style={{fontSize:11,color:"#94A3B8"}}>{(c.moneda||"$")} {Number(c.monto_sugerido).toLocaleString("es-AR")}</span>}
-                  {c.fecha_limite&&<span style={{fontSize:11,color:"#94A3B8"}}>Límite: {new Date(c.fecha_limite+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
-                  <TagHijo tag={tagDe(c.curso_id)}/>
-                </div>
-              </div>
-              <span style={{fontSize:11,fontWeight:700,padding:"4px 8px",borderRadius:8,background:"#FFFBEB",color:"#F59E0B"}}>Pendiente</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {(datos.encuestasPend||[]).length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📊 Encuestas sin responder</div>
-          {datos.encuestasPend.map(e=>(
-            <div key={e.id} style={{background:"white",borderRadius:12,padding:"11px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:10,border:"1px solid #E2E8F0",borderLeft:"3px solid #3B82F6",cursor:"pointer"}} onClick={()=>onNavigate?.("encuestas")}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600}}>{e.pregunta}</div>
-                <div style={{display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
-                  {e.fecha_cierre&&<span style={{fontSize:11,color:"#94A3B8"}}>Cierra {new Date(e.fecha_cierre+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>}
-                  <TagHijo tag={tagDe(e.curso_id)}/>
-                </div>
-              </div>
-              <span style={{fontSize:11,fontWeight:700,padding:"4px 8px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>Votar</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {datos.eventos?.length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Eventos del mes</div>
-          {datos.eventos.map(e=>{
-            const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
-            const d   = new Date(e.fecha+"T00:00:00");
-            const hoyD = new Date(); hoyD.setHours(0,0,0,0);
-            const dias = Math.round((d-hoyD)/86400000);
-            return (
-              <div key={e.id} onClick={()=>onNavigate?.("clases",{openFecha:e.fecha})} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${cfg.color}`,cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:40,height:40,borderRadius:12,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cfg.emoji}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{e.titulo}<TagHijo tag={tagDe(e.curso_id)}/></div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                      {d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}
-                      {e.lugar?` · 📍${e.lugar}`:""}
-                    </div>
-                  </div>
-                  <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:dias===0?"#FEE2E2":dias<0?"#F1F5F9":dias<=7?"#FEF3C7":"#F1F5F9",color:dias===0?"#EF4444":dias<0?"#CBD5E1":dias<=7?"#F59E0B":"#94A3B8",flexShrink:0}}>
-                    {dias===0?"Hoy":dias===1?"Mañana":dias<0?"Pasado":`${dias}d`}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Empty state: cuando no hay nada relevante en el muro */}
-      {!(datos.alertas?.length) &&
-       !datos.menu &&
-       !(datos.invitaciones?.length) &&
-       !(datos.recordatorios?.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").length) &&
-       !(datos.colectasPend?.length) &&
-       !(datos.encuestasPend?.length) &&
-       !(datos.eventos?.length) && (
-        <div style={{textAlign:"center",padding:"32px 16px",background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.04)",marginBottom:14}}>
-          <div style={{fontSize:32,marginBottom:10}}>📭</div>
-          <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:4}}>Todo tranquilo por acá</div>
-          <div style={{fontSize:13,color:"#94A3B8",lineHeight:1.6}}>El Room Parent publicará los avisos, eventos y novedades del curso acá.</div>
+      {/* Pendientes: lista única (handoff Tribbu Apoderado Web) — reemplaza
+          las 4 secciones separadas (Invitaciones/Recordatorios/Pendiente de
+          pago/Encuestas) por un solo patrón de card con acción a la derecha. */}
+      <div style={{marginBottom:18}}>
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:11}}>
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8"}}>Pendientes{pendientes.length?` · ${pendientes.length}`:""}</div>
+          {pendientes.length>0&&<span style={{fontSize:12,fontWeight:700,color:"#94A3B8"}}>Resolvelos desde acá</span>}
         </div>
-      )}
-
-      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Próximos cumpleaños</div>
-      {(datos.bdayList||[]).slice(0,3).map(a=>{
-        const hoy = new Date(); hoy.setHours(0,0,0,0);
-        const d = new Date(a.fecha_nacimiento+"T00:00:00");
-        let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
-        if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
-        const dias = Math.round((next - hoy) / (1000*60*60*24));
-        const isAlumno = a.tipo==="Alumno";
-        return(
-          <div key={a.id} onClick={()=>onNavigate?.("cumples")} style={{background:"white",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:700}}>{a.nombre}</div>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2,flexWrap:"wrap"}}>
-                <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:isAlumno?"#EFF6FF":"#F5F3FF",color:isAlumno?"#3B82F6":"#8B5CF6"}}>{isAlumno?"🎒 Alumno":"👨‍🏫 Maestro"}</span>
-                <span style={{fontSize:11,color:"#94A3B8"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>
-                <TagHijo tag={tagDe(a.curso_id)}/>
+        {pendientes.length>0 ? (
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {pendientes.map(p=>(
+              <div key={p.key} onClick={p.onPress} style={{display:"flex",gap:14,alignItems:"flex-start",padding:18,border:`1px solid ${p.borde}`,borderRadius:16,background:"white",cursor:"pointer"}}>
+                <div style={{width:40,height:40,borderRadius:12,background:p.soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>{p.icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                    <span style={{fontSize:9.5,fontWeight:800,letterSpacing:1.1,textTransform:"uppercase",color:p.color}}>{p.tipo}</span>
+                    {p.tag&&<><span style={{width:3,height:3,borderRadius:999,background:"#CBD5E1",flexShrink:0}}/><TagHijo tag={p.tag}/></>}
+                  </div>
+                  <div style={{fontSize:16,fontWeight:700,marginTop:5,lineHeight:1.35}}>{p.titulo}</div>
+                  <div style={{fontSize:13,color:"#64748B",marginTop:3}}>{p.meta}</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  {p.chip&&<span style={{fontSize:12.5,fontWeight:800,color:"#64748B",background:"#F1F5F9",padding:"7px 12px",borderRadius:999,whiteSpace:"nowrap"}}>{p.chip}</span>}
+                  <button onClick={p.onAccion} style={{minHeight:44,padding:"0 18px",border:"none",borderRadius:12,background:p.btnBg,color:p.btnFg,fontSize:13.5,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
+                </div>
               </div>
-            </div>
-            <div style={{fontSize:12,fontWeight:700,color:dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8",background:dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",borderRadius:8,padding:"3px 8px",flexShrink:0}}>{dias===0?"Hoy":dias===1?"Mañana":`${dias}d`}</div>
+            ))}
           </div>
-        );
-      })}
-      {(datos.bdayList||[]).length===0&&<div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin cumpleaños registrados</div>}
+        ) : (
+          <div style={{display:"flex",alignItems:"center",gap:15,padding:22,border:"1.5px dashed #E2E8F0",borderRadius:16,background:"white"}}>
+            <div style={{width:46,height:46,borderRadius:999,background:"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,flexShrink:0}}>✓</div>
+            <div>
+              <div style={{fontSize:16,fontWeight:800}}>Estás al día ✨</div>
+              <div style={{fontSize:13.5,color:"#64748B",marginTop:3,lineHeight:1.5}}>No tenés pendientes. Cuando haya algo para resolver, aparece acá.</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Próximos 15 días: eventos + cumpleaños unificados por proximidad. */}
+      <div style={{fontSize:11,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8",marginBottom:11}}>Próximos 15 días</div>
+      {agenda.length>0 ? (
+        <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",overflow:"hidden"}}>
+          {agenda.map((e,i)=>{
+            const d = new Date(e.fecha+"T00:00:00");
+            const c = e.dias<=1 ? {bg:"#3B82F6",fg:"white"} : e.dias<=7 ? {bg:"#EFF6FF",fg:"#1D4ED8"} : {bg:"#F1F5F9",fg:"#64748B"};
+            return (
+              <div key={e.key} onClick={e.onPress} style={{display:"flex",alignItems:"center",gap:14,padding:"15px 18px",borderTop:i===0?"none":"1px solid #F1F5F9",cursor:"pointer"}}>
+                <div style={{width:46,textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
+                  <div style={{fontSize:19,fontWeight:800}}>{d.getDate()}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.titulo} {e.emoji}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3,flexWrap:"wrap"}}>
+                    {e.tag?<TagHijo tag={e.tag}/>:<span style={{fontSize:12.5,color:"#64748B"}}>{e.meta}</span>}
+                  </div>
+                </div>
+                <span style={{fontSize:12.5,fontWeight:800,color:c.fg,background:c.bg,padding:"7px 12px",borderRadius:999,flexShrink:0}}>{chipDias(e.dias)}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin eventos ni cumpleaños en los próximos 15 días</div>
+      )}
       </div>
 
       {/* Aside de escritorio (handoff Tribbu Apoderado Web, Parte 7): mismo
