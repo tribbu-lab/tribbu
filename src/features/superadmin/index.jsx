@@ -709,28 +709,6 @@ export function SuperAdmin() {
         </div>
       )}
 
-      {(() => {
-        const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
-        const eyebrow = SECCIONES.find(g=>g.items.some(i=>i.id===sec))?.grupo;
-        return (
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:24,flexWrap:"wrap"}}>
-            <div style={{maxWidth:640}}>
-              {eyebrow && <div style={{fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{eyebrow}</div>}
-              <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{info.titulo}</div>
-              <div style={{fontSize:13,color:"#94A3B8",marginTop:6,lineHeight:1.5}}>{info.descripcion}</div>
-            </div>
-            {sec==="usuarios" && (
-              <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-                <label style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,color:"#475569"}}>
-                  📤 Cargar Excel
-                  <UploadApoderadosExcel onDone={cargar} compact/>
-                </label>
-                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
-              </div>
-            )}
-          </div>
-        );
-      })()}
       <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?0:32,alignItems:"flex-start"}}>
         {isMobile ? (
           <nav style={{width:"100%",marginBottom:16}}>
@@ -770,6 +748,28 @@ export function SuperAdmin() {
           </nav>
         )}
         <div style={{flex:1,minWidth:0,width:isMobile?"100%":undefined}}>
+      {(() => {
+        const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
+        const eyebrow = SECCIONES.find(g=>g.items.some(i=>i.id===sec))?.grupo;
+        return (
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:24,flexWrap:"wrap"}}>
+            <div style={{maxWidth:640}}>
+              {eyebrow && <div style={{fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{eyebrow}</div>}
+              <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{info.titulo}</div>
+              <div style={{fontSize:13,color:"#94A3B8",marginTop:6,lineHeight:1.5}}>{info.descripcion}</div>
+            </div>
+            {sec==="usuarios" && (
+              <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                <label style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,color:"#475569"}}>
+                  📤 Cargar Excel
+                  <UploadApoderadosExcel onDone={cargar} compact/>
+                </label>
+                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {(() => {
         // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 3 #5):
         // usuarios totales / Room Parents (+ en cuántos cursos) / familias
