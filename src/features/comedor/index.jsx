@@ -16,7 +16,7 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function Comedor({ cursoId, isAdmin, isSuper }) {
+export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
   const [menu,setMenu]         = useState([]);
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
@@ -153,7 +153,7 @@ export function Comedor({ cursoId, isAdmin, isSuper }) {
         </div>
       )}
 
-      {vista==="mensual"&&(
+      {vista==="mensual"&&isMobile&&(
         <div style={{maxWidth:400}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
             <button onClick={()=>setMes(new Date(year,month-1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>‹</button>
@@ -174,6 +174,56 @@ export function Comedor({ cursoId, isAdmin, isSuper }) {
             </div>
             <div style={{fontSize:11,color:"#94A3B8",textAlign:"center",marginTop:8}}>Tocá un día para ver el menú</div>
           </Card>
+        </div>
+      )}
+
+      {/* Tabla del mes en escritorio (handoff Tribbu Apoderado Web, Parte 7):
+          es la vista que más gana con el ancho — reemplaza el mini-calendario
+          (que sigue siendo la vista mobile) por una tabla día/entrada/
+          principal/postre escaneable. */}
+      {vista==="mensual"&&!isMobile&&(
+        <div style={{maxWidth:1000}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <button onClick={()=>setMes(new Date(year,month-1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>‹</button>
+            <div style={{fontSize:15,fontWeight:700}}>{MESES[month]} {year}</div>
+            <button onClick={()=>setMes(new Date(year,month+1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>›</button>
+          </div>
+          {(() => {
+            const hoyStr = new Date().toISOString().split("T")[0];
+            const filas = Array.from({length:daysInMonth},(_,i)=>i+1)
+              .map(day=>{ const fecha=`${year}-${pad(month+1)}-${pad(day)}`; return { day, fecha, m: menu.find(x=>x.fecha===fecha) }; })
+              .filter(f=>f.m || f.fecha===hoyStr);
+            if(filas.length===0) return <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Sin menú cargado para {MESES[month]}</div>;
+            return (
+              <div style={{border:"1px solid #E7ECF3",borderRadius:18,background:"white",overflow:"hidden"}}>
+                <div style={{display:"grid",gridTemplateColumns:"90px 1.3fr 1.5fr 1fr 70px",gap:14,padding:"12px 20px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+                  {["Día","Entrada","Principal","Postre",""].map(c=><div key={c} style={{fontSize:10.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{c}</div>)}
+                </div>
+                {filas.map(({day,fecha,m})=>{
+                  const esHoy = fecha===hoyStr;
+                  const d = new Date(fecha+"T00:00:00");
+                  return (
+                    <div key={fecha} style={{display:"grid",gridTemplateColumns:"90px 1.3fr 1.5fr 1fr 70px",gap:14,alignItems:"center",padding:"13px 20px",borderBottom:"1px solid #F8FAFC",background:esHoy?"#F8FBFF":"white"}}>
+                      <div>
+                        <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:esHoy?"#1D4ED8":"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
+                        <div style={{fontSize:15,fontWeight:800,marginTop:1}}>{day}</div>
+                      </div>
+                      <div style={{fontSize:13.5,color:"#475569"}}>{m?.entrada||"—"}</div>
+                      <div style={{fontSize:13.5,fontWeight:600}}>{[m?.plato,m?.plato2,m?.acompanamiento].filter(Boolean).join(" · ")||"—"}</div>
+                      <div style={{fontSize:13.5,color:"#475569"}}>{[m?.postre,m?.postre2].filter(Boolean).join(" · ")||"—"}</div>
+                      <div style={{display:"flex",justifyContent:"flex-end"}}>
+                        {esHoy&&<span style={{fontSize:10,fontWeight:800,letterSpacing:0.5,textTransform:"uppercase",color:"#1D4ED8",background:"#EFF6FF",border:"1px solid #BFDBFE",padding:"4px 9px",borderRadius:999}}>Hoy</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:14,padding:"14px 18px",border:"1px solid #DDE7F6",borderRadius:14,background:"#F8FAFC"}}>
+            <span style={{fontSize:18}}>ℹ️</span>
+            <span style={{fontSize:13,color:"#475569",lineHeight:1.5}}>¿Alergias o intolerancias? Consultalas en Contacto.</span>
+          </div>
         </div>
       )}
     </div>
