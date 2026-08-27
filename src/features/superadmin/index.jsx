@@ -698,18 +698,36 @@ export function SuperAdmin() {
         <div style={{fontSize:13,color:"#94A3B8"}}>Gestión global de usuarios, roles y cursos</div>
       </div>
       <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?0:32,alignItems:"flex-start"}}>
-        <nav style={isMobile?{width:"100%",marginBottom:16}:{width:196,flexShrink:0,position:"sticky",top:20}}>
-          {SECCIONES.map(g=>(
-            <div key={g.grupo} style={{marginBottom:isMobile?10:18}}>
-              <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:isMobile?"0 0 6px":"0 12px 6px"}}>{g.grupo}</div>
-              <div style={{display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?6:0}}>
-                {g.items.map(t=>(
-                  <button key={t.id} onClick={()=>setSec(t.id)} style={isMobile?{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}:{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"transparent",color:sec===t.id?"white":"#475569",marginBottom:2}}>{t.l}</button>
-                ))}
+        {isMobile ? (
+          <nav style={{width:"100%",marginBottom:16}}>
+            {SECCIONES.map(g=>(
+              <div key={g.grupo} style={{marginBottom:10}}>
+                <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:"0 0 6px"}}>{g.grupo}</div>
+                <div style={{display:"flex",flexDirection:"row",flexWrap:"wrap",gap:6}}>
+                  {g.items.map(t=>(
+                    <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
+        ) : (
+          // Sidebar navy #0F172A (handoff Tribbu Admin, Parte 3): antes los
+          // ítems flotaban sobre el fondo blanco de la página, con navy solo
+          // en el botón activo — acá no leía como "panel", solo como texto.
+          <nav style={{width:236,flexShrink:0,position:"sticky",top:20,background:"#0F172A",borderRadius:18,padding:"18px 12px"}}>
+            {SECCIONES.map(g=>(
+              <div key={g.grupo} style={{marginBottom:18}}>
+                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
+                <div style={{display:"flex",flexDirection:"column"}}>
+                  {g.items.map(t=>(
+                    <button key={t.id} onClick={()=>setSec(t.id)} style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:sec===t.id?700:500,background:sec===t.id?"rgba(255,255,255,0.12)":"transparent",color:sec===t.id?"white":"rgba(255,255,255,0.55)",marginBottom:2}}>{t.l}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        )}
         <div style={{flex:1,minWidth:0,width:isMobile?"100%":undefined}}>
       {(() => {
         // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 3 #5):
