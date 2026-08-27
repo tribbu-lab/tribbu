@@ -21,6 +21,7 @@ import { Contacto, Alumnos } from "./features/contacto";
 import { AdminPanel }      from "./features/admin";
 import { SuperAdmin }      from "./features/superadmin";
 import { Encuestas }       from "./features/encuestas";
+import { BusquedaGlobal }  from "./features/buscar";
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
@@ -114,6 +115,7 @@ function App() {
   const [cambiarPass,   setCambiarPass]   = useState(false);
   const [eliminarCuenta,setEliminarCuenta]= useState(false);
   const [panelNotifs,   setPanelNotifs]   = useState(false);
+  const [busquedaGlobal,setBusquedaGlobal]= useState("");
   const isMobile = useIsMobile();
 
   // Derivar el scope de cursos del item actual (puede estar vacío sin sesión).
@@ -382,13 +384,22 @@ function App() {
     ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
+  // Compartida entre Muro y la búsqueda global (header desktop): navegar a
+  // otro tab, opcionalmente abriendo una colecta/fecha puntual.
+  const navegarA = (t, extra) => {
+    setBusquedaGlobal("");
+    setTab(t);
+    if(extra?.openColecta) setOpenColecta(extra.openColecta);
+    if(extra?.openFecha) setOpenFecha(extra.openFecha);
+  };
+
   const renderTab = () => {
     if(!cursoIds.length) return <Spinner/>;
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     const misHijosActivos = items.filter(i=>i._tipo==="hijo").map(i=>i.id);
     switch(tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={(t,extra)=>{ setTab(t); if(extra?.openColecta) setOpenColecta(extra.openColecta); if(extra?.openFecha) setOpenFecha(extra.openFecha); }}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
@@ -611,9 +622,33 @@ function App() {
         </div>
       </div>
 
-      {/* Contenido principal */}
+      {/* Contenido principal — Parte 7 del handoff (Tribbu Apoderado Web):
+          ancho liberado (antes maxWidth:800 fijo) para que los módulos que
+          usan grilla de dos columnas (Inicio/Colectas 1fr+340px, Comedor
+          tabla) tengan lugar; cada feature sigue acotando su propio ancho
+          donde corresponde (Recordatorios 900px, etc.) */}
       <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
-        <div style={{maxWidth:800}}>{renderTab()}</div>
+        <div style={{maxWidth:1240}}>
+          {/* Búsqueda global: filtra recordatorios/eventos/colectas del
+              alcance actual, resultado se muestra como panel sobre el
+              módulo activo (mismo criterio que mobile/features/buscar). */}
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:busquedaGlobal.trim()?20:24}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 14px",border:"1.5px solid #E2E8F0",borderRadius:12,background:"white",minWidth:260}}>
+              <span style={{fontSize:15,color:"#94A3B8"}}>🔍</span>
+              <input
+                value={busquedaGlobal}
+                onChange={e=>setBusquedaGlobal(e.target.value)}
+                placeholder={`Buscar en ${cursoNombre||"tu curso"}...`}
+                style={{flex:1,border:"none",outline:"none",background:"transparent",fontSize:13.5,color:"#1E293B",fontFamily:"inherit"}}
+              />
+            </div>
+          </div>
+          {busquedaGlobal.trim() ? (
+            <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
+          ) : (
+            renderTab()
+          )}
+        </div>
       </div>
     </div>
   );
