@@ -70,6 +70,24 @@ const SECCIONES = [
   ]},
 ];
 
+// Header contextual por módulo (handoff Tribbu Admin): eyebrow (grupo) +
+// título + descripción de qué gestiona la pantalla — reemplaza el título
+// fijo "Panel Super Admin" que no cambiaba entre módulos.
+const SECCION_INFO = {
+  usuarios:       { titulo:"Usuarios", descripcion:"Apoderados, Room Parents y Super Admins. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A." },
+  maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
+  alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
+  codigos:        { titulo:"Códigos de invitación", descripcion:"Para que las familias se registren solas en la app, sin que un admin les cree la cuenta a mano." },
+  cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
+  promocion:      { titulo:"Promoción de curso", descripcion:"Pasá a los alumnos de un curso al año lectivo siguiente, revisando quién no se promueve." },
+  horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Calendario." },
+  uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
+  alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
+  comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
+  colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
+  menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
+};
+
 export function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
   const [usuarios,setUsuarios] = useState([]);
@@ -691,13 +709,28 @@ export function SuperAdmin() {
         </div>
       )}
 
-      <div style={{marginBottom:24}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-          <div style={{fontSize:22,fontWeight:900}}>Panel Super Admin</div>
-          <Pill label="Super Admin" color="#8B5CF6" bg="#F5F3FF"/>
-        </div>
-        <div style={{fontSize:13,color:"#94A3B8"}}>Gestión global de usuarios, roles y cursos</div>
-      </div>
+      {(() => {
+        const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
+        const eyebrow = SECCIONES.find(g=>g.items.some(i=>i.id===sec))?.grupo;
+        return (
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:24,flexWrap:"wrap"}}>
+            <div style={{maxWidth:640}}>
+              {eyebrow && <div style={{fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{eyebrow}</div>}
+              <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{info.titulo}</div>
+              <div style={{fontSize:13,color:"#94A3B8",marginTop:6,lineHeight:1.5}}>{info.descripcion}</div>
+            </div>
+            {sec==="usuarios" && (
+              <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                <label style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,color:"#475569"}}>
+                  📤 Cargar Excel
+                  <UploadApoderadosExcel onDone={cargar} compact/>
+                </label>
+                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?0:32,alignItems:"flex-start"}}>
         {isMobile ? (
           <nav style={{width:"100%",marginBottom:16}}>
@@ -800,8 +833,6 @@ export function SuperAdmin() {
             const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
             return (
         <>
-          <UploadApoderadosExcel onDone={cargar}/>
-          <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
           <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin},{value:"super",label:"Super Admin",color:ROL_COLOR.super}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
           <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
@@ -1926,7 +1957,10 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
   );
 }
 
-export function UploadApoderadosExcel({ onDone }) {
+// `compact`: variante para el header contextual (handoff Tribbu Admin) — solo
+// el input + mensaje, sin el cuadro punteado grande, que en el mockup no
+// existe (ahí el CTA principal es "+ Nuevo usuario" arriba a la derecha).
+export function UploadApoderadosExcel({ onDone, compact=false }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
 
@@ -2002,6 +2036,16 @@ export function UploadApoderadosExcel({ onDone }) {
     setLoading(false);
     e.target.value="";
   };
+
+  if(compact) {
+    return (
+      <>
+        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading} title="Columnas: nombre, apellido, email, pass, telefono, dni, rol"/>
+        {loading && <span style={{fontSize:11,color:"#94A3B8"}}>Procesando...</span>}
+        {msg&&<span style={{position:"fixed",bottom:20,right:20,zIndex:600,background:msg.startsWith("✅")?"#F0FDF4":"#FEF2F2",border:`1px solid ${msg.startsWith("✅")?"#BBF7D0":"#FECACA"}`,borderRadius:10,padding:"10px 14px",fontSize:12.5,fontWeight:600,color:msg.startsWith("✅")?"#065F46":"#991B1B",boxShadow:"0 8px 24px rgba(0,0,0,0.12)"}}>{msg}</span>}
+      </>
+    );
+  }
 
   return (
     <div style={{marginBottom:16}}>
