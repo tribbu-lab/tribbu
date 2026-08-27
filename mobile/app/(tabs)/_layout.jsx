@@ -40,6 +40,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="mas" options={{ title: "Más" }} />
 
         {/* Secundarias: navegables desde "Más", fuera del bottom-bar */}
+        <Tabs.Screen name="buscar" options={hidden} />
         <Tabs.Screen name="comedor" options={hidden} />
         <Tabs.Screen name="encuestas" options={hidden} />
         <Tabs.Screen name="finanzas" options={hidden} />

@@ -20,6 +20,7 @@ import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
 const t = THEMES.light;
 
 const BASE = [
+  { id: "buscar", label: "Buscar", emoji: "🔍" },
   { id: "comedor", label: "Comedor", emoji: "🍽️" },
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
   { id: "finanzas", label: "Colectas", emoji: "💳" },

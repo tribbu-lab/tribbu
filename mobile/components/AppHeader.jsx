@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
@@ -20,6 +21,7 @@ const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 // recordatorios + recordatorio_leidos + alertas en cada cambio de hijo/curso.
 export function AppHeader({ notif }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const {
     items,
     cursoIdx,
@@ -55,6 +57,9 @@ export function AppHeader({ notif }) {
       <View style={styles.topRow}>
         <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={dk.accent} letterSpacing={-1} />
         <View style={styles.actions}>
+          <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
+            <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
+          </Pressable>
           <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
             <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />
             {noLeidos > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
