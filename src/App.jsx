@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { T, ROL_LABEL, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
 import { getHijoColor, setHijoColor } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
+import { Wordmark } from "./components/Wordmark";
 import { useIsMobile } from "./hooks/useIsMobile";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal } from "./features/auth";
@@ -326,7 +327,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       <div style={{background:"#0F172A",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-        <div style={{fontSize:22,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+        <Wordmark size={22} letterSpacing={-1} />
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>🔑 Contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
@@ -453,7 +454,7 @@ function App() {
 
         {/* Barra superior: logo + usuario */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
-          <div style={{fontSize:22,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+          <Wordmark size={22} letterSpacing={-1} />
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
             {/* Campana de notificaciones */}
@@ -554,7 +555,7 @@ function App() {
       <style>{`#tribbu-sidebar button, #tribbu-sidebar span, #tribbu-sidebar div { color: white !important; -webkit-text-fill-color: white !important; }`}</style>
       <div id="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
-          <div style={{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:4}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+          <Wordmark size={26} letterSpacing={-1} style={{marginBottom:4}} />
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
         </div>
 

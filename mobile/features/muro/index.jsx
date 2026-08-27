@@ -1,7 +1,12 @@
 // Muro / Inicio — patrón A3 del sistema de diseño (ver mobile/DESIGN_SYSTEM.md
 // y mobile/design-alternatives.html §A3). Tres bloques, en orden de urgencia:
-//   1. Pendientes: carrusel de cards accionables (recordatorios sin leer,
-//      colectas sin pagar, invitaciones sin responder) con empty state punteado.
+//   1. Pendientes: lista vertical de cards accionables (recordatorios sin leer,
+//      colectas sin pagar, invitaciones sin responder, encuestas sin votar),
+//      cada una con ícono + acción primaria de 44px + "Ver" + chip de la
+//      derecha (urgencia/monto/fecha), y empty state punteado ("Estás al día").
+//      Si la carga falla, se muestra un card de error con "Reintentar" en vez
+//      de dejar el skeleton para siempre (o, si ya había datos, un banner
+//      arriba sin perder lo último cargado).
 //      En la vista "Todos" del header, todo el muro (pendientes, agenda, alertas)
 //      abarca los cursos de todos los hijos, con tag de hijo por fila/card.
 //   2. Próximos 15 días: agenda unificada (eventos + cumpleaños por proximidad)
@@ -16,7 +21,6 @@ import {
   Text,
   Pressable,
   ScrollView,
-  FlatList,
   Modal,
   TextInput,
   StyleSheet,
@@ -27,8 +31,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora } from "@shared/helpers";
-import { T } from "@shared/theme";
-import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, MIN_TOUCH } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { SkeletonList } from "../../components/Skeleton";
@@ -45,9 +48,6 @@ const TIPO_CONFIG = {
   feriado: { emoji: "🚩" },
   vacaciones: { emoji: "🏖️" },
 };
-
-const CARD_W = 272;
-const CARD_GAP = 10;
 
 const fmtFechaCorta = (s) =>
   new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" });
@@ -80,9 +80,9 @@ export function Muro() {
   const userName = usuario?.nombre?.split(" ")[0] || "";
 
   const [datos, setDatos] = useState(null);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [alertaModal, setAlertaModal] = useState(false);
-  const [dotIdx, setDotIdx] = useState(0);
 
   const hoyLabel = new Date().toLocaleDateString("es-AR", {
     weekday: "long",
@@ -92,6 +92,7 @@ export function Muro() {
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
+    try {
     const fechaHoy = new Date().toISOString().split("T")[0];
     const fecha15 = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const misHijosIds = (misHijos || []).filter((h) => h && typeof h === "string");
@@ -233,10 +234,16 @@ export function Muro() {
       encuestasPend,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
+    setError(false);
+    } catch (e) {
+      console.warn("No se pudo actualizar el muro:", e?.message);
+      setError(true);
+    }
   }, [cursoIds, userId, misHijos, items]);
 
   useEffect(() => {
     setDatos(null);
+    setError(false);
     cargar();
   }, [cargar]);
 
@@ -270,13 +277,20 @@ export function Muro() {
   };
 
   // Cargando: el saludo es inmediato (dato local) y la lista llega como skeleton.
+  // Si la primera carga falla, mostramos el error en vez de un skeleton eterno.
   if (!datos)
     return (
       <View style={[styles.screen, styles.content]}>
         <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
         <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
-        <Text style={styles.label}>Pendientes</Text>
-        <SkeletonList rows={3} />
+        {error ? (
+          <ErrorMuro onReintentar={cargar} tieneDatos={false} />
+        ) : (
+          <>
+            <Text style={styles.label}>Pendientes</Text>
+            <SkeletonList rows={3} />
+          </>
+        )}
       </View>
     );
 
@@ -291,6 +305,11 @@ export function Muro() {
       key: `r-${r.id}`,
       tipo: "Recordatorio",
       dot: t.danger,
+      soft: t.dangerSoft,
+      borde: t.dangerBorder,
+      icon: "bell-alert-outline",
+      btnBg: t.accentSoft,
+      btnFg: BLUE[600],
       titulo: r.texto,
       meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}${r.grupo_id ? " · 🏫 Comunicación del colegio" : ""}`,
       accion: "Marcar leído",
@@ -302,7 +321,12 @@ export function Muro() {
     ...datos.colectasPend.map((c) => ({
       key: `c-${c.id}`,
       tipo: "Colecta",
-      dot: T.yellow,
+      dot: t.warning,
+      soft: t.warningSoft,
+      borde: t.warningBorder,
+      icon: "cash-multiple",
+      btnBg: t.accentSoft,
+      btnFg: BLUE[600],
       titulo: c.titulo,
       meta: "Tu aporte todavía no está registrado",
       accion: "Registrar pago",
@@ -316,7 +340,12 @@ export function Muro() {
     ...datos.invitaciones.map((ev) => ({
       key: `i-${ev.id}`,
       tipo: "Invitación",
-      dot: T.green,
+      dot: t.success,
+      soft: t.successSoft,
+      borde: t.successBorder,
+      icon: "party-popper",
+      btnBg: t.textStrong,
+      btnFg: t.onAccent,
       titulo: ev.titulo,
       meta: "Falta confirmar asistencia",
       accion: "Responder",
@@ -328,7 +357,12 @@ export function Muro() {
     ...datos.encuestasPend.map((e) => ({
       key: `enc-${e.id}`,
       tipo: "Encuesta",
-      dot: BLUE[500],
+      dot: BLUE[600],
+      soft: t.accentSoft,
+      borde: BLUE[200],
+      icon: "poll",
+      btnBg: t.accentSoft,
+      btnFg: BLUE[600],
       titulo: e.pregunta,
       meta: "Todavía no votaste",
       accion: "Votar",
@@ -380,6 +414,8 @@ export function Muro() {
       <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
       <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
 
+      {error ? <ErrorMuro onReintentar={cargar} tieneDatos style={{ marginTop: SPACE.lg }} /> : null}
+
       {isAdmin ? (
         <Pressable onPress={() => setAlertaModal(true)} style={styles.alertaCta}>
           <Text style={styles.alertaCtaTxt}>🚨 Publicar alerta al curso</Text>
@@ -413,7 +449,7 @@ export function Muro() {
       {pendientes.length === 0 ? (
         <View style={styles.alDia}>
           <View style={styles.alDiaIcon}>
-            <MaterialCommunityIcons name="check" size={19} color="#059669" />
+            <MaterialCommunityIcons name="check" size={19} color={t.success} />
           </View>
           <View style={styles.flex1}>
             <Text style={styles.alDiaTitulo}>Estás al día ✨</Text>
@@ -423,29 +459,11 @@ export function Muro() {
           </View>
         </View>
       ) : (
-        <>
-          <FlatList
-            horizontal
-            data={pendientes}
-            keyExtractor={(p) => p.key}
-            renderItem={({ item }) => <PendienteCard p={item} />}
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={CARD_W + CARD_GAP}
-            decelerationRate="fast"
-            onMomentumScrollEnd={(e) =>
-              setDotIdx(Math.min(pendientes.length - 1, Math.round(e.nativeEvent.contentOffset.x / (CARD_W + CARD_GAP))))
-            }
-            style={styles.carrusel}
-            contentContainerStyle={styles.carruselContent}
-          />
-          {pendientes.length > 1 ? (
-            <View style={styles.dots}>
-              {pendientes.map((p, i) => (
-                <View key={p.key} style={[styles.dot, i === dotIdx && styles.dotOn]} />
-              ))}
-            </View>
-          ) : null}
-        </>
+        <View style={styles.pendientesList}>
+          {pendientes.map((p) => (
+            <PendienteCard key={p.key} p={p} />
+          ))}
+        </View>
       )}
 
       {/* ── Próximos 15 días ── */}
@@ -524,39 +542,65 @@ export function Muro() {
   );
 }
 
-// Card del carrusel de pendientes: tipo + título + vencimiento + acción primaria.
+// Error al (re)cargar el muro. Con `tieneDatos` se muestra como banner arriba
+// del contenido ya cargado (la última carga buena sigue visible); sin datos
+// previos (primera carga) reemplaza al skeleton.
+function ErrorMuro({ onReintentar, tieneDatos, style }) {
+  return (
+    <View style={[styles.errorCard, style]}>
+      <Text style={styles.errorEmoji}>☁️</Text>
+      <Text style={styles.errorTitulo}>No pudimos actualizar el muro</Text>
+      <Text style={styles.errorTxt}>
+        {tieneDatos ? "Estás viendo lo último cargado. Revisá tu conexión." : "Revisá tu conexión e intentá de nuevo."}
+      </Text>
+      <Pressable onPress={onReintentar} style={styles.errorBtn}>
+        <Text style={styles.errorBtnTxt}>Reintentar</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// Card de la lista de pendientes: tipo + título + vencimiento + acción
+// primaria (44px, ver decisión del handoff: la accesibilidad gana sobre la
+// densidad) + "Ver" + chip de urgencia/monto/fecha a la derecha.
 function PendienteCard({ p }) {
   return (
-    <Pressable onPress={p.onPress} style={styles.pcard}>
-      <View style={styles.ptop}>
-        <View style={styles.ptopLeft}>
-          <View style={[styles.pdot, { backgroundColor: p.dot }]} />
-          <Text style={styles.ptipo}>{p.tipo}</Text>
+    <View style={[styles.pcard, { borderColor: p.borde || t.borderStrong }]}>
+      <View style={[styles.picon, { backgroundColor: p.soft || t.surfaceSunken }]}>
+        <MaterialCommunityIcons name={p.icon || "information-outline"} size={19} color={p.dot} />
+      </View>
+      <View style={styles.flex1}>
+        <View style={styles.ptop}>
+          <Text style={[styles.ptipo, { color: p.dot }]}>{p.tipo}</Text>
+          {p.tag ? (
+            <>
+              <View style={styles.pdotSep} />
+              <Text style={styles.ptagTxt} numberOfLines={1}>{p.tag.nombre}</Text>
+            </>
+          ) : null}
         </View>
-        {p.tag ? (
-          <View style={styles.ptag}>
-            <View style={[styles.ptagDot, { backgroundColor: p.tag.color }]} />
-            <Text style={styles.ptagTxt} numberOfLines={1}>{p.tag.nombre}</Text>
-          </View>
-        ) : null}
+        <Text style={styles.ptitulo} numberOfLines={2}>{p.titulo}</Text>
+        <Text style={styles.pmeta} numberOfLines={1}>{p.meta}</Text>
+        <View style={styles.pact}>
+          <Pressable onPress={p.onAccion} style={[styles.pbtnPrimary, { backgroundColor: p.btnBg }]}>
+            <Text style={[styles.pbtnPrimaryTxt, { color: p.btnFg }]}>{p.accion}</Text>
+          </Pressable>
+          <Pressable onPress={p.onPress} hitSlop={8} style={styles.pbtnVer}>
+            <Text style={styles.pbtnVerTxt}>Ver</Text>
+          </Pressable>
+          <View style={styles.flex1} />
+          {p.derecha?.dias != null ? (
+            <DiasChip dias={p.derecha.dias} prefijo />
+          ) : p.derecha?.monto ? (
+            <Text style={styles.pmonto}>{p.derecha.monto}</Text>
+          ) : p.derecha?.fecha ? (
+            <View style={[styles.chip, styles.chip_later]}>
+              <Text style={[styles.chipTxt, styles.chipTxt_later]}>{p.derecha.fecha}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
-      <Text style={styles.ptitulo} numberOfLines={1}>{p.titulo}</Text>
-      <Text style={styles.pmeta} numberOfLines={1}>{p.meta}</Text>
-      <View style={styles.pact}>
-        <Pressable onPress={p.onAccion} hitSlop={8} style={styles.hit36}>
-          <Text style={styles.paccion}>{p.accion}</Text>
-        </Pressable>
-        {p.derecha?.dias != null ? (
-          <DiasChip dias={p.derecha.dias} prefijo />
-        ) : p.derecha?.monto ? (
-          <Text style={styles.pmonto}>{p.derecha.monto}</Text>
-        ) : p.derecha?.fecha ? (
-          <View style={[styles.chip, styles.chip_later]}>
-            <Text style={[styles.chipTxt, styles.chipTxt_later]}>{p.derecha.fecha}</Text>
-          </View>
-        ) : null}
-      </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -601,34 +645,49 @@ const styles = StyleSheet.create({
 
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
 
-  // carrusel de pendientes
-  carrusel: { marginHorizontal: -SPACE.lg },
-  carruselContent: { paddingHorizontal: SPACE.lg, gap: CARD_GAP },
+  // lista vertical de pendientes (antes carrusel horizontal)
+  pendientesList: { gap: SPACE.sm },
   pcard: {
-    width: CARD_W,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
     backgroundColor: t.surface,
     borderWidth: 1,
     borderColor: t.borderStrong,
     borderRadius: RADIUS.xl,
     padding: 13,
   },
-  ptop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 7 },
-  ptopLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pdot: { width: 7, height: 7, borderRadius: RADIUS.full },
-  // tag de hijo en cards de otro curso (modo unificado)
-  ptag: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 130, flexShrink: 1 },
+  picon: { width: 36, height: 36, borderRadius: RADIUS.md + 1, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  ptop: { flexDirection: "row", alignItems: "center", gap: 6 },
+  pdotSep: { width: 3, height: 3, borderRadius: RADIUS.full, backgroundColor: SLATE[300] },
+  // tag de hijo en cards de otro curso (modo unificado) — también usado en la fila de agenda
   ptagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
-  ptagTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted },
-  ptipo: { fontSize: 9.5, fontWeight: "800", letterSpacing: 1.1, textTransform: "uppercase", color: t.textFaint },
-  ptitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  ptagTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
+  ptipo: { fontSize: 9.5, fontWeight: "800", letterSpacing: 1.1, textTransform: "uppercase" },
+  ptitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong, marginTop: 3, lineHeight: 18 },
   pmeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
-  pact: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 11 },
-  paccion: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
+  pact: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  pbtnPrimary: { minHeight: MIN_TOUCH, paddingHorizontal: 16, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  pbtnPrimaryTxt: { fontSize: 12.5, fontWeight: "800" },
+  pbtnVer: { minHeight: MIN_TOUCH, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  pbtnVerTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted },
   pmonto: { ...TYPE.money, fontSize: 13, color: t.textStrong },
-  hit36: { minHeight: 30, justifyContent: "center" },
-  dots: { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 9 },
-  dot: { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: SLATE[300] },
-  dotOn: { width: 14, backgroundColor: t.accent },
+
+  // error al cargar/actualizar el muro
+  errorCard: {
+    alignItems: "center",
+    textAlign: "center",
+    backgroundColor: t.dangerSoft,
+    borderWidth: 1,
+    borderColor: t.dangerBorder,
+    borderRadius: RADIUS.xl,
+    padding: SPACE.xl,
+  },
+  errorEmoji: { fontSize: 28 },
+  errorTitulo: { fontSize: 14.5, fontWeight: "800", color: t.textStrong, marginTop: 8, textAlign: "center" },
+  errorTxt: { fontSize: 12.5, color: t.textMuted, marginTop: 4, textAlign: "center", lineHeight: 17 },
+  errorBtn: { marginTop: 14, minHeight: 40, paddingHorizontal: 18, borderRadius: RADIUS.md, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
+  errorBtnTxt: { color: t.onAccent, fontSize: 13, fontWeight: "800" },
 
   // empty state de pendientes
   alDia: {

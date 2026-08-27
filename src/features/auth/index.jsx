@@ -8,6 +8,7 @@ import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
+import { Wordmark } from "../../components/Wordmark";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
@@ -72,7 +73,7 @@ export function Login({ onLogin }) {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0F172A 0%,#1E3A5F 50%,#0F172A 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{textAlign:"center",marginBottom:32}}>
-        <div style={{fontSize:40,fontWeight:900,color:"white",letterSpacing:-2,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+        <Wordmark size={40} letterSpacing={-2} />
         <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:4,letterSpacing:1,textTransform:"uppercase"}}>Comunidad escolar</div>
       </div>
       <div style={{width:"100%",maxWidth:360,background:"rgba(255,255,255,0.07)",borderRadius:22,padding:"28px 24px",border:"1px solid rgba(255,255,255,0.10)"}}>
@@ -220,7 +221,7 @@ export function RegistroConCodigo({ onVolver, onLogin }) {
   return (
     <div style={s}>
       <div style={{textAlign:"center",marginBottom:32}}>
-        <div style={{fontSize:40,fontWeight:900,color:"white",letterSpacing:-2,fontFamily:"Georgia,serif"}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+        <Wordmark size={40} letterSpacing={-2} />
         <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:4,letterSpacing:1,textTransform:"uppercase"}}>Registro de apoderado</div>
       </div>
       <div style={{width:"100%",maxWidth:360,background:"rgba(255,255,255,0.07)",borderRadius:22,padding:"28px 24px",border:"1px solid rgba(255,255,255,0.10)"}}>
@@ -288,7 +289,7 @@ export function SeleccionPerfil({ usuario, onElegir }) {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0F172A 0%,#1E3A5F 50%,#0F172A 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{textAlign:"center",marginBottom:36}}>
-        <div style={{fontSize:32,fontWeight:900,color:"white",letterSpacing:-1,fontFamily:"Georgia,serif",marginBottom:6}}>tribbu<span style={{color:"#3B82F6"}}>.</span></div>
+        <Wordmark size={32} letterSpacing={-1} style={{marginBottom:6}} />
         <div style={{fontSize:14,color:"rgba(255,255,255,0.5)"}}>Hola, {usuario.nombre?.split(" ")[0]}. ¿Con qué perfil querés entrar?</div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:14,width:"100%",maxWidth:320}}>

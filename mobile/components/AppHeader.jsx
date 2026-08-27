@@ -5,12 +5,13 @@
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
 import { NotificacionesPanel } from "../features/notificaciones";
+import { Wordmark } from "./Wordmark";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -52,9 +53,7 @@ export function AppHeader({ notif }) {
   return (
     <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
-        <Text style={styles.logo}>
-          tribbu<Text style={styles.logoDot}>.</Text>
-        </Text>
+        <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={dk.accent} letterSpacing={-1} />
         <View style={styles.actions}>
           <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
             <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />
@@ -180,8 +179,6 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 const styles = StyleSheet.create({
   header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  logo: { ...TYPE.h1, color: dk.textStrong, letterSpacing: -1, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) },
-  logoDot: { color: dk.accent },
   actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   iconBtn: {
     minWidth: 34,

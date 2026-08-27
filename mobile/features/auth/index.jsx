@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
+import { Wordmark } from "../../components/Wordmark";
 
 // ── Login ─────────────────────────────────────────────────────────────────
 // onSuccess: opcional — lo usa BiometricGate como fallback de identidad
@@ -94,9 +95,7 @@ export function Login({ onSuccess } = {}) {
     >
       <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
         <View style={styles.brandWrap}>
-          <Text style={styles.brand}>
-            tribbu<Text style={styles.brandDot}>.</Text>
-          </Text>
+          <Wordmark size={40} letterSpacing={-2} />
           <Text style={styles.brandSub}>COMUNIDAD ESCOLAR</Text>
         </View>
 
@@ -286,9 +285,7 @@ export function RegistroConCodigo({ onVolver }) {
     <KeyboardAvoidingView style={styles.authBg} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
         <View style={styles.brandWrap}>
-          <Text style={styles.brand}>
-            tribbu<Text style={styles.brandDot}>.</Text>
-          </Text>
+          <Wordmark size={40} letterSpacing={-2} />
           <Text style={styles.brandSub}>REGISTRO DE APODERADO</Text>
         </View>
 
@@ -447,8 +444,6 @@ const styles = StyleSheet.create({
   authBg: { flex: 1, backgroundColor: "#0F172A" },
   authScroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
   brandWrap: { alignItems: "center", marginBottom: 32 },
-  brand: { fontSize: 40, fontWeight: "900", color: "white", letterSpacing: -2, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) },
-  brandDot: { color: T.accent },
   brandSub: { fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 4, letterSpacing: 1 },
   authCard: {
     width: "100%",

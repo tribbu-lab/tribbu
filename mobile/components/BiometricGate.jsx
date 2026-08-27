@@ -7,11 +7,12 @@
 // identidad alternativa (mismo signInWithPassword de siempre).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as LocalAuthentication from "expo-local-authentication";
 import { T } from "@shared/theme";
 import { Login } from "../features/auth";
+import { Wordmark } from "./Wordmark";
 
 export function BiometricGate({ onUnlock }) {
   const insets = useSafeAreaInsets();
@@ -48,9 +49,7 @@ export function BiometricGate({ onUnlock }) {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}>
-      <Text style={styles.brand}>
-        tribbu<Text style={styles.brandDot}>.</Text>
-      </Text>
+      <Wordmark size={32} letterSpacing={-1.5} style={styles.brand} />
 
       <View style={styles.center}>
         <Text style={styles.icon}>🔒</Text>
@@ -73,15 +72,7 @@ export function BiometricGate({ onUnlock }) {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#0F172A", alignItems: "center", paddingHorizontal: 24 },
-  brand: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "white",
-    letterSpacing: -1.5,
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
-    marginBottom: 60,
-  },
-  brandDot: { color: T.accent },
+  brand: { marginBottom: 60 },
   center: { alignItems: "center", flex: 1, justifyContent: "center", paddingBottom: 60 },
   icon: { fontSize: 40, marginBottom: 16 },
   msg: { fontSize: 14, color: "rgba(255,255,255,0.7)", textAlign: "center", marginBottom: 24 },
