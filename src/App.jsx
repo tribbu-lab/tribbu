@@ -9,7 +9,7 @@ import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { useIsMobile } from "./hooks/useIsMobile";
 
-import { Login, SeleccionPerfil, CambiarPasswordModal } from "./features/auth";
+import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal } from "./features/auth";
 import { Muro }            from "./features/muro";
 import { Calendario }      from "./features/calendario";
 import { Cumpleanios }     from "./features/cumples";
@@ -112,6 +112,7 @@ function App() {
   const [badgeCount,    setBadgeCount]    = useState(0);
   const [menuMas,       setMenuMas]       = useState(false);
   const [cambiarPass,   setCambiarPass]   = useState(false);
+  const [eliminarCuenta,setEliminarCuenta]= useState(false);
   const [panelNotifs,   setPanelNotifs]   = useState(false);
   const isMobile = useIsMobile();
 
@@ -307,6 +308,14 @@ function App() {
     }
   };
 
+  // La cuenta ya no existe del lado del servidor tras deleteMyAccount(): el
+  // signOut solo limpia la sesión local (puede fallar si Supabase ya la
+  // invalidó, no importa) y vuelve al login.
+  const cerrarSesionTrasEliminar = async () => {
+    try { await supabase.auth.signOut(); } catch { /* sesión ya invalidada */ }
+    setUsuario(null);
+  };
+
   if(authLoading) return <Spinner/>;
   if(!usuario) return <Login onLogin={handleLogin}/>;
 
@@ -441,6 +450,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
       <ColorPicker/>
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+      {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
         <NotificacionesPanel
           notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
@@ -515,6 +525,10 @@ function App() {
                     <span style={{fontSize:10,fontWeight:tab===t.id?700:400,color:"white"}}>{t.label}</span>
                   </button>
                 ))}
+                <button onClick={()=>setEliminarCuenta(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(239,68,68,0.15)",cursor:"pointer",color:"#FCA5A5",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <span style={{fontSize:20}}>🗑️</span>
+                  <span style={{fontSize:10,fontWeight:400,color:"#FCA5A5"}}>Eliminar cuenta</span>
+                </button>
               </div>
             )}
             <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",transition:"background 0.3s",paddingBottom:"env(safe-area-inset-bottom)"}}>
@@ -543,6 +557,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
       <ColorPicker/>
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+      {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
         <NotificacionesPanel
           notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
@@ -591,7 +606,8 @@ function App() {
           </div>
 
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
-          <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
+          <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>&larr; Cerrar sesion</button>
+          <button onClick={()=>setEliminarCuenta(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(239,68,68,0.1)",color:"#FCA5A5",fontSize:12,fontWeight:600,textAlign:"left"}}>🗑️ Eliminar mi cuenta</button>
         </div>
       </div>
 

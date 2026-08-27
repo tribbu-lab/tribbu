@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
+import { deleteMyAccount } from "../../lib/authAdmin";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
@@ -365,6 +366,64 @@ export function CambiarPasswordModal({ onClose }) {
             </div>
           </>
         )}
+      </Card>
+    </div>
+  );
+}
+
+// Eliminar cuenta (Apple 5.1.1(v) — la Edge Function delete-account ya existe
+// y borra exactamente esto; acá solo falta decirlo antes de apretar. Mismo
+// alcance que mobile/app/(tabs)/mas.jsx.
+export function EliminarCuentaModal({ onClose, onEliminada }) {
+  const [texto, setTexto] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [err, setErr] = useState("");
+
+  const confirmar = async () => {
+    if(texto.trim().toUpperCase()!=="ELIMINAR") return;
+    setEliminando(true);
+    setErr("");
+    try {
+      await deleteMyAccount();
+      await onEliminada();
+    } catch(e) {
+      setErr(e.message || "No se pudo eliminar la cuenta. Probá de nuevo en unos minutos.");
+      setEliminando(false);
+    }
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:420}}>
+        <div style={{fontSize:15,fontWeight:900,marginBottom:4,color:"#EF4444"}}>🗑️ Eliminar mi cuenta</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Esta acción es permanente y no se puede deshacer.</div>
+
+        <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#EF4444",marginBottom:6}}>SE BORRA</div>
+          <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"#7F1D1D",lineHeight:1.7}}>
+            <li>Tu cuenta y tu contraseña</li>
+            <li>Tus recordatorios personales y confirmaciones de lectura/asistencia</li>
+            <li>Lo que marcaste comprado en Info Útil</li>
+            <li>Tus dispositivos registrados para notificaciones</li>
+            <li>Tu vínculo con tus hijos en la app</li>
+          </ul>
+        </div>
+        <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"10px 12px",marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#10B981",marginBottom:6}}>SE MANTIENE</div>
+          <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"#065F46",lineHeight:1.7}}>
+            <li>Los datos de tus hijos en el colegio (son del colegio, no tuyos)</li>
+            <li>El historial de colectas del curso (tu aporte queda sin nombre)</li>
+          </ul>
+        </div>
+
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ESCRIBÍ "ELIMINAR" PARA CONFIRMAR</div>
+        <input value={texto} onChange={e=>setTexto(e.target.value)} placeholder="ELIMINAR" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box",marginBottom:12}}/>
+
+        {err&&<div style={{fontSize:12,color:"#EF4444",marginBottom:12,textAlign:"center"}}>{err}</div>}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose} disabled={eliminando} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+          <button onClick={confirmar} disabled={eliminando||texto.trim().toUpperCase()!=="ELIMINAR"} style={{flex:2,padding:11,borderRadius:10,border:"none",background:texto.trim().toUpperCase()==="ELIMINAR"?"#EF4444":"#FCA5A5",color:"white",cursor:texto.trim().toUpperCase()==="ELIMINAR"?"pointer":"default",fontSize:13,fontWeight:700}}>{eliminando?"Eliminando...":"Eliminar definitivamente"}</button>
+        </div>
       </Card>
     </div>
   );

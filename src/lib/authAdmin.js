@@ -39,3 +39,27 @@ export const authAdminUpdate = (auth_id, { email, password } = {}) =>
 /** Busca un usuario por email. Devuelve { auth_id } o { auth_id: null } */
 export const authAdminFind = (email) =>
   callManageAuthUser("find", { email });
+
+/**
+ * Elimina la cuenta del usuario logueado (Edge Function delete-account: sin
+ * rol requerido, el JWT del caller es el único que puede borrar — nunca
+ * super). Mismo contrato que mobile/lib/authAdmin.js.
+ */
+export const deleteMyAccount = async () => {
+  const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa");
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+      "apikey": supabaseAnonKey,
+    },
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
+  return json;
+};
