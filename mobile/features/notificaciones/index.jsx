@@ -2,7 +2,7 @@
 // La lógica del hook es idéntica a la web; el panel se reescribe con Modal + FlatList.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, Modal, FlatList, StyleSheet } from "react-native";
+import { View, Text, Pressable, Modal, SectionList, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
@@ -154,8 +154,28 @@ function NotifRow({ item, leido, tag, onPress }) {
   );
 }
 
+// Agrupar por día de publicación (creado_en), no por fecha del evento — es
+// un centro de notificaciones, "cuándo me avisaron" importa más que "cuándo
+// es el evento".
+const bucketDe = (creado_en) => {
+  if (!creado_en) return "Anterior";
+  const d = new Date(creado_en);
+  d.setHours(0, 0, 0, 0);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoy - d) / 86400000);
+  if (dias <= 0) return "Hoy";
+  if (dias === 1) return "Ayer";
+  if (dias <= 7) return "Esta semana";
+  return "Anterior";
+};
+const GRUPOS = ["Hoy", "Ayer", "Esta semana", "Anterior"];
+
 export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onCerrar }) {
   const insets = useSafeAreaInsets();
+  const sections = GRUPOS.map((title) => ({ title, data: notifs.filter((n) => bucketDe(n.creado_en) === title) })).filter(
+    (s) => s.data.length > 0
+  );
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
       <Pressable style={styles.overlay} onPress={onCerrar}>
@@ -170,10 +190,12 @@ export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCu
           {cargando ? (
             <Text style={styles.empty}>Cargando...</Text>
           ) : (
-            <FlatList
-              data={notifs}
+            <SectionList
+              sections={sections}
               keyExtractor={(n) => String(n.id)}
               contentContainerStyle={styles.list}
+              stickySectionHeadersEnabled={false}
+              renderSectionHeader={({ section: { title } }) => <Text style={styles.sectionHeader}>{title}</Text>}
               renderItem={({ item }) => (
                 <NotifRow
                   item={item}
@@ -222,6 +244,7 @@ const styles = StyleSheet.create({
   },
   closeTxt: { color: "white", fontSize: 16 },
   list: { padding: 16 },
+  sectionHeader: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", color: "#94A3B8", paddingVertical: 6, backgroundColor: "white" },
   flex1: { flex: 1 },
   notif: {
     padding: 12,

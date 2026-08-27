@@ -88,6 +88,22 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
     return `en ${dias}d`;
   };
 
+  // Agrupar por día de publicación (creado_en), no por fecha del evento —
+  // es un centro de notificaciones, "cuándo me avisaron" importa más que
+  // "cuándo es el evento".
+  const bucketDe = (creado_en) => {
+    if(!creado_en) return "Anterior";
+    const d = new Date(creado_en); d.setHours(0,0,0,0);
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const dias = Math.round((hoy - d) / 86400000);
+    if(dias<=0) return "Hoy";
+    if(dias===1) return "Ayer";
+    if(dias<=7) return "Esta semana";
+    return "Anterior";
+  };
+  const GRUPOS = ["Hoy","Ayer","Esta semana","Anterior"];
+  const secciones = GRUPOS.map(titulo=>({titulo, items: notifs.filter(n=>bucketDe(n.creado_en)===titulo)})).filter(s=>s.items.length>0);
+
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 400,
@@ -143,7 +159,10 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
             </div>
           )}
 
-          {!cargando && notifs.map(n => {
+          {!cargando && secciones.map(({titulo, items}) => (
+            <div key={titulo}>
+              <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",padding:"6px 2px"}}>{titulo}</div>
+              {items.map(n => {
             const esAlerta = n._tipo === "alerta";
             const leido = !esAlerta && leidos.has(n.id);
             const prio = PRIO[n.prioridad||"media"];
@@ -210,7 +229,9 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
                 </div>
               </div>
             );
-          })}
+              })}
+            </div>
+          ))}
         </div>
 
         <div style={{padding:"12px 16px",borderTop:"1px solid #F1F5F9",fontSize:11,color:"#94A3B8",textAlign:"center"}}>
