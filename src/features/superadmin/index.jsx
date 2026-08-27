@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora,
+import { fmtM, fmtF, dHasta, fmtNombre, fmtRangoHora,
          sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Wordmark } from "../../components/Wordmark";
@@ -87,6 +87,25 @@ const SECCION_INFO = {
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
 };
+
+// 4 tarjetas de stats reusables por módulo (handoff Tribbu Admin, Parte 3
+// #5 / Parte 5): cada módulo pasa sus propias métricas — antes había un solo
+// juego de stats (de Usuarios) que se mostraba en los 12 módulos por igual.
+function ModuloStats({ items }) {
+  return (
+    <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+      {items.map((s,i)=>(
+        <div key={i} style={{minWidth:140,background:"white",border:"1px solid #E7ECF3",borderRadius:14,padding:"14px 18px",flex:1}}>
+          <div style={{fontSize:10.5,color:"#94A3B8",fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>{s.l}</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:6}}>
+            <span style={{fontSize:28,fontWeight:900,color:s.c||"#0F172A",lineHeight:1}}>{s.n}</span>
+            {s.sub && <span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>{s.sub}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function SuperAdmin() {
   const [sec,setSec]           = useState("usuarios");
@@ -767,16 +786,19 @@ export function SuperAdmin() {
                 <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
               </div>
             )}
+            {sec==="maestros" && (
+              <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
+            )}
           </div>
         );
       })()}
-      {(() => {
+      {sec==="usuarios" && (() => {
         // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 3 #5):
         // usuarios totales / Room Parents (+ en cuántos cursos) / familias
-        // sin registrarse todavía / usuarios inactivos. Antes esta tarjeta
-        // mostraba "Usuarios activos/Apoderados/Room Parents/Cursos" — útil
-        // pero no lo que pedía el diseño ni lo que más orienta antes de
-        // filtrar (cuántas familias faltan registrarse, quién está inactivo).
+        // sin registrarse todavía / usuarios inactivos. Antes esta tarjeta se
+        // mostraba SIEMPRE, en los 12 módulos, con las mismas 4 métricas de
+        // usuarios — ahora cada módulo tiene las suyas (ver sec==="maestros"
+        // más abajo para el primer ejemplo).
         const roomParents = usuarios.filter(u=>u.rol==="admin");
         const cursosConRP = new Set(roomParents.flatMap(u=>u.cursosAdmin||[])).size;
         const hijosConApoderado = new Set(usuarios.flatMap(u=>u.hijos||[]));
@@ -1000,34 +1022,65 @@ export function SuperAdmin() {
         </>
       )}
 
-      {sec==="maestros" && (
+      {sec==="maestros" && (() => {
+        const conCursos = maestros.filter(m=>(m.cursos||[]).length>0).length;
+        const gridCols = "1.8fr 1.3fr 1.4fr 110px 90px";
+        return (
         <>
-          <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #8B5CF6",background:"#F5F3FF",color:"#8B5CF6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo maestro</button>
+          <ModuloStats items={[
+            {n:maestros.length, l:"Maestros"},
+            {n:maestros.filter(m=>m.activo).length, l:"Activos", c:"#10B981"},
+            {n:maestros.filter(m=>!m.activo).length, l:"Inactivos", c:"#B45309"},
+            {n:conCursos, l:"Con cursos", c:"#3B82F6", sub:`de ${maestros.length}`},
+          ]}/>
           <ListToolbar busqueda={ctrlMaestros.busqueda} setBusqueda={ctrlMaestros.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"materia",label:"Materia"}]} sortKey={ctrlMaestros.sortKey} sortAsc={ctrlMaestros.sortAsc} toggleSort={ctrlMaestros.toggleSort} filterOptions={[{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]}]} filtros={ctrlMaestros.filtros} setFiltro={ctrlMaestros.setFiltro} resetFiltros={ctrlMaestros.resetFiltros} total={ctrlMaestros.total} placeholder="Buscar maestro o materia..."/>
-          {ctrlMaestros.items.map(m=>(
-            <Card key={m.id} style={{padding:"14px 16px",marginBottom:10,opacity:m.activo?1:0.55}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <div style={{fontSize:14,fontWeight:700}}>{m.nombre}</div>
-                    {m.materia&&<Pill label={m.materia} color="#8B5CF6" bg="#F5F3FF"/>}
-                    {!m.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                  </div>
-                  {m.email&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{m.email}</div>}
-                  {m.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtDM(m.fecha_nacimiento)}</div>}
-                  {m.cursos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Cursos: {m.cursos.map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{ setForm({...m,cursos:[...(m.cursos||[])]}); setModal("editar_maestro"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                  <button onClick={()=>setConfirm({nombre:m.nombre,msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
-                </div>
+
+          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+              {!isMobile && <>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Maestro</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Materia</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Cursos</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+              </>}
+              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlMaestros.total} maestros</div>}
+            </div>
+
+            {ctrlMaestros.items.length===0 ? (
+              <div style={{textAlign:"center",padding:"48px 24px"}}>
+                <div style={{fontSize:15,fontWeight:800}}>Ningún maestro coincide</div>
+                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo del filtro de estado.</div>
+                <button onClick={ctrlMaestros.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
               </div>
-            </Card>
-          ))}
+            ) : ctrlMaestros.items.map(m=>{
+              const nombreCursos = (m.cursos||[]).map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ");
+              return (
+                <div key={m.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",opacity:m.activo?1:0.55}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                    <div style={{width:34,height:34,borderRadius:999,background:"#F5F3FF",color:"#8B5CF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>👨‍🏫</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.nombre}</div>
+                      {m.email&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.email}</div>}
+                    </div>
+                  </div>
+                  <div style={{fontSize:13,color:"#334155"}}>{m.materia||"—"}</div>
+                  <div style={{fontSize:12.5,color:"#64748B"}}>{nombreCursos||"—"}</div>
+                  <div style={{textAlign:isMobile?"left":"center"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:999,background:m.activo?"#F0FDF4":"#F1F5F9",color:m.activo?"#10B981":"#94A3B8"}}>{m.activo?"Activo":"Inactivo"}</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
+                    <button onClick={()=>{ setForm({...m,cursos:[...(m.cursos||[])]}); setModal("editar_maestro"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>setConfirm({nombre:m.nombre,msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
           <Paginador pagina={ctrlMaestros.pagina} totalPag={ctrlMaestros.totalPag} setPagina={ctrlMaestros.setPagina}/>
         </>
-      )}
+        );
+      })()}
 
       {sec==="codigos"&&(
         <CodigosInvitacion cursos={cursosAnoActual}/>
