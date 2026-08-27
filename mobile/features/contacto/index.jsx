@@ -28,6 +28,11 @@ const abrir = async (url) => {
   }
 };
 
+// wa.me no necesita columna nueva: se arma con el mismo teléfono que ya
+// carga el colegio/contacto, asumiendo que ya incluye código de país (como
+// se completa hoy para el link tel:).
+const waLink = (telefono) => (telefono ? `https://wa.me/${telefono.replace(/[^0-9]/g, "")}` : null);
+
 export function Contacto() {
   const [colegio, setColegio] = useState(null);
   const [contactos, setContactos] = useState([]);
@@ -77,6 +82,11 @@ export function Contacto() {
               ) : (
                 <Text style={styles.filaVal}>{x.v}</Text>
               )}
+              {x.l === "Teléfono" && colegio?.telefono ? (
+                <Pressable onPress={() => abrir(waLink(colegio.telefono))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
+                  <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
+                </Pressable>
+              ) : null}
             </View>
           ))
         )}
@@ -98,9 +108,14 @@ export function Contacto() {
             {c.rol ? <Text style={styles.contactoRol}>{c.rol}</Text> : null}
             <View style={styles.contactoLinks}>
               {c.telefono ? (
-                <Pressable onPress={() => abrir(`tel:${c.telefono}`)}>
-                  <Text style={styles.link}>Tel: {c.telefono}</Text>
-                </Pressable>
+                <>
+                  <Pressable onPress={() => abrir(`tel:${c.telefono}`)}>
+                    <Text style={styles.link}>Tel: {c.telefono}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => abrir(waLink(c.telefono))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
+                    <MaterialCommunityIcons name="whatsapp" size={18} color="#25D366" />
+                  </Pressable>
+                </>
               ) : null}
               {c.email ? (
                 <Pressable onPress={() => abrir(`mailto:${c.email}`)}>
@@ -281,7 +296,8 @@ const styles = StyleSheet.create({
   },
   contactoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   contactoRol: { fontSize: 12, color: t.textMuted, marginTop: 2 },
-  contactoLinks: { flexDirection: "row", gap: SPACE.lg, marginTop: 6, flexWrap: "wrap" },
+  contactoLinks: { flexDirection: "row", gap: SPACE.lg, marginTop: 6, flexWrap: "wrap", alignItems: "center" },
+  waBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   search: {
     minHeight: 44,
     paddingHorizontal: SPACE.md,

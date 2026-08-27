@@ -89,10 +89,13 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
           </div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {[{l:"Telefono",v:colegio?.telefono},{l:"Email",v:colegio?.email},{l:"Direccion",v:colegio?.direccion},{l:"Horario clases",v:colegio?.horario_clases},{l:"Secretaria",v:colegio?.horario_secretaria},{l:"Sitio web",v:colegio?.sitio_web}].filter(x=>x.v).map(x=>(
-              <div key={x.l} style={{display:"flex",gap:10,fontSize:13}}>
+            {[{l:"Telefono",v:colegio?.telefono,link:colegio?.telefono?`tel:${colegio.telefono}`:null},{l:"Email",v:colegio?.email,link:colegio?.email?`mailto:${colegio.email}`:null},{l:"Direccion",v:colegio?.direccion},{l:"Horario clases",v:colegio?.horario_clases},{l:"Secretaria",v:colegio?.horario_secretaria},{l:"Sitio web",v:colegio?.sitio_web,link:colegio?.sitio_web?safeUrl(colegio.sitio_web):null}].filter(x=>x.v).map(x=>(
+              <div key={x.l} style={{display:"flex",gap:10,fontSize:13,alignItems:"center"}}>
                 <span style={{color:"#94A3B8",fontWeight:600,minWidth:100}}>{x.l}</span>
-                <span style={{color:"#0F172A"}}>{x.v}</span>
+                {x.link?<a href={x.link} target={x.l==="Sitio web"?"_blank":undefined} rel={x.l==="Sitio web"?"noreferrer":undefined} style={{color:"#3B82F6",fontWeight:600}}>{x.v}</a>:<span style={{color:"#0F172A"}}>{x.v}</span>}
+                {x.l==="Telefono"&&colegio?.telefono&&(
+                  <a href={`https://wa.me/${colegio.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{color:"#25D366",fontSize:16,textDecoration:"none"}}>💬</a>
+                )}
               </div>
             ))}
             {colegio?.url_maps&&<a href={safeUrl(colegio.url_maps)||"#"} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:4}}>Ver en mapa</a>}
@@ -113,8 +116,9 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
             {c.rol&&<div style={{fontSize:11,color:"#94A3B8"}}>{c.rol}</div>}
-            <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
               {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>Tel: {c.telefono}</a>}
+              {c.telefono&&<a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{fontSize:14,textDecoration:"none"}}>💬</a>}
               {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>{c.email}</a>}
             </div>
           </div>

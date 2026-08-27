@@ -226,10 +226,21 @@ function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
 
   return (
     <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
+      {utiles.length > 0 ? (
+        <View style={styles.uniProgress}>
+          <View style={styles.progressTop}>
+            <Text style={styles.progressLabel}>Adquiridos</Text>
+            <Text style={styles.progressLabel}>
+              {adqCount} / {utiles.length} ({utiles.length ? Math.round((adqCount / utiles.length) * 100) : 0}%)
+            </Text>
+          </View>
+          <View style={styles.bar}>
+            <View style={[styles.barFill, { width: `${utiles.length ? Math.round((adqCount / utiles.length) * 100) : 0}%` }]} />
+          </View>
+        </View>
+      ) : null}
       <View style={styles.toolbar}>
-        <Text style={styles.progressTxt}>
-          {adqCount} de {utiles.length} adquiridos
-        </Text>
+        <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
         {isAdmin ? (
           <Pressable
             onPress={() => {
@@ -421,10 +432,21 @@ function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
 
   return (
     <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
+      {libros.length > 0 ? (
+        <View style={styles.uniProgress}>
+          <View style={styles.progressTop}>
+            <Text style={styles.progressLabel}>Adquiridos</Text>
+            <Text style={styles.progressLabel}>
+              {adqCount} / {libros.length} ({libros.length ? Math.round((adqCount / libros.length) * 100) : 0}%)
+            </Text>
+          </View>
+          <View style={styles.bar}>
+            <View style={[styles.barFill, { width: `${libros.length ? Math.round((adqCount / libros.length) * 100) : 0}%` }]} />
+          </View>
+        </View>
+      ) : null}
       <View style={styles.toolbar}>
-        <Text style={styles.progressTxt}>
-          {adqCount} de {libros.length} adquiridos
-        </Text>
+        <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
         {isAdmin ? (
           <Pressable
             onPress={() => {
@@ -593,6 +615,7 @@ function Uniformes({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
           </View>
         </View>
       ) : null}
+      <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
 
       {uniformes.length === 0 ? (
         <Text style={styles.empty}>No hay uniformes asignados a este curso.</Text>
@@ -661,7 +684,7 @@ const styles = StyleSheet.create({
   subTabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
   subTabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  progressTxt: { fontSize: 13, color: t.textMuted },
+  privacidadTxt: { fontSize: 11, color: t.textFaint, marginBottom: SPACE.sm },
   addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
   addTxt: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   search: { minHeight: 44, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, fontSize: 13, color: t.text, marginBottom: 12 },

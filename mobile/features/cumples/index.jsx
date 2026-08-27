@@ -533,7 +533,13 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     </View>
   );
 
-  const renderItem = ({ item: a }) => {
+  // Encabezado de mes: se inserta antes del primer ítem cuyo mes difiere del
+  // anterior en la lista ya ordenada por proximidad — el orden por
+  // nextBday ya agrupa los meses en secuencia (mes actual en adelante), así
+  // que comparar contra el ítem previo alcanza sin un SectionList aparte.
+  const mesDe = (a) => new Date(a.fecha_nacimiento + "T00:00:00").getMonth();
+
+  const renderItem = ({ item: a, index }) => {
     const dias = nextBday(a.fecha_nacimiento);
     const bl = bdayLabel(dias);
     const cumple = cumpleMap[a.id] || {};
@@ -546,7 +552,11 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       ? fmtNombre(cumple.responsable)
       : null;
     const tag = tagDeCurso(a.curso_id); // solo en vista Todos
+    const mesActual = mesDe(a);
+    const mesCambia = index === 0 || mesDe(ctrl.items[index - 1]) !== mesActual;
     return (
+      <View>
+      {mesCambia ? <Text style={styles.mesHeader}>{MESES_NOMBRES[mesActual]}</Text> : null}
       <View style={styles.row}>
         <Avatar nombre={a.nombre} color={a.color} size={38} />
         <View style={styles.flex1}>
@@ -555,7 +565,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <Text style={styles.rowFecha}>{fmtDiaMes(a.fecha_nacimiento)}</Text>
             <Text style={styles.rowFecha}>·</Text>
             <Text style={[styles.tipoTxt, { color: a.tipo === "Maestro" ? "#8B5CF6" : t.textMuted }]}>
-              {a.tipo}
+              {a.tipo === "Maestro" ? "Seño" : a.tipo}
               {esMiHijo ? " · tu hijo/a" : ""}
             </Text>
             {tag ? (
@@ -610,6 +620,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             </View>
           ) : null}
         </View>
+      </View>
       </View>
     );
   };
@@ -1346,6 +1357,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4, marginBottom: 4 },
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.lg, marginBottom: SPACE.sm },
+  mesHeader: { ...TYPE.label, color: t.textFaint, textTransform: "capitalize", marginTop: SPACE.lg, marginBottom: SPACE.xs },
   montoPill: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 11 },
   montoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
   muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
