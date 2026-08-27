@@ -779,12 +779,15 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
   const misHijosEnCurso = misHijos.filter((hid) => hijosInfo[hid]);
   const confirmados = todosHijos.filter((h) => asistencia[h.id] === "si");
   const noVan = todosHijos.filter((h) => asistencia[h.id] === "no");
+  const talVez = todosHijos.filter((h) => asistencia[h.id] === "tal_vez");
   const pendientes = todosHijos.filter((h) => !asistencia[h.id] || asistencia[h.id] === "pendiente");
   const grupos = [
     { list: confirmados, label: "Confirman", color: "#10B981", bg: "#F0FDF4" },
-    { list: pendientes, label: "Pendiente", color: "#F59E0B", bg: "#FFFBEB" },
+    { list: talVez, label: "Tal vez", color: "#F59E0B", bg: "#FFFBEB" },
+    { list: pendientes, label: "Pendiente", color: "#94A3B8", bg: "#F8FAFC" },
     { list: noVan, label: "No van", color: "#EF4444", bg: "#FEF2F2" },
   ];
+  const inicialAvatar = (h) => `${(h.nombre||"?")[0]}${(h.apellido||"")[0]||""}`.toUpperCase();
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -826,6 +829,12 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
                             <Text style={[styles.vozTxt, est === "si" && { color: "#10B981" }]}>Voy</Text>
                           </Pressable>
                           <Pressable
+                            onPress={() => responder(hid, "tal_vez")}
+                            style={[styles.vozBtn, est === "tal_vez" && styles.vozTalVez]}
+                          >
+                            <Text style={[styles.vozTxt, est === "tal_vez" && { color: "#F59E0B" }]}>Tal vez</Text>
+                          </Pressable>
+                          <Pressable
                             onPress={() => responder(hid, "no")}
                             style={[styles.vozBtn, est === "no" && styles.vozNo]}
                           >
@@ -841,7 +850,7 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
               {todosHijos.length > 0 ? (
                 <View>
                   <Text style={styles.label}>
-                    RESUMEN · {confirmados.length} van · {noVan.length} no · {pendientes.length} pend.
+                    RESUMEN · {confirmados.length} van · {talVez.length} tal vez · {noVan.length} no · {pendientes.length} pend.
                   </Text>
                   {grupos.map(({ list, label, color, bg }) =>
                     list.length > 0 ? (
@@ -851,7 +860,9 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
                         </Text>
                         {list.map((h) => (
                           <View key={h.id} style={[styles.resumenRow, { backgroundColor: bg }]}>
-                            <View style={[styles.dot, { backgroundColor: h.color || color }]} />
+                            <View style={[styles.avatarChip, { backgroundColor: h.color || color }]}>
+                              <Text style={styles.avatarChipTxt}>{inicialAvatar(h)}</Text>
+                            </View>
                             <Text style={styles.resumenNombre}>
                               {h.nombre} {h.apellido}
                             </Text>
@@ -981,8 +992,11 @@ const styles = StyleSheet.create({
   vozRow: { flexDirection: "row", gap: 8 },
   vozBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
   vozSi: { borderColor: t.success, backgroundColor: t.successSoft },
+  vozTalVez: { borderColor: "#F59E0B", backgroundColor: "#FFFBEB" },
   vozNo: { borderColor: t.danger, backgroundColor: t.dangerSoft },
   vozTxt: { fontSize: 13, fontWeight: "700", color: t.textFaint },
+  avatarChip: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  avatarChipTxt: { fontSize: 9.5, fontWeight: "800", color: "#FFFFFF" },
   grupoResumen: { marginBottom: 10 },
   grupoLabel: { fontSize: 11, fontWeight: "700", marginBottom: 5 },
   resumenRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 10, borderRadius: RADIUS.md, marginBottom: 4 },

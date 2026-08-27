@@ -635,7 +635,9 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
   const misHijosEnCurso = misHijos.filter(hid=>hijosInfo[hid]);
   const confirmados = todosHijos.filter(h=>asistencia[h.id]==="si");
   const noVan       = todosHijos.filter(h=>asistencia[h.id]==="no");
+  const talVez      = todosHijos.filter(h=>asistencia[h.id]==="tal_vez");
   const pendientes  = todosHijos.filter(h=>!asistencia[h.id]||asistencia[h.id]==="pendiente");
+  const inicialAvatar = (h) => `${(h.nombre||"?")[0]}${(h.apellido||"")[0]||""}`.toUpperCase();
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -670,6 +672,7 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
                       {misHijosEnCurso.length>1&&<div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:8}}>{al?.nombre} {al?.apellido}</div>}
                       <div style={{display:"flex",gap:8}}>
                         <button onClick={()=>responder(hid,"si")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="si"?"#10B981":"#E2E8F0"}`,background:est==="si"?"#F0FDF4":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="si"?"#10B981":"#94A3B8"}}>Voy</button>
+                        <button onClick={()=>responder(hid,"tal_vez")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="tal_vez"?"#F59E0B":"#E2E8F0"}`,background:est==="tal_vez"?"#FFFBEB":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="tal_vez"?"#F59E0B":"#94A3B8"}}>Tal vez</button>
                         <button onClick={()=>responder(hid,"no")} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${est==="no"?"#EF4444":"#E2E8F0"}`,background:est==="no"?"#FEF2F2":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:est==="no"?"#EF4444":"#94A3B8"}}>No voy</button>
                       </div>
                     </div>
@@ -682,16 +685,16 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
             {todosHijos.length>0&&(
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>
-                  Resumen del curso · {confirmados.length} van · {noVan.length} no van · {pendientes.length} pendiente
+                  Resumen del curso · {confirmados.length} van · {talVez.length} tal vez · {noVan.length} no van · {pendientes.length} pendiente
                 </div>
-                {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:pendientes,label:"Pendiente",color:"#F59E0B",bg:"#FFFBEB"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
+                {[{list:confirmados,label:"Confirman",color:"#10B981",bg:"#F0FDF4"},{list:talVez,label:"Tal vez",color:"#F59E0B",bg:"#FFFBEB"},{list:pendientes,label:"Pendiente",color:"#94A3B8",bg:"#F8FAFC"},{list:noVan,label:"No van",color:"#EF4444",bg:"#FEF2F2"}].map(({list,label,color,bg})=>
                   list.length>0&&(
                     <div key={label} style={{marginBottom:10}}>
                       <div style={{fontSize:11,fontWeight:700,color,marginBottom:5}}>{label} ({list.length})</div>
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         {list.map(h=>(
                           <div key={h.id} style={{padding:"7px 10px",background:bg,borderRadius:9,display:"flex",alignItems:"center",gap:8}}>
-                            <div style={{width:7,height:7,borderRadius:"50%",background:h.color||color,flexShrink:0}}/>
+                            <div style={{width:20,height:20,borderRadius:"50%",background:h.color||color,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8.5,fontWeight:800,color:"white"}}>{inicialAvatar(h)}</div>
                             <div style={{fontSize:13,fontWeight:600}}>{h.nombre} {h.apellido}</div>
                           </div>
                         ))}
