@@ -12,7 +12,7 @@ import { Paginador } from "../../components/Paginador";
 import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
-import { ListToolbar } from "../../components";
+import { ListToolbar, AdminFormModal, ConfirmDestructivoModal } from "../../components";
 import { EmojiPicker } from "../shared";
 import { useToast } from "../../hooks/useToast";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
@@ -1504,12 +1504,15 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   );
 }
 
+const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
 export function HorariosAdmin({ cursos }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
   const [maestros, setMaestros] = useState([]);
   const [horForm,  setHorForm]  = useState(null);
   const [saving,   setSaving]   = useState(false);
+  const [confirmElim, setConfirmElim] = useState(null); // horario a eliminar
 
   const cargar = async (cid) => {
     if(!cid) return;
@@ -1535,59 +1538,43 @@ export function HorariosAdmin({ cursos }) {
 
   const eliminar = async (id) => {
     await supabase.from("horarios").delete().eq("id",id);
+    setConfirmElim(null);
     cargar(cursoSel.id);
   };
 
-  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
-
   return (
     <div>
-      {/* Modal */}
+      {/* Modal genérico de alta/edición (handoff Tribbu Admin, Parte 6) */}
       {horForm!==null&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"} — {cursoSel?.nombre}</div>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DÍA</div>
-              <select value={horForm.dia||"Lunes"} onChange={e=>setHorForm(p=>({...p,dia:e.target.value}))} style={inp}>
-                {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(d=><option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div style={{display:"flex",gap:10,marginBottom:10}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO</div>
-                <input type="time" value={horForm.hora_inicio||""} onChange={e=>setHorForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN</div>
-                <input type="time" value={horForm.hora_fin||""} onChange={e=>setHorForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
-              </div>
-            </div>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MATERIA</div>
-              <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matemáticas" style={inp}/>
-            </div>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
-              <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
-                <option value="">— Sin asignar —</option>
-                {maestros.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" · "+m.materia:""}</option>)}
-              </select>
-            </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"].map(c=>(
-                  <button key={c} onClick={()=>setHorForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:horForm.color===c?"3px solid #0F172A":"2px solid transparent",cursor:"pointer"}}/>
-                ))}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setHorForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar clase"}</button>
-            </div>
-          </Card>
-        </div>
+        <AdminFormModal
+          emoji="🕐"
+          titulo={horForm?.id?"Editar clase":"Nueva clase"}
+          subtitulo={cursoSel?.nombre}
+          editing={!!horForm?.id}
+          saving={saving}
+          form={horForm}
+          setForm={setHorForm}
+          campos={[
+            { key:"dia", label:"Día", tipo:"opciones", span:2, opciones: DIAS_SEMANA.map(d=>({value:d,label:d})) },
+            { key:"hora_inicio", label:"Hora inicio", tipo:"hora", requerido:true },
+            { key:"hora_fin", label:"Hora fin", tipo:"hora", requerido:true },
+            { key:"materia", label:"Materia", tipo:"texto", placeholder:"Ej: Matemáticas", requerido:true, span:2 },
+            { key:"docente", label:"Docente", tipo:"opciones", span:2, opciones:[{value:"",label:"Sin asignar"},...maestros.map(m=>({value:m.nombre,label:m.nombre}))] },
+            { key:"color", label:"Color", tipo:"color", span:2 },
+          ]}
+          onCancelar={()=>setHorForm(null)}
+          onGuardar={guardar}
+        />
+      )}
+
+      {confirmElim&&(
+        <ConfirmDestructivoModal
+          titulo="¿Eliminar esta clase?"
+          detalle={`${confirmElim.materia} — ${confirmElim.dia} ${confirmElim.hora_inicio?.slice(0,5)} a ${confirmElim.hora_fin?.slice(0,5)}. Esta acción no se puede deshacer.`}
+          textoConfirmar="Eliminar clase"
+          onCancelar={()=>setConfirmElim(null)}
+          onConfirmar={()=>eliminar(confirmElim.id)}
+        />
       )}
 
       {/* Selector de curso */}
@@ -1619,7 +1606,7 @@ export function HorariosAdmin({ cursos }) {
                     </div>
                     <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} – {h.hora_fin?.slice(0,5)}</span>
                     <button onClick={()=>setHorForm({...h})} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                    <button onClick={()=>eliminar(h.id)} style={{padding:"3px 8px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                    <button onClick={()=>setConfirmElim(h)} style={{padding:"3px 8px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
                   </div>
                 ))}
               </div>
@@ -1637,6 +1624,8 @@ export function UniformesAdmin({ cursos }) {
   const [modal,     setModal]     = useState(null); // null | {mode:"newU"|"editU"|"newItem"|"editItem", u?, it?}
   const [form,      setForm]      = useState({tipo:"",emoji:"👕",item:""});
   const [saving,    setSaving]    = useState(false);
+  const [confirmElimU, setConfirmElimU] = useState(null); // uniforme (categoría) a eliminar
+  const [confirmElimItem, setConfirmElimItem] = useState(null); // ítem a eliminar
 
   const EMOJIS_UNI = ["👕","👖","👟","🧥","🎽","🧢","👗","🩳"];
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
@@ -1681,8 +1670,8 @@ export function UniformesAdmin({ cursos }) {
     setSaving(false); setModal(null); cargar();
   };
 
-  const eliminarU    = async (id) => { await supabase.from("uniformes").delete().eq("id",id); cargar(); };
-  const eliminarItem = async (id) => { await supabase.from("uniforme_items").delete().eq("id",id); cargar(); };
+  const eliminarU    = async (id) => { await supabase.from("uniformes").delete().eq("id",id); setConfirmElimU(null); cargar(); };
+  const eliminarItem = async (id) => { await supabase.from("uniforme_items").delete().eq("id",id); setConfirmElimItem(null); cargar(); };
 
   const openModal = (mode,u=null,it=null) => {
     setModal({mode,u,it});
@@ -1696,6 +1685,24 @@ export function UniformesAdmin({ cursos }) {
 
   return (
     <div>
+      {confirmElimU&&(
+        <ConfirmDestructivoModal
+          titulo="¿Eliminar esta categoría de uniforme?"
+          detalle={`"${confirmElimU.tipo}" y todos sus ítems se eliminan. Esta acción no se puede deshacer.`}
+          textoConfirmar="Eliminar categoría"
+          onCancelar={()=>setConfirmElimU(null)}
+          onConfirmar={()=>eliminarU(confirmElimU.id)}
+        />
+      )}
+      {confirmElimItem&&(
+        <ConfirmDestructivoModal
+          titulo="¿Eliminar este ítem?"
+          detalle={`"${confirmElimItem.item}" se elimina de la lista de uniforme.`}
+          textoConfirmar="Eliminar ítem"
+          onCancelar={()=>setConfirmElimItem(null)}
+          onConfirmar={()=>eliminarItem(confirmElimItem.id)}
+        />
+      )}
       {/* Modal */}
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -1750,7 +1757,7 @@ export function UniformesAdmin({ cursos }) {
               <div style={{display:"flex",gap:6}}>
                 <button onClick={()=>openModal("newItem",u)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
                 <button onClick={()=>openModal("editU",u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
-                <button onClick={()=>eliminarU(u.id)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                <button onClick={()=>setConfirmElimU(u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
               </div>
             </div>
 
@@ -1760,7 +1767,7 @@ export function UniformesAdmin({ cursos }) {
                 <div style={{width:5,height:5,borderRadius:"50%",background:"#CBD5E1",flexShrink:0}}/>
                 <span style={{fontSize:13,flex:1}}>{it.item}</span>
                 <button onClick={()=>openModal("editItem",u,it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
-                <button onClick={()=>eliminarItem(it.id)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                <button onClick={()=>setConfirmElimItem(it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
               </div>
             ))}
             {items.length===0&&<div style={{padding:"8px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems aún.</div>}
@@ -1977,6 +1984,7 @@ function CodigosInvitacion({ cursos }) {
   const [copiado,    setCopiado]    = useState(null);
   const [rotando,    setRotando]    = useState(null); // id en curso de rotación
   const [confirmRotar, setConfirmRotar] = useState(null); // código a rotar
+  const [confirmElim, setConfirmElim] = useState(null); // código a eliminar
   const inp = {padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
 
   const cargar = async () => {
@@ -2015,6 +2023,7 @@ function CodigosInvitacion({ cursos }) {
 
   const eliminar = async (id) => {
     await supabase.from("codigos_invitacion").delete().eq("id", id);
+    setConfirmElim(null);
     cargar();
   };
 
@@ -2061,6 +2070,17 @@ function CodigosInvitacion({ cursos }) {
             </div>
           </Card>
         </div>
+      )}
+
+      {confirmElim && (
+        <ConfirmDestructivoModal
+          titulo="¿Eliminar este código?"
+          detalle={`El código ${confirmElim.codigo} deja de existir. ${confirmElim.usos_actuales>0?`${confirmElim.usos_actuales} familia${confirmElim.usos_actuales!==1?"s":""} ya se registró con él y no se ve afectada, pero `:""}nadie más podrá usarlo para registrarse.`}
+          consecuencias={confirmElim.activo?["Si solo querés que deje de usarse, \"Desactivar\" es reversible — esto no."]:undefined}
+          textoConfirmar="Eliminar código"
+          onCancelar={()=>setConfirmElim(null)}
+          onConfirmar={()=>eliminar(confirmElim.id)}
+        />
       )}
 
       {/* Crear nuevo código */}
@@ -2128,7 +2148,7 @@ function CodigosInvitacion({ cursos }) {
               <button onClick={()=>toggleActivo(c.id,c.activo)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${c.activo?"#FCA5A5":"#BBF7D0"}`,background:c.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:c.activo?"#EF4444":"#10B981"}}>
                 {c.activo?"Desactivar":"Activar"}
               </button>
-              <button onClick={()=>eliminar(c.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:12,color:"#94A3B8"}}>🗑</button>
+              <button onClick={()=>setConfirmElim(c)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:12,color:"#94A3B8"}}>🗑</button>
             </div>
           </div>
         </Card>

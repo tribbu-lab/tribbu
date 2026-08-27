@@ -8,3 +8,5 @@ export { Paginador }   from "./Paginador";
 export { ListToolbar } from "./ListToolbar";
 export { AdjuntosInput, AdjuntosList, MAX_ADJUNTOS } from "./Adjuntos";
 export { Wordmark }     from "./Wordmark";
+export { AdminFormModal } from "./AdminFormModal";
+export { ConfirmDestructivoModal } from "./ConfirmDestructivoModal";
