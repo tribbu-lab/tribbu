@@ -39,7 +39,7 @@ function TagHijo({ tag }) {
   );
 }
 
-export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate }) {
+export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate, isMobile=true }) {
   misHijos = (misHijos||[]).filter(h=>h && typeof h === "string");
   cursoIds = (cursoIds&&cursoIds.length) ? cursoIds : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -187,6 +187,10 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
 
   if(!datos) return <Spinner/>;
 
+  // Colecta más próxima a cerrar entre las que YA cerrará; solo para el
+  // resumen de la aside de escritorio (no altera la lógica de colectasPend).
+  const proximoCumple = (datos.bdayList||[])[0];
+
   // ── Layout A: original ───────────────────────────────────────────────────
   return (
     <div>
@@ -195,6 +199,8 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       {/* El selector de hijos/Todos vive en la navegación (sidebar en desktop,
           header en mobile) — App.jsx —, no acá: se puede cambiar de vista desde
           cualquier pantalla, igual que en la app mobile. */}
+      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
+      <div>
       <div style={{marginBottom:18}}>
         <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
@@ -391,6 +397,50 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         );
       })}
       {(datos.bdayList||[]).length===0&&<div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin cumpleaños registrados</div>}
+      </div>
+
+      {/* Aside de escritorio (handoff Tribbu Apoderado Web, Parte 7): mismo
+          contenido ya cargado arriba, solo reordenado — sin queries nuevas.
+          "Aprovecha el ancho", no agrega funcionalidad. */}
+      {!isMobile&&(
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {datos.menu&&(
+            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18}}>
+              <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:12}}>Menú de hoy</div>
+              <div style={{fontSize:13,color:"#334155",lineHeight:1.7}}>
+                {[datos.menu.entrada,datos.menu.plato,datos.menu.plato2,datos.menu.acompanamiento,datos.menu.postre,datos.menu.postre2].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          )}
+          {(datos.cuotas||[]).filter(c=>c.activa).length>0&&(
+            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>Colectas abiertas</div>
+                <button onClick={()=>onNavigate?.("finanzas")} style={{border:"none",background:"none",color:"#2563EB",fontSize:12,fontWeight:700,cursor:"pointer"}}>Ver todas</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {datos.cuotas.filter(c=>c.activa).slice(0,4).map(c=>{
+                  const debo = (datos.colectasPend||[]).some(p=>p.id===c.id);
+                  return (
+                    <div key={c.id} style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,cursor:"pointer"}} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})}>
+                      <span style={{fontSize:13,fontWeight:600,lineHeight:1.4}}>{c.titulo}</span>
+                      <span style={{fontSize:11,fontWeight:800,color:debo?"#F59E0B":"#10B981",whiteSpace:"nowrap"}}>{debo?"Falta tu aporte":"Al día"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {proximoCumple&&(
+            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18,cursor:"pointer"}} onClick={()=>onNavigate?.("cumples")}>
+              <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:12}}>El próximo cumple</div>
+              <div style={{fontSize:14.5,fontWeight:700}}>{proximoCumple.nombre} 🎂</div>
+              <div style={{fontSize:12,color:"#64748B",marginTop:3}}>{new Date(proximoCumple.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>
+            </div>
+          )}
+        </div>
+      )}
+      </div>
     </div>
   );
 }
