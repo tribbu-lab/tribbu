@@ -85,6 +85,8 @@ export function SuperAdmin() {
   const [authSyncMsg,setAuthSyncMsg] = useState(null);
   const [anoActual,setAnoActual]     = useState(new Date().getFullYear());
   const [anoCursosSel,setAnoCursosSel] = useState(null);
+  const [selUsuarios,setSelUsuarios]   = useState(new Set());
+  const [asignarCursoModal,setAsignarCursoModal] = useState(false);
   const isMobile = useIsMobile();
   const { showToast, Toast } = useToast();
 
@@ -169,7 +171,7 @@ export function SuperAdmin() {
       supabase.from("maestro_cursos").select("*"),
       supabase.from("colegio").select("año_lectivo_actual").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
     ]);
-    setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id)})));
+    setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
     setCursos(c.data||[]);
     setHijos(h.data||[]);
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
@@ -304,6 +306,45 @@ export function SuperAdmin() {
       .then(() => supabase.from("usuarios").delete().eq("id",id));
     if(error) { showToast("Error al eliminar el usuario", "error"); setConfirm(null); return; }
     setConfirm(null); cargar();
+  };
+
+  // Selección múltiple + acciones en lote (Parte 3 #3 del handoff): hoy toda
+  // acción sobre usuarios es de a uno, con 300+ usuarios hace falta operar
+  // sobre varios a la vez.
+  const toggleSelUsuario = (id) => {
+    setSelUsuarios(prev => {
+      const next = new Set(prev);
+      if(next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelTodosUsuarios = (idsVisibles) => {
+    setSelUsuarios(prev => {
+      const todosMarcados = idsVisibles.length>0 && idsVisibles.every(id=>prev.has(id));
+      return todosMarcados ? new Set() : new Set(idsVisibles);
+    });
+  };
+  // "Asignar a curso": agrega usuario_cursos (rol Room Parent) para cada
+  // usuario seleccionado — la única acción en lote con un equivalente real
+  // y bien definido en el modelo de datos hoy (no existe un "reenviar
+  // invitación" por usuario: el alta es por código de curso, no por mail).
+  const asignarCursoLote = async (cursoId) => {
+    if(!cursoId || selUsuarios.size===0) return;
+    // Insert (no upsert): no hay certeza de que exista una constraint única
+    // sobre (usuario_id, curso_id) para apoyarse en onConflict, así que se
+    // filtran del lado del cliente los que ya tienen fila para este curso
+    // (con el `usuarioCursos` ya cargado en cada usuario).
+    const rows = [...selUsuarios]
+      .map(id=>usuarios.find(u=>u.id===id))
+      .filter(u=>u && !(u.usuarioCursos||[]).some(r=>r.curso_id===cursoId))
+      .map(u=>({usuario_id:u.id, curso_id:cursoId, rol:"admin"}));
+    if(rows.length===0) { showToast("Los usuarios seleccionados ya tienen ese curso asignado", "error"); return; }
+    const { error } = await supabase.from("usuario_cursos").insert(rows);
+    if(error) { showToast("Error al asignar el curso", "error"); return; }
+    showToast(`${rows.length} usuario${rows.length!==1?"s":""} asignado${rows.length!==1?"s":""} como Room Parent`, "ok");
+    setSelUsuarios(new Set());
+    setAsignarCursoModal(false);
+    cargar();
   };
 
   const eliminarCurso = async (id) => {
@@ -684,42 +725,136 @@ export function SuperAdmin() {
         ))}
       </div>
 
-      {sec==="usuarios" && (
+      {sec==="usuarios" && (() => {
+            const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
+            // Un chip por acceso real a un curso: filas explícitas de
+            // usuario_cursos (cualquier rol) + acceso derivado por hijo para
+            // apoderados sin fila propia (ver "Fix RLS: padres sin fila en
+            // usuario_cursos" — es el caso normal, no la excepción).
+            const accesosDeUsuario = (u) => {
+              const vistos = new Set();
+              const chips = [];
+              for(const r of (u.usuarioCursos||[])) {
+                const curso = cursos.find(c=>c.id===r.curso_id);
+                if(!curso || vistos.has(r.curso_id)) continue;
+                vistos.add(r.curso_id);
+                chips.push({label:`${ROL_LABEL[r.rol]||r.rol} · ${curso.nombre}`, color:ROL_COLOR[r.rol]||"#94A3B8"});
+              }
+              for(const hid of (u.hijos||[])) {
+                const hijo = hijos.find(h=>h.id===hid);
+                if(!hijo || vistos.has(hijo.curso_id)) continue;
+                const curso = cursos.find(c=>c.id===hijo.curso_id);
+                if(!curso) continue;
+                vistos.add(hijo.curso_id);
+                chips.push({label:`Apoderado · ${curso.nombre}`, color:ROL_COLOR.padre});
+              }
+              return chips;
+            };
+            const idsVisibles = ctrlUsuarios.items.map(u=>u.id);
+            const todosMarcados = idsVisibles.length>0 && idsVisibles.every(id=>selUsuarios.has(id));
+            const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
+            return (
         <>
           <UploadApoderadosExcel onDone={cargar}/>
           <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar usuario individual</button>
-          {(() => {
-            const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
-            return <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>;
-          })()}
-          {ctrlUsuarios.items.map(u=>(
-            <Card key={u.id} style={{padding:"14px 16px",marginBottom:10,opacity:u.activo?1:0.55}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin},{value:"super",label:"Super Admin",color:ROL_COLOR.super}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <div style={{fontSize:14,fontWeight:700}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
-                    <Pill label={ROL_LABEL[u.rol]} color={ROL_COLOR[u.rol]} bg={ROL_BG[u.rol]}/>
-                    {!u.activo && <Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                  </div>
-                  <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{u.email}</div>
-                  {u.telefono&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}><a href={`tel:${u.telefono}`} style={{color:"#3B82F6",fontWeight:600,textDecoration:"none"}}>📞 {u.telefono}</a></div>}
-                  {u.dni&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>DNI: {u.dni}</div>}
-                  {u.rol==="admin"&&u.cursos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Cursos: {u.cursos.map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
-                  {(u.cursosAdmin||[]).length>0&&<div style={{fontSize:11,color:"#10B981",marginTop:2}}>Room Parent: {(u.cursosAdmin||[]).map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ")}</div>}
-                  {u.hijos.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Hijos: {u.hijos.map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ")}</div>}
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{ setForm({...u,esSuper:u.rol==="super",cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                  <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
-                  {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
-                </div>
+          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+            {selUsuarios.size>0 && (
+              <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#0F172A"}}>
+                <span style={{fontSize:12.5,fontWeight:700,color:"white"}}>{selUsuarios.size} usuario{selUsuarios.size!==1?"s":""} seleccionado{selUsuarios.size!==1?"s":""}</span>
+                <div style={{flex:1}}/>
+                <button onClick={()=>showToast("El sistema de invitaciones por email todavía no está definido", "error")} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reenviar invitación</button>
+                <button onClick={()=>setAsignarCursoModal(true)} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Asignar a curso</button>
+                <button onClick={()=>setSelUsuarios(new Set())} style={{minHeight:32,padding:"0 10px",border:"none",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
               </div>
-            </Card>
-          ))}
-          <Paginador pagina={ctrlUsuarios.pagina} totalPag={ctrlUsuarios.totalPag} setPagina={ctrlUsuarios.setPagina}/>
+            )}
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:"center",gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+              {!isMobile && <>
+                <button onClick={()=>toggleSelTodosUsuarios(idsVisibles)} aria-label="Seleccionar todos" style={{width:18,height:18,border:`1.5px solid ${todosMarcados?"#0F172A":"#CBD5E1"}`,borderRadius:5,background:todosMarcados?"#0F172A":"white",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {todosMarcados && <span style={{color:"white",fontSize:11}}>✓</span>}
+                </button>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Usuario</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Accesos</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Hijos</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+              </>}
+              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlUsuarios.total} usuarios</div>}
+            </div>
+
+            {ctrlUsuarios.items.length===0 ? (
+              <div style={{textAlign:"center",padding:"48px 24px"}}>
+                <div style={{fontSize:15,fontWeight:800}}>Ningún usuario coincide</div>
+                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo de los filtros de rol y estado.</div>
+                <button onClick={ctrlUsuarios.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
+              </div>
+            ) : ctrlUsuarios.items.map(u=>{
+              const marcado = selUsuarios.has(u.id);
+              const hijosNombres = (u.hijos||[]).map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ");
+              return (
+                <div key={u.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",background:marcado?"#EFF6FF":"white",opacity:u.activo?1:0.55}}>
+                  {!isMobile && (
+                    <button onClick={()=>toggleSelUsuario(u.id)} aria-label="Seleccionar" style={{width:18,height:18,border:`1.5px solid ${marcado?"#0F172A":"#CBD5E1"}`,borderRadius:5,background:marcado?"#0F172A":"white",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      {marcado && <span style={{color:"white",fontSize:11}}>✓</span>}
+                    </button>
+                  )}
+                  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                    {isMobile && (
+                      <button onClick={()=>toggleSelUsuario(u.id)} aria-label="Seleccionar" style={{width:18,height:18,flexShrink:0,border:`1.5px solid ${marcado?"#0F172A":"#CBD5E1"}`,borderRadius:5,background:marcado?"#0F172A":"white",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {marcado && <span style={{color:"white",fontSize:11}}>✓</span>}
+                      </button>
+                    )}
+                    <div style={{width:34,height:34,borderRadius:999,background:ROL_BG[u.rol],color:ROL_COLOR[u.rol],display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(u.nombre||"")[0]||""}${(u.apellido||"")[0]||""}`.toUpperCase()}</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
+                      <div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                    {accesosDeUsuario(u).map((a,i)=>(
+                      <span key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",borderRadius:999,background:a.color+"18",border:`1px solid ${a.color}40`}}>
+                        <span style={{width:6,height:6,borderRadius:999,background:a.color}}/>
+                        <span style={{fontSize:11,fontWeight:700,color:a.color}}>{a.label}</span>
+                      </span>
+                    ))}
+                    {u.rol==="super" && <Pill label="Super Admin" color={ROL_COLOR.super} bg={ROL_BG.super}/>}
+                  </div>
+                  <div style={{fontSize:12,color:"#64748B"}}>{hijosNombres || "—"}</div>
+                  <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center"}}>
+                    <span style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:999,background:u.activo?"#F0FDF4":"#F1F5F9",border:`1px solid ${u.activo?"#A7F3D0":"#E2E8F0"}`}}>
+                      <span style={{width:6,height:6,borderRadius:999,background:u.activo?"#059669":"#94A3B8"}}/>
+                      <span style={{fontSize:11,fontWeight:700,color:u.activo?"#059669":"#94A3B8"}}>{u.activo?"Activo":"Inactivo"}</span>
+                    </span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",gap:6}}>
+                    <button onClick={()=>{ setForm({...u,esSuper:u.rol==="super",cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+                    {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
+                  </div>
+                </div>
+              );
+            })}
+            {ctrlUsuarios.items.length>0 && (
+              <div style={{padding:"10px 14px"}}>
+                <Paginador pagina={ctrlUsuarios.pagina} totalPag={ctrlUsuarios.totalPag} setPagina={ctrlUsuarios.setPagina}/>
+              </div>
+            )}
+          </div>
+
+          {asignarCursoModal && (
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setAsignarCursoModal(false)}>
+              <div style={{background:"white",borderRadius:16,padding:22,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Asignar a curso</div>
+                <div style={{fontSize:12,color:"#64748B",marginBottom:14}}>Los {selUsuarios.size} usuarios seleccionados quedan como Room Parent del curso que elijas.</div>
+                <CursoListSelector cursos={cursosAnoActual} seleccionados={[]} onToggle={(cid)=>asignarCursoLote(cid)} multi={false} maxHeight={260}/>
+                <button onClick={()=>setAsignarCursoModal(false)} style={{width:"100%",marginTop:14,padding:"10px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </>
-      )}
+            );
+      })()}
 
       {sec==="cursos" && (
         <>
