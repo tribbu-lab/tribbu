@@ -1,21 +1,32 @@
 // mobile/features/calendario/BotonAgregarCalendario.jsx (puerto RN de
 // src/features/calendario/BotonAgregarCalendarioWeb.jsx)
 //
-// Copia el enlace del feed ICS de tribbu (eventos + cumpleaños + festejos de
-// todos los cursos del usuario). En iOS se ofrece abrirlo directo con
-// webcal:// (el SO resuelve el flujo nativo de suscripción, y confirmado que
-// sí persiste). En Android NO hay atajo de un toque que funcione de verdad:
-// se probaron Linking.openURL y una Custom Tab (expo-web-browser) contra
-// calendar.google.com/.../render?cid=, pero calendar.google.com está
-// verificado como Android App Link de la app de Google Calendar — Android le
-// entrega el link a esa app en los dos casos, y la app de Calendar muestra
-// selector de cuenta + un "agregado con éxito" falso: no llega a suscribir
-// nada de verdad (ni en la app ni en calendar.google.com desde el
-// navegador — confirmado con un usuario real). Ni Google Calendar ni
-// Outlook/Samsung Calendar tienen "agregar por URL" dentro de su app mobile
-// — las tres requieren pasar por la versión web de escritorio del calendario
-// que uses. Así que en Android solo se ofrece "Copiar enlace" + instrucciones
-// para pegarlo ahí.
+// Sincroniza el feed ICS de tribbu (eventos + cumpleaños + citas de todos
+// los cursos del usuario) con el calendario personal, con un flujo distinto
+// por plataforma (ver specs/eleccion-de-calendario-mobile.md):
+//
+// - iOS: el usuario elige su calendario. "Apple Calendar" abre webcal:// (el
+//   SO resuelve el flujo nativo de suscripción, confirmado que persiste) y
+//   "Google Calendar" abre calendar.google.com/calendar/render?cid=webcal://…
+//   — el mismo flujo verificado de la web — dentro de un
+//   SFSafariViewController (expo-web-browser): los universal links NO se
+//   disparan ahí, así que la app nativa de Google Calendar no puede
+//   interceptar la URL. (Costo: cookies aisladas de Safari → posible login
+//   de Google la primera vez, fricción única.)
+//
+// - Android: "Conectar con mi calendario" escribe los eventos directo en el
+//   calendario Google del dispositivo vía expo-calendar (CalendarContract) —
+//   sin browser ni login; el motor vive en mobile/lib/calendarSync.js y
+//   re-sincroniza al abrir la app. Se eligió esto porque el atajo web NO
+//   funciona en Android: calendar.google.com está verificado como App Link
+//   de la app de Google Calendar — Android le entrega la URL a esa app
+//   (probado con Linking.openURL y Custom Tab), que muestra selector de
+//   cuenta + un "agregado con éxito" falso sin suscribir nada (confirmado
+//   con un usuario real). Un WebView interno tampoco sirve: Google bloquea
+//   el login en WebViews embebidos (disallowed_useragent). Ni Google
+//   Calendar ni Outlook/Samsung Calendar tienen "agregar por URL" en su app
+//   mobile — requieren la web de escritorio. "Copiar enlace" queda como
+//   fallback (otras apps / permiso denegado / sin cuenta Google).
 //
 // UI colapsada en un Sheet para no empujar el resto de Calendario hacia
 // abajo: el trigger es una sola línea, y una vez que el usuario ya usó
@@ -27,14 +38,16 @@
 // ver supabase/calendar-token-hardening.sql.
 
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, Platform, Linking, StyleSheet } from "react-native";
+import { View, Text, Pressable, Platform, Linking, AppState, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
 import { supabase } from "../../lib/supabase";
 import { Sheet } from "../../components/Sheet";
+import { prepararConexion, sincronizar, sincronizarSiConectado, desconectar } from "../../lib/calendarSync";
 
 const t = THEMES.light;
 const claveSincronizado = (userId) => `calsync_${userId}`;
@@ -46,14 +59,20 @@ export default function BotonAgregarCalendario({ userId }) {
   const [regenerando, setRegenerando] = useState(false);
   const [confirmarRegenerar, setConfirmarRegenerar] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  // Guarda el método usado ("webcal" | "copia"), no solo un booleano: copiar
-  // el enlace todavía no sincronizó nada (falta pegarlo en el calendario), a
-  // diferencia de abrir webcal:// en iOS, que sí completa la suscripción ahí
+  // Android (conexión al calendario del dispositivo):
+  const [conectando, setConectando] = useState(false);
+  const [desconectando, setDesconectando] = useState(false);
+  const [candidatos, setCandidatos] = useState(null); // >1 calendario Google → mini-picker
+  const [errorConexion, setErrorConexion] = useState(null);
+  // Guarda el método usado ("webcal" | "gcal" | "device" | "copia"), no solo
+  // un booleano: copiar el enlace todavía no sincronizó nada (falta pegarlo
+  // en el calendario), a diferencia de los otros tres, que sí conectan ahí
   // mismo — el trigger no debe decir "sincronizado" para lo primero.
-  // ("google" quedó de un intento anterior en Android que resultó ser un
-  // falso positivo — ver comentario de arriba — se trata igual que "copia".)
+  // OJO: "gcal" es el flujo Google real de iOS; "google" quedó reservado de
+  // un intento anterior en Android que resultó ser un falso positivo — ver
+  // header — y se trata igual que "copia". No reutilizar "google".
   const [metodo, setMetodo] = useState(null);
-  const sincronizado = metodo === "webcal";
+  const sincronizado = metodo === "webcal" || metodo === "gcal" || metodo === "device";
   const soloCopiado = metodo === "copia" || metodo === "google" || metodo === "1"; // "1" = legacy, previo a este fix
 
   useEffect(() => {
@@ -104,12 +123,24 @@ export default function BotonAgregarCalendario({ userId }) {
   const { supabaseUrl } = getRuntimeConfig();
   const feedUrl = token && supabaseUrl ? `${supabaseUrl}/functions/v1/calendar-feed?token=${token}` : null;
 
+  // Android conectado: re-sync silencioso al montar Calendario y al volver a
+  // foreground (con throttle adentro de sincronizarSiConectado).
+  useEffect(() => {
+    if (Platform.OS !== "android" || metodo !== "device" || !feedUrl || !userId) return;
+    sincronizarSiConectado({ userId, feedUrl });
+    const sub = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") sincronizarSiConectado({ userId, feedUrl });
+    });
+    return () => sub.remove();
+  }, [metodo, feedUrl, userId]);
+
   const copiarUrl = async () => {
     if (!feedUrl) return;
     try {
       await Clipboard.setStringAsync(feedUrl);
       setCopiado(true);
-      marcarSincronizado("copia");
+      // Conectado al dispositivo, copiar es solo un extra: no degradar el estado.
+      if (metodo !== "device") marcarSincronizado("copia");
       setTimeout(() => setCopiado(false), 2000);
     } catch (e) {
       console.warn("No se pudo copiar el enlace de calendario:", e?.message);
@@ -122,6 +153,70 @@ export default function BotonAgregarCalendario({ userId }) {
       console.warn("No se pudo abrir el enlace webcal:", e?.message)
     );
     marcarSincronizado("webcal");
+  };
+
+  const abrirEnGoogle = async () => {
+    if (!feedUrl) return;
+    // cid= espera un URL con esquema webcal:// para reconocerlo como una
+    // suscripción a un feed externo — con https:// a secas, Google falla con
+    // "Unable to add calendar" (misma conversión que la web).
+    const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
+    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
+    try {
+      // Se marca al cerrar el browser (la promesa resuelve ahí), no al
+      // abrirlo: reduce el falso "sincronizado" si cierra sin confirmar.
+      await WebBrowser.openBrowserAsync(googleUrl);
+      marcarSincronizado("gcal");
+    } catch (e) {
+      console.warn("No se pudo abrir Google Calendar:", e?.message);
+    }
+  };
+
+  const conectarDispositivo = async (calendarId = null) => {
+    if (!feedUrl) return;
+    setErrorConexion(null);
+    setConectando(true);
+    try {
+      let elegido = calendarId;
+      if (!elegido) {
+        const prep = await prepararConexion();
+        if (!prep.ok) {
+          setErrorConexion(
+            prep.motivo === "permiso"
+              ? "Sin permiso de calendario no se puede conectar. Podés darlo en Ajustes, o copiar el enlace y agregarlo a mano."
+              : "No se encontró un calendario de Google en este teléfono. Copiá el enlace y agregalo a mano en calendar.google.com."
+          );
+          return;
+        }
+        if (prep.calendarios.length > 1) {
+          setCandidatos(prep.calendarios);
+          return;
+        }
+        elegido = prep.calendarios[0].id;
+      }
+      await sincronizar({ userId, feedUrl, calendarId: elegido });
+      setCandidatos(null);
+      // Recién acá: el primer sync terminó sin error (no al pedir permiso).
+      marcarSincronizado("device");
+    } catch (e) {
+      console.warn("No se pudo conectar el calendario:", e?.message);
+      setErrorConexion("No se pudo conectar el calendario. Probá de nuevo, o copiá el enlace y agregalo a mano.");
+    } finally {
+      setConectando(false);
+    }
+  };
+
+  const desconectarDispositivo = async () => {
+    setDesconectando(true);
+    try {
+      await desconectar({ userId });
+      setMetodo(null);
+      AsyncStorage.removeItem(claveSincronizado(userId)).catch(() => {});
+    } catch (e) {
+      console.warn("No se pudo desconectar el calendario:", e?.message);
+    } finally {
+      setDesconectando(false);
+    }
   };
 
   const regenerar = async () => {
@@ -140,41 +235,85 @@ export default function BotonAgregarCalendario({ userId }) {
 
   if (cargando || !feedUrl) return null;
 
+  const labelTrigger = sincronizado
+    ? metodo === "device" ? "✓ Calendario conectado" : "✓ Calendario sincronizado"
+    : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario";
+
   return (
     <View style={styles.wrap}>
       <Pressable onPress={() => setAbierto(true)} style={[styles.trigger, metodo && styles.triggerHecho]}>
-        <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>
-          {sincronizado ? "✓ Calendario sincronizado" : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario"}
-        </Text>
+        <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>{labelTrigger}</Text>
       </Pressable>
 
       <Sheet visible={abierto} onClose={() => setAbierto(false)} title="Sincronizar calendario">
         <Text style={styles.hint}>
-          Los eventos de la escuela aparecerán en tu calendario y se actualizan solos. Google puede tardar unas horas en reflejar los cambios.
-        </Text>
-
-        <View style={styles.row}>
-          {Platform.OS === "ios" ? (
-            <Pressable onPress={abrirWebcal} style={styles.btnPrimary}>
-              <Text style={styles.btnPrimaryTxt}>📅 Agregar a Calendario</Text>
-            </Pressable>
-          ) : null}
-          <Pressable onPress={copiarUrl} style={Platform.OS === "ios" ? styles.btnSecondary : styles.btnPrimary}>
-            <Text style={Platform.OS === "ios" ? styles.btnSecondaryTxt : styles.btnPrimaryTxt}>
-              {copiado ? "¡Copiado!" : "Copiar enlace"}
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* En Android no hay atajo de un toque confiable: ni Google Calendar
-            ni Outlook ni Samsung Calendar soportan "agregar por URL" dentro
-            de su app mobile — las tres requieren pegar el enlace desde la
-            versión web de escritorio de ese calendario. */}
-        <Text style={styles.hintSmall}>
           {Platform.OS === "ios"
-            ? '¿Usás otra app de calendario (Outlook, etc.) en vez de la de Apple? Copiá el enlace y pegalo ahí, en su opción de "agregar calendario desde una URL" o "suscribirse" (en Outlook, por ejemplo: outlook.com en el navegador → Configuración → Calendario → Agregar calendario → Suscribirse desde la web).'
-            : 'Pegá el enlace copiado en la versión web de tu calendario (no la app): en Google Calendar, calendar.google.com desde el navegador → ⚙️ Configuración → Agregar calendario → Desde URL. En Outlook: outlook.com → Configuración → Calendario → Agregar calendario → Suscribirse desde la web.'}
+            ? "Los eventos de la escuela aparecerán en tu calendario y se actualizan solos. Google puede tardar unas horas en reflejar los cambios."
+            : "Los eventos de la escuela aparecerán en tu calendario de Google y se actualizan cada vez que abrís tribbu."}
         </Text>
+
+        {Platform.OS === "ios" ? (
+          <>
+            <Text style={styles.label}>¿Qué calendario usás?</Text>
+            <View style={styles.row}>
+              <Pressable onPress={abrirWebcal} style={styles.btnPrimary}>
+                <Text style={styles.btnPrimaryTxt}> Apple Calendar</Text>
+              </Pressable>
+              <Pressable onPress={abrirEnGoogle} style={styles.btnPrimary}>
+                <Text style={styles.btnPrimaryTxt}>🗓️ Google Calendar</Text>
+              </Pressable>
+              <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
+                <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.hintSmall}>
+              ¿Usás otra app de calendario (Outlook, etc.)? Copiá el enlace y pegalo ahí, en su opción de "agregar
+              calendario desde una URL" o "suscribirse".
+            </Text>
+          </>
+        ) : metodo === "device" ? (
+          <>
+            <View style={styles.row}>
+              <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
+                <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={desconectarDispositivo} disabled={desconectando}>
+              <Text style={[styles.linkDanger, styles.mtMd]}>
+                {desconectando ? "Desconectando…" : "Desconectar (saca los eventos de tribbu de tu calendario)"}
+              </Text>
+            </Pressable>
+          </>
+        ) : candidatos ? (
+          <>
+            <Text style={styles.label}>¿En qué calendario?</Text>
+            <View style={styles.col}>
+              {candidatos.map((c) => (
+                <Pressable key={c.id} onPress={() => conectarDispositivo(c.id)} disabled={conectando} style={styles.btnSecondary}>
+                  <Text style={styles.btnSecondaryTxt}>
+                    {c.titulo}{c.cuenta && c.cuenta !== c.titulo ? ` — ${c.cuenta}` : ""}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.row}>
+              <Pressable onPress={() => conectarDispositivo()} disabled={conectando} style={styles.btnPrimary}>
+                <Text style={styles.btnPrimaryTxt}>{conectando ? "Conectando…" : "🗓️ Conectar con mi calendario"}</Text>
+              </Pressable>
+              <Pressable onPress={copiarUrl} style={styles.btnSecondary}>
+                <Text style={styles.btnSecondaryTxt}>{copiado ? "¡Copiado!" : "Copiar enlace"}</Text>
+              </Pressable>
+            </View>
+            {errorConexion ? <Text style={styles.error}>{errorConexion}</Text> : null}
+            <Text style={styles.hintSmall}>
+              ¿Preferís otra app (Outlook, etc.)? Copiá el enlace y pegalo en la versión web de ese calendario, en su
+              opción de "agregar calendario desde una URL" o "suscribirse".
+            </Text>
+          </>
+        )}
 
         {confirmarRegenerar ? (
           <View style={styles.confirmRow}>
@@ -208,16 +347,20 @@ const styles = StyleSheet.create({
   triggerHecho: { borderColor: t.border, backgroundColor: t.surface },
   triggerTxt: { fontSize: 12, fontWeight: "700", color: t.accent },
   triggerTxtHecho: { color: t.textMuted },
-  row: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: SPACE.md },
+  label: { fontSize: 12, fontWeight: "700", color: t.text, marginTop: SPACE.md },
+  row: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: SPACE.sm },
+  col: { gap: 8, marginTop: SPACE.sm },
   btnPrimary: { backgroundColor: t.accent, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
   btnPrimaryTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
   btnSecondary: { borderWidth: 1.5, borderColor: t.accent, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 16, minHeight: 40, justifyContent: "center" },
   btnSecondaryTxt: { color: t.accent, fontSize: 13, fontWeight: "700" },
   hint: { fontSize: 12, color: t.textMuted, lineHeight: 17 },
   hintSmall: { fontSize: 11, color: t.textFaint, lineHeight: 15, marginTop: SPACE.md },
+  error: { fontSize: 12, color: T.red, lineHeight: 17, marginTop: SPACE.sm },
   link: { fontSize: 12, fontWeight: "700", color: t.accent, textDecorationLine: "underline", marginTop: SPACE.md },
   linkDanger: { fontSize: 12, fontWeight: "700", color: T.red, textDecorationLine: "underline" },
   linkMuted: { fontSize: 12, fontWeight: "700", color: t.textMuted },
+  mtMd: { marginTop: SPACE.md },
   confirmRow: { gap: 4, marginTop: SPACE.md },
   confirmTxt: { fontSize: 12, color: t.textMuted },
   confirmBtns: { flexDirection: "row", gap: 14 },

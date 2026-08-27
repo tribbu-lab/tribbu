@@ -112,13 +112,24 @@ export default {
           faceIDPermission: "tribbu usa Face ID para desbloquear la app más rápido.",
         },
       ],
-      // Abre el link de "Agregar a Google Calendar" en una Custom Tab en vez
-      // de Linking.openURL: calendar.google.com está verificado como App Link
-      // de la app de Google Calendar en Android, así que un Linking.openURL
-      // normal se lo entrega directo a esa app (que ignora el ?cid=) en vez
-      // de mostrarlo como página web — la app nunca ve el cartel de "Add
-      // calendar" y no se suscribe nada (ver BotonAgregarCalendario.jsx).
+      // iOS: abre "Google Calendar" (render?cid=) en un SFSafariViewController
+      // — los universal links no se disparan ahí, así que la app nativa de
+      // Google Calendar no puede interceptar la URL (en Android exactamente
+      // esa intercepción vía App Links hundió el atajo web y por eso allá se
+      // usa expo-calendar en su lugar — ver BotonAgregarCalendario.jsx).
       "expo-web-browser",
+      [
+        // Android: "Conectar con mi calendario" escribe los eventos del feed
+        // directo en el calendario Google del dispositivo vía CalendarContract
+        // (ver mobile/lib/calendarSync.js + specs/eleccion-de-calendario-mobile.md).
+        // El string de permiso es para iOS (NSCalendarsUsageDescription) por si
+        // el flujo se extiende allá; en Android agrega READ/WRITE_CALENDAR.
+        "expo-calendar",
+        {
+          calendarPermission:
+            "tribbu escribe los eventos del curso en tu calendario para que los veas sin abrir la app.",
+        },
+      ],
     ],
     extra: {
       // EAS project id (@albatross-tech/tribbu). No es secreto; va hardcodeado
