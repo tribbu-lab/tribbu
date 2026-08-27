@@ -107,6 +107,18 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     }
   };
 
+  const marcarTodoLeido = async () => {
+    if(!userId) return;
+    const noLeidos = filtrados.filter(r=>!leidosSet.has(r.id));
+    if(!noLeidos.length) return;
+    await supabase.from("recordatorio_leidos").upsert(
+      noLeidos.map(r=>({recordatorio_id:r.id,usuario_id:userId})),
+      {onConflict:"recordatorio_id,usuario_id"}
+    );
+    setLeidosSet(p=>new Set([...p,...noLeidos.map(r=>r.id)]));
+    onBadgeChange?.();
+  };
+
   const enviarAlerta = async (msg) => {
     await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
     await supabase.from("alertas").insert({curso_id:cursoId,mensaje:msg,hora:"Ahora",activa:true});
@@ -142,7 +154,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const visible = filtrados.slice((pagina_-1)*POR_PAG, pagina_*POR_PAG);
 
   return (
-    <div>
+    <div style={{maxWidth:900}}>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Recordatorios</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos y recordatorios del curso</div>
 
@@ -251,7 +263,12 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
           <option value="colegio">🏫 Comunicaciones del colegio</option>
           <option value="normal">Recordatorios normales</option>
         </select>
-        <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{marginLeft:"auto",padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          {filtrados.some(r=>!leidosSet.has(r.id))&&(
+            <button onClick={marcarTodoLeido} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Marcar todo leído</button>
+          )}
+          <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+        </div>
       </div>
       {filtroRango==="personalizado"&&(
         <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
