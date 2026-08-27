@@ -1,12 +1,22 @@
 // Admin (puerto RN de src/features/admin · AdminPanel). Solo visible cuando el
-// item activo es Room Parent (rolEfectivo === "admin"). Dos sub-secciones:
-// - General: monto/moneda de regalo del curso (tabla `cursos`).
+// item activo es Room Parent (rolEfectivo === "admin"). Tres pestañas:
+// - General: monto/moneda de regalo del curso (tabla `cursos`) + una línea
+//   calculada ("con N familias, la colecta junta $X").
 // - Horarios: alta/edición/baja de clases (tabla `horarios`) con selector de
-//   docente desde `maestros`. La AlertaModal de admin ya vive en el Muro.
+//   docente desde `maestros`.
+// - Familias (nueva, Parte 3.b del handoff): quiénes son Room Parent del
+//   curso y qué alumnos todavía no tienen ningún apoderado registrado con el
+//   código — el dato que el Room Parent necesita para perseguir altas y hoy
+//   no tiene en ningún lado.
+// Arriba de todo, una alerta urgente (tarjeta roja + bottom sheet) para
+// publicar un aviso al curso sin tener que ir al Muro — mismo mecanismo
+// (tabla `alertas` + push) que ya usa `mobile/features/muro/index.jsx`.
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
+import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
 
@@ -22,22 +32,58 @@ export function AdminPanel() {
   const [maestros, setMaestros] = useState([]);
   const [horForm, setHorForm] = useState(null);
   const [horSaving, setHorSaving] = useState(false);
+  const [familias, setFamilias] = useState([]);
+  const [roomParents, setRoomParents] = useState([]);
+  const [alertaSheet, setAlertaSheet] = useState(false);
+  const [alertaMsg, setAlertaMsg] = useState("");
+  const [alertaEnviando, setAlertaEnviando] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!cursoId) return;
-    const [c, hor, mae] = await Promise.all([
+    const [c, hor, mae, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id", cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id", cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,materia").eq("activo", true),
+      supabase.from("hijos").select("id,nombre,apellido").eq("curso_id", cursoId).order("apellido"),
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "admin"),
     ]);
     setForm({ monto_regalo: c.data?.monto_regalo ? String(c.data.monto_regalo) : "", moneda_regalo: c.data?.moneda_regalo || "$" });
     setHorarios(hor.data || []);
     setMaestros(mae.data || []);
+    setRoomParents((ucData.data || []).map((r) => r.usuarios).filter(Boolean));
+
+    const hijosCurso = hijosData.data || [];
+    const hijoIds = hijosCurso.map((h) => h.id);
+    const uh = hijoIds.length
+      ? await supabase.from("usuario_hijos").select("hijo_id, usuarios(nombre,apellido,email,telefono)").in("hijo_id", hijoIds)
+      : { data: [] };
+    const apodPorHijo = new Map();
+    for (const r of uh.data || []) {
+      if (!r.usuarios) continue;
+      const arr = apodPorHijo.get(r.hijo_id) || [];
+      arr.push(r.usuarios);
+      apodPorHijo.set(r.hijo_id, arr);
+    }
+    setFamilias(hijosCurso.map((h) => ({ ...h, apoderados: apodPorHijo.get(h.id) || [] })));
   }, [cursoId]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  const familiasSinRegistrar = familias.filter((f) => f.apoderados.length === 0);
+
+  const enviarAlerta = async () => {
+    if (!alertaMsg.trim() || !cursoId) return;
+    setAlertaEnviando(true);
+    await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
+    await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: alertaMsg.trim(), hora: "Ahora", activa: true });
+    const userIds = await getUserIdsByCurso(cursoId);
+    await sendPush({ type: "alerta", payload: { mensaje: alertaMsg.trim(), userIds } });
+    setAlertaEnviando(false);
+    setAlertaSheet(false);
+    setAlertaMsg("");
+  };
 
   const guardarGeneral = async () => {
     setSaving(true);
@@ -81,10 +127,16 @@ export function AdminPanel() {
       <Text style={styles.h1}>Admin</Text>
       <Text style={styles.subtitle}>{cursoNombre}</Text>
 
+      <Pressable onPress={() => setAlertaSheet(true)} style={styles.alertaBanner}>
+        <Text style={styles.alertaBannerIcon}>🚨</Text>
+        <Text style={styles.alertaBannerTxt}>Publicar alerta urgente al curso</Text>
+      </Pressable>
+
       <View style={styles.tabs}>
         {[
           { id: "general", l: "General" },
           { id: "horarios", l: "Horarios" },
+          { id: "familias", l: "Familias" },
         ].map((t) => (
           <Pressable key={t.id} onPress={() => setTab(t.id)} style={[styles.tab, tab === t.id && styles.tabActive]}>
             <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.l}</Text>
@@ -116,6 +168,12 @@ export function AdminPanel() {
             keyboardType="numeric"
             style={styles.input}
           />
+          {form.monto_regalo && familias.length > 0 ? (
+            <Text style={styles.calculada}>
+              Con {familias.length} familia{familias.length !== 1 ? "s" : ""}, la colecta junta{" "}
+              {form.moneda_regalo} {(Number(form.monto_regalo) * familias.length).toLocaleString("es-AR")}
+            </Text>
+          ) : null}
           <Pressable onPress={guardarGeneral} disabled={saving} style={styles.saveBtnFull}>
             <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
           </Pressable>
@@ -163,6 +221,65 @@ export function AdminPanel() {
           })}
         </View>
       ) : null}
+
+      {tab === "familias" ? (
+        <View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Room Parents del curso</Text>
+            {roomParents.length === 0 ? (
+              <Text style={styles.muted}>Sin Room Parents asignados</Text>
+            ) : (
+              roomParents.map((r, i) => (
+                <Text key={i} style={styles.rpRow}>{fmtNombre(r)} · {r.email}</Text>
+              ))
+            )}
+          </View>
+
+          <Text style={[styles.cardTitle, styles.familiasTitulo]}>
+            Familias sin registrar{familiasSinRegistrar.length ? ` · ${familiasSinRegistrar.length}` : ""}
+          </Text>
+          <Text style={styles.familiasSub}>
+            Alumnos del curso a los que todavía ningún apoderado se vinculó con el código de invitación.
+          </Text>
+          {familiasSinRegistrar.length === 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.muted}>Todas las familias ya se registraron ✨</Text>
+            </View>
+          ) : (
+            familiasSinRegistrar.map((f) => (
+              <View key={f.id} style={styles.familiaRow}>
+                <Text style={styles.familiaNombre}>{fmtNombre(f)}</Text>
+                <Text style={styles.familiaPend}>Sin registrar</Text>
+              </View>
+            ))
+          )}
+        </View>
+      ) : null}
+
+      <Modal visible={alertaSheet} transparent animationType="fade" onRequestClose={() => setAlertaSheet(false)}>
+        <View style={styles.overlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Publicar alerta</Text>
+            <Text style={styles.alertaSub}>Se envía como push a toda la comunidad del curso. Usalo solo para avisos urgentes — suena aunque el teléfono esté en silencio.</Text>
+            <TextInput
+              value={alertaMsg}
+              onChangeText={setAlertaMsg}
+              placeholder="Ej: Mañana no hay clases"
+              placeholderTextColor="#94A3B8"
+              multiline
+              style={[styles.input, styles.alertaInput]}
+            />
+            <View style={styles.modalBtns}>
+              <Pressable onPress={() => setAlertaSheet(false)} style={styles.cancelBtn}>
+                <Text style={styles.cancelTxt}>Cancelar</Text>
+              </Pressable>
+              <Pressable onPress={enviarAlerta} disabled={alertaEnviando || !alertaMsg.trim()} style={styles.saveBtn}>
+                <Text style={styles.saveTxt}>{alertaEnviando ? "Enviando..." : "Enviar"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {horForm !== null ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
@@ -279,8 +396,22 @@ const styles = StyleSheet.create({
   tabTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
   tabTxtActive: { color: "white" },
 
+  // alerta urgente arriba de todo (Parte 3.b del handoff)
+  alertaBanner: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FCA5A5", paddingHorizontal: 16, marginBottom: 16 },
+  alertaBannerIcon: { fontSize: 20 },
+  alertaBannerTxt: { fontSize: 13.5, fontWeight: "700", color: "#DC2626" },
+  alertaSub: { fontSize: 12, color: "#94A3B8", lineHeight: 17, marginBottom: 14 },
+  alertaInput: { minHeight: 80, textAlignVertical: "top" },
+
   card: { backgroundColor: "white", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#E2E8F0" },
   cardTitle: { fontSize: 14, fontWeight: "800", color: T.text, marginBottom: 12 },
+  calculada: { fontSize: 12.5, color: T.accent, fontWeight: "600", marginTop: 10, lineHeight: 18 },
+  rpRow: { fontSize: 13, color: T.text, marginBottom: 6 },
+  familiasTitulo: { marginTop: 18 },
+  familiasSub: { fontSize: 12, color: "#94A3B8", lineHeight: 17, marginBottom: 12 },
+  familiaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "white", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 10, paddingHorizontal: 14, marginBottom: 6 },
+  familiaNombre: { fontSize: 13, fontWeight: "600", color: T.text },
+  familiaPend: { fontSize: 11, fontWeight: "700", color: "#B45309", backgroundColor: "#FFFBEB", paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999 },
   label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
   row: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
   input: { minHeight: 44, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: "#F8FAFC" },
