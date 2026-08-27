@@ -1024,10 +1024,24 @@ function PromocionCurso({ cursos, anoActual }) {
   const [confirmando, setConfirmando]   = useState(false);
   const [promoviendo, setPromoviendo]   = useState(false);
   const [hecho, setHecho]               = useState(null);
+  const [conteos, setConteos]           = useState({}); // curso_id -> nº alumnos
   const { showToast, Toast } = useToast();
 
   const cursosOrigen  = cursos.filter(c=>c.año_lectivo===anoActual);
   const cursosDestino = cursos.filter(c=>c.año_lectivo===anoActual+1);
+  const destinoDeOrigen = (nombreOrigen) => cursosDestino.find(c=>c.nombre===nombreOrigen);
+
+  // Tabla resumen origen → destino: se calcula una sola vez por curso vigente,
+  // para mostrar de un vistazo qué cursos ya tienen destino creado y cuántos
+  // alumnos hay que promover, antes de entrar al detalle de uno.
+  useEffect(()=>{
+    if(cursosOrigen.length===0) return;
+    supabase.from("hijos").select("curso_id").in("curso_id", cursosOrigen.map(c=>c.id)).then(({data})=>{
+      const c = {};
+      for(const h of (data||[])) c[h.curso_id] = (c[h.curso_id]||0)+1;
+      setConteos(c);
+    });
+  },[cursos, anoActual]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const elegirOrigen = async (id) => {
     setOrigenId(id); setDestinoId(null); setHecho(null); setConfirmando(false);
@@ -1059,6 +1073,26 @@ function PromocionCurso({ cursos, anoActual }) {
       {hecho&&(
         <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:12,padding:"12px 16px",marginBottom:16,fontSize:13,fontWeight:700,color:"#10B981"}}>
           ✅ {hecho.n} alumno{hecho.n!==1?"s":""} promovido{hecho.n!==1?"s":""} a {hecho.cursoNombre}.
+        </div>
+      )}
+
+      {cursosOrigen.length>0&&(
+        <div style={{marginBottom:20,border:"1.5px solid #E2E8F0",borderRadius:12,overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1.4fr 24px 1.4fr 90px",gap:8,padding:"8px 14px",background:"#F8FAFC",fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.5}}>
+            <span>Origen ({anoActual})</span><span/><span>Destino ({anoActual+1})</span><span>Estado</span>
+          </div>
+          {cursosOrigen.map((co,i)=>{
+            const dest = destinoDeOrigen(co.nombre);
+            const n = conteos[co.id]||0;
+            return (
+              <div key={co.id} style={{display:"grid",gridTemplateColumns:"1.4fr 24px 1.4fr 90px",gap:8,alignItems:"center",padding:"10px 14px",borderTop:i>0?"1px solid #F1F5F9":"none"}}>
+                <span style={{fontSize:12.5,fontWeight:600,color:"#0F172A"}}>{co.avatar} {co.nombre} <span style={{color:"#94A3B8",fontWeight:500}}>({n})</span></span>
+                <span style={{color:"#CBD5E1",fontSize:12}}>→</span>
+                <span style={{fontSize:12.5,color:dest?"#0F172A":"#CBD5E1",fontWeight:dest?600:500}}>{dest?`${dest.avatar} ${dest.nombre}`:"— sin crear —"}</span>
+                <span style={{fontSize:10.5,fontWeight:800,padding:"3px 8px",borderRadius:8,textAlign:"center",background:dest?"#F0FDF4":"#FFFBEB",color:dest?"#10B981":"#B45309"}}>{dest?"Listo":"Falta"}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1107,7 +1141,11 @@ function PromocionCurso({ cursos, anoActual }) {
       {origenId&&destinoId&&seleccionados.length>0&&(
         confirmando?(
           <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:12,padding:"14px 16px"}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#92400E",marginBottom:10}}>¿Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""} a {cursosDestino.find(c=>c.id===destinoId)?.nombre}?</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#92400E",marginBottom:6}}>¿Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""} a {cursosDestino.find(c=>c.id===destinoId)?.nombre}?</div>
+            <div style={{fontSize:12,color:"#92400E",lineHeight:1.5,marginBottom:10}}>
+              {alumnos.length-seleccionados.length>0&&<>{alumnos.length-seleccionados.length} alumno{alumnos.length-seleccionados.length!==1?"s":""} de este curso NO se promueve{alumnos.length-seleccionados.length!==1?"n":""} y queda{alumnos.length-seleccionados.length!==1?"n":""} con su curso actual. </>}
+              Los que sí se promuevan van a ver el curso nuevo apenas confirmes — recordatorios, eventos, colectas y encuestas del curso {cursosOrigen.find(c=>c.id===origenId)?.nombre} quedan donde están, no se mueven ni se borran.
+            </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={confirmar} disabled={promoviendo} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{promoviendo?"Promoviendo...":"Sí, promover"}</button>
@@ -1218,7 +1256,7 @@ export function AlertasAdmin({ cursos }) {
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
+  const [form, setForm] = useState({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1252,11 +1290,13 @@ export function ComunicacionesAdmin({ cursos }) {
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if(insertErr) throw insertErr;
-      const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-      if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+      if(form.enviarPush) {
+        const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+        if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+      }
       setConfirmando(false);
-      setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}.`);
-      setForm({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[] });
+      setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}${form.enviarPush?" · con push":" · sin push"}.`);
+      setForm({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {
@@ -1301,9 +1341,15 @@ export function ComunicacionesAdmin({ cursos }) {
           </div>
         </div>
       </div>
-      <div style={{marginBottom:16}}>
+      <div style={{marginBottom:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
         <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
           {form.urgente?"Urgente":"Marcar urgente"}
+        </button>
+        <button onClick={()=>setForm(p=>({...p,enviarPush:!p.enviarPush}))} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.enviarPush?"#BFDBFE":"#E2E8F0"}`,background:form.enviarPush?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.enviarPush?"#2563EB":"#94A3B8"}}>
+          <span style={{width:28,height:16,borderRadius:999,background:form.enviarPush?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
+            <span style={{position:"absolute",top:2,left:form.enviarPush?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
+          </span>
+          {form.enviarPush?"🔔 Va a sonar (push)":"Sin notificación push"}
         </button>
       </div>
       <div style={{marginBottom:20}}>
@@ -1358,10 +1404,40 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     const grupos = new Map();
     for(const r of (data||[])) {
       const g = grupos.get(r.grupo_id);
-      if(g) g.cursoIds.push(r.curso_id);
-      else grupos.set(r.grupo_id, { ...r, cursoIds:[r.curso_id] });
+      if(g) { g.cursoIds.push(r.curso_id); g.ids.push(r.id); }
+      else grupos.set(r.grupo_id, { ...r, cursoIds:[r.curso_id], ids:[r.id] });
     }
-    setComunicaciones([...grupos.values()].sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||"")));
+    const lista = [...grupos.values()].sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
+
+    // % de lectura por comunicación: destinatarios = unión de usuarios de los
+    // cursos alcanzados; leídos = usuarios distintos con fila en
+    // recordatorio_leidos para alguna de las filas del grupo.
+    const cursoUsersCache = new Map();
+    const usersDeCurso = async (cid) => {
+      if(!cursoUsersCache.has(cid)) cursoUsersCache.set(cid, getUserIdsByCurso(cid));
+      return cursoUsersCache.get(cid);
+    };
+    const allIds = (data||[]).map(r=>r.id);
+    const { data: leidosRows } = allIds.length
+      ? await supabase.from("recordatorio_leidos").select("recordatorio_id,usuario_id").in("recordatorio_id", allIds)
+      : { data: [] };
+    const leidosPorRec = new Map();
+    for(const l of (leidosRows||[])) {
+      if(!leidosPorRec.has(l.recordatorio_id)) leidosPorRec.set(l.recordatorio_id, new Set());
+      leidosPorRec.get(l.recordatorio_id).add(l.usuario_id);
+    }
+
+    const conLectura = await Promise.all(lista.map(async (g)=>{
+      const destinatarios = new Set();
+      for(const cid of g.cursoIds) (await usersDeCurso(cid)).forEach(uid=>destinatarios.add(uid));
+      const leidos = new Set();
+      for(const id of g.ids) (leidosPorRec.get(id)||new Set()).forEach(uid=>leidos.add(uid));
+      const total = destinatarios.size;
+      const totalLeidos = [...leidos].filter(uid=>destinatarios.has(uid)).length;
+      return { ...g, totalDestinatarios: total, totalLeidos, pctLeido: total ? Math.round((totalLeidos/total)*100) : null };
+    }));
+
+    setComunicaciones(conLectura);
     setCargando(false);
   };
 
@@ -1400,6 +1476,17 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                 <div style={{fontSize:11,color:"#64748B",marginTop:4}}>
                   📅 {c.fecha?new Date(c.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"Sin fecha"}
                   {fmtRangoHora(c.hora_inicio,c.hora_fin)?` · 🕐 ${fmtRangoHora(c.hora_inicio,c.hora_fin)}`:""}
+                </div>
+              )}
+              {c.pctLeido!==null&&(
+                <div style={{marginTop:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"#94A3B8",fontWeight:700,marginBottom:3}}>
+                    <span>Leído por {c.totalLeidos} de {c.totalDestinatarios}</span>
+                    <span>{c.pctLeido}%</span>
+                  </div>
+                  <div style={{height:5,borderRadius:3,background:"#F1F5F9",overflow:"hidden"}}>
+                    <div style={{height:"100%",borderRadius:3,background:c.pctLeido>=50?"#10B981":"#F59E0B",width:`${c.pctLeido}%`}}/>
+                  </div>
                 </div>
               )}
               <div style={{display:"flex",gap:5,marginTop:6,flexWrap:"wrap"}}>
@@ -1888,6 +1975,8 @@ function CodigosInvitacion({ cursos }) {
   const [usosMax,    setUsosMax]    = useState(10);
   const [saving,     setSaving]     = useState(false);
   const [copiado,    setCopiado]    = useState(null);
+  const [rotando,    setRotando]    = useState(null); // id en curso de rotación
+  const [confirmRotar, setConfirmRotar] = useState(null); // código a rotar
   const inp = {padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
 
   const cargar = async () => {
@@ -1935,12 +2024,44 @@ function CodigosInvitacion({ cursos }) {
     setTimeout(()=>setCopiado(null), 2000);
   };
 
+  // Rotar: el código actual deja de funcionar y se genera uno nuevo para la
+  // misma fila (mismo curso, mismos usos_max). Las familias que ya se
+  // registraron con el código viejo no se ven afectadas — usos_actuales no
+  // se reinicia, solo cambia el secreto para las altas que faltan.
+  const rotar = async (id) => {
+    setRotando(id);
+    await supabase.from("codigos_invitacion").update({ codigo: genCodigo() }).eq("id", id);
+    setRotando(null);
+    setConfirmRotar(null);
+    cargar();
+  };
+
   return (
     <div>
       <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🔑 Códigos de invitación</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>
         Generá un código para que los apoderados puedan registrarse solos en la app.
       </div>
+
+      {confirmRotar && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,maxWidth:380,width:"100%"}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>¿Rotar este código?</div>
+            <div style={{fontSize:13,color:"#94A3B8",marginBottom:14,lineHeight:1.5}}>
+              El código <b style={{fontFamily:"monospace",color:"#0F172A"}}>{confirmRotar.codigo}</b> deja de funcionar de inmediato y se genera uno nuevo para {confirmRotar.cursos?.nombre||"este curso"}.
+            </div>
+            <div style={{fontSize:12,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 12px",marginBottom:18,lineHeight:1.5}}>
+              Ya se registraron {confirmRotar.usos_actuales} de {confirmRotar.usos_max} familias con este código — no se ven afectadas. Solo hace falta avisarles el código nuevo a las que todavía no se registraron.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmRotar(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
+              <button onClick={()=>rotar(confirmRotar.id)} disabled={rotando===confirmRotar.id} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>
+                {rotando===confirmRotar.id?"Rotando...":"Rotar código"}
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Crear nuevo código */}
       <Card style={{padding:"16px 20px",marginBottom:20}}>
@@ -1974,7 +2095,7 @@ function CodigosInvitacion({ cursos }) {
             {/* Código grande y copiable */}
             <div
               onClick={()=>copiar(c.codigo)}
-              style={{fontFamily:"monospace",fontSize:22,fontWeight:900,letterSpacing:4,color:"#0F172A",background:"#F8FAFC",border:"1.5px solid #E2E8F0",borderRadius:10,padding:"6px 14px",cursor:"pointer",userSelect:"all",flexShrink:0}}
+              style={{fontFamily:"monospace",fontSize:22,fontWeight:900,letterSpacing:4,color:"white",background:"#0F172A",borderRadius:10,padding:"6px 14px",cursor:"pointer",userSelect:"all",flexShrink:0}}
               title="Clic para copiar"
             >
               {c.codigo}
@@ -2000,6 +2121,9 @@ function CodigosInvitacion({ cursos }) {
             <div style={{display:"flex",gap:6,flexShrink:0}}>
               <button onClick={()=>copiar(c.codigo)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>
                 {copiado===c.codigo?"✓":"📋"} Copiar
+              </button>
+              <button onClick={()=>setConfirmRotar(c)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #FDE68A",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#B45309"}}>
+                🔄 Rotar
               </button>
               <button onClick={()=>toggleActivo(c.id,c.activo)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${c.activo?"#FCA5A5":"#BBF7D0"}`,background:c.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:c.activo?"#EF4444":"#10B981"}}>
                 {c.activo?"Desactivar":"Activar"}
