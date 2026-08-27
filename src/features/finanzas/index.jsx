@@ -15,7 +15,7 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen }) {
+export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen, isMobile=true }) {
   const [colectas,   setColectas]   = useState([]);
   const [alumnos,    setAlumnos]    = useState([]);
   const [usuarios,   setUsuarios]   = useState([]);
@@ -156,6 +156,15 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
   const fmtM = (n, moneda="$") => n!=null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
 
+  // Deuda propia (aside de escritorio, handoff Tribbu Apoderado Web, Parte 7):
+  // suma de lo que falta aportar en las colectas activas para MIS hijos —
+  // mismo cálculo que ya hace cada tarjeta, agregado a nivel de módulo.
+  let deudaTotal = 0, coleccionesConDeuda = 0;
+  for(const c of colectas.filter(c=>c.activa)) {
+    const impagos = alumnos.filter(a=>a.curso_id===c.curso_id && misHijos.includes(a.id) && getPago(c.id,a.id)?.estado!=="pagado");
+    if(impagos.length) { deudaTotal += impagos.length*(c.monto_sugerido||0); coleccionesConDeuda++; }
+  }
+
   return (
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Colectas</div>
@@ -242,6 +251,8 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         </div>
       )}
 
+      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
+      <div>
       {/* Botón nueva colecta (admin) */}
       {isAdmin&&(
         <div style={{marginBottom:16}}>
@@ -345,6 +356,30 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
           </Card>
         );
       })}
+      </div>
+
+      {/* Aside de escritorio (handoff Tribbu Apoderado Web, Parte 7): deuda
+          propia agregada + nota de encuadre. "Aprovecha el ancho", no
+          agrega funcionalidad nueva — mismos datos ya cargados. */}
+      {!isMobile&&(
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {!isAdmin&&deudaTotal>0&&(
+            <div style={{border:"1px solid #FDE68A",borderRadius:16,background:"#FFFBEB",padding:20}}>
+              <div style={{fontSize:22}}>💰</div>
+              <div style={{fontSize:15,fontWeight:800,marginTop:8}}>Te falta aportar {fmtM(deudaTotal)}</div>
+              <div style={{fontSize:12.5,color:"#78350F",marginTop:5,lineHeight:1.6}}>
+                En {coleccionesConDeuda} colecta{coleccionesConDeuda!==1?"s":""} abierta{coleccionesConDeuda!==1?"s":""}.
+              </div>
+            </div>
+          )}
+          <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:20}}>
+            <div style={{fontSize:20,color:"#94A3B8"}}>🔒</div>
+            <div style={{fontSize:14,fontWeight:800,marginTop:8}}>tribbu no mueve plata</div>
+            <div style={{fontSize:12.5,color:"#64748B",marginTop:5,lineHeight:1.6}}>Registrás que aportaste y el Room Parent lo confirma. Los datos bancarios los comparte quien organiza la colecta.</div>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 }
