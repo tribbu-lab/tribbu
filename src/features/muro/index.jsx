@@ -189,6 +189,21 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   // resumen de la aside de escritorio (no altera la lógica de colectasPend).
   const proximoCumple = (datos.bdayList||[])[0];
 
+  // Menú de hoy, en filas estructuradas (ícono + etiqueta + plato) — antes
+  // era un solo string con todo unido por "·", muy distinto del mockup
+  // ("Menú de hoy" en la aside de Tribbu Apoderado Web.dc.html). Mismas
+  // etiquetas que ya usa Comedor (campos, mobile/features/comedor y
+  // src/features/comedor) para no inventar una nomenclatura nueva.
+  const CAMPOS_MENU = [
+    {key:"entrada",        label:"Entrada",           emoji:"🥣"},
+    {key:"plato",          label:"Plato Principal 1", emoji:"🍽️"},
+    {key:"plato2",         label:"Plato Principal 2", emoji:"🍽️"},
+    {key:"acompanamiento", label:"Plato Principal 3", emoji:"🍽️"},
+    {key:"postre",         label:"Postre 1",          emoji:"🍎"},
+    {key:"postre2",        label:"Postre 2",          emoji:"🍊"},
+  ];
+  const menuHoyItems = datos.menu ? CAMPOS_MENU.filter(c=>datos.menu[c.key]).map(c=>({...c, plato:datos.menu[c.key]})) : [];
+
   // ── Pendientes unificado (handoff Tribbu Apoderado Web, Parte 1/7): antes
   // cada tipo (recordatorio/colecta/invitación/encuesta) era su propia
   // sección con su propio estilo de card — el mockup los junta en UNA sola
@@ -295,13 +310,18 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       })}
 
       {isMobile&&datos.menu&&(
-        <div style={{background:"#FFFBEB",border:"1px solid #FCD34D",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",gap:10,alignItems:"flex-start"}}>
-          <span style={{fontSize:20,flexShrink:0}}>🍽️</span>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:9,fontWeight:700,color:"#D97706",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Menú de hoy</div>
-            <div style={{fontSize:12,color:"#0F172A",lineHeight:1.6}}>
-              {[datos.menu.entrada,datos.menu.plato,datos.menu.plato2,datos.menu.acompanamiento,datos.menu.postre,datos.menu.postre2].filter(Boolean).join(" · ")}
-            </div>
+        <div style={{background:"#0F172A",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+          <div style={{fontSize:9.5,fontWeight:800,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🍽️ Menú de hoy</div>
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            {menuHoyItems.map(m=>(
+              <div key={m.key} style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:16}}>{m.emoji}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:9,fontWeight:800,letterSpacing:0.5,textTransform:"uppercase",color:"rgba(255,255,255,0.4)"}}>{m.label}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:"white",marginTop:1}}>{m.plato}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -382,8 +402,16 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           {datos.menu&&(
             <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18}}>
               <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:12}}>Menú de hoy</div>
-              <div style={{fontSize:13,color:"#334155",lineHeight:1.7}}>
-                {[datos.menu.entrada,datos.menu.plato,datos.menu.plato2,datos.menu.acompanamiento,datos.menu.postre,datos.menu.postre2].filter(Boolean).join(" · ")}
+              <div style={{display:"flex",flexDirection:"column",gap:11}}>
+                {menuHoyItems.map(m=>(
+                  <div key={m.key} style={{display:"flex",alignItems:"center",gap:11}}>
+                    <span style={{fontSize:17}}>{m.emoji}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{m.label}</div>
+                      <div style={{fontSize:13.5,fontWeight:600,marginTop:2,lineHeight:1.35}}>{m.plato}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

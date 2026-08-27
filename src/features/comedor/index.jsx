@@ -89,13 +89,20 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
             <div style={{fontSize:12,color:"#94A3B8",textTransform:"capitalize"}}>{new Date(fechaSel+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
           </div>
           {diaActual ? (
-            <div>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            // Tarjeta navy (handoff Tribbu App.dc.html: "Menú de hoy en
+            // tarjeta navy con entrada/principal/postre separados y
+            // etiquetados") — antes cada plato era su propia Card blanca
+            // con borde de color, muy distinto del mockup.
+            <div style={{background:"#0F172A",borderRadius:16,padding:"18px 20px"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 {campos.map(c=>diaActual[c.key]&&(
-                  <Card key={c.key} style={{padding:"13px 16px",borderLeft:`3px solid ${c.color}`}}>
-                    <div style={{fontSize:10,fontWeight:700,color:c.color,textTransform:"uppercase",marginBottom:4}}>{c.emoji} {c.label}</div>
-                    <div style={{fontSize:15,fontWeight:700}}>{diaActual[c.key]}</div>
-                  </Card>
+                  <div key={c.key} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <span style={{fontSize:19}}>{c.emoji}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(255,255,255,0.4)"}}>{c.label}</div>
+                      <div style={{fontSize:14.5,fontWeight:600,color:"white",marginTop:2}}>{diaActual[c.key]}</div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
