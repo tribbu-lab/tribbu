@@ -711,19 +711,36 @@ export function SuperAdmin() {
           ))}
         </nav>
         <div style={{flex:1,minWidth:0,width:isMobile?"100%":undefined}}>
-      <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
-        {[
-          {n:usuarios.filter(u=>u.activo).length,  l:"Usuarios activos",   c:"#10B981", bg:"#F0FDF4"},
-          {n:usuarios.filter(u=>u.rol==="padre").length, l:"Apoderados",   c:"#3B82F6", bg:"#EFF6FF"},
-          {n:usuarios.filter(u=>u.rol==="admin").length, l:"Room Parents", c:"#8B5CF6", bg:"#F5F3FF"},
-          {n:cursos.length,                         l:"Cursos",            c:"#F59E0B", bg:"#FFFBEB"},
-        ].map((s,i)=>(
-          <div key={i} style={{minWidth:100,background:s.bg,borderRadius:14,padding:"14px 16px",textAlign:"center",flex:1}}>
-            <div style={{fontSize:30,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</div>
-            <div style={{fontSize:11,color:"#94A3B8",fontWeight:700,marginTop:4}}>{s.l}</div>
+      {(() => {
+        // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 3 #5):
+        // usuarios totales / Room Parents (+ en cuántos cursos) / familias
+        // sin registrarse todavía / usuarios inactivos. Antes esta tarjeta
+        // mostraba "Usuarios activos/Apoderados/Room Parents/Cursos" — útil
+        // pero no lo que pedía el diseño ni lo que más orienta antes de
+        // filtrar (cuántas familias faltan registrarse, quién está inactivo).
+        const roomParents = usuarios.filter(u=>u.rol==="admin");
+        const cursosConRP = new Set(roomParents.flatMap(u=>u.cursosAdmin||[])).size;
+        const hijosConApoderado = new Set(usuarios.flatMap(u=>u.hijos||[]));
+        const sinRegistrarse = hijos.filter(h=>!hijosConApoderado.has(h.id)).length;
+        const inactivos = usuarios.filter(u=>!u.activo).length;
+        const STATS = [
+          {n:usuarios.length, l:"Usuarios", sub:null, c:"#0F172A", bg:"#F1F5F9"},
+          {n:roomParents.length, l:"Room Parents", sub:cursosConRP?`en ${cursosConRP} curso${cursosConRP!==1?"s":""}`:null, c:"#8B5CF6", bg:"#F5F3FF"},
+          {n:sinRegistrarse, l:"Sin registrarse", sub:sinRegistrarse?"invitados":null, c:"#F59E0B", bg:"#FFFBEB"},
+          {n:inactivos, l:"Inactivos", sub:null, c:"#94A3B8", bg:"#F8FAFC"},
+        ];
+        return (
+          <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+            {STATS.map((s,i)=>(
+              <div key={i} style={{minWidth:100,background:s.bg,borderRadius:14,padding:"14px 16px",textAlign:"center",flex:1}}>
+                <div style={{fontSize:30,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</div>
+                <div style={{fontSize:11,color:"#94A3B8",fontWeight:700,marginTop:4,textTransform:"uppercase",letterSpacing:0.4}}>{s.l}</div>
+                {s.sub && <div style={{fontSize:10.5,color:"#94A3B8",marginTop:1}}>{s.sub}</div>}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {sec==="usuarios" && (() => {
             const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
@@ -774,8 +791,8 @@ export function SuperAdmin() {
                 <button onClick={()=>toggleSelTodosUsuarios(idsVisibles)} aria-label="Seleccionar todos" style={{width:18,height:18,border:`1.5px solid ${todosMarcados?"#0F172A":"#CBD5E1"}`,borderRadius:5,background:todosMarcados?"#0F172A":"white",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                   {todosMarcados && <span style={{color:"white",fontSize:11}}>✓</span>}
                 </button>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Usuario</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Accesos</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Nombre</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Acceso</div>
                 <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Hijos</div>
                 <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
                 <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
