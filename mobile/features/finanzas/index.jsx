@@ -196,10 +196,33 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     }
   };
 
+  // Banner de deuda propia (Parte 4 del handoff): hoy hay que abrir cada
+  // colecta para saber cuánto falta aportar — se resume arriba de todo.
+  const deudaPropia = colectas
+    .filter((c) => c.activa && c.monto_sugerido)
+    .flatMap((c) => {
+      const alumnosCurso = alumnos.filter((a) => a.curso_id === c.curso_id && misHijos.includes(a.id));
+      return alumnosCurso
+        .filter((a) => getPago(c.id, a.id)?.estado !== "pagado")
+        .map((a) => ({ colecta: c, dias: c.fecha_limite ? dHasta(c.fecha_limite) : null }));
+    });
+  const deudaTotal = deudaPropia.reduce((sum, d) => sum + (d.colecta.monto_sugerido || 0), 0);
+  const deudaProxima = deudaPropia.reduce((min, d) => (d.dias != null && (min == null || d.dias < min) ? d.dias : min), null);
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Colectas</Text>
       <Text style={styles.subtitle}>{esVistaTodos ? "Colectas de todos tus cursos" : "Colectas del curso"}</Text>
+
+      {!isAdmin && deudaPropia.length > 0 ? (
+        <View style={styles.deudaBanner}>
+          <Text style={styles.deudaTitulo}>Te falta aportar {fmtMonto(deudaTotal, deudaPropia[0]?.colecta.moneda || "$")}</Text>
+          <Text style={styles.deudaSub}>
+            {deudaPropia.length} colecta{deudaPropia.length !== 1 ? "s" : ""} pendiente{deudaPropia.length !== 1 ? "s" : ""}
+            {deudaProxima != null ? ` · el cierre más próximo es ${deudaProxima === 0 ? "hoy" : deudaProxima < 0 ? "ya venció" : `en ${deudaProxima} días`}` : ""}
+          </Text>
+        </View>
+      ) : null}
 
       {isAdmin ? (
         <Pressable
@@ -359,6 +382,10 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
           </Card>
         );
       })}
+
+      {colectas.length > 0 ? (
+        <Text style={styles.notaEncuadre}>💡 tribbu no mueve plata: los datos para aportar (alias, cuenta, etc.) los define quien organiza la colecta. Acá solo se registra quién ya aportó.</Text>
+      ) : null}
 
       <ColectaFormModal
         visible={modal !== null}
@@ -537,6 +564,10 @@ const styles = StyleSheet.create({
   empty: { textAlign: "center", paddingVertical: 40, color: t.textFaint, fontSize: 13 },
   nuevaBtn: { alignSelf: "flex-start", backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 10, paddingHorizontal: 18, marginBottom: SPACE.lg, minHeight: 44, justifyContent: "center" },
   nuevaTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  deudaBanner: { backgroundColor: t.warningSoft, borderWidth: 1.5, borderColor: "#FDE68A", borderRadius: RADIUS.xl, padding: 14, marginBottom: SPACE.lg },
+  deudaTitulo: { fontSize: 14.5, fontWeight: "800", color: "#B45309" },
+  deudaSub: { fontSize: 12, color: "#92400E", marginTop: 3 },
+  notaEncuadre: { fontSize: 11.5, color: t.textFaint, lineHeight: 16, textAlign: "center", marginTop: 4, marginBottom: 8 },
   colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden", borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   cerrada: { opacity: 0.6 },
   colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },

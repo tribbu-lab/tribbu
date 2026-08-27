@@ -263,8 +263,20 @@ export function Encuestas() {
 
 function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puedeGestionar, onVotar, onCerrar, onEliminar }) {
   const total = votos.length;
+  // Pie contextual (Parte 4 del handoff): reemplaza tener que inferir el
+  // estado mirando la fecha y si ya voté.
+  const ganadora = cerrada && opciones.length
+    ? opciones.reduce((max, o) => (votos.filter((v) => v.opcion_id === o.id).length > votos.filter((v) => v.opcion_id === max.id).length ? o : max), opciones[0])
+    : null;
+  const pie = cerrada
+    ? (ganadora && total > 0 ? `Cerrada · ganó "${ganadora.texto}"` : "Cerrada")
+    : miVoto
+    ? "Ya votaste, podés cambiarlo"
+    : e.fecha_cierre
+    ? `Cierra ${new Date(e.fecha_cierre + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}`
+    : null;
   return (
-    <Card>
+    <Card style={cerrada ? styles.cardCerrada : null}>
       <View style={styles.cardHead}>
         <Text style={styles.pregunta}>{e.pregunta}</Text>
         <View style={[styles.estadoPill, cerrada ? styles.estadoCerrada : styles.estadoAbierta]}>
@@ -309,6 +321,8 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puede
         })}
       </View>
 
+      {pie ? <Text style={styles.pieTxt}>{pie}</Text> : null}
+
       {puedeGestionar ? (
         <View style={styles.gestionRow}>
           {!cerrada ? (
@@ -336,6 +350,8 @@ const styles = StyleSheet.create({
   chipTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
   chipTxtOn: { color: t.surface },
 
+  cardCerrada: { opacity: 0.72 },
+  pieTxt: { fontSize: 11.5, color: t.textFaint, marginTop: SPACE.sm },
   cardHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: SPACE.sm, marginBottom: 4 },
   pregunta: { ...TYPE.h3, color: t.textStrong, flex: 1, lineHeight: 20 },
   estadoPill: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: RADIUS.full, flexShrink: 0 },
@@ -351,7 +367,7 @@ const styles = StyleSheet.create({
   tagDot: { width: 8, height: 8, borderRadius: 4 },
   tagTxt: { fontSize: 10, fontWeight: "700", color: t.textMuted },
 
-  opcion: { position: "relative", overflow: "hidden", borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.border, backgroundColor: t.surface, paddingVertical: 10, paddingHorizontal: 12 },
+  opcion: { position: "relative", overflow: "hidden", borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.border, backgroundColor: t.surface, minHeight: 46, justifyContent: "center", paddingVertical: 8, paddingHorizontal: 12 },
   opcionOn: { borderColor: t.accent },
   opcionBar: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: t.surface2 },
   opcionBarOn: { backgroundColor: t.accentSoft },

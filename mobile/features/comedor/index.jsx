@@ -150,6 +150,7 @@ export function Comedor() {
               <Text style={styles.muted}>No hay menú cargado para este día</Text>
             </Card>
           )}
+          <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
         </View>
       ) : null}
 
@@ -257,8 +258,17 @@ export function Comedor() {
   );
 }
 
+// Carga de menú en 4 estados (Parte 4 del handoff — antes era un upsert
+// directo con un alert de texto crudo si algo fallaba):
+//   idle → leyendo → error (con las columnas encontradas) | preview
+// El upsert real (onConflict:"fecha", pisa lo que ya había) solo corre al
+// confirmar el preview, nunca al leer el archivo — antes se escribía sin
+// avisar qué días se estaban reemplazando.
 export function UploadMenuExcel({ onDone }) {
-  const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState("idle"); // idle | leyendo | error | preview
+  const [errorMsg, setErrorMsg] = useState("");
+  const [preview, setPreview] = useState([]); // [{fecha, row, estado}]
+  const [confirmando, setConfirmando] = useState(false);
   const [msg, setMsg] = useState("");
 
   const parseFecha = (val) => {
@@ -285,7 +295,7 @@ export function UploadMenuExcel({ onDone }) {
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.[0]) return;
-      setLoading(true);
+      setStage("leyendo");
       setMsg("");
       const uri = res.assets[0].uri;
       const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
@@ -303,7 +313,7 @@ export function UploadMenuExcel({ onDone }) {
       const colAcomp = keys.find((k) => k.toLowerCase().includes("acomp"));
       const colPostre1 = keys.find((k) => k.toLowerCase().includes("postre") && k.includes("1"));
       const colPostre2 = keys.find((k) => k.toLowerCase().includes("postre") && k.includes("2"));
-      if (!colFecha) throw new Error(`No encontré columna de fecha. Columnas: ${keys.join(", ")}`);
+      if (!colFecha) throw new Error(`No encontré columna de fecha. Renombrá esa columna a "fecha". Columnas encontradas: ${keys.join(", ")}`);
 
       const inserts = rows
         .map((r) => ({
@@ -316,31 +326,105 @@ export function UploadMenuExcel({ onDone }) {
           postre2: colPostre2 ? r[colPostre2] || null : null,
         }))
         .filter((r) => r.fecha);
-      if (inserts.length === 0) throw new Error(`Columna fecha encontrada pero ningún valor válido.`);
+      if (inserts.length === 0) throw new Error("Columna fecha encontrada pero ningún valor válido. Revisá el formato de las fechas.");
 
-      const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "fecha" });
-      if (error) throw error;
-      setMsg(`✅ ${inserts.length} días actualizados`);
-      onDone?.();
+      // Preview antes de escribir: el upsert real (onConflict:"fecha") pisa
+      // sin avisar, así que primero se lee qué ya había cargado para esos
+      // mismos días.
+      const { data: existentes } = await supabase.from("menu").select("fecha").in("fecha", inserts.map((r) => r.fecha));
+      const existentesSet = new Set((existentes || []).map((r) => r.fecha));
+      const conEstado = inserts.map((r) => {
+        const vacio = !r.entrada && !r.plato && !r.plato2 && !r.acompanamiento && !r.postre && !r.postre2;
+        return { ...r, estado: vacio ? "vacio" : existentesSet.has(r.fecha) ? "reemplaza" : "nuevo" };
+      });
+      setPreview(conEstado);
+      setStage("preview");
     } catch (err) {
-      setMsg(`❌ ${err.message || "Error al leer el archivo."}`);
+      setErrorMsg(err.message || "Error al leer el archivo.");
+      setStage("error");
       console.warn("UploadMenuExcel:", err);
     }
-    setLoading(false);
+  };
+
+  const confirmarCarga = async () => {
+    const aCargar = preview.filter((r) => r.estado !== "vacio").map(({ estado, ...r }) => r);
+    if (aCargar.length === 0) { setStage("idle"); return; }
+    setConfirmando(true);
+    const { error } = await supabase.from("menu").upsert(aCargar, { onConflict: "fecha" });
+    setConfirmando(false);
+    if (error) {
+      setErrorMsg(error.message || "No se pudo guardar el menú.");
+      setStage("error");
+      return;
+    }
+    setMsg(`✅ ${aCargar.length} día${aCargar.length !== 1 ? "s" : ""} actualizado${aCargar.length !== 1 ? "s" : ""}`);
+    setStage("idle");
+    setPreview([]);
+    onDone?.();
+  };
+
+  const ESTADO_INFO = {
+    nuevo: { label: "Nuevo", color: T.green },
+    reemplaza: { label: "Reemplaza", color: "#D97706" },
+    vacio: { label: "Sin entrada", color: t.textFaint },
   };
 
   return (
     <View style={styles.uploadWrap}>
       <Text style={styles.uploadLabel}>Cargar menú desde Excel</Text>
-      <Pressable onPress={handlePick} disabled={loading} style={styles.uploadBtn}>
-        <MaterialCommunityIcons name="tray-arrow-up" size={18} color={BLUE[600]} />
-        <View>
-          <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Subir archivo Excel"}</Text>
-          <Text style={styles.uploadHint}>Formato: menu_tribbu.xlsx</Text>
+
+      {stage === "preview" ? (
+        <View style={styles.previewBox}>
+          <Text style={styles.previewTitle}>
+            {preview.length} día{preview.length !== 1 ? "s" : ""} encontrado{preview.length !== 1 ? "s" : ""} — revisá antes de confirmar
+          </Text>
+          <ScrollView style={styles.previewList} nestedScrollEnabled>
+            {preview.map((r) => {
+              const info = ESTADO_INFO[r.estado];
+              return (
+                <View key={r.fecha} style={styles.previewRow}>
+                  <Text style={styles.previewFecha} numberOfLines={1}>
+                    {new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                  </Text>
+                  <View style={[styles.previewPill, { backgroundColor: `${info.color}1A` }]}>
+                    <Text style={[styles.previewPillTxt, { color: info.color }]}>{info.label}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.previewActions}>
+            <Pressable
+              onPress={() => { setStage("idle"); setPreview([]); }}
+              disabled={confirmando}
+              style={[styles.previewBtn, styles.previewBtnCancelar]}
+            >
+              <Text style={styles.previewBtnCancelarTxt}>Cancelar</Text>
+            </Pressable>
+            <Pressable onPress={confirmarCarga} disabled={confirmando} style={[styles.previewBtn, styles.previewBtnConfirmar]}>
+              <Text style={styles.previewBtnConfirmarTxt}>{confirmando ? "Guardando..." : "Confirmar carga"}</Text>
+            </Pressable>
+          </View>
         </View>
-      </Pressable>
+      ) : stage === "error" ? (
+        <View style={styles.previewBox}>
+          <Text style={[styles.uploadMsg, { color: T.red }]}>{errorMsg}</Text>
+          <Pressable onPress={() => setStage("idle")} style={[styles.previewBtn, styles.previewBtnCancelar, { marginTop: SPACE.sm }]}>
+            <Text style={styles.previewBtnCancelarTxt}>Volver a intentar</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={handlePick} disabled={stage === "leyendo"} style={styles.uploadBtn}>
+          <MaterialCommunityIcons name="tray-arrow-up" size={18} color={BLUE[600]} />
+          <View>
+            <Text style={styles.uploadTitle}>{stage === "leyendo" ? "Leyendo archivo..." : "Subir archivo Excel"}</Text>
+            <Text style={styles.uploadHint}>Formato: menu_tribbu.xlsx</Text>
+          </View>
+        </Pressable>
+      )}
+
       {msg ? (
-        <Text style={[styles.uploadMsg, { color: msg.startsWith("✅") ? T.green : T.red }]}>{msg}</Text>
+        <Text style={[styles.uploadMsg, { color: T.green }]}>{msg}</Text>
       ) : null}
     </View>
   );
@@ -368,6 +452,7 @@ const styles = StyleSheet.create({
   platoTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   emptyCard: { padding: SPACE.xxl, alignItems: "center", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   emptyEmoji: { fontSize: 32, marginBottom: 8 },
+  alergiasNota: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
   weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg },
   weekLabel: { fontSize: 14, fontWeight: "700", color: t.textStrong, flex: 1, textAlign: "center" },
   weekRow: { flexDirection: "row", gap: SPACE.md, backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: SPACE.md, marginBottom: SPACE.sm },
@@ -392,5 +477,18 @@ const styles = StyleSheet.create({
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 14, borderRadius: RADIUS.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.accent, backgroundColor: t.accentSoft, minHeight: 44 },
   uploadTitle: { fontSize: 13, fontWeight: "700", color: BLUE[600] },
   uploadHint: { fontSize: 11, color: t.textFaint },
+  previewBox: { padding: SPACE.md, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
+  previewTitle: { fontSize: 12.5, fontWeight: "700", color: t.textStrong, marginBottom: SPACE.sm },
+  previewList: { maxHeight: 220 },
+  previewRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.border },
+  previewFecha: { fontSize: 13, color: t.text, fontWeight: "600", textTransform: "capitalize", flex: 1 },
+  previewPill: { paddingVertical: 3, paddingHorizontal: 9, borderRadius: RADIUS.full },
+  previewPillTxt: { fontSize: 10.5, fontWeight: "800" },
+  previewActions: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md },
+  previewBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  previewBtnCancelar: { borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
+  previewBtnCancelarTxt: { fontSize: 13, fontWeight: "700", color: t.textMuted },
+  previewBtnConfirmar: { backgroundColor: SLATE[900] },
+  previewBtnConfirmarTxt: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
   uploadMsg: { fontSize: 13, marginTop: 10, fontWeight: "600" },
 });
