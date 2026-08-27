@@ -6,6 +6,7 @@ import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora,
          sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
+import { Wordmark } from "../../components/Wordmark";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
@@ -716,6 +717,13 @@ export function SuperAdmin() {
           // ítems flotaban sobre el fondo blanco de la página, con navy solo
           // en el botón activo — acá no leía como "panel", solo como texto.
           <nav style={{width:236,flexShrink:0,position:"sticky",top:20,background:"#0F172A",borderRadius:18,padding:"18px 12px"}}>
+            <div style={{padding:"0 12px",marginBottom:18}}>
+              <Wordmark size={20} letterSpacing={-0.8}/>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
+                <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
+                <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>Super Admin</span>
+              </div>
+            </div>
             {SECCIONES.map(g=>(
               <div key={g.grupo} style={{marginBottom:18}}>
                 <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
@@ -750,10 +758,12 @@ export function SuperAdmin() {
         return (
           <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
             {STATS.map((s,i)=>(
-              <div key={i} style={{minWidth:100,background:s.bg,borderRadius:14,padding:"14px 16px",textAlign:"center",flex:1}}>
-                <div style={{fontSize:30,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</div>
-                <div style={{fontSize:11,color:"#94A3B8",fontWeight:700,marginTop:4,textTransform:"uppercase",letterSpacing:0.4}}>{s.l}</div>
-                {s.sub && <div style={{fontSize:10.5,color:"#94A3B8",marginTop:1}}>{s.sub}</div>}
+              <div key={i} style={{minWidth:140,background:"white",border:"1px solid #E7ECF3",borderRadius:14,padding:"14px 18px",flex:1}}>
+                <div style={{fontSize:10.5,color:"#94A3B8",fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>{s.l}</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:6}}>
+                  <span style={{fontSize:28,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</span>
+                  {s.sub && <span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>{s.sub}</span>}
+                </div>
               </div>
             ))}
           </div>
