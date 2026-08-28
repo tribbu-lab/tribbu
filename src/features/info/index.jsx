@@ -48,6 +48,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
+  const isMobile = useIsMobile();
   const [form,      setForm]      = useState({});
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroMat, setFiltroMat] = useState("all");
@@ -163,7 +164,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   };
 
   return (
-    <div style={{maxWidth:600}}>
+    <div style={isMobile?{maxWidth:600}:undefined}>
       {/* Modal edicion */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -248,7 +249,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
               {renderGrupos(filtrados.filter(l=>l.curso_id===cid))}
             </div>
           ))
-        : renderGrupos(filtrados)}
+        : <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12,alignItems:"start"}}>{renderGrupos(filtrados)}</div>}
     </div>
   );
 }
@@ -261,6 +262,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroCat, setFiltroCat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
+  const isMobile = useIsMobile();
 
   const cargar = async () => {
     if(!cursoIds?.length) { setUtiles([]); setAdquiridos(new Set()); return; }
@@ -378,7 +380,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   };
 
   return (
-    <div style={{maxWidth:600}}>
+    <div style={isMobile?{maxWidth:600}:undefined}>
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}}>
@@ -430,7 +432,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
               {renderGrupos(filtrados.filter(u=>u.curso_id===cid))}
             </div>
           ))
-        : renderGrupos(filtrados)}
+        : <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12,alignItems:"start"}}>{renderGrupos(filtrados)}</div>}
     </div>
   );
 }
@@ -440,6 +442,7 @@ export function Uniformes({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin
   const [idsPorCurso,setIdsPorCurso]= useState({}); // curso_id → [uniforme_id] (para agrupar en "Todos")
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [togglingId, setTogglingId] = useState(null);
+  const isMobile = useIsMobile();
 
   const cargar = async () => {
     if(!cursoIds?.length) { setUniformes([]); setIdsPorCurso({}); return; }
@@ -518,9 +521,9 @@ export function Uniformes({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin
   };
 
   return (
-    <div style={{maxWidth:600}}>
+    <div style={isMobile?{maxWidth:600}:undefined}>
       {total>0&&(
-        <div style={{marginBottom:14}}>
+        <div style={{marginBottom:14,maxWidth:600}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
             <span>Adquiridos</span><span>{adqCount} / {total} ({pct}%)</span>
           </div>
@@ -542,7 +545,7 @@ export function Uniformes({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin
               </div>
             );
           })
-        : uniformes.map((u,i)=>renderUniforme(u,i,u.id))}
+        : <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12,alignItems:"start"}}>{uniformes.map((u,i)=>renderUniforme(u,i,u.id))}</div>}
       {uniformes.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>No hay uniformes asignados a este curso.</div>}
     </div>
   );

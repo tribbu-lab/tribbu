@@ -21,6 +21,7 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
   const [modal,      setModal]      = useState(null);
   const [form,       setForm]       = useState({nombre:"",rol:"",telefono:"",email:"",orden:0});
   const [saving,     setSaving]     = useState(false);
+  const isMobile = useIsMobile();
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -111,23 +112,25 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
         <div style={{fontSize:14,fontWeight:800}}>Contactos</div>
         {isSuperAdmin&&<button onClick={()=>{setModal({});setForm({nombre:"",rol:"",telefono:"",email:""});}} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
       </div>
-      {contactos.map(c=>(
-        <Card key={c.id} style={{padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
-            {c.rol&&<div style={{fontSize:11,color:"#94A3B8"}}>{c.rol}</div>}
-            <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-              {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>Tel: {c.telefono}</a>}
-              {c.telefono&&<a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{fontSize:14,textDecoration:"none"}}>💬</a>}
-              {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>{c.email}</a>}
+      <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignItems:"start"}}>
+        {contactos.map(c=>(
+          <Card key={c.id} style={{padding:"12px 14px",marginBottom:isMobile?8:0,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+              {c.rol&&<div style={{fontSize:11,color:"#94A3B8"}}>{c.rol}</div>}
+              <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>Tel: {c.telefono}</a>}
+                {c.telefono&&<a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{fontSize:14,textDecoration:"none"}}>💬</a>}
+                {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>{c.email}</a>}
+              </div>
             </div>
-          </div>
-          {isSuperAdmin&&<div style={{display:"flex",gap:6}}>
-            <button onClick={()=>{setModal(c);setForm({nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>Editar</button>
-            <button onClick={()=>eliminarContacto(c.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:12,color:"#EF4444"}}>Borrar</button>
-          </div>}
-        </Card>
-      ))}
+            {isSuperAdmin&&<div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setModal(c);setForm({nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>Editar</button>
+              <button onClick={()=>eliminarContacto(c.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:12,color:"#EF4444"}}>Borrar</button>
+            </div>}
+          </Card>
+        ))}
+      </div>
       {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
 
       {modal!==null&&(
@@ -232,6 +235,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});
   const [busqueda, setBusqueda] = useState("");
+  const isMobile = useIsMobile();
 
   const cargar = async () => {
     if(!cursoIds?.length) { setHijos([]); setApodMap({}); return; }
@@ -320,7 +324,9 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
                 <span style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
               </div>
             )}
-            {g.hijos.map(renderAlumno)}
+            <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:8,alignItems:"start"}}>
+              {g.hijos.map(renderAlumno)}
+            </div>
           </div>
         );
       })}

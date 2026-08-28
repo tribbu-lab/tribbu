@@ -11,6 +11,7 @@ import { T } from "../../lib/theme";
 import { sanitize } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { Card } from "../../components/Card";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 const MAX_OPCIONES = 6;
 const MIN_OPCIONES = 2;
@@ -26,6 +27,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState(null);
   const [votando,   setVotando]   = useState(null); // id de la encuesta con un voto en vuelo (evita doble-tap/carrera)
+  const isMobile = useIsMobile();
 
   // Fecha local del dispositivo (no UTC — toISOString() corre la fecha antes
   // de tiempo para usuarios al oeste de UTC en la noche, ej. Argentina).
@@ -216,68 +218,72 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
         </div>
       )}
 
-      {!cargando && visibles.map(e => {
-        const ops = opcionesDe(e.id);
-        const vts = votosDe(e.id);
-        const total = vts.length;
-        const mio = miVoto(e.id);
-        const cerrada = estaCerrada(e);
-        const tag = tagDeCurso?.(e.curso_id);
+      {!cargando && visibles.length > 0 && (
+        <div style={isMobile ? { display: "flex", flexDirection: "column", gap: 16 } : { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12, alignItems: "start" }}>
+          {visibles.map(e => {
+            const ops = opcionesDe(e.id);
+            const vts = votosDe(e.id);
+            const total = vts.length;
+            const mio = miVoto(e.id);
+            const cerrada = estaCerrada(e);
+            const tag = tagDeCurso?.(e.curso_id);
 
-        return (
-          <Card key={e.id} style={{ padding: 18 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", lineHeight: 1.4 }}>{e.pregunta}</div>
-              <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: cerrada ? "#F1F5F9" : "#F0FDF4", color: cerrada ? "#94A3B8" : "#10B981" }}>{cerrada ? "Cerrada" : "Abierta"}</span>
-            </div>
+            return (
+              <Card key={e.id} style={{ padding: 18 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", lineHeight: 1.4 }}>{e.pregunta}</div>
+                  <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: cerrada ? "#F1F5F9" : "#F0FDF4", color: cerrada ? "#94A3B8" : "#10B981" }}>{cerrada ? "Cerrada" : "Abierta"}</span>
+                </div>
 
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-              {tag && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#F1F5F9", color: "#64748B" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color, display: "inline-block" }} />
-                  {tag.nombre}
-                </span>
-              )}
-              {e.fecha_cierre && <span style={{ fontSize: 11, color: "#94A3B8" }}>Cierra {new Date(e.fecha_cierre + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}</span>}
-              <span style={{ fontSize: 11, color: "#94A3B8" }}>{total} voto{total !== 1 ? "s" : ""}</span>
-            </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                  {tag && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#F1F5F9", color: "#64748B" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color, display: "inline-block" }} />
+                      {tag.nombre}
+                    </span>
+                  )}
+                  {e.fecha_cierre && <span style={{ fontSize: 11, color: "#94A3B8" }}>Cierra {new Date(e.fecha_cierre + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}</span>}
+                  <span style={{ fontSize: 11, color: "#94A3B8" }}>{total} voto{total !== 1 ? "s" : ""}</span>
+                </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ops.map(o => {
-                const votantes = vts.filter(v => v.opcion_id === o.id);
-                const cuenta = votantes.length;
-                const pct = total ? Math.round((cuenta / total) * 100) : 0;
-                const esMiVoto = mio === o.id;
-                const nombres = votantes.map(v => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
-                const votandoEsta = votando === e.id;
-                return (
-                  <div key={o.id}>
-                    <button
-                      onClick={() => !cerrada && !votandoEsta && votar(e.id, o.id)}
-                      disabled={cerrada || votandoEsta}
-                      style={{ width: "100%", position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: (cerrada || votandoEsta) ? "default" : "pointer", textAlign: "left", opacity: votandoEsta ? 0.6 : 1 }}
-                    >
-                      <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: esMiVoto ? "#EFF6FF" : "#F8FAFC", transition: "width 0.3s ease" }} />
-                      <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: esMiVoto ? 700 : 500, color: "#0F172A" }}>{esMiVoto ? "✓ " : ""}{o.texto}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", flexShrink: 0 }}>{cuenta} · {pct}%</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {ops.map(o => {
+                    const votantes = vts.filter(v => v.opcion_id === o.id);
+                    const cuenta = votantes.length;
+                    const pct = total ? Math.round((cuenta / total) * 100) : 0;
+                    const esMiVoto = mio === o.id;
+                    const nombres = votantes.map(v => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
+                    const votandoEsta = votando === e.id;
+                    return (
+                      <div key={o.id}>
+                        <button
+                          onClick={() => !cerrada && !votandoEsta && votar(e.id, o.id)}
+                          disabled={cerrada || votandoEsta}
+                          style={{ width: "100%", position: "relative", overflow: "hidden", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${esMiVoto ? T.accent : "#E2E8F0"}`, background: "white", cursor: (cerrada || votandoEsta) ? "default" : "pointer", textAlign: "left", opacity: votandoEsta ? 0.6 : 1 }}
+                        >
+                          <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: esMiVoto ? "#EFF6FF" : "#F8FAFC", transition: "width 0.3s ease" }} />
+                          <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 13, fontWeight: esMiVoto ? 700 : 500, color: "#0F172A" }}>{esMiVoto ? "✓ " : ""}{o.texto}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", flexShrink: 0 }}>{cuenta} · {pct}%</span>
+                          </div>
+                        </button>
+                        {cuenta > 0 && <div style={{ fontSize: 11, color: "#94A3B8", padding: "3px 12px 0" }}>{nombres}</div>}
                       </div>
-                    </button>
-                    {cuenta > 0 && <div style={{ fontSize: 11, color: "#94A3B8", padding: "3px 12px 0" }}>{nombres}</div>}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
 
-            {puedeGestionar(e) && (
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                {!cerrada && <button onClick={() => cerrar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748B" }}>Cerrar encuesta</button>}
-                <button onClick={() => eliminar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#EF4444" }}>Eliminar</button>
-              </div>
-            )}
-          </Card>
-        );
-      })}
+                {puedeGestionar(e) && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {!cerrada && <button onClick={() => cerrar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748B" }}>Cerrar encuesta</button>}
+                    <button onClick={() => eliminar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#EF4444" }}>Eliminar</button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

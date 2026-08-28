@@ -20,6 +20,7 @@ import * as XLSX from "xlsx";
 
 export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
   const misHijosUniq = [...new Set(misHijos)];
+  const isMobile = useIsMobile();
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
   const [festejoMap,setFestejoMap]     = useState({});
@@ -315,7 +316,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
 
       <div>
         <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Proximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <div style={isMobile?{display:"flex",flexDirection:"column",gap:8}:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignItems:"start"}}>
           {listaFiltrada.map(a=>{
             const dias = nextBday(a.fecha_nacimiento);
             const bl   = bdayLabel(dias);
