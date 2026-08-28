@@ -11,6 +11,7 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
+import { Alumnos } from "../contacto";
 
 
 // Encabezado de sección por curso (solo vista "Todos"): dot + nombre del hijo.
