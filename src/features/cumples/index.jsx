@@ -238,6 +238,17 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
 
   const mesesNombres = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
+  // Edad que cumple en la próxima ocurrencia (para las tarjetas destacadas de
+  // escritorio — "Benja cumple 9" — distinto de bdayLabel/nextBday que dan
+  // días restantes, no la edad).
+  const edadQueCumple = (fecha) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const d = new Date(fecha+"T00:00:00");
+    let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+    if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
+    return next.getFullYear() - d.getFullYear();
+  };
+
   const ctrlCumple = useListControls(lista, {
     searchFn: (a,q)=> a.nombre.toLowerCase().includes(q),
     sortOptions:[
@@ -253,122 +264,244 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
   });
   const listaFiltrada = ctrlCumple.items;
 
+  // Escritorio (mockup Tribbu Apoderado Web): 2 tarjetas destacadas con los
+  // próximos cumples (lista ya viene ordenada por proximidad desde cargar())
+  // + el resto agrupado por mes en vez del buscador/filtros + grilla plana.
+  const proximosCumples = lista.slice(0,2);
+  const mesActual = new Date().getMonth();
+  const gruposPorMes = Array.from({length:12},(_,i)=>(mesActual+i)%12)
+    .map(mIdx=>({
+      mIdx,
+      items: lista
+        .filter(a=>new Date(a.fecha_nacimiento+"T00:00:00").getMonth()===mIdx)
+        .sort((a,b)=>new Date(a.fecha_nacimiento+"T00:00:00").getDate()-new Date(b.fecha_nacimiento+"T00:00:00").getDate()),
+    }))
+    .filter(g=>g.items.length>0);
+
   return (
     <div>
       {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?._responsable_hijo?.id||null, comprado:cumpleMap[editando.id]?.comprado||false}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={festejoModal.cursoId ?? cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijosUniq||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}</div>
-        {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
-      </div>
+      {isMobile ? (
+        <>
+          <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+            <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}</div>
+            {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
+          </div>
 
-      {/* Banner rápido: crear festejo de su hijo (apoderado o room parent) */}
-      {misHijosUniq.length>0&&(()=>{
-        const hijosConCumple = lista.filter(a=>a.tipo==="Alumno"&&misHijosUniq.includes(a.rawId));
-        if(!hijosConCumple.length) return null;
-        return hijosConCumple.map(a=>{
-          const fest = festejoMap[a.rawId];
-          const dias = nextBday(a.fecha_nacimiento);
-          const bl   = bdayLabel(dias);
-          return (
-            <div key={a.rawId} style={{marginBottom:16,background:fest?"#F0FDF4":"linear-gradient(135deg,#FEF9C3,#FFFBEB)",border:`1.5px solid ${fest?"#BBF7D0":"#FCD34D"}`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{fontSize:28}}>🎂</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:800,color:"#0F172A",marginBottom:2}}>{a.nombre}</div>
-                <div style={{fontSize:11,color:"#64748B"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:8,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
-              </div>
-              {fest
-                ? <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
-                    <button onClick={()=>setFestejoDetalle(fest)} style={{padding:"6px 12px",borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>🎉 Ver festejo</button>
-                    <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"white",cursor:"pointer",fontSize:11,color:"#10B981",fontWeight:600}}>Editar</button>
+          {/* Banner rápido: crear festejo de su hijo (apoderado o room parent) */}
+          {misHijosUniq.length>0&&(()=>{
+            const hijosConCumple = lista.filter(a=>a.tipo==="Alumno"&&misHijosUniq.includes(a.rawId));
+            if(!hijosConCumple.length) return null;
+            return hijosConCumple.map(a=>{
+              const fest = festejoMap[a.rawId];
+              const dias = nextBday(a.fecha_nacimiento);
+              const bl   = bdayLabel(dias);
+              return (
+                <div key={a.rawId} style={{marginBottom:16,background:fest?"#F0FDF4":"linear-gradient(135deg,#FEF9C3,#FFFBEB)",border:`1.5px solid ${fest?"#BBF7D0":"#FCD34D"}`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{fontSize:28}}>🎂</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#0F172A",marginBottom:2}}>{a.nombre}</div>
+                    <div style={{fontSize:11,color:"#64748B"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:8,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
                   </div>
-                : <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{padding:"8px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>+ Crear festejo</button>
-              }
+                  {fest
+                    ? <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+                        <button onClick={()=>setFestejoDetalle(fest)} style={{padding:"6px 12px",borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>🎉 Ver festejo</button>
+                        <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"white",cursor:"pointer",fontSize:11,color:"#10B981",fontWeight:600}}>Editar</button>
+                      </div>
+                    : <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{padding:"8px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>+ Crear festejo</button>
+                  }
+                </div>
+              );
+            });
+          })()}
+
+          {invitaciones.length>0&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Mis invitaciones</div>
+              {invitaciones.map(inv=>{
+                const ev = inv.evento;
+                if(!ev) return null;
+                return (
+                  <div key={inv.id} style={{background:"#FFFBEB",border:"1.5px solid #FCD34D",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
+                      <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}${ev.hora_fin?` – ${ev.hora_fin}`:""}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
+                      {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
+                      {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
+                      {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}
+                    </div>
+                    <button onClick={()=>setFestejoDetalle(ev)} style={{padding:"6px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Ver / Responder</button>
+                  </div>
+                );
+              })}
             </div>
-          );
-        });
-      })()}
+          )}
 
-      {invitaciones.length>0&&(
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Mis invitaciones</div>
-          {invitaciones.map(inv=>{
-            const ev = inv.evento;
-            if(!ev) return null;
-            return (
-              <div key={inv.id} style={{background:"#FFFBEB",border:"1.5px solid #FCD34D",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
-                  <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}${ev.hora_fin?` – ${ev.hora_fin}`:""}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
-                  {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
-                  {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
-                  {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}
-                </div>
-                <button onClick={()=>setFestejoDetalle(ev)} style={{padding:"6px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Ver / Responder</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div>
-        <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Proximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
-        <div style={isMobile?{display:"flex",flexDirection:"column",gap:8}:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignItems:"start"}}>
-          {listaFiltrada.map(a=>{
-            const dias = nextBday(a.fecha_nacimiento);
-            const bl   = bdayLabel(dias);
-            const cumple = cumpleMap[a.id]||{};
-            const isAlumno = a.tipo==="Alumno";
-            const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
-            const fest     = isAlumno ? festejoMap[a.rawId] : null;
-            const resp = cumple.responsable;
-            const tag  = tagDeCurso(a.curso_id); // solo devuelve algo en vista Todos
-            return (
-              <div key={a.id} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:14,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:2}}>{a.nombre}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:a.tipo==="Maestro"?"#F5F3FF":"#EFF6FF",color:a.tipo==="Maestro"?"#8B5CF6":"#3B82F6"}}>{a.tipo==="Maestro"?"👨‍🏫 Maestro":"🎒 Alumno"}</span>
-                    <span style={{fontSize:11,color:"#94A3B8"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>
-                    {tag&&(
-                      <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
-                        <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
-                        <span style={{fontSize:10,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
-                      </span>
-                    )}
+          <div>
+            <ListToolbar busqueda={ctrlCumple.busqueda} setBusqueda={ctrlCumple.setBusqueda} sortOptions={[{key:"proximo",label:"Proximo"},{key:"nombre",label:"Nombre"},{key:"mes",label:"Mes"}]} sortKey={ctrlCumple.sortKey} sortAsc={ctrlCumple.sortAsc} toggleSort={ctrlCumple.toggleSort} filterOptions={[{key:"mes",label:"Mes",options:mesesNombres.map((m,i)=>({value:String(i),label:m}))},{key:"tipo",label:"Tipo",options:[{value:"Alumno",label:"Alumnos"},{value:"Maestro",label:"Maestros"}]}]} filtros={ctrlCumple.filtros} setFiltro={ctrlCumple.setFiltro} resetFiltros={ctrlCumple.resetFiltros} total={ctrlCumple.total} placeholder="Buscar por nombre..."/>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {listaFiltrada.map(a=>{
+                const dias = nextBday(a.fecha_nacimiento);
+                const bl   = bdayLabel(dias);
+                const cumple = cumpleMap[a.id]||{};
+                const isAlumno = a.tipo==="Alumno";
+                const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
+                const fest     = isAlumno ? festejoMap[a.rawId] : null;
+                const tag  = tagDeCurso(a.curso_id); // solo devuelve algo en vista Todos
+                return (
+                  <div key={a.id} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:14,padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:2}}>{a.nombre}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                        <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:a.tipo==="Maestro"?"#F5F3FF":"#EFF6FF",color:a.tipo==="Maestro"?"#8B5CF6":"#3B82F6"}}>{a.tipo==="Maestro"?"👨‍🏫 Maestro":"🎒 Alumno"}</span>
+                        <span style={{fontSize:11,color:"#94A3B8"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</span>
+                        {tag&&(
+                          <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                            <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                            <span style={{fontSize:10,fontWeight:700,color:"#64748B"}}>{tag.nombre}</span>
+                          </span>
+                        )}
+                      </div>
+                      {(cumple._responsable_hijo||cumple.responsable)&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>🎁 Regala: <strong>{cumple._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : fmtNombre(cumple.responsable)}</strong></div>}
+                      {cumple.comprado&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:2,display:"inline-block"}}>✓ Regalo comprado</span>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
+                      <span style={{fontSize:11,fontWeight:800,padding:"3px 8px",borderRadius:20,background:bl.bg,color:bl.c}}>{bl.l}</span>
+                      {isAlumno&&(
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                          {fest
+                            ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
+                               {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>Editar</button>}</>
+                            : (esMiHijo
+                              ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
+                              : null)
+                          }
+                        </div>
+                      )}
+                      {isAdmin&&(
+                        <div style={{display:"flex",gap:4}}>
+                          <button onClick={()=>setEditando(a)} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>🎁 Regalo</button>
+                          {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId,cursoId:a.curso_id})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {(cumple._responsable_hijo||cumple.responsable)&&<div style={{fontSize:11,color:"#64748B",marginTop:1}}>🎁 Regala: <strong>{cumple._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : fmtNombre(cumple.responsable)}</strong></div>}
-                  {cumple.comprado&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:2,display:"inline-block"}}>✓ Regalo comprado</span>}
+                );
+              })}
+            </div>
+            {lista.length>20&&<Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Escritorio — mockup Tribbu Apoderado Web: eyebrow + título limpio
+              (sin stat-line ni pill de monto), tarjetas destacadas compactas
+              en vez del banner estirado, y todo el resto agrupado por mes en
+              tarjetas en vez de buscador+filtros+grilla plana. */}
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:6}}>Cumpleaños</div>
+          <div style={{fontSize:28,fontWeight:900,color:"#0F172A",marginBottom:4,letterSpacing:-0.5}}>Cumpleaños</div>
+          <div style={{fontSize:13.5,color:"#64748B",marginBottom:24}}>Del curso y de los maestros.</div>
+
+          {invitaciones.length>0&&(
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Mis invitaciones</div>
+              {invitaciones.map(inv=>{
+                const ev = inv.evento;
+                if(!ev) return null;
+                return (
+                  <div key={inv.id} style={{background:"#FFFBEB",border:"1.5px solid #FCD34D",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
+                      <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}${ev.hora_fin?` – ${ev.hora_fin}`:""}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
+                      {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
+                      {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
+                      {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}
+                    </div>
+                    <button onClick={()=>setFestejoDetalle(ev)} style={{padding:"6px 14px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Ver / Responder</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {proximosCumples.length>0&&(
+            <div style={{display:"flex",gap:16,marginBottom:28,flexWrap:"wrap"}}>
+              {proximosCumples.map((a,i)=>{
+                const dias = nextBday(a.fecha_nacimiento);
+                const isAlumno = a.tipo==="Alumno";
+                const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
+                const fest = isAlumno ? festejoMap[a.rawId] : null;
+                const primerNombre = a.nombre.split(" ")[0];
+                const eyebrow = `${i===0?"EL PRÓXIMO":"DESPUÉS"} · ${dias===0?"HOY":dias===1?"MAÑANA":`EN ${dias} DÍAS`}`;
+                const titulo = isAlumno ? `${primerNombre} cumple ${edadQueCumple(a.fecha_nacimiento)} 🎂` : `Cumple la Seño ${primerNombre}`;
+                const tag = tagDeCurso(a.curso_id);
+                const metaPartes = [
+                  new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"}),
+                  tag?.nombre,
+                  isAlumno?"alumno":"seño",
+                ].filter(Boolean);
+                // CTA: solo acciones que ya existen y funcionan de verdad —
+                // ver un festejo publicado, o crear el de tu propio hijo. Sin
+                // festejo y sin ser tu hijo, la tarjeta queda informativa
+                // (todavía no hay forma de "aportar al regalo" de un colega
+                // sin un vínculo real colecta↔cumple en la base).
+                const cta = fest
+                  ? {label:"Ver festejo", onClick:()=>setFestejoDetalle(fest)}
+                  : (esMiHijo ? {label:"+ Crear festejo", onClick:()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} : null);
+                return (
+                  <div key={a.id} style={{flex:"1 1 320px",minWidth:300,maxWidth:460,background:"white",border:"1px solid #E7ECF3",borderRadius:16,padding:16,display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:(tag?.color||"#3B82F6")+"1F",color:tag?.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,flexShrink:0}}>
+                      {primerNombre.slice(0,1)}{(a.nombre.split(" ")[1]||"").slice(0,1)}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.8,color:"#94A3B8",marginBottom:3}}>{eyebrow}</div>
+                      <div style={{fontSize:14.5,fontWeight:800,color:"#0F172A",marginBottom:2}}>{titulo}</div>
+                      <div style={{fontSize:12,color:"#64748B",textTransform:"capitalize"}}>{metaPartes.join(" · ")}</div>
+                    </div>
+                    {cta&&<button onClick={cta.onClick} style={{padding:"10px 16px",borderRadius:11,border:"none",background:"#0F172A",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{cta.label}</button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+            {gruposPorMes.map(({mIdx,items})=>(
+              <div key={mIdx} style={{background:"white",border:"1px solid #E7ECF3",borderRadius:16,padding:16}}>
+                <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:10}}>
+                  <div style={{fontSize:14.5,fontWeight:800,color:"#0F172A"}}>{mesesNombres[mIdx]}</div>
+                  <div style={{fontSize:11.5,color:"#94A3B8",fontWeight:600}}>{items.length} cumple{items.length!==1?"s":""}</div>
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
-                  <span style={{fontSize:11,fontWeight:800,padding:"3px 8px",borderRadius:20,background:bl.bg,color:bl.c}}>{bl.l}</span>
-                  {isAlumno&&(
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      {fest
-                        ? <><button onClick={()=>setFestejoDetalle(fest)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",color:"#F59E0B"}}>🎉 {new Date(fest.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</button>
-                           {esMiHijo&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{fontSize:10,padding:"2px 6px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#94A3B8"}}>Editar</button>}</>
-                        : (esMiHijo
-                          ? <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Crear festejo</button>
-                          : null)
-                      }
-                    </div>
-                  )}
-                  {isAdmin&&(
-                    <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>setEditando(a)} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>🎁 Regalo</button>
-                      {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId,cursoId:a.curso_id})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
-                    </div>
-                  )}
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {items.map(a=>{
+                    const isAlumno = a.tipo==="Alumno";
+                    const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
+                    const fest = isAlumno ? festejoMap[a.rawId] : null;
+                    const tag = tagDeCurso(a.curso_id);
+                    const dotColor = tag?.color || (isAlumno ? "#3B82F6" : "#8B5CF6");
+                    const rolTxt = isAlumno ? "alumno" : "seño";
+                    const onClickRow = fest ? ()=>setFestejoDetalle(fest) : (esMiHijo ? ()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id}) : undefined);
+                    return (
+                      <div key={a.id} onClick={onClickRow} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 4px",borderRadius:10,cursor:onClickRow?"pointer":"default"}}>
+                        <span style={{width:7,height:7,borderRadius:"50%",background:dotColor,flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:700,color:"#0F172A",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.nombre}</div>
+                          <div style={{fontSize:11,color:"#94A3B8"}}>{tag?`${tag.nombre} · `:""}{rolTxt}</div>
+                        </div>
+                        <span style={{fontSize:14,fontWeight:800,color:"#334155",fontVariantNumeric:"tabular-nums",flexShrink:0}}>{new Date(a.fecha_nacimiento+"T00:00:00").getDate()}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            );
-          })}
-        </div>
-        {lista.length>20&&<Paginador pagina={ctrlCumple.pagina} totalPag={ctrlCumple.totalPag} setPagina={ctrlCumple.setPagina}/>}
-      </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
