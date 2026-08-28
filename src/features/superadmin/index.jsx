@@ -789,6 +789,9 @@ export function SuperAdmin() {
             {sec==="maestros" && (
               <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
             )}
+            {sec==="alumnos" && (
+              <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
+            )}
           </div>
         );
       })()}
@@ -988,39 +991,68 @@ export function SuperAdmin() {
           <Paginador pagina={ctrlCursos.pagina} totalPag={ctrlCursos.totalPag} setPagina={ctrlCursos.setPagina}/>
         </>
       )}
-      {sec==="alumnos" && (
+      {sec==="alumnos" && (() => {
+        const conApoderado = alumnos.filter(a=>(a.usuarios||[]).length>0).length;
+        const sinCumple = alumnos.filter(a=>!a.fecha_nacimiento).length;
+        const gridCols = "1.8fr 1.2fr 1.6fr 110px 96px";
+        return (
         <>
+          <ModuloStats items={[
+            {n:alumnos.length, l:"Alumnos"},
+            {n:conApoderado, l:"Con apoderado", c:"#10B981", sub:`de ${alumnos.length}`},
+            {n:alumnos.length-conApoderado, l:"Sin apoderado", c:"#B45309"},
+            {n:sinCumple, l:"Sin cumpleaños", c:"#94A3B8"},
+          ]}/>
           <UploadAlumnosExcel cursos={cursosAnoActual} onDone={cargar}/>
-          <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",color:"#10B981",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar alumno individual</button>
           <ListToolbar busqueda={ctrlAlumnos.busqueda} setBusqueda={ctrlAlumnos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrlAlumnos.sortKey} sortAsc={ctrlAlumnos.sortAsc} toggleSort={ctrlAlumnos.toggleSort} filterOptions={[{key:"curso",label:"Curso",options:cursos.map(c=>({value:String(c.id),label:c.nombre}))}]} filtros={ctrlAlumnos.filtros} setFiltro={ctrlAlumnos.setFiltro} resetFiltros={ctrlAlumnos.resetFiltros} total={ctrlAlumnos.total} placeholder="Buscar alumno..."/>
-          {ctrlAlumnos.items.map(a=>{
-            const curso = cursos.find(c=>c.id===a.curso_id);
-            const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
-            return (
-              <Card key={a.id} style={{padding:"14px 16px",marginBottom:10}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                      <div style={{fontSize:14,fontWeight:700}}>{fmtNombre(a)}</div>
-                      {curso&&<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>}
+
+          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+              {!isMobile && <>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Alumno</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Curso</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Apoderados</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Cumpleaños</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+              </>}
+              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlAlumnos.total} alumnos</div>}
+            </div>
+
+            {ctrlAlumnos.items.length===0 ? (
+              <div style={{textAlign:"center",padding:"48px 24px"}}>
+                <div style={{fontSize:15,fontWeight:800}}>Ningún alumno coincide</div>
+                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo del filtro de curso.</div>
+                <button onClick={ctrlAlumnos.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
+              </div>
+            ) : ctrlAlumnos.items.map(a=>{
+              const curso = cursos.find(c=>c.id===a.curso_id);
+              const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
+              return (
+                <div key={a.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                    <div style={{width:34,height:34,borderRadius:999,background:(a.color||"#3B82F6")+"22",color:a.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(a.nombre||"")[0]||""}${(a.apellido||"")[0]||""}`.toUpperCase()}</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(a)}</div>
+                      {a.dni&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1}}>DNI: {a.dni}</div>}
                     </div>
-                    {a.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>🎂 {fmtF(a.fecha_nacimiento)}</div>}
-                    {a.dni&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>DNI: {a.dni}</div>}
-                    {apoderados.length>0&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>👨‍👩‍👧 {apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", ")}</div>}
                   </div>
-                  <div style={{display:"flex",gap:6,flexShrink:0}}>
-                    <button onClick={()=>setVerApodSA(a)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,fontWeight:600,color:"#3B82F6"}}>👨‍👩‍👧</button>
-                    <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  <div>{curso?<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>:<span style={{fontSize:12,color:"#94A3B8"}}>—</span>}</div>
+                  <div style={{fontSize:12.5,color:"#64748B"}}>{apoderados.length>0?apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin registrar</span>}</div>
+                  <div style={{fontSize:12.5,color:a.fecha_nacimiento?"#334155":"#CBD5E1"}}>{a.fecha_nacimiento?fmtF(a.fecha_nacimiento):"—"}</div>
+                  <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
+                    <button onClick={()=>setVerApodSA(a)} style={{width:32,height:32,borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6"}}>👨‍👩‍👧</button>
+                    <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
                 </div>
-              </Card>
-            );
-          })}
+              );
+            })}
+          </div>
           <Paginador pagina={ctrlAlumnos.pagina} totalPag={ctrlAlumnos.totalPag} setPagina={ctrlAlumnos.setPagina}/>
+          <div style={{marginTop:14,fontSize:12,color:"#94A3B8",textAlign:"center"}}>Sin fecha de nacimiento el alumno no aparece en Cumpleaños.</div>
         </>
-      )}
+        );
+      })()}
 
       {sec==="maestros" && (() => {
         const conCursos = maestros.filter(m=>(m.cursos||[]).length>0).length;
