@@ -58,7 +58,11 @@ export function Login({ onLogin }) {
     if(!email.trim()) { setErr("Ingresá tu correo primero"); return; }
     setResetLd(true); setErr("");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: window.location.origin,
+      // La app (con el cliente de Supabase que detecta el token de recovery
+      // en la URL) vive en /app desde que el landing pasó a ocupar la raíz
+      // del dominio — un link de reset que caiga en "/" hoy solo muestra el
+      // landing estático, sin sesión ni forma de cambiar la contraseña.
+      redirectTo: window.location.origin + "/app",
     });
     setResetLd(false);
     if(error) { setErr("Error al enviar el correo: " + error.message); return; }
