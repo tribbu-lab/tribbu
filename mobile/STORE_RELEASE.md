@@ -197,6 +197,29 @@ los pasos (in-app y por email), qué se elimina y qué se conserva
 password"** solamente (email+contraseña; sin 2FA/OTP/SSO — el código de
 invitación no es un método de autenticación sino un requisito de alta).
 
+### Permiso de calendario (desde 2026-08-28, `expo-calendar`)
+
+La opción Android "Calendario del dispositivo" (Calendario → Sincronizar)
+agrega `READ_CALENDAR` y `WRITE_CALENDAR` al manifest, y el plugin deja
+`NSCalendarsUsageDescription` en el Info.plist de iOS aunque iOS no lo use
+(su "calendario del dispositivo" es `webcal://`). Qué implica en cada tienda:
+
+- **Play → Data safety: no se agrega el tipo "Calendar"**. Ese tipo aplica a
+  datos de calendario que salen del dispositivo. La app solo *escribe* los
+  eventos del feed en un calendario "Tribbu" propio y *lee* la lista de
+  calendarios para encontrar el suyo; nada de eso se transmite ni se guarda
+  en Supabase (el mapa UID→eventId vive en AsyncStorage). Si el revisor
+  pregunta, esa es la respuesta: procesamiento on-device, sin recolección.
+- **Play → App content → Permissions**: `READ/WRITE_CALENDAR` no son
+  permisos sensibles (no piden formulario de declaración como SMS/Call
+  Log/Location). Solo aparecen listados automáticamente en la ficha.
+- **App Store → App Privacy: sin cambios.** iOS no llama a EventKit. Si la
+  revisión objeta el string de calendario en el Info.plist sin uso visible,
+  la respuesta es la misma (declarado por el plugin, solo se usa en
+  Android) — o se saca el plugin del build de iOS.
+- **Release notes sugeridas**: "Sincronizá el calendario del curso con tu
+  calendario: elegí el del teléfono o Google Calendar."
+
 ## APK compartible (distribución directa, fuera de las tiendas)
 
 Para compartir la app por fuera de Play (WhatsApp/Drive/link directo) existe el
@@ -225,6 +248,24 @@ npx -y eas-cli@latest build -p android --profile apk --local \
 - No hay submit: el `.apk` (gitignoreado, nunca commitearlo) se comparte
   directo; al instalar, Android pide habilitar "instalar apps desconocidas"
   para el origen desde el que se abre.
+
+### Después de cada `expo prebuild --clean`: reaplicar `debuggableVariants = []`
+
+`mobile/android/` es gitignored y prebuild lo regenera desde cero, así que
+este ajuste local se pierde cada vez que se agrega o quita un módulo nativo
+(`expo-calendar`, `expo-local-authentication`, …). En
+`mobile/android/app/build.gradle`, dentro del bloque `react { … }`, debajo de
+la línea comentada `// debuggableVariants = ["liteDebug", "prodDebug"]`:
+
+```gradle
+debuggableVariants = []
+```
+
+Con la lista vacía, **también el variant debug embebe el bundle JS y los
+assets**, y la APK de `./gradlew assembleDebug` corre sola en cualquier
+teléfono sin Metro — es lo que hace "compartible" a la APK compartible. Sin
+el fix, la APK debug abre en negro buscando `localhost:8081`. Los builds de
+EAS (`production`/`apk`) no lo necesitan: usan el variant release.
 
 ### Compilar la APK desde otra computadora
 
