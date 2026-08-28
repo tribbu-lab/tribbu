@@ -86,11 +86,12 @@ export function Comedor() {
     })
     .filter((d) => d.dow >= 1 && d.dow <= 5);
   const hoyIso = iso(new Date());
+  const diaHoyMenu = menu.find((m) => m.fecha === hoyIso) || null;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Comedor 🍽️</Text>
-      <Text style={styles.subtitle}>Menú del curso</Text>
+      <Text style={styles.subtitle}>Menú de {MESES[new Date().getMonth()]} · cargado por el colegio</Text>
 
       {isAdmin ? <UploadMenuExcel onDone={cargarMenu} /> : null}
 
@@ -120,10 +121,23 @@ export function Comedor() {
               <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
             </Pressable>
           </View>
-          {diasSemana.map((fecha) => {
+          {diaHoyMenu ? (
+            <View style={styles.hoyCard}>
+              <Text style={styles.hoyLabel}>HOY · {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric"}).toUpperCase()}</Text>
+              {CAMPOS.filter((c) => diaHoyMenu[c.key]).map((c) => (
+                <View key={c.key} style={styles.hoyPlatoRow}>
+                  <Text style={styles.hoyPlatoLabel}>{c.emoji} {c.label.toUpperCase()}</Text>
+                  <Text style={styles.hoyPlatoTxt}>{diaHoyMenu[c.key]}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <Text style={styles.restoLabel}>RESTO DE LA SEMANA</Text>
+          {diasSemana.filter((fecha) => fecha !== hoyIso).map((fecha) => {
             const d = new Date(fecha + "T00:00:00");
             const m = menu.find((x) => x.fecha === fecha);
-            const isHoy = fecha === hoyIso;
+            const platos = m ? CAMPOS.filter((c) => m[c.key]).map((c) => m[c.key]) : [];
             return (
               <Pressable
                 key={fecha}
@@ -133,22 +147,20 @@ export function Comedor() {
                   setDiaExpandido(fecha);
                   setVista("porFecha");
                 }}
-                style={[styles.weekRow, isHoy && styles.weekRowHoy]}
+                style={styles.weekRow}
               >
                 <View style={styles.weekDate}>
-                  <Text style={[styles.weekDow, isHoy && styles.weekHoyTxt]}>
+                  <Text style={styles.weekDow}>
                     {d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "")}
                   </Text>
-                  <Text style={[styles.weekDay, isHoy && styles.weekHoyTxt]}>{d.getDate()}</Text>
+                  <Text style={styles.weekDay}>{d.getDate()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                  {m ? (
-                    CAMPOS.filter((c) => m[c.key]).slice(0, 3).map((c) => (
-                      <Text key={c.key} style={styles.weekItem}>
-                        <Text style={{ color: c.color }}>{c.emoji} </Text>
-                        {m[c.key]}
-                      </Text>
-                    ))
+                  {platos.length ? (
+                    <>
+                      <Text style={styles.weekPrincipal} numberOfLines={1}>{platos[0]}</Text>
+                      {platos.length > 1 ? <Text style={styles.weekResto} numberOfLines={1}>{platos.slice(1).join(" · ")}</Text> : null}
+                    </>
                   ) : (
                     <Text style={styles.sinMenu}>Sin menú</Text>
                   )}
@@ -431,8 +443,16 @@ const styles = StyleSheet.create({
   weekDay: { fontSize: 17, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
   weekHoyTxt: { color: BLUE[600] },
   weekItem: { fontSize: 12, color: t.text, lineHeight: 18 },
+  weekPrincipal: { fontSize: 13.5, fontWeight: "700", color: t.textStrong },
+  weekResto: { fontSize: 11.5, color: t.textFaint, marginTop: 1 },
   sinMenu: { fontSize: 12, color: t.textFaint },
   hint: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
+  restoLabel: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint, marginBottom: 8, marginTop: 2 },
+  hoyCard: { backgroundColor: "#0F172A", borderRadius: RADIUS.xl, padding: SPACE.lg, marginBottom: SPACE.lg },
+  hoyLabel: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1, color: "rgba(255,255,255,0.45)", marginBottom: 12 },
+  hoyPlatoRow: { marginBottom: 10 },
+  hoyPlatoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6, color: "rgba(255,255,255,0.5)", marginBottom: 2 },
+  hoyPlatoTxt: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
   porFechaCard: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, marginBottom: SPACE.sm, overflow: "hidden" },
   porFechaHeader: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, minHeight: 44 },
   porFechaDetalle: {},

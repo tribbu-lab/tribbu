@@ -36,7 +36,7 @@ export function AppHeader({ notif }) {
   const [panelNotifs, setPanelNotifs] = useState(false);
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
-  const { notifs, leidos, cargando, noLeidos, marcarLeido, recargar } = notif;
+  const { notifs, leidos, cargando, noLeidos, marcarLeido, marcarTodoLeido, recargar } = notif;
 
   const abrirNotifs = () => {
     recargar();
@@ -132,6 +132,7 @@ export function AppHeader({ notif }) {
         cargando={cargando}
         tagDeCurso={tagDeCurso}
         onMarcarLeido={marcarLeido}
+        onMarcarTodoLeido={marcarTodoLeido}
         onCerrar={() => setPanelNotifs(false)}
       />
       <ColorPicker

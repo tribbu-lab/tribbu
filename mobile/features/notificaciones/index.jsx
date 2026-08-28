@@ -73,7 +73,18 @@ export function useNotificaciones({ cursoIds, userId, active }) {
 
   const noLeidos = notifs.filter((n) => n._tipo === "alerta" || !leidos.has(n.id)).length;
 
-  return { notifs, leidos, cargando, noLeidos, marcarLeido, recargar: cargar };
+  // Marcar todo leído (mockup Tribbu App — Avisos): solo recordatorios, las
+  // alertas no tienen estado de lectura propio (siempre se muestran).
+  const marcarTodoLeido = useCallback(async () => {
+    const pendientes = notifs.filter((n) => n._tipo !== "alerta" && !leidos.has(n.id)).map((n) => n.id);
+    if (!pendientes.length) return;
+    setLeidos((p) => new Set([...p, ...pendientes]));
+    await supabase
+      .from("recordatorio_leidos")
+      .upsert(pendientes.map((id) => ({ recordatorio_id: id, usuario_id: userId })), { onConflict: "recordatorio_id,usuario_id" });
+  }, [notifs, leidos, userId]);
+
+  return { notifs, leidos, cargando, noLeidos, marcarLeido, marcarTodoLeido, recargar: cargar };
 }
 
 const PRIO = {
@@ -120,8 +131,11 @@ function NotifRow({ item, leido, tag, onPress }) {
         leido && styles.notifLeido,
       ]}
     >
+      {!leido ? <View style={styles.unreadDot} /> : null}
       <View style={styles.notifInner}>
-        <Text style={styles.notifEmoji}>{emoji}</Text>
+        <View style={styles.notifIconBox}>
+          <Text style={styles.notifEmoji}>{emoji}</Text>
+        </View>
         <View style={styles.flex1}>
           <Text style={[styles.notifTxt, leido && styles.notifTxtLeido]}>{item.texto}</Text>
           <View style={styles.notifMeta}>
@@ -146,7 +160,6 @@ function NotifRow({ item, leido, tag, onPress }) {
                 <Text style={styles.hijoTxt} numberOfLines={1}>{tag.nombre}</Text>
               </View>
             ) : null}
-            {!leido && !esAlerta ? <View style={styles.dot} /> : null}
           </View>
         </View>
       </View>
@@ -171,20 +184,28 @@ const bucketDe = (creado_en) => {
 };
 const GRUPOS = ["Hoy", "Ayer", "Esta semana", "Anterior"];
 
-export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onCerrar }) {
+export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onMarcarTodoLeido, onCerrar }) {
   const insets = useSafeAreaInsets();
   const sections = GRUPOS.map((title) => ({ title, data: notifs.filter((n) => bucketDe(n.creado_en) === title) })).filter(
     (s) => s.data.length > 0
   );
+  const hayNoLeidos = notifs.some((n) => n._tipo !== "alerta" && !leidos.has(n.id));
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
       <Pressable style={styles.overlay} onPress={onCerrar}>
         <Pressable style={[styles.panel, { paddingTop: insets.top }]} onPress={() => {}}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Notificaciones</Text>
-            <Pressable onPress={onCerrar} style={styles.closeBtn} hitSlop={8}>
-              <Text style={styles.closeTxt}>✕</Text>
-            </Pressable>
+            <Text style={styles.panelTitle}>Avisos</Text>
+            <View style={styles.panelHeaderActions}>
+              {hayNoLeidos ? (
+                <Pressable onPress={onMarcarTodoLeido} style={styles.marcarTodoBtn} hitSlop={6}>
+                  <Text style={styles.marcarTodoTxt}>Marcar todo leído</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={onCerrar} style={styles.closeBtn} hitSlop={8}>
+                <Text style={styles.closeTxt}>✕</Text>
+              </Pressable>
+            </View>
           </View>
 
           {cargando ? (
@@ -228,43 +249,50 @@ const styles = StyleSheet.create({
   panel: { width: "85%", maxWidth: 380, height: "100%", backgroundColor: "white" },
   panelHeader: {
     padding: 16,
-    backgroundColor: T.primary,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  panelTitle: { fontSize: 15, fontWeight: "800", color: "white" },
+  panelTitle: { fontSize: 21, fontWeight: "900", color: T.text, letterSpacing: -0.3 },
+  panelHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  marcarTodoBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  marcarTodoTxt: { fontSize: 11.5, fontWeight: "700", color: "#334155" },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
   },
-  closeTxt: { color: "white", fontSize: 16 },
+  closeTxt: { color: "#64748B", fontSize: 16 },
   list: { padding: 16 },
   sectionHeader: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", color: "#94A3B8", paddingVertical: 6, backgroundColor: "white" },
   flex1: { flex: 1 },
   notif: {
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 12,
+    padding: 13,
+    marginBottom: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderLeftWidth: 3,
     backgroundColor: "white",
+    position: "relative",
   },
   notifAlerta: { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
   notifLeido: { opacity: 0.6, backgroundColor: "#FAFAFA" },
-  notifInner: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  notifEmoji: { fontSize: 18 },
-  notifTxt: { fontSize: 13, fontWeight: "600", color: T.text, lineHeight: 19, marginBottom: 4 },
+  notifInner: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  notifIconBox: { width: 36, height: 36, borderRadius: 11, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  notifEmoji: { fontSize: 16 },
+  notifTxt: { fontSize: 13.5, fontWeight: "700", color: T.text, lineHeight: 19, marginBottom: 5, paddingRight: 14 },
   notifTxtLeido: { fontWeight: "400", color: "#94A3B8" },
   notifMeta: { flexDirection: "row", gap: 6, alignItems: "center", flexWrap: "wrap" },
   tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6 },
   tagTxt: { fontSize: 10, fontWeight: "700" },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent },
+  unreadDot: { position: "absolute", top: 12, right: 12, width: 7, height: 7, borderRadius: 4, backgroundColor: T.accent, zIndex: 1 },
   hijoTag: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 130 },
   hijoDot: { width: 8, height: 8, borderRadius: 4 },
   hijoTxt: { fontSize: 10, fontWeight: "700", color: "#94A3B8" },

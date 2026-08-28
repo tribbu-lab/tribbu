@@ -212,7 +212,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Colectas</Text>
-      <Text style={styles.subtitle}>{esVistaTodos ? "Colectas de todos tus cursos" : "Colectas del curso"}</Text>
+      <Text style={styles.subtitle}>{esVistaTodos ? "Regalos y gastos compartidos de tus cursos." : "Regalos y gastos compartidos del curso."}</Text>
 
       {!isAdmin && deudaPropia.length > 0 ? (
         <View style={styles.deudaBanner}>
@@ -255,60 +255,73 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         const tag = tagDeCurso?.(c.curso_id) ?? null;
         const misAlumnosCurso = alumnosCurso.filter((a) => misHijos.includes(a.id));
 
+        // Caso común (mockup): un solo hijo mío en el curso de esta colecta →
+        // un único botón "Registrar mi aporte". Con más de uno (hermanos en
+        // el mismo curso) se cae al detalle por alumno para no perder info.
+        const unSoloHijo = misAlumnosCurso.length === 1 ? misAlumnosCurso[0] : null;
+        const pagoUnico = unSoloHijo ? getPago(c.id, unSoloHijo.id) : null;
+        const pagadoUnico = pagoUnico?.estado === "pagado";
+        const esResponsableUnico = unSoloHijo && userId === c.responsable_id;
+
         return (
           <Card key={c.id} style={[styles.colectaCard, !c.activa && styles.cerrada]}>
             <View style={styles.colectaHeader}>
+              <View style={styles.colectaIconBox}>
+                <Text style={styles.colectaIcon}>🎁</Text>
+              </View>
               <View style={styles.flex1}>
-                {tag ? (
-                  <View style={styles.tagRow}>
-                    <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
-                    <Text style={styles.tagTxt} numberOfLines={1}>
-                      {tag.nombre}
-                    </Text>
-                  </View>
-                ) : null}
                 <View style={styles.titleRow}>
                   <Text style={styles.colectaTitulo}>{c.titulo}</Text>
-                  {!c.activa ? <Pill label="Cerrada" color={t.textMuted} bg={SLATE[100]} /> : null}
-                  {c.activa && vencida ? <Pill label="Vencida" color={t.danger} bg={t.dangerSoft} /> : null}
-                  {c.activa && !vencida && dias !== null && dias <= 7 ? (
-                    <Pill label={`${dias}d`} color="#B45309" bg={t.warningSoft} />
-                  ) : null}
+                  {!c.activa ? <Pill label="Cerrada" color={t.textMuted} bg={SLATE[100]} />
+                    : vencida ? <Pill label="Vencida" color={t.danger} bg={t.dangerSoft} />
+                    : (dias !== null && dias <= 7) ? <Pill label={`Cierra en ${dias}d`} color="#B45309" bg={t.warningSoft} />
+                    : <Pill label="Abierta" color={t.success} bg={t.successSoft} />}
                 </View>
+                <Text style={styles.meta} numberOfLines={1}>
+                  {[tag?.nombre, resp ? `organiza ${resp.nombre}` : null].filter(Boolean).join(" · ")}
+                </Text>
                 {c.descripcion ? <Text style={styles.colectaDesc}>{c.descripcion}</Text> : null}
-                <View style={styles.metaRow}>
-                  {resp ? (
-                    <Text style={styles.meta}>
-                      Responsable: {resp.nombre}
-                      {resp.apellido ? ` ${resp.apellido}` : ""}
-                    </Text>
-                  ) : null}
-                  {c.fecha_limite ? <Text style={styles.meta}>Límite: {fmtF(c.fecha_limite)}</Text> : null}
-                  {c.monto_sugerido ? (
-                    <Text style={styles.meta}>Sugerido: {fmtMonto(c.monto_sugerido, c.moneda || "$")}</Text>
-                  ) : null}
-                </View>
+                {c.fecha_limite ? <Text style={styles.meta}>Límite: {fmtF(c.fecha_limite)}</Text> : null}
               </View>
             </View>
 
             {c.monto_sugerido ? (
               <View style={styles.progressWrap}>
                 <View style={styles.progressTop}>
-                  <Text style={styles.progressLabel}>Recaudado</Text>
-                  <Text style={styles.progressMonto}>
-                    {fmtMonto(recaudado, c.moneda || "$")} / {fmtMonto(esperado, c.moneda || "$")}
-                  </Text>
+                  <Text style={styles.progressMontoGrande}>{fmtMonto(recaudado, c.moneda || "$")}</Text>
+                  <Text style={styles.progressMontoChico}>de {fmtMonto(esperado, c.moneda || "$")}</Text>
                 </View>
                 <View style={styles.bar}>
                   <View style={[styles.barFill, { width: `${pct}%` }]} />
                 </View>
                 <Text style={styles.progressSub}>
-                  {pagados.length} de {total} alumnos pagaron
+                  {pagados.length} de {total} familias ya aportaron
                 </Text>
               </View>
             ) : null}
 
-            {!isAdmin && misAlumnosCurso.length > 0 ? (
+            {!isAdmin && unSoloHijo ? (
+              <View style={styles.aporteUnicoWrap}>
+                {esResponsableUnico ? (
+                  <Pressable
+                    onPress={() => c.activa && togglePago(c.id, unSoloHijo.id, pagoUnico?.estado)}
+                    style={[styles.aporteBtn, pagadoUnico && styles.aporteBtnOn]}
+                  >
+                    <Text style={[styles.aporteTxt, pagadoUnico && styles.aporteTxtOn]}>
+                      {pagadoUnico ? "✓ Aportado · Deshacer" : `Registrar mi aporte${c.monto_sugerido ? ` · ${fmtMonto(c.monto_sugerido, c.moneda || "$")}` : ""}`}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={[styles.estadoChip, pagadoUnico && styles.estadoChipOn]}>
+                    <Text style={[styles.estadoTxt, pagadoUnico && styles.estadoTxtOn]}>
+                      {pagadoUnico ? "✓ Aportado" : "Pendiente tu aporte"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
+
+            {!isAdmin && misAlumnosCurso.length > 1 ? (
               <View style={styles.misAlumnos}>
                 {misAlumnosCurso.map((a) => {
                   const pago = getPago(c.id, a.id);
@@ -348,7 +361,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
             <View style={styles.colectaActions}>
               <Pressable onPress={() => setVistaAdmin(c)} style={styles.verPagosBtn}>
-                <Text style={styles.verPagosTxt}>Ver pagos</Text>
+                <Text style={styles.verPagosTxt}>Ver quién puso</Text>
               </Pressable>
               {isAdmin ? (
                 <>
@@ -608,7 +621,9 @@ const styles = StyleSheet.create({
   notaEncuadre: { fontSize: 11.5, color: t.textFaint, lineHeight: 16, textAlign: "center", marginTop: 4, marginBottom: 8 },
   colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden", borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   cerrada: { opacity: 0.6 },
-  colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
+  colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border, flexDirection: "row", gap: 12 },
+  colectaIconBox: { width: 38, height: 38, borderRadius: RADIUS.md, backgroundColor: t.warningSoft, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  colectaIcon: { fontSize: 17 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 },
   tagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
@@ -618,12 +633,17 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" },
   meta: { fontSize: 12, color: t.textMuted },
   progressWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
-  progressTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
-  progressLabel: { fontSize: 11, fontWeight: "700", color: t.textMuted },
-  progressMonto: { fontSize: 12, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  progressTop: { flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 6 },
+  progressMontoGrande: { fontSize: 19, fontWeight: "900", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  progressMontoChico: { fontSize: 12.5, fontWeight: "600", color: t.textFaint, fontVariant: ["tabular-nums"] },
   bar: { height: 6, borderRadius: RADIUS.full, backgroundColor: SLATE[200], overflow: "hidden" },
   barFill: { height: "100%", backgroundColor: t.success, borderRadius: RADIUS.full },
   progressSub: { fontSize: 11, color: t.textFaint, marginTop: 4 },
+  aporteUnicoWrap: { padding: 14 },
+  aporteBtn: { minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
+  aporteBtnOn: { backgroundColor: t.successSoft, borderWidth: 1.5, borderColor: t.success },
+  aporteTxt: { fontSize: 13.5, fontWeight: "800", color: "#FFFFFF" },
+  aporteTxtOn: { color: t.success },
   misAlumnos: { padding: 14 },
   alumnoPagoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
   alumnoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },

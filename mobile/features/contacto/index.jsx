@@ -57,35 +57,75 @@ export function Contacto() {
   const filas = [
     { l: "Teléfono", v: colegio?.telefono, link: colegio?.telefono ? `tel:${colegio.telefono}` : null },
     { l: "Email", v: colegio?.email, link: colegio?.email ? `mailto:${colegio.email}` : null },
-    { l: "Dirección", v: colegio?.direccion },
     { l: "Horario clases", v: colegio?.horario_clases },
     { l: "Secretaría", v: colegio?.horario_secretaria },
     { l: "Sitio web", v: colegio?.sitio_web, link: colegio?.sitio_web },
   ].filter((x) => x.v);
 
+  // Urgencias (mockup): no hay columna "urgente" en contactos — se infiere
+  // por rol (Preceptoría/Portería/Enfermería, lo típico en "urgencias en
+  // horario escolar") para no depender de un cambio de esquema. Sin match,
+  // simplemente no aparece el banner — no se inventa un contacto.
+  const esUrgencia = (c) => /precep|porter|enfermer/i.test(c.rol || "");
+  const urgencia = contactos.find(esUrgencia);
+  const contactosResto = contactos.filter((c) => c !== urgencia);
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Contacto</Text>
+      <Text style={styles.subtitle} numberOfLines={1}>
+        {[colegio?.nombre, colegio?.direccion].filter(Boolean).join(" · ")}
+      </Text>
 
+      {urgencia ? (
+        <View style={styles.urgCard}>
+          <Text style={styles.urgLabel}>URGENCIAS EN HORARIO ESCOLAR</Text>
+          <Text style={styles.urgTitulo}>{urgencia.rol}{urgencia.telefono ? ` · ${urgencia.telefono}` : ""}</Text>
+          <View style={styles.urgBtns}>
+            {urgencia.telefono ? (
+              <Pressable onPress={() => abrir(`tel:${urgencia.telefono}`)} style={styles.urgBtnPrimary}>
+                <MaterialCommunityIcons name="phone" size={16} color="#FFFFFF" />
+                <Text style={styles.urgBtnPrimaryTxt}>Llamar ahora</Text>
+              </Pressable>
+            ) : null}
+            {urgencia.telefono ? (
+              <Pressable onPress={() => abrir(waLink(urgencia.telefono))} style={styles.urgBtnGhost}>
+                <Text style={styles.urgBtnGhostTxt}>WhatsApp</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <Text style={styles.sectionTitle}>Colegio</Text>
       <Card style={styles.card}>
-        <Text style={styles.colegioNombre}>{colegio?.nombre || "Colegio"}</Text>
         {filas.length === 0 ? (
           <Text style={styles.muted}>Sin información cargada.</Text>
         ) : (
-          filas.map((x) => (
-            <View key={x.l} style={styles.filaRow}>
-              <Text style={styles.filaLabel}>{x.l}</Text>
-              {x.link ? (
-                <Pressable onPress={() => abrir(x.link)} style={styles.flex1}>
-                  <Text style={styles.link}>{x.v}</Text>
-                </Pressable>
-              ) : (
-                <Text style={styles.filaVal}>{x.v}</Text>
-              )}
-              {x.l === "Teléfono" && colegio?.telefono ? (
-                <Pressable onPress={() => abrir(waLink(colegio.telefono))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
-                  <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
-                </Pressable>
+          filas.map((x, i) => (
+            <View key={x.l} style={[styles.filaRow, i > 0 && styles.filaRowDivider]}>
+              <View style={styles.filaIconBox}>
+                <MaterialCommunityIcons name={ICONO_FILA[x.l] || "information-outline"} size={16} color={t.textMuted} />
+              </View>
+              <View style={styles.flex1}>
+                <Text style={styles.filaLabel}>{x.l}</Text>
+                {x.link ? (
+                  <Pressable onPress={() => abrir(x.link)}>
+                    <Text style={styles.link}>{x.v}</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.filaVal}>{x.v}</Text>
+                )}
+              </View>
+              {x.l === "Teléfono" ? (
+                <View style={styles.filaAcciones}>
+                  <Pressable onPress={() => abrir(x.link)} style={styles.filaAccionBtn}>
+                    <MaterialCommunityIcons name="phone-outline" size={16} color={t.textMuted} />
+                  </Pressable>
+                  <Pressable onPress={() => abrir(waLink(colegio.telefono))} style={styles.filaAccionBtn}>
+                    <MaterialCommunityIcons name="whatsapp" size={16} color="#25D366" />
+                  </Pressable>
+                </View>
               ) : null}
             </View>
           ))
@@ -98,37 +138,52 @@ export function Contacto() {
         ) : null}
       </Card>
 
-      <Text style={styles.sectionTitle}>Contactos</Text>
-      {contactos.length === 0 ? (
-        <Text style={styles.muted}>Sin contactos cargados</Text>
-      ) : (
-        contactos.map((c) => (
-          <Card key={c.id} style={styles.contactoCard}>
-            <Text style={styles.contactoNombre}>{c.nombre}</Text>
-            {c.rol ? <Text style={styles.contactoRol}>{c.rol}</Text> : null}
-            <View style={styles.contactoLinks}>
-              {c.telefono ? (
-                <>
-                  <Pressable onPress={() => abrir(`tel:${c.telefono}`)}>
-                    <Text style={styles.link}>Tel: {c.telefono}</Text>
-                  </Pressable>
-                  <Pressable onPress={() => abrir(waLink(c.telefono))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
-                    <MaterialCommunityIcons name="whatsapp" size={18} color="#25D366" />
-                  </Pressable>
-                </>
-              ) : null}
-              {c.email ? (
-                <Pressable onPress={() => abrir(`mailto:${c.email}`)}>
-                  <Text style={styles.link}>{c.email}</Text>
-                </Pressable>
-              ) : null}
-            </View>
+      {contactosResto.length > 0 ? (
+        <>
+          <Text style={styles.sectionTitle}>Contactos</Text>
+          <Card style={styles.card}>
+            {contactosResto.map((c, i) => (
+              <View key={c.id} style={[styles.filaRow, i > 0 && styles.filaRowDivider]}>
+                <View style={styles.filaIconBox}>
+                  <MaterialCommunityIcons name="account-outline" size={16} color={t.textMuted} />
+                </View>
+                <View style={styles.flex1}>
+                  <Text style={styles.filaVal}>{c.nombre}</Text>
+                  {c.rol ? <Text style={styles.contactoRol}>{c.rol}</Text> : null}
+                </View>
+                <View style={styles.filaAcciones}>
+                  {c.telefono ? (
+                    <Pressable onPress={() => abrir(`tel:${c.telefono}`)} style={styles.filaAccionBtn}>
+                      <MaterialCommunityIcons name="phone-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                  ) : null}
+                  {c.telefono ? (
+                    <Pressable onPress={() => abrir(waLink(c.telefono))} style={styles.filaAccionBtn}>
+                      <MaterialCommunityIcons name="whatsapp" size={16} color="#25D366" />
+                    </Pressable>
+                  ) : null}
+                  {c.email ? (
+                    <Pressable onPress={() => abrir(`mailto:${c.email}`)} style={styles.filaAccionBtn}>
+                      <MaterialCommunityIcons name="email-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
           </Card>
-        ))
-      )}
+        </>
+      ) : null}
     </ScrollView>
   );
 }
+
+const ICONO_FILA = {
+  "Teléfono": "phone-outline",
+  "Email": "email-outline",
+  "Horario clases": "clock-outline",
+  "Secretaría": "office-building-outline",
+  "Sitio web": "web",
+};
 
 export function Alumnos() {
   const { cursoIds, esVistaTodos, tagDeCurso } = useSession();
@@ -258,8 +313,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
-  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
+  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
+  subtitle: { fontSize: 12.5, color: t.textMuted, marginBottom: SPACE.lg },
   muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
+  urgCard: { backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FCA5A5", borderRadius: RADIUS.xl, padding: SPACE.lg, marginBottom: SPACE.lg },
+  urgLabel: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.8, color: "#EF4444" },
+  urgTitulo: { fontSize: 16, fontWeight: "800", color: "#7F1D1D", marginTop: 4, marginBottom: 12 },
+  urgBtns: { flexDirection: "row", gap: 8 },
+  urgBtnPrimary: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: "#EF4444", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  urgBtnPrimaryTxt: { fontSize: 13.5, fontWeight: "800", color: "#FFFFFF" },
+  urgBtnGhost: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: "#FCA5A5", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
+  urgBtnGhostTxt: { fontSize: 13.5, fontWeight: "800", color: "#EF4444" },
+  filaIconBox: { width: 32, height: 32, borderRadius: RADIUS.md, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  filaRowDivider: { borderTopWidth: 1, borderTopColor: t.border, marginTop: 4, paddingTop: 10 },
+  filaAcciones: { flexDirection: "row", gap: 4 },
+  filaAccionBtn: { width: 32, height: 32, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
   card: {
     padding: SPACE.xl,
     borderRadius: RADIUS.xl,
@@ -269,9 +337,9 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   colegioNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, marginBottom: SPACE.md },
-  filaRow: { flexDirection: "row", gap: 10, marginBottom: 6 },
-  filaLabel: { fontSize: 13, color: t.textFaint, fontWeight: "600", width: 110 },
-  filaVal: { fontSize: 13, color: t.text, flex: 1 },
+  filaRow: { flexDirection: "row", gap: 10, alignItems: "center", paddingVertical: 6 },
+  filaLabel: { fontSize: 10.5, color: t.textFaint, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+  filaVal: { fontSize: 13.5, color: t.text, fontWeight: "600" },
   link: { fontSize: 13, color: BLUE[600], fontWeight: "700" },
   mapsBtn: {
     marginTop: SPACE.md,
