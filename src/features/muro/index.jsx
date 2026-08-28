@@ -39,6 +39,23 @@ function TagHijo({ tag }) {
   );
 }
 
+// Estado de error de red (Tanda 1 del handoff): versión web de
+// mobile/features/muro/index.jsx's ErrorMuro — mismo copy y misma idea
+// (si ya había datos, se avisa que se está mostrando lo último cargado
+// en vez de tapar la pantalla).
+function ErrorMuro({ onReintentar, tieneDatos, style }) {
+  return (
+    <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:16,padding:"20px 18px",textAlign:"center",...style}}>
+      <div style={{fontSize:28,marginBottom:8}}>☁️</div>
+      <div style={{fontSize:14,fontWeight:800,color:"#0F172A",marginBottom:4}}>No pudimos actualizar el muro</div>
+      <div style={{fontSize:12.5,color:"#64748B",marginBottom:14}}>
+        {tieneDatos ? "Estás viendo lo último cargado. Revisá tu conexión." : "Revisá tu conexión e intentá de nuevo."}
+      </div>
+      <button onClick={onReintentar} style={{padding:"9px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>Reintentar</button>
+    </div>
+  );
+}
+
 export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate, isMobile=true }) {
   misHijos = (misHijos||[]).filter(h=>h && typeof h === "string");
   cursoIds = (cursoIds&&cursoIds.length) ? cursoIds : (cursoId ? [cursoId] : []);
@@ -49,6 +66,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [leidosMuro,setLeidosMuro] = useState(new Set());
   const [hijosNombres,setHijosNombres] = useState([]);
+  const [error,setError] = useState(false);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
   const cursosKey = cursoIds.join(",");
@@ -57,6 +75,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
 
   const cargar = async () => {
     if(!cursoIds.length) return;
+    try {
     const fechaHoy = new Date().toISOString().split("T")[0];
     const fecha15  = new Date(Date.now() + 15*24*60*60*1000).toISOString().split("T")[0];
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData,encuestasData] = await Promise.all([
@@ -138,6 +157,11 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       if(!cursosConAlerta.has(a.curso_id)){ cursosConAlerta.add(a.curso_id); alertasPorCurso.push(a); }
     }
     setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), hijosData:hijosData.data||[] });
+    setError(false);
+    } catch(e) {
+      console.warn("No se pudo actualizar el muro:", e?.message);
+      setError(true);
+    }
   };
 
   const marcarLeidoMuro = async (recId) => {
@@ -183,7 +207,10 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
     if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
   };
 
-  if(!datos) return <Spinner/>;
+  // Sin datos todavía: si ya falló el primer intento, mostrar el error con
+  // reintentar en vez de un Spinner eterno (Tanda 1 del handoff — antes una
+  // falla de red en la primera carga dejaba el muro cargando para siempre).
+  if(!datos) return error ? <ErrorMuro onReintentar={cargar} tieneDatos={false}/> : <Spinner/>;
 
   // Colecta más próxima a cerrar entre las que YA cerrará; solo para el
   // resumen de la aside de escritorio (no altera la lógica de colectasPend).
@@ -285,6 +312,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
       </div>
+      {error&&<ErrorMuro onReintentar={cargar} tieneDatos style={{marginBottom:18}}/>}
       {(datos.alertas||[]).map(al=>{
         const tag = tagDe(al.curso_id);
         return (

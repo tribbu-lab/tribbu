@@ -1706,6 +1706,19 @@ export function HorariosAdmin({ cursos }) {
   const [horForm,  setHorForm]  = useState(null);
   const [saving,   setSaving]   = useState(false);
   const [confirmElim, setConfirmElim] = useState(null); // horario a eliminar
+  const [clasesPorCurso, setClasesPorCurso] = useState({}); // curso_id -> nº clases, para las stats
+
+  // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 5): antes de
+  // elegir un curso, orienta cuántos ya tienen horario cargado. Una sola
+  // consulta liviana (solo curso_id) para todos los cursos del año vigente.
+  useEffect(()=>{
+    if(!cursos.length) return;
+    supabase.from("horarios").select("curso_id").in("curso_id", cursos.map(c=>c.id)).then(({data})=>{
+      const conteo = {};
+      for(const h of (data||[])) conteo[h.curso_id] = (conteo[h.curso_id]||0)+1;
+      setClasesPorCurso(conteo);
+    });
+  },[cursos]);
 
   const cargar = async (cid) => {
     if(!cid) return;
@@ -1769,6 +1782,13 @@ export function HorariosAdmin({ cursos }) {
           onConfirmar={()=>eliminar(confirmElim.id)}
         />
       )}
+
+      <ModuloStats items={[
+        {n:cursos.length, l:"Cursos"},
+        {n:Object.keys(clasesPorCurso).length, l:"Con horario", c:"#10B981", sub:`de ${cursos.length}`},
+        {n:cursos.length-Object.keys(clasesPorCurso).length, l:"Sin horario", c:"#B45309"},
+        {n:Object.values(clasesPorCurso).reduce((a,b)=>a+b,0), l:"Clases cargadas"},
+      ]}/>
 
       {/* Selector de curso */}
       <div style={{marginBottom:20}}>
