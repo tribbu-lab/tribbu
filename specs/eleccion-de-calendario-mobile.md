@@ -4,11 +4,18 @@ status: implemented
 priority: medium
 ---
 
-> Implementado 2026-08-26. Pendiente: el QA de punta a punta en dispositivos
-> reales con cuenta Google (criterios marcados abajo) y, antes del próximo
-> build debug local, regenerar `mobile/android/` (`npx expo prebuild --clean`
-> + reaplicar `debuggableVariants = []`) porque `expo-calendar` es un módulo
-> nativo nuevo.
+> Implementado 2026-08-26. **Revisión 2026-08-28**: el usuario ahora **elige el
+> destino** — "Calendario del dispositivo" o "Google Calendar" — con la misma
+> UI en iOS y Android, y cada opción usa el mecanismo que funciona en esa
+> plataforma. Motiva el cambio un hallazgo verificado en emulador contra una
+> cuenta Google real: el calendario LOCAL que crea `expo-calendar` en Android
+> **no aparece en la app de Google Calendar** (existía con `visible=1` y 108
+> eventos), así que para quien usa Google Calendar la opción es la
+> suscripción al feed hecha desde una computadora — la única que produce un
+> "Tribbu" real dentro de la cuenta. También se corrigió un crash nativo del
+> motor Android (cumples recurrentes, detalle en Technical Notes). `expo-calendar`
+> sigue siendo módulo nativo: regenerar `mobile/android/` (`npx expo prebuild
+> --clean` + reaplicar `debuggableVariants = []`) antes de un build.
 
 ## Summary
 
@@ -20,28 +27,33 @@ enlace y pegarlo en la web de escritorio de Google Calendar. Esta feature
 resuelve ambas plataformas con la menor fricción posible y **sin obligar al
 usuario a salir de la app**:
 
-- **iOS**: elección explícita entre **Apple Calendar** (el flujo `webcal://`
-  existente, sin cambios) y **Google Calendar** — un botón que abre el flujo
-  de suscripción de Google Calendar web
-  (`calendar.google.com/calendar/render?cid=webcal://…`, el mismo que la web
-  de tribbu ya usa verificado) dentro de un SFSafariViewController in-app.
-- **Android**: un botón **"Conectar con mi calendario"** que escribe los
-  eventos de tribbu directamente en el calendario Google del usuario vía
-  `expo-calendar` (CalendarContract) — 100% dentro de la app, ~3 taps
-  (trigger → conectar → permiso del sistema), sin browser ni login. Los
-  eventos insertados en un calendario Google del dispositivo **sí sincronizan
-  a los servidores de Google**: aparecen en la app de Google Calendar, en
-  calendar.google.com y en los demás dispositivos del usuario. La app pasa a
-  ser responsable de mantenerlos al día (re-sync al abrirse), leyendo del
-  mismo feed ICS `calendar-feed` para no duplicar la lógica de alcance
-  multi-curso.
+- **Selector de destino (ambas plataformas)**: el Sheet muestra dos filas
+  tipo radio — **📱 Calendario del dispositivo** y **🗓️ Google Calendar** —
+  con una descripción por plataforma que explica el alcance de cada una. Al
+  elegir, aparece el panel de esa opción. Debajo, siempre, el fallback para
+  otras apps (Outlook, etc.): copiar el enlace.
+
+| destino | iOS | Android |
+|---|---|---|
+| Calendario del dispositivo | `webcal://` → Apple Calendar se suscribe a un "Tribbu" nativo que el servidor actualiza solo | `expo-calendar` crea un calendario **"Tribbu" LOCAL** y lo re-sincroniza al abrir la app (motor `mobile/lib/calendarSync.js`); "Desconectar" lo borra entero |
+| Google Calendar | `render?cid=webcal://…` en un SFSafariViewController (in-app) | **Suscripción guiada**: "Copiar enlace" / "Enviármelo por mail" + 4 pasos para agregarlo una vez desde `calendar.google.com` en una computadora + "Ya lo agregué" |
+
+- El Android/dispositivo tiene un límite que **el copy dice**: no llega a
+  calendar.google.com y la app de Google Calendar no lo muestra. Sirve para
+  Samsung Calendar/AOSP/otras, y para quien no tiene cuenta Google. Quien usa
+  Google Calendar elige la otra opción.
+- El Android/Google es el único camino que da un calendario "Tribbu" real en
+  la cuenta (`ownerAccount …@import.calendar.google.com`, nombre, color y
+  toggle propios, sync a todos los dispositivos) — verificado en la cuenta
+  del usuario. Costo: un paso manual fuera de la app la primera vez, y Google
+  tarda horas en reflejar el feed.
 
 La web no cambia.
 
-## Antecedentes — por qué Android va por el calendario del dispositivo
+## Antecedentes — por qué cada opción usa el mecanismo que usa
 
-Documentado en el header de `mobile/features/calendario/BotonAgregarCalendario.jsx`
-y verificado con un usuario real:
+Documentado en el header de `BotonAgregarCalendario.jsx`, verificado con un
+usuario real y en emulador contra una cuenta Google real:
 
 - **Atajo web (Linking / Custom Tab) — descartado**: `calendar.google.com`
   está verificado como Android App Link de la app de Google Calendar; Android
@@ -51,215 +63,193 @@ y verificado con un usuario real:
   intercepción, pero Google **bloquea el login en WebViews embebidos**
   (`disallowed_useragent`); spoofear el user-agent es frágil y contrario a
   sus ToS.
-- **Entrada por `www.google.com/calendar/render?cid=` en Custom Tab —
-  descartado como principal**: ese dominio no es App Link de Calendar y el
-  redirect del servidor dentro de Chrome no dispara App Links, así que en
-  teoría esquiva la intercepción usando la sesión de Chrome. Pero depende de
-  que la web mobile de Google soporte el diálogo de suscripción (no
-  verificado), sigue siendo un browser (fricción/percepción de "salir de la
-  app") y Google puede matar el redirect legacy cuando quiera. Queda anotado
-  solo como curiosidad, no como fallback.
 - **API de Google Calendar — descartado**: la API **no soporta** suscribir un
-  calendario "desde URL" (feature request histórico), así que OAuth ni
-  siquiera compraría el resultado; sincronizar evento por evento vía API
-  exigiría OAuth + refresh tokens server-side — desproporcionado.
-- **CalendarContract (expo-calendar) — elegido**: una app normal puede
-  insertar/editar/borrar eventos en cualquier calendario con permiso de
-  escritura, incluidos los calendarios Google del dispositivo, y el sync
-  adapter de Google los sube al servidor. Limitación conocida: una app normal
-  **no** puede crear un calendario *nuevo* que sincronice con Google (eso es
-  solo para sync adapters) — por eso se escribe en un calendario Google
-  existente del usuario, no en un calendario "Tribbu" aparte.
+  calendario "desde URL" (feature request histórico); sincronizar evento por
+  evento vía API exigiría OAuth + refresh tokens server-side.
+- **CalendarContract vía `expo-calendar` — vigente como opción "dispositivo"
+  en Android, no como única vía**. Se probaron las dos variantes:
+  - *Crear un calendario "Tribbu" propio* (**la que quedó**): separación
+    visual como en iOS y "Desconectar" limpio, pero de cuenta **LOCAL**: la
+    app de Google Calendar **no lo lista ni lo dibuja** (verificado en
+    emulador: `visible=1`, 108 eventos, ausente del cajón y de la grilla) y
+    no sube a calendar.google.com. Solo el sync adapter de Google, o la
+    Calendar API con OAuth, pueden crear un calendario real dentro de la
+    cuenta. Por eso el copy lo advierte y existe la otra opción.
+  - *Escribir en el calendario Google existente* (commit 1425d9b, descartada):
+    sí se ve y sí sincroniza, pero mezcla los eventos del colegio con el
+    calendario personal, sin toggle ni color propios, y exige cuenta Google.
+- **Suscripción ICS guiada — vigente como opción "Google" en Android**. Es el
+  único camino que produce un calendario "Tribbu" real dentro de la cuenta
+  Google. Lo único que no se puede automatizar es *crear* la suscripción
+  desde el teléfono — de ahí los pasos guiados + el enlace por mail.
 
 ## Acceptance Criteria
 
 ### iOS
 
-- [x] El `Sheet` ofrece **dos acciones primarias con nombre de destino
-      explícito**: "Apple Calendar" (el `abrirWebcal()` existente, intacto) y
-      "Google Calendar" (nueva), más "Copiar enlace" relegado a acción
-      secundaria para otras apps (Outlook, etc.).
-- [x] Camino feliz Google: trigger → "Google Calendar" → confirmación dentro
-      de Google ("Agregar calendario") — **3 taps**, sin copiar/pegar. (Un
-      login de Google la primera vez dentro del navegador in-app es aceptable
-      e inevitable: SFSafariViewController no comparte cookies con Safari.)
-- [x] La acción Google abre `https://calendar.google.com/calendar/render?cid=`
-      + `encodeURIComponent(feedUrl con esquema webcal://)` — la misma
-      conversión que `abrirEnGoogle()` en
-      `src/features/calendario/BotonAgregarCalendarioWeb.jsx` (con `https://`
-      a secas Google falla con "Unable to add calendar").
-- [x] La URL de Google se abre con `WebBrowser.openBrowserAsync` de
-      `expo-web-browser` (SFSafariViewController), **no** con
-      `Linking.openURL`: los universal links no se disparan dentro de
-      SFSafariViewController, así que la app nativa de Google Calendar no
-      puede interceptar la URL — el modo de falla que hundió el atajo web en
-      Android.
-- [ ] **QA en dispositivo/simulador iOS real con una cuenta de Google real,
-      verificando de punta a punta**: el calendario "Tribbu" aparece
-      efectivamente en calendar.google.com y en la app de Google Calendar. Un
-      dialog de éxito de Google **no** cuenta como verificación.
-- [x] **Contingencia definida**: si el QA demuestra que `render?cid=` no
-      completa la suscripción en Safari mobile, la acción "Google Calendar"
-      en iOS cae al flujo Android (conexión vía calendario del dispositivo,
-      abajo), el spec se actualiza con el hallazgo, y **no** se shipea un
-      botón que aparente funcionar sin hacerlo.
-- [x] Tras completar el flujo, `metodo` persiste como `"gcal"` — **no**
-      `"google"`, que en el componente mobile está reservado como legacy del
-      falso positivo Android y se trata como `soloCopiado`. Con `"gcal"`
-      (igual que `"webcal"`) el trigger pasa a "✓ Calendario sincronizado".
-      Se marca al **cerrar** el browser (la promesa de `openBrowserAsync`
-      resuelve ahí), no al abrirlo.
+- [x] El `Sheet` muestra el selector de destino. **Calendario del dispositivo**
+      → botón " Abrir Apple Calendar" = `Linking.openURL(webcal://…)` (flujo
+      preexistente, sin cambios de mecanismo; marca `metodo="webcal"`).
+      **Google Calendar** → botón "🗓️ Abrir Google Calendar" =
+      `WebBrowser.openBrowserAsync(render?cid=webcal://…)`; marca
+      `metodo="gcal"` recién al cerrar el browser.
+- [x] Sin dependencias ni permisos nuevos en iOS: el `calendarPermission` del
+      plugin `expo-calendar` queda declarado por si el flujo se extiende, pero
+      iOS **no llama** a expo-calendar.
+- [ ] QA manual en iPhone: ambas opciones abren lo que dicen; la suscripción
+      de Apple Calendar persiste; el flujo Google confirma la suscripción
+      dentro del SFSafariViewController.
 
 ### Android
 
-- [x] El `Sheet` ofrece una acción primaria **"Conectar con mi calendario"**
-      (copy final a definir en implementación, tono del sheet actual) y
-      "Copiar enlace" como secundaria. Camino feliz: trigger → "Conectar" →
-      diálogo de permiso del sistema → listo — **~3 taps, sin salir de la
-      app, sin browser, sin login**.
-- [x] La conexión usa `expo-calendar`: pide permiso
-      (`requestCalendarPermissionsAsync`), lista los calendarios con
-      `getCalendarsAsync()` y elige el **calendario Google escribible del
-      usuario** (`allowsModifications` + `source.type`/accountType Google,
-      preferiendo `isPrimary`/el que coincide con `ownerAccount`). Si hay más
-      de una cuenta Google con calendario escribible, un mini-picker dentro
-      del mismo `Sheet` (un tap extra solo en ese caso).
-- [x] **Motor de sync**: un módulo `mobile/lib/calendarSync.js` que (1)
-      descarga el feed ICS existente (`calendar-feed?token=…` por https —
-      misma fuente de verdad que iOS/web, cero duplicación de la lógica de
-      alcance multi-curso, prefijos de curso, festejos), (2) parsea los
-      VEVENT (parser mínimo propio: nosotros generamos ese ICS, formato
-      controlado — `UID`, `SUMMARY`, `DTSTART`/`DTEND` en fecha y datetime,
-      `RRULE:FREQ=YEARLY`, `LOCATION`, `DESCRIPTION`), y (3) upsertea contra
-      el calendario elegido guardando el mapa `UID → eventId del dispositivo`
-      en AsyncStorage (`calsync_map_<userId>`): crea los nuevos, actualiza
-      los cambiados, **borra** los que ya no están en el feed.
-- [x] Cumpleaños se insertan como evento **recurrente anual**
-      (`recurrenceRule: { frequency: 'yearly' }`), no uno por año. Eventos de
-      día completo y multi-día respetan el DTEND exclusivo del feed
-      (RFC5545) al mapear a `allDay`/`endDate`.
-- [x] El sync corre al **conectar** (primera vez) y después **al abrir la
-      app** (foreground vía `AppState` y/o mount de Calendario) cuando
-      `metodo === "device"`, con throttle (p. ej. una vez por sesión/por
-      hora) para no martillar el feed ni el CalendarProvider.
-- [x] El copy de éxito es honesto sobre la cadencia: los eventos "se
-      actualizan cuando abrís la app" (no hay push del servidor al calendario
-      como en una suscripción ICS).
-- [x] Acción **"Desconectar"** disponible una vez conectado: borra todos los
-      eventos insertados (usando el mapa guardado), limpia el mapa y resetea
-      `metodo` — el usuario no queda con eventos huérfanos imposibles de
-      sacar en masa.
-- [x] `metodo` persiste como `"device"` → el trigger pasa a "✓ Calendario
-      conectado". Permiso denegado o sin calendario Google escribible en el
-      dispositivo → mensaje claro y el flujo cae a "Copiar enlace" (el
-      comportamiento actual), sin marcar nada como conectado.
-- [ ] **QA en emulador/dispositivo Android real con una cuenta de Google
-      real, verificando de punta a punta**: los eventos aparecen en la app de
-      Google Calendar del dispositivo **y** en calendar.google.com (o sea,
-      sincronizaron al servidor, no quedaron solo locales). El falso positivo
-      del intento anterior es el antecedente directo: ningún estado local
-      cuenta como verificación.
-- [ ] Editar un evento en tribbu y reabrir la app actualiza el evento del
-      dispositivo; borrarlo en tribbu lo saca del calendario (verificado en
-      el mismo QA).
+- [x] El `Sheet` muestra el selector de destino con descripción honesta por
+      opción ("…en un toque. No llega a Google Calendar." / "…en todos tus
+      dispositivos. Se agrega una vez desde una computadora.").
+- [x] **Dispositivo**: "Conectar con mi calendario" → permiso →
+      `calendarSync.sincronizar()` crea el calendario "Tribbu" LOCAL y escribe
+      los eventos; `metodo="device"` recién cuando el primer sync terminó sin
+      error → trigger "✓ Calendario conectado" y el Sheet pasa al estado
+      conectado (Copiar enlace + **Desconectar**, que borra el calendario
+      entero y vuelve al selector). Permiso denegado → mensaje que sugiere la
+      opción Google, sin marcar nada. Re-sync al montar Calendario y al volver
+      a foreground, throttle 1 h. El hint de la opción advierte que en la app
+      de Google Calendar no se muestra.
+- [x] **Google**: aviso ("Google no permite suscribirse desde el celular…"),
+      "Copiar enlace" + "Enviármelo por mail" (`mailto:` con pasos + enlace +
+      advertencia de que es personal), 4 pasos numerados siempre visibles, y
+      "Ya lo agregué" → `metodo="suscripcion"` → "✓ Calendario sincronizado".
+      Copiar/mandar solo deja `metodo="copia"` ("🔗 Enlace copiado…").
+- [x] Cumpleaños se insertan como **un evento de día completo por año**
+      (`ANOS_RECURRENCIA = 3`, UID `<uid>::<año>`), no como recurrente —
+      fix del crash nativo (ver Technical Notes). Eventos con hora sí pueden
+      llevar `recurrenceRule`.
+- [x] Valores legacy de `metodo` (`"google"`, `"1"`) se tratan como
+      `"copia"`; no se reutilizan.
+- [x] QA en emulador (Pixel API 36, cuenta Google real): ver la sección de
+      validación al final.
+- [ ] **Pendiente**: agregar el feed de cero en `calendar.google.com` y
+      confirmar que los eventos bajan al teléfono, y cuánto tarda el primer
+      refresh (la suscripción existente venía de una prueba previa con Sync
+      apagado). Y verificar en un teléfono Samsung que el calendario LOCAL
+      aparece en Samsung Calendar.
 
 ### Comunes
 
 - [x] `sincronizado = metodo === "webcal" || metodo === "gcal" || metodo ===
       "device"`; `"copia"`/`"google"` (legacy)/`"1"` (legacy) siguen como
-      `soloCopiado`. Actualizar el comentario del componente que documenta
-      estos valores.
+      `soloCopiado`. El trigger dice "✓ Calendario conectado" para `"device"`
+      y "✓ Calendario sincronizado" para los otros dos.
 - [x] "Copiar enlace" sigue disponible en ambas plataformas para apps de
-      terceros, con su hint (el de Android se simplifica: ya no es el camino
-      principal).
+      terceros, con su hint.
 - [x] Sin cambios de esquema, RPC, Edge Function ni RLS: se reutilizan
       `usuario_calendar_tokens`, `regenerar_calendar_token()` y
       `calendar-feed` tal como están. "Regenerar enlace" sigue funcionando;
-      en Android el sync usa el token vigente en cada corrida, así que
-      regenerar no lo rompe.
-- [x] Los botones del sheet caben sin recorte en un teléfono angosto
-      (SE/mini y un Android chico): el `row` existente ya hace `flexWrap`.
-      (No aplica a Super Admin / desktop: cambio exclusivo del sheet mobile.)
+      en Android el sync usa el token vigente en cada corrida.
+- [x] Los botones del sheet caben sin recorte en un teléfono angosto: el
+      `row` hace `flexWrap`. (No aplica a Super Admin / desktop: cambio
+      exclusivo del sheet mobile.)
 - [x] La web (`BotonAgregarCalendarioWeb.jsx`) no se toca.
-- [x] `cd mobile && npm run lint` y `npx expo export -p ios` pasan.
+- [x] `cd mobile && npm run lint` y `npx expo export -p ios` / `-p android`
+      pasan.
 
 ## Technical Notes
 
 - **Archivos**: `mobile/features/calendario/BotonAgregarCalendario.jsx`
-  (UI + flujos por plataforma) y nuevo `mobile/lib/calendarSync.js` (fetch
-  del feed + parser ICS mínimo + upsert/borrado vía `expo-calendar` + mapa en
-  AsyncStorage + throttle). El hook de re-sync al foreground puede vivir en
-  el propio componente o en `mobile/app/(tabs)/_layout.jsx` si conviene que
-  corra sin visitar Calendario — decidir en implementación (empezar por lo
-  simple: mount de Calendario + `AppState`).
-- **iOS no necesita dependencia nueva**: `expo-web-browser` ya está
-  (`~15.0.11`). **Android sí**: `expo-calendar` es un **módulo nativo nuevo**
-  → mismo protocolo que `expo-local-authentication` (biometría): `npx expo
-  prebuild --clean` (o equivalente) antes del próximo build debug, reaplicar
-  el fix `debuggableVariants = []` en `mobile/android/app/build.gradle`, y un
-  build nuevo de EAS para producción. Config plugin de `expo-calendar` en
-  `app.json` con los permisos (`READ_CALENDAR`/`WRITE_CALENDAR`; en iOS
-  agrega `NSCalendarsUsageDescription` aunque iOS no lo use en v1 — texto en
-  español igual). Actualizar la sección de permisos del **Play Console data
-  safety** al publicar.
+  (selector + los 4 paneles; tabla de mecanismos en el header) y
+  `mobile/lib/calendarSync.js` (motor Android/dispositivo: fetch del feed +
+  parser ICS mínimo + calendario "Tribbu" + upsert/borrado + mapa en
+  AsyncStorage + throttle + expansión anual de cumples). El re-sync al
+  foreground vive en el componente (`AppState` listener con cleanup).
+- **Dependencias**: `expo-web-browser` (iOS/Google) y `expo-clipboard` ya
+  estaban; `mailto:` va por `Linking`. `expo-calendar ~15.0.8` es **módulo
+  nativo** → `npx expo prebuild --clean` antes del próximo build debug local,
+  reaplicar `debuggableVariants = []`, build nuevo de EAS para producción.
+  Config plugin en `app.config.js` con `calendarPermission` en español
+  (Android suma `READ_CALENDAR`/`WRITE_CALENDAR`; declararlos en el **Play
+  Console data safety** al publicar).
+- **Crash nativo corregido (2026-08-28)**: para un evento de día completo con
+  recurrencia (los cumples: `VALUE=DATE` + `RRULE:FREQ=YEARLY`) expo-calendar
+  emite `DURATION="PT86400S"` y `CalendarProvider2.fixAllDayTime()` la parsea
+  con un substring ingenuo (`Integer.parseInt("T86400")`) →
+  `NumberFormatException` que escapa el catch angosto de `saveEventAsync`
+  (solo Parse/EventNotSaved/InvalidArgument) y **mata el proceso** — no es un
+  promise rejection, ningún try/catch de JS lo ve. Reproducido en emulador
+  (stack: `CalendarModule.saveEvent(CalendarModule.kt:536)`). Fix: el parser
+  expande esos VEVENT a uno por año, y `sincronizar()` no cambia — el mapa
+  UID→eventId hace que la ventana de 3 años se corra sola en cada sync.
 - **Por qué el feed ICS como fuente y no queries directas a Supabase**: la
   lógica de alcance (cursos del usuario ∪ admin, prefijo de curso en el
-  título, cumples recurrentes, festejos, DTEND exclusivo) ya vive verificada
-  en `supabase/functions/calendar-feed/index.ts`. Parsearlo del lado del
-  cliente mantiene una sola fuente de verdad; el parser solo necesita
-  entender el formato que nosotros mismos emitimos (sin librería ICS).
-  Cuidado con el **line folding** de RFC5545 (líneas continuadas con espacio
-  inicial) si el feed lo emite — verificar contra el generador real.
-- **Elección del calendario destino**: en Android los calendarios Google
-  aparecen con `source`/accountType `com.google`. Escribir en el calendario
-  **existente** del usuario (no crear uno): los calendarios creados por apps
-  normales son `LOCAL` y no sincronizan al servidor — crear "Tribbu" local
-  daría el mismo falso resultado que el intento anterior (visible solo en el
-  teléfono). Los títulos del feed ya llevan el prefijo del curso, así que los
-  eventos se distinguen dentro del calendario personal.
-- **Idempotencia**: el `UID` estable del feed (`evento-{id}@tribbu.app`,
-  etc.) es la clave del mapa. Nunca buscar por título/fecha. Si el mapa se
-  pierde (reinstalación), el peor caso es duplicar — mitigable guardando
-  también el UID en alguna propiedad del evento del dispositivo si
-  `expo-calendar` lo permite, o aceptando el edge y documentándolo
-  ("Desconectar" antes de reinstalar). Decidir en implementación y anotar.
+  título, cumples recurrentes, DTEND exclusivo) ya vive verificada en
+  `supabase/functions/calendar-feed/index.ts`. El parser solo entiende el
+  formato que nosotros mismos emitimos (sin librería ICS), incluido el line
+  folding de RFC5545.
+- **Idempotencia**: `UID` estable del feed como clave del mapa; nunca buscar
+  por título/fecha. La firma de contenido excluye `DTSTAMP` (el generador lo
+  re-emite en cada fetch — sin excluirlo, cada sync recrearía todo).
+  Reinstalación: el "Tribbu" huérfano se borra y recrea, sin duplicados.
 - **Marcar `metodo` en el momento correcto**: iOS `"gcal"` al resolver
   `openBrowserAsync` (cierre del browser); Android `"device"` recién cuando
-  el primer sync terminó sin error (no al pedir el permiso).
-- **Copy en español**, tono del sheet actual: "¿Qué calendario usás?" en iOS
-  ( Apple Calendar / 🗓️ Google Calendar); en Android el botón único
-  "Conectar con mi calendario" + explicación de que se actualiza al abrir la
-  app. Estilos existentes `btnPrimary`/`btnSecondary` (tokens
-  `THEMES`/`SPACE`/`RADIUS`, skin A3, sin sombras).
-- **QA**: manual — no hay test suite. Android: el emulador local sirve
-  (recordar el workaround de DNS `-dns-server 8.8.8.8,1.1.1.1` si la red
-  falla) pero necesita una AVD con Google Play y una cuenta Google logueada
-  para que exista un calendario `com.google` escribible; verificar en
-  calendar.google.com desde afuera. iOS: simulador/dispositivo manual.
-  [skill: agent-browser no aplica — flujos nativos]
-- Sin efectos nuevos complejos en el componente (las acciones son handlers);
-  el listener de `AppState` y el throttle viven en `calendarSync.js` con
-  cleanup correcto. Los `useEffect` existentes ya limpian con la bandera
-  `activo`. [skill: vercel-react-best-practices] [skill:
-  vercel-react-native-skills — módulo nativo nuevo: revisar sus notas de
-  native modules antes de implementar]
+  el primer sync terminó sin error.
+- **QA**: manual — no hay test suite. Android: emulador local (workaround DNS
+  `-dns-server 8.8.8.8,1.1.1.1` si la red falla); ya no hace falta cuenta
+  Google, pero **sí** verificar la visibilidad del calendario LOCAL en la app
+  de calendario que el usuario real usa (ver AC ⚠️). iOS:
+  simulador/dispositivo manual. [skill: agent-browser no aplica — flujos
+  nativos]
+- Sin efectos nuevos complejos (las acciones son handlers); los `useEffect`
+  limpian con la bandera `activo` / `sub.remove()`. [skill:
+  vercel-react-best-practices] [skill: vercel-react-native-skills]
 
 ## Out of Scope
 
-- Crear un calendario "Tribbu" separado y sincronizado en la cuenta Google
-  del usuario (imposible para apps normales — solo sync adapters) o uno
-  local device-only (falso "conectado": no llega a calendar.google.com).
+- Un calendario "Tribbu" **sincronizado al servidor de Google** (imposible
+  para apps normales — solo sync adapters); si el QA de visibilidad falla en
+  la app de Google Calendar, el fallback es la variante "escribir en el
+  calendario Google existente" (commit 1425d9b), no un sync adapter propio.
 - Sync en background (expo-background-task / headless): v1 actualiza al
   abrir la app, que en la práctica es frecuente por las notificaciones push.
 - API de Google Calendar con OAuth (no soporta suscripción por URL; insertar
   evento a evento exigiría infra OAuth server-side).
-- Usar el flujo `expo-calendar` también en iOS (webcal:// es superior: el
-  servidor empuja actualizaciones sin abrir la app). Solo entra como
-  contingencia si el flujo Google de iOS falla el QA.
+- Usar `expo-calendar` también en iOS como "calendario del dispositivo":
+  webcal:// es superior (el servidor empuja actualizaciones sin abrir la app y
+  no pide permiso de calendario). Decisión explícita 2026-08-28.
 - Detectar qué app de calendario tiene instalada el usuario para
   preseleccionar.
 - Cambios a la web (`BotonAgregarCalendarioWeb.jsx`) o al Edge Function
   `calendar-feed`.
-- Sync bidireccional (ediciones hechas en Google Calendar no vuelven a
-  tribbu; el sync las pisa en la próxima corrida — documentado en el copy si
-  hace falta), exclusión por curso, CalDAV.
+- Sync bidireccional (ediciones hechas en el calendario del teléfono no
+  vuelven a tribbu; el sync las pisa en la próxima corrida), exclusión por
+  curso, CalDAV.
+
+## Validación (2026-08-28, emulador Pixel API 36 con cuenta Google real)
+
+- **Crash reproducido y corregido**: antes del fix, "Conectar" mataba el
+  proceso (`FATAL EXCEPTION … IllegalArgumentException: For input string:
+  "T86400" at CalendarModule.saveEvent(CalendarModule.kt:536)`). Con el fix,
+  el mismo flujo termina con la app viva.
+- **Android/dispositivo**: permiso → calendario "Tribbu" (`account_type=LOCAL`,
+  `visible=1`) con **108 eventos**: 72 son cumples (24 alumnos × 3 años, p. ej.
+  Valentino Terbay 2026/2027/2028-10-05, `allDay=1`) y los 108 tienen
+  `rrule=NULL`. Trigger "✓ Calendario conectado"; Sheet en estado conectado.
+  "Desconectar" borra el calendario (0 LOCAL) y vuelve al selector con el
+  trigger en "Agregar a tu calendario". Reconectar → 108 otra vez, sin
+  duplicados.
+- **Android/Google**: aviso + botones + 4 pasos renderizan; "Copiar enlace"
+  deja la URL real del feed en el portapapeles (vista previa del sistema);
+  `mailto:` resuelve a Gmail sin romper la app; "Ya lo agregué" → "✓
+  Calendario sincronizado", y **persiste tras reiniciar**.
+- **Selector**: la opción activa se resalta (radio + borde accent); cambiar de
+  opción cambia el panel; el fallback "Copiá el enlace" queda siempre visible.
+- **Google Calendar y el LOCAL**: con el calendario LOCAL creado y visible, la
+  app de Google Calendar no lo mostró ni en el cajón ni en la grilla — el
+  "Cumple Val" visible en la grilla del usuario provenía de su calendario
+  Personal (`calendar_id=5`), no del nuestro.
+- **Suscripción en la cuenta**: el feed figura como calendario "Tribbu"
+  (`account_type=com.google`, `ownerAccount …@import.calendar.google.com`,
+  `access_level=200`) con nombre, color "Tangerine" y "Unsubscribe from
+  calendar"; al activarle Sync aparece en el cajón lateral junto a los demás.
+- `npm run lint` y `npx expo export -p ios` limpios; `prebuild --clean` con
+  `expo-calendar` reinstalado deja `READ/WRITE_CALENDAR` en el manifest.
+- **No verificado**: iOS (ambas opciones, QA manual pendiente); que los
+  eventos de la suscripción bajen desde cero y cuánto tarda; el LOCAL en
+  Samsung Calendar.

@@ -115,15 +115,17 @@ export default {
       // iOS: abre "Google Calendar" (render?cid=) en un SFSafariViewController
       // — los universal links no se disparan ahí, así que la app nativa de
       // Google Calendar no puede interceptar la URL (en Android exactamente
-      // esa intercepción vía App Links hundió el atajo web y por eso allá se
-      // usa expo-calendar en su lugar — ver BotonAgregarCalendario.jsx).
+      // esa intercepción vía App Links hundió el atajo web, y por eso allá la
+      // opción Google es una suscripción guiada desde una computadora — ver
+      // BotonAgregarCalendario.jsx).
       "expo-web-browser",
       [
-        // Android: "Conectar con mi calendario" escribe los eventos del feed
-        // directo en el calendario Google del dispositivo vía CalendarContract
+        // Android, opción "Calendario del dispositivo": crea un calendario
+        // "Tribbu" local y escribe ahí los eventos del feed vía CalendarContract
         // (ver mobile/lib/calendarSync.js + specs/eleccion-de-calendario-mobile.md).
-        // El string de permiso es para iOS (NSCalendarsUsageDescription) por si
-        // el flujo se extiende allá; en Android agrega READ/WRITE_CALENDAR.
+        // Agrega READ/WRITE_CALENDAR al manifest. El string de permiso es para
+        // iOS (NSCalendarsUsageDescription) por si el flujo se extiende allá —
+        // hoy iOS no lo usa: su "calendario del dispositivo" es webcal://.
         "expo-calendar",
         {
           calendarPermission:
