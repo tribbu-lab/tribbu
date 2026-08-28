@@ -1382,6 +1382,16 @@ export function AlertasAdmin({ cursos }) {
   const [alerta,   setAlerta]   = useState(null);
   const [modal,    setModal]    = useState(false);
   const [loading,  setLoading]  = useState(false);
+  const [cursosConAlerta, setCursosConAlerta] = useState(new Set());
+
+  // Header de módulo con stats (handoff Tribbu Admin, Parte 5): cuántos
+  // cursos tienen una alerta activa AHORA, antes de elegir uno.
+  useEffect(()=>{
+    if(!cursos.length) return;
+    supabase.from("alertas").select("curso_id").in("curso_id", cursos.map(c=>c.id)).eq("activa",true).then(({data})=>{
+      setCursosConAlerta(new Set((data||[]).map(a=>a.curso_id)));
+    });
+  },[cursos]);
 
   const cargar = async (cid) => {
     if(!cid) return;
@@ -1399,15 +1409,25 @@ export function AlertasAdmin({ cursos }) {
     const userIds = await getUserIdsByCurso(cursoSel.id);
     await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
     setLoading(false); setModal(false); cargar(cursoSel.id);
+    setCursosConAlerta(p=>new Set([...p, cursoSel.id]));
   };
 
   const dismiss = async () => {
-    if(alerta) { await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(cursoSel.id); }
+    if(alerta) {
+      await supabase.from("alertas").update({activa:false}).eq("id",alerta.id);
+      cargar(cursoSel.id);
+      setCursosConAlerta(p=>{ const n=new Set(p); n.delete(cursoSel.id); return n; });
+    }
   };
 
   return (
     <div>
       {modal&&<AlertaModal onClose={()=>setModal(false)} onEnviar={enviar}/>}
+      <ModuloStats items={[
+        {n:cursos.length, l:"Cursos"},
+        {n:cursosConAlerta.size, l:"Con alerta activa", c:"#EF4444"},
+        {n:cursos.length-cursosConAlerta.size, l:"Sin alerta", c:"#10B981"},
+      ]}/>
       <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Seleccioná un curso para enviar una alerta</div>
       <div style={{marginBottom:20}}>
         <CursoListSelector cursos={cursos} seleccionados={cursoSel?[cursoSel.id]:[]} onToggle={id=>selCurso(cursos.find(c=>c.id===id))} multi={false}/>
@@ -1896,8 +1916,17 @@ export function UniformesAdmin({ cursos }) {
 
   const modalTitle = modal ? ({newU:"Nueva categoría",editU:"Editar categoría",newItem:"Agregar ítem",editItem:"Editar ítem"}[modal.mode]) : "";
 
+  const totalItems = uniformes.reduce((n,u)=>n+(u.uniforme_items?.length||0),0);
+  const cursosConUniforme = new Set(links.map(l=>l.curso_id)).size;
+
   return (
     <div>
+      <ModuloStats items={[
+        {n:uniformes.length, l:"Categorías"},
+        {n:totalItems, l:"Ítems"},
+        {n:cursosConUniforme, l:"Cursos con uniforme", c:"#10B981", sub:`de ${cursos.length}`},
+        {n:cursos.length-cursosConUniforme, l:"Sin uniforme", c:"#B45309"},
+      ]}/>
       {confirmElimU&&(
         <ConfirmDestructivoModal
           titulo="¿Eliminar esta categoría de uniforme?"
