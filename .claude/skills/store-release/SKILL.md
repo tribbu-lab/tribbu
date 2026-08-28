@@ -56,9 +56,13 @@ npx -y eas-cli@latest build -p android --profile production --local \
   APKs 1.0.0/vc≤3 de julio, descubierto 2026-08-20). Solo los builds cloud la
   reciben de EAS. No "arreglarlo" des-ignorando el archivo.
 - Verificación post-build del binario (debe dar ≥1):
-  `unzip -p <artefacto> resources.arsc | grep -a -c 943309263680`
-  (en un `.aab` el path es `base/resources.arsc`; si da 0, el build salió sin
-  Firebase — no lo distribuyas).
+  - **AAB**: `unzip -p <artefacto> base/resources.pb | grep -a -c 943309263680`
+    (los AAB guardan los recursos en protobuf; **no tienen `resources.arsc`** —
+    buscarlo ahí da 0 y parece un build roto cuando no lo está. Verificado
+    2026-08-28.)
+  - **APK**: `unzip -p <artefacto> resources.arsc | grep -a -c 943309263680`
+
+  Si da 0, el build salió sin Firebase — no lo distribuyas.
 - Submit (does **not** consume build quota; targets come from `eas.json > submit`,
   Play **internal** track, `play-service-account.json` must exist locally):
 
