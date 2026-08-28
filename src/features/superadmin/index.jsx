@@ -792,6 +792,9 @@ export function SuperAdmin() {
             {sec==="alumnos" && (
               <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
             )}
+            {sec==="cursos" && (
+              <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6",año_lectivo:anoCursosMostrado}); setModal("nuevo_curso"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo curso</button>
+            )}
           </div>
         );
       })()}
@@ -957,9 +960,19 @@ export function SuperAdmin() {
             );
       })()}
 
-      {sec==="cursos" && (
+      {sec==="cursos" && (() => {
+        const conRP = cursosParaListado.filter(c=>usuarios.some(u=>u.rol==="admin"&&u.cursos.includes(c.id))).length;
+        const totalAlumnos = hijos.filter(h=>cursosParaListado.some(c=>c.id===h.curso_id)).length;
+        const gridCols = "1.8fr 1.8fr 100px 130px";
+        return (
         <>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <ModuloStats items={[
+            {n:cursosParaListado.length, l:`Cursos ${anoCursosMostrado}`},
+            {n:conRP, l:"Con Room Parent", c:"#10B981", sub:`de ${cursosParaListado.length}`},
+            {n:cursosParaListado.length-conRP, l:"Sin Room Parent", c:"#B45309"},
+            {n:totalAlumnos, l:"Alumnos"},
+          ]}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
             <span style={{fontSize:12,fontWeight:700,color:"#94A3B8"}}>Año lectivo</span>
             <select value={anoCursosMostrado} onChange={e=>setAnoCursosSel(Number(e.target.value))} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:700,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
               {(añosDisponibles.includes(anoActual+1)?añosDisponibles:[...añosDisponibles,anoActual+1]).sort((a,b)=>b-a).map(a=>(
@@ -967,30 +980,49 @@ export function SuperAdmin() {
               ))}
             </select>
           </div>
-          <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6",año_lectivo:anoCursosMostrado}); setModal("nuevo_curso"); }} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",color:"#3B82F6",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Agregar nuevo curso</button>
           <ListToolbar busqueda={ctrlCursos.busqueda} setBusqueda={ctrlCursos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"id",label:"Más reciente"}]} sortKey={ctrlCursos.sortKey} sortAsc={ctrlCursos.sortAsc} toggleSort={ctrlCursos.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrlCursos.resetFiltros} total={ctrlCursos.total} placeholder="Buscar curso..."/>
-          {ctrlCursos.items.map(c=>{
-            const admins=usuarios.filter(u=>u.rol==="admin"&&u.cursos.includes(c.id));
-            const padres=usuarios.filter(u=>u.rol==="padre"&&hijos.filter(h=>h.curso_id===c.id).some(h=>u.hijos.includes(h.id)));
-            return (
-              <Card key={c.id} style={{padding:"14px 16px",marginBottom:10,borderLeft:`4px solid ${c.color}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:44,height:44,borderRadius:12,background:c.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.avatar}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:15,fontWeight:800}}>{c.nombre}</div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{admins.length} Room Parent{admins.length!==1?"s":""} · {padres.length} familias</div>
-                    {admins.length>0&&<div style={{fontSize:11,color:"#94A3B8"}}>Admin: {admins.map(a=>a.nombre).join(", ")}</div>}
+
+          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+              {!isMobile && <>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Curso</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Room Parent</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Alumnos</div>
+                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+              </>}
+              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlCursos.total} cursos</div>}
+            </div>
+
+            {ctrlCursos.items.length===0 ? (
+              <div style={{textAlign:"center",padding:"48px 24px"}}>
+                <div style={{fontSize:15,fontWeight:800}}>Ningún curso coincide</div>
+                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre.</div>
+                <button onClick={ctrlCursos.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
+              </div>
+            ) : ctrlCursos.items.map(c=>{
+              const admins=usuarios.filter(u=>u.rol==="admin"&&u.cursos.includes(c.id));
+              const alumnosCurso=hijos.filter(h=>h.curso_id===c.id).length;
+              return (
+                <div key={c.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",borderLeft:`3px solid ${c.color}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                    <div style={{width:34,height:34,borderRadius:10,background:c.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{c.avatar}</div>
+                    <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.nombre}</div>
                   </div>
-                  <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,marginRight:6}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
-                  <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,marginRight:6}}>✏️</button>
-                  <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Se eliminarán todos los datos asociados al curso.",action:()=>eliminarCurso(c.id)})} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  <div style={{fontSize:12.5,color:"#64748B"}}>{admins.length>0?admins.map(a=>a.nombre).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin asignar</span>}</div>
+                  <div style={{fontSize:13,fontWeight:700,textAlign:isMobile?"left":"center"}}>{alumnosCurso}</div>
+                  <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
+                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
+                    <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Se eliminarán todos los datos asociados al curso.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                  </div>
                 </div>
-              </Card>
-            );
-          })}
+              );
+            })}
+          </div>
           <Paginador pagina={ctrlCursos.pagina} totalPag={ctrlCursos.totalPag} setPagina={ctrlCursos.setPagina}/>
         </>
-      )}
+        );
+      })()}
       {sec==="alumnos" && (() => {
         const conApoderado = alumnos.filter(a=>(a.usuarios||[]).length>0).length;
         const sinCumple = alumnos.filter(a=>!a.fecha_nacimiento).length;
