@@ -13,7 +13,6 @@ import { MESES, T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
-import { Card } from "../../components/Card";
 
 const t = THEMES.light;
 
@@ -32,9 +31,10 @@ const pad = (n) => String(n).padStart(2, "0");
 export function Comedor() {
   const { isAdmin } = useSession();
   const [menu, setMenu] = useState([]);
-  const [vista, setVista] = useState("diario");
+  const [vista, setVista] = useState("semanal");
   const [fechaSel, setFechaSel] = useState(iso(new Date()));
   const [mes, setMes] = useState(new Date());
+  const [diaExpandido, setDiaExpandido] = useState(iso(new Date())); // fecha (string) abierta en "Por fecha", hoy por defecto
 
   const cargarMenu = useCallback(() => {
     supabase
@@ -48,7 +48,6 @@ export function Comedor() {
     cargarMenu();
   }, [cargarMenu]);
 
-  const diaActual = menu.find((m) => m.fecha === fechaSel);
   const year = mes.getFullYear();
   const month = mes.getMonth();
 
@@ -71,23 +70,21 @@ export function Comedor() {
     d.setDate(d.getDate() + dir * 7);
     setFechaSel(iso(d));
   };
-  const navDia = (dir) => {
-    const d = new Date(fechaSel + "T00:00:00");
-    d.setDate(d.getDate() + dir);
-    setFechaSel(iso(d));
-  };
   const semanaLabel = () => {
     const ini = new Date(diasSemana[0] + "T00:00:00");
     const fin = new Date(diasSemana[4] + "T00:00:00");
     return `${ini.getDate()} al ${fin.getDate()} de ${MESES[fin.getMonth()]} ${fin.getFullYear()}`;
   };
 
-  // Mes
-  const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
+  // "Por fecha": todos los días hábiles (lunes a viernes) del mes seleccionado
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells = Array(firstDay).fill(null);
-  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
-  const tieneMenu = (day) => menu.some((m) => m.fecha === `${year}-${pad(month + 1)}-${pad(day)}`);
+  const diasHabilesMes = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    .map((day) => {
+      const fecha = `${year}-${pad(month + 1)}-${pad(day)}`;
+      const dow = new Date(fecha + "T00:00:00").getDay();
+      return { day, fecha, dow };
+    })
+    .filter((d) => d.dow >= 1 && d.dow <= 5);
   const hoyIso = iso(new Date());
 
   return (
@@ -99,9 +96,8 @@ export function Comedor() {
 
       <View style={styles.tabs}>
         {[
-          { id: "diario", l: "Día" },
-          { id: "semanal", l: "Semana" },
-          { id: "mensual", l: "Mes" },
+          { id: "semanal", l: "Esta semana" },
+          { id: "porFecha", l: "Por fecha" },
         ].map((v) => (
           <Pressable
             key={v.id}
@@ -112,47 +108,6 @@ export function Comedor() {
           </Pressable>
         ))}
       </View>
-
-      {vista === "diario" ? (
-        <View>
-          <View style={styles.diaNav}>
-            <Pressable onPress={() => navDia(-1)} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
-            </Pressable>
-            <Text style={styles.diaLabel}>
-              {new Date(fechaSel + "T00:00:00").toLocaleDateString("es-AR", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </Text>
-            <Pressable onPress={() => navDia(1)} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
-            </Pressable>
-          </View>
-          {diaActual ? (
-            <Card style={styles.menuCard}>
-              {CAMPOS.filter((c) => diaActual[c.key]).map((c, i) => (
-                <View
-                  key={c.key}
-                  style={[styles.platoRow, { borderLeftColor: c.color }, i > 0 && styles.platoRowDivider]}
-                >
-                  <Text style={[styles.platoLabel, { color: c.color }]}>
-                    {c.emoji} {c.label.toUpperCase()}
-                  </Text>
-                  <Text style={styles.platoTxt}>{diaActual[c.key]}</Text>
-                </View>
-              ))}
-            </Card>
-          ) : (
-            <Card style={styles.emptyCard}>
-              <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.muted}>No hay menú cargado para este día</Text>
-            </Card>
-          )}
-          <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
-        </View>
-      ) : null}
 
       {vista === "semanal" ? (
         <View>
@@ -174,7 +129,9 @@ export function Comedor() {
                 key={fecha}
                 onPress={() => {
                   setFechaSel(fecha);
-                  setVista("diario");
+                  setMes(new Date(fecha + "T00:00:00"));
+                  setDiaExpandido(fecha);
+                  setVista("porFecha");
                 }}
                 style={[styles.weekRow, isHoy && styles.weekRowHoy]}
               >
@@ -203,7 +160,7 @@ export function Comedor() {
         </View>
       ) : null}
 
-      {vista === "mensual" ? (
+      {vista === "porFecha" ? (
         <View>
           <View style={styles.weekNav}>
             <Pressable onPress={() => setMes(new Date(year, month - 1, 1))} style={styles.navBtn}>
@@ -216,42 +173,61 @@ export function Comedor() {
               <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
             </Pressable>
           </View>
-          <Card style={styles.calCard}>
-            <View style={styles.calGrid}>
-              {["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"].map((d) => (
-                <View key={d} style={styles.calCell}>
-                  <Text style={styles.calDow}>{d}</Text>
-                </View>
-              ))}
-              {cells.map((day, i) => {
-                if (!day) return <View key={`e${i}`} style={styles.calCell} />;
-                const fecha = `${year}-${pad(month + 1)}-${pad(day)}`;
-                const isHoy = fecha === hoyIso;
-                const tieneM = tieneMenu(day);
-                return (
-                  <Pressable
-                    key={fecha}
-                    onPress={() => {
-                      setFechaSel(fecha);
-                      setVista("diario");
-                    }}
-                    style={styles.calCell}
-                  >
-                    <View
-                      style={[
-                        styles.calDayBox,
-                        tieneM && !isHoy && styles.calDayMenu,
-                        isHoy && styles.calDayHoy,
-                      ]}
-                    >
-                      <Text style={[styles.calDayTxt, isHoy && styles.weekHoyTxt]}>{day}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Card>
-          <Text style={styles.hint}>Tocá un día para ver el menú</Text>
+          {diasHabilesMes.map(({ day, fecha }) => {
+            const d = new Date(fecha + "T00:00:00");
+            const m = menu.find((x) => x.fecha === fecha);
+            const isHoy = fecha === hoyIso;
+            const abierto = diaExpandido === fecha;
+            return (
+              <View key={fecha} style={[styles.porFechaCard, isHoy && styles.weekRowHoy]}>
+                <Pressable
+                  onPress={() => setDiaExpandido((prev) => (prev === fecha ? null : fecha))}
+                  style={styles.porFechaHeader}
+                >
+                  <View style={styles.weekDate}>
+                    <Text style={[styles.weekDow, isHoy && styles.weekHoyTxt]}>
+                      {d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "")}
+                    </Text>
+                    <Text style={[styles.weekDay, isHoy && styles.weekHoyTxt]}>{day}</Text>
+                  </View>
+                  <View style={styles.flex1}>
+                    {m ? (
+                      abierto ? (
+                        <Text style={styles.sinMenu}>Menú cargado</Text>
+                      ) : (
+                        CAMPOS.filter((c) => m[c.key]).slice(0, 2).map((c) => (
+                          <Text key={c.key} style={styles.weekItem}>
+                            <Text style={{ color: c.color }}>{c.emoji} </Text>
+                            {m[c.key]}
+                          </Text>
+                        ))
+                      )
+                    ) : (
+                      <Text style={styles.sinMenu}>Sin menú</Text>
+                    )}
+                  </View>
+                  <MaterialCommunityIcons
+                    name={abierto ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color={t.textFaint}
+                  />
+                </Pressable>
+                {abierto && m ? (
+                  <View style={styles.porFechaDetalle}>
+                    {CAMPOS.filter((c) => m[c.key]).map((c) => (
+                      <View key={c.key} style={styles.porFechaPlato}>
+                        <Text style={[styles.platoLabel, { color: c.color }]}>
+                          {c.emoji} {c.label.toUpperCase()}
+                        </Text>
+                        <Text style={styles.platoTxt}>{m[c.key]}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+          <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -442,16 +418,9 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
   tabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
   tabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
-  diaNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  diaLabel: { fontSize: 14, color: t.textStrong, fontWeight: "700", textTransform: "capitalize", flex: 1, textAlign: "center" },
   navBtn: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
-  menuCard: { padding: 0, overflow: "hidden", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
-  platoRow: { padding: 14, borderLeftWidth: 3 },
-  platoRowDivider: { borderTopWidth: 1, borderTopColor: t.borderStrong },
   platoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 4 },
   platoTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
-  emptyCard: { padding: SPACE.xxl, alignItems: "center", borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
-  emptyEmoji: { fontSize: 32, marginBottom: 8 },
   alergiasNota: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
   weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg },
   weekLabel: { fontSize: 14, fontWeight: "700", color: t.textStrong, flex: 1, textAlign: "center" },
@@ -464,14 +433,10 @@ const styles = StyleSheet.create({
   weekItem: { fontSize: 12, color: t.text, lineHeight: 18 },
   sinMenu: { fontSize: 12, color: t.textFaint },
   hint: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
-  calCard: { padding: 10, borderRadius: RADIUS.xl, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
-  calGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", padding: 2 },
-  calDow: { fontSize: 10, fontWeight: "700", color: t.textFaint },
-  calDayBox: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", borderRadius: RADIUS.sm },
-  calDayMenu: { backgroundColor: BLUE[100] },
-  calDayHoy: { backgroundColor: t.accentSoft, borderWidth: 1.5, borderColor: t.accent },
-  calDayTxt: { fontSize: 12, fontWeight: "600", color: t.text },
+  porFechaCard: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, marginBottom: SPACE.sm, overflow: "hidden" },
+  porFechaHeader: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, minHeight: 44 },
+  porFechaDetalle: {},
+  porFechaPlato: { paddingHorizontal: SPACE.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.border },
   uploadWrap: { marginBottom: SPACE.xl },
   uploadLabel: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 14, borderRadius: RADIUS.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.accent, backgroundColor: t.accentSoft, minHeight: 44 },
