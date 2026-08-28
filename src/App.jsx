@@ -331,6 +331,22 @@ function App() {
   const isAdmin     = rolEfectivo==="admin";
   const cursoId     = _cursoId;
   const cursoNombre = esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre;
+  // Solo para el placeholder del buscador global (mockup: "Buscar en 4°B y
+  // 6°A...") — a diferencia de cursoNombre (usado en exports/encabezados,
+  // donde "Todos mis hijos" es más claro), acá listamos los cursos reales.
+  // Los nombres de curso en la base son largos ("K3 Ants - Kinder", "1ºA -
+  // Primaria 2026"): se corta en " - " para quedarse con la parte corta.
+  const nombresCursosBusqueda = esVistaTodos
+    ? (() => {
+        const nombres = [...new Map(
+          items.filter(i=>i._tipo==="hijo" && i.curso_id)
+            .map(i=>[i.curso_id, i.cursos?.nombre?.split(" - ")[0]?.trim() || i.cursos?.nombre])
+        ).values()].filter(Boolean);
+        if(nombres.length<=1) return nombres[0] || "tus cursos";
+        if(nombres.length===2) return nombres.join(" y ");
+        return nombres.slice(0,-1).join(", ")+" y "+nombres[nombres.length-1];
+      })()
+    : cursoNombre;
   // Cursos donde el usuario es Room Parent — para permisos por fila en Todos.
   const cursosAdmin = items.filter(i=>i.rolEfectivo==="admin").map(i=>i.curso_id);
 
@@ -633,13 +649,13 @@ function App() {
               alcance actual, resultado se muestra como panel sobre el
               módulo activo (mismo criterio que mobile/features/buscar). */}
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:busquedaGlobal.trim()?20:24}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 14px",border:"1.5px solid #E2E8F0",borderRadius:12,background:"white",minWidth:260}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 16px",border:"1px solid #E7ECF3",borderRadius:999,background:"white",width:300,boxSizing:"border-box"}}>
               <span style={{fontSize:15,color:"#94A3B8"}}>🔍</span>
               <input
                 value={busquedaGlobal}
                 onChange={e=>setBusquedaGlobal(e.target.value)}
-                placeholder={`Buscar en ${cursoNombre||"tu curso"}...`}
-                style={{flex:1,border:"none",outline:"none",background:"transparent",fontSize:13.5,color:"#1E293B",fontFamily:"inherit"}}
+                placeholder={`Buscar en ${nombresCursosBusqueda||"tu curso"}...`}
+                style={{flex:1,minWidth:0,border:"none",outline:"none",background:"transparent",fontSize:13.5,color:"#1E293B",fontFamily:"inherit"}}
               />
             </div>
           </div>
