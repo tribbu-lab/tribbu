@@ -53,24 +53,27 @@ operativo en ambas plataformas; este spec cubre exclusivamente lo que falta.
 
 ### iOS — App Store
 
-- [ ] Ficha completa en App Store Connect (app 6787757386): nombre, subtítulo,
+- [x] Ficha completa en App Store Connect (app 6787757386): nombre, subtítulo,
       descripción, keywords, categoría (Educación), URL de soporte y URL de
       privacidad. Copy en español, con el vocabulario del dominio (curso,
       apoderado, recordatorio, colecta).
-- [ ] Capturas de pantalla del set requerido de iPhone subidas (generables
+- [x] Capturas de pantalla del set requerido de iPhone subidas (generables
       desde el simulador con la cuenta demo).
 - [x] Decisión tomada sobre iPad: se fijó `supportsTablet: false` en
       `mobile/app.config.js` (app phone-first; evita las capturas de iPad 13″)
       — requiere un build de iOS nuevo antes del envío.
-- [ ] Cuestionario **App Privacy** completado (datos recolectados: email,
+- [x] Cuestionario **App Privacy** completado (datos recolectados: email,
       nombre, fotos/adjuntos subidos, identificadores de push; vinculados a la
       identidad; sin tracking ni ads).
-- [ ] Cuestionario de **clasificación de edad** completado (la app es para
+- [x] Cuestionario de **clasificación de edad** completado (la app es para
       adultos/apoderados; el contenido no está dirigido a niños).
-- [ ] Review Notes cargadas: acceso por invitación (sin registro público),
-      credenciales demo, y aclaración de que no aplica el borrado de cuenta
-      in-app por no existir auto-registro.
-- [ ] App enviada a revisión y aprobada: estado **Ready for Sale**, visible
+- [x] Review Notes cargadas (credenciales demo + modelo por invitación).
+      **Rechazo 2026-08-27 por Guideline 3.2 (Business)**: Apple leyó el
+      modelo por invitación como app interna de una organización. Respuesta
+      y notas revisadas en `mobile/stores/appstoreconnect/issue-1-respuesta.md`
+      (reescribir las Review Notes: hay auto-registro con código, cualquier
+      colegio puede sumarse, gratis sin IAP). Plan B: Unlisted App Distribution.
+- [ ] App re-enviada a revisión tras el rechazo 3.2 y aprobada: estado **Ready for Sale**, visible
       buscando "tribbu" en el App Store.
 
 ### Android — Google Play

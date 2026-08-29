@@ -220,6 +220,22 @@ agrega `READ_CALENDAR` y `WRITE_CALENDAR` al manifest, y el plugin deja
 - **Release notes sugeridas**: "Sincronizá el calendario del curso con tu
   calendario: elegí el del teléfono o Google Calendar."
 
+## ⚠️ Rechazo App Store 2026-08-27 — Guideline 3.2 (Business)
+
+Apple rechazó la 1.2.0 (11) (submission 3e253611) por 3.2: leyó "acceso por
+invitación / cuentas creadas por administradores" como app interna de una
+organización y sugiere distribución custom (ABM/ASM) o **unlisted**. Hay que
+**responder en el hilo** (App Review → Reply) las 5 preguntas y re-enviar.
+Respuesta lista para pegar + notas: `mobile/stores/appstoreconnect/issue-1-respuesta.md`.
+Argumento: público = familias (consumidores), gate por aula como
+ClassDojo/Remind, cualquier colegio puede sumarse (landing `www.tribbu.ar` →
+"Pedir una demo" / `info@tribbu.ar`), auto-registro in-app con código, gratis
+sin IAP (Colectas no procesa dinero). Antes de enviar: crear un código de
+invitación del curso demo para el revisor y **reescribir las Review Notes**
+(las de arriba dicen "no public sign-up" y contradicen la respuesta — usar la
+versión de `issue-1-respuesta.md`). Plan B si insisten: Unlisted App
+Distribution (link directo, mismo build, sin ABM).
+
 ## APK compartible (distribución directa, fuera de las tiendas)
 
 Para compartir la app por fuera de Play (WhatsApp/Drive/link directo) existe el
