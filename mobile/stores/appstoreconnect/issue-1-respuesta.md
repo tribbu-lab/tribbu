@@ -31,7 +31,7 @@ No. Any school can adopt tribbu, and the users are the families (parents and gua
 No. There is no closed list of clients and no exclusivity: any school — public or private, any grade level — can become a client by contacting us through our public website (https://www.tribbu.ar, "Pedir una demo" / info@tribbu.ar). We are launching commercially in Argentina and actively onboarding schools; the app is intended to serve any school community that wants it.
 
 3. What features are intended for use by the general public?
-All of them. The app's audience is parents: they use the classroom calendar with RSVP, reminders with read confirmation, shared fundraisers (a ledger of who contributed to a class gift), the school lunch menu, birthdays and party invitations, quick polls, useful info (supply lists, uniforms, books) and school contacts. The only gate is that a parent must join their child's classroom, exactly as a parent joins a class in the apps mentioned above. We have provided a demo parent account in App Review Information so you can use the app end to end. You can also try the self-registration flow yourself with the invitation code [DEMO-CODE] (demo classroom "3°A — Primaria"): on the login screen tap "Registrarme con código de invitación", enter the code, then create an account with any email and password — no approval or pre-registration is involved.
+All of them. The app's audience is parents: they use the classroom calendar with RSVP, reminders with read confirmation, shared fundraisers (a ledger of who contributed to a class gift), the school lunch menu, birthdays and party invitations, quick polls, useful info (supply lists, uniforms, books) and school contacts. The only gate is that a parent must join their child's classroom, exactly as a parent joins a class in the apps mentioned above. We have provided a demo parent account in App Review Information so you can use the app end to end. You can also try the self-registration flow yourself with the invitation code [Y5WPT2] (demo classroom "Demo"): on the login screen tap "Registrarme con código de invitación", enter the code, then create an account with any email and password — no approval or pre-registration is involved.
 
 4. How do users obtain an account?
 Two ways. (a) Self-registration in the app: the school (or the volunteer "Room Parent" of the classroom) shares one invitation code per classroom with the families; any parent with that code creates their own account (email + password) directly in the app, with no whitelist or approval step. (b) School administrators can also pre-create accounts for families. Users can delete their account at any time in the app (Más → Eliminar mi cuenta). The same account works in the web version at https://www.tribbu.ar/app.
@@ -60,7 +60,7 @@ Nicolás Albani — tribbu
   > parents of each classroom join with an invitation code shared by their
   > school (self-registration in-app: "Registrarme con código de invitación"),
   > or the school pre-creates their accounts. Free, no in-app purchases. Demo
-  > parent account provided below; demo invitation code: [DEMO-CODE]. Account
+  > parent account provided below; demo invitation code: [Y5WPT2]. Account
   > deletion: Más → Eliminar mi cuenta.
 
 - **No citar como clientes** los nombres de la landing ("Colegio San Marcos",
