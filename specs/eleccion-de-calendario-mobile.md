@@ -36,7 +36,7 @@ usuario a salir de la app**:
 | destino | iOS | Android |
 |---|---|---|
 | Calendario del dispositivo | `webcal://` → Apple Calendar se suscribe a un "Tribbu" nativo que el servidor actualiza solo | `expo-calendar` crea un calendario **"Tribbu" LOCAL** y lo re-sincroniza al abrir la app (motor `mobile/lib/calendarSync.js`); "Desconectar" lo borra entero |
-| Google Calendar | `render?cid=webcal://…` en un SFSafariViewController (in-app) | **Suscripción guiada**: "Copiar enlace" / "Enviármelo por mail" + 4 pasos para agregarlo una vez desde `calendar.google.com` en una computadora + "Ya lo agregué" |
+| Google Calendar | **Suscripción guiada, idéntica en ambas** (revisión 2026-08-28): "Copiar enlace" / "Enviármelo por mail" + 4 pasos para agregarlo una vez desde `calendar.google.com` en una computadora + "Ya lo agregué" | ídem |
 
 - El Android/dispositivo tiene un límite que **el copy dice**: no llega a
   calendar.google.com y la app de Google Calendar no lo muestra. Sirve para
@@ -90,9 +90,12 @@ usuario real y en emulador contra una cuenta Google real:
 - [x] El `Sheet` muestra el selector de destino. **Calendario del dispositivo**
       → botón " Abrir Apple Calendar" = `Linking.openURL(webcal://…)` (flujo
       preexistente, sin cambios de mecanismo; marca `metodo="webcal"`).
-      **Google Calendar** → botón "🗓️ Abrir Google Calendar" =
-      `WebBrowser.openBrowserAsync(render?cid=webcal://…)`; marca
-      `metodo="gcal"` recién al cerrar el browser.
+      **Google Calendar** → el mismo panel de suscripción guiada que Android
+      (aviso, Copiar enlace / Enviármelo por mail, 4 pasos, "Ya lo agregué" →
+      `metodo="suscripcion"`). El atajo in-app anterior
+      (`WebBrowser.openBrowserAsync(render?cid=…)`, `metodo="gcal"`) se quitó
+      el 2026-08-28 para que la experiencia sea idéntica en ambas plataformas;
+      `"gcal"` queda como legacy y sigue contando como sincronizado.
 - [x] Sin dependencias ni permisos nuevos en iOS: el `calendarPermission` del
       plugin `expo-calendar` queda declarado por si el flujo se extiende, pero
       iOS **no llama** a expo-calendar.
@@ -210,6 +213,10 @@ usuario real y en emulador contra una cuenta Google real:
   abrir la app, que en la práctica es frecuente por las notificaciones push.
 - API de Google Calendar con OAuth (no soporta suscripción por URL; insertar
   evento a evento exigiría infra OAuth server-side).
+- Reabrir el atajo in-app de iOS para Google (`render?cid=` en
+  SFSafariViewController): funcionaba, pero exigía login de Google en un
+  browser con cookies aisladas y hacía que iOS y Android divergieran. Se
+  prefirió el instructivo único (2026-08-28).
 - Usar `expo-calendar` también en iOS como "calendario del dispositivo":
   webcal:// es superior (el servidor empuja actualizaciones sin abrir la app y
   no pide permiso de calendario). Decisión explícita 2026-08-28.

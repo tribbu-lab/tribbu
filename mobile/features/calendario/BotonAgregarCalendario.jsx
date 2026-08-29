@@ -15,19 +15,22 @@
 // │                          │ (server push)        │ LOCAL y lo re-sincroniza│
 // │                          │                      │ al abrir la app         │
 // ├──────────────────────────┼──────────────────────┼─────────────────────────┤
-// │ Google Calendar          │ render?cid= en un    │ suscripción guiada:     │
-// │                          │ SFSafariViewController│ enlace (copiar / mail) │
-// │                          │ (in-app)             │ + pasos en computadora  │
-// └──────────────────────────┴──────────────────────┴─────────────────────────┘
+// │ Google Calendar          │ suscripción guiada, idéntica en ambas: enlace  │
+// │                          │ (copiar / mail) + 4 pasos en una computadora + │
+// │                          │ "Ya lo agregué"                                │
+// └──────────────────────────┴────────────────────────────────────────────────┘
 //
 // Por qué cada celda es así:
 // - iOS/dispositivo: webcal:// es superior a escribir eventos nosotros — el
 //   servidor empuja actualizaciones sin abrir la app y no pide permiso de
 //   calendario. Confirmado que la suscripción persiste.
-// - iOS/Google: los universal links NO se disparan dentro de un
-//   SFSafariViewController, así que la app nativa de Google Calendar no puede
-//   interceptar la URL (costo: cookies aisladas → posible login la primera
-//   vez).
+// - Google (ambas plataformas): la misma suscripción guiada, para que la
+//   experiencia sea idéntica en iOS y Android (pedido explícito 2026-08-28).
+//   En iOS existía un atajo in-app (render?cid= en un SFSafariViewController,
+//   donde los universal links no se disparan y la app de Google Calendar no
+//   intercepta) que se descartó por consistencia: exigía login de Google en
+//   un browser con cookies aisladas y no daba más garantías que el instructivo.
+//   Quien ya lo usó conserva metodo="gcal" y sigue contando como sincronizado.
 // - Android/dispositivo: un calendario creado por una app normal es de cuenta
 //   LOCAL. Se ve en Samsung Calendar/AOSP con color y toggle propios, pero
 //   **la app de Google Calendar no lista ni dibuja calendarios LOCAL de
@@ -57,7 +60,6 @@ import { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform, Linking, AppState, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
-import * as WebBrowser from "expo-web-browser";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
@@ -69,7 +71,7 @@ const t = THEMES.light;
 const claveSincronizado = (userId) => `calsync_${userId}`;
 const esAndroid = Platform.OS === "android";
 
-// Pasos de la suscripción en Google Calendar (Android). Se muestran siempre
+// Pasos de la suscripción en Google Calendar (ambas plataformas). Se muestran siempre
 // dentro de esa opción: el usuario los tiene que hacer en otra pantalla, así
 // que no sirve esconderlos detrás de otro tap.
 const PASOS = [
@@ -94,9 +96,7 @@ const OPCIONES = [
     id: "google",
     icono: "🗓️",
     titulo: "Google Calendar",
-    desc: esAndroid
-      ? "Un calendario “Tribbu” en tu cuenta de Google, en todos tus dispositivos. Se agrega una vez desde una computadora."
-      : "Un calendario “Tribbu” en tu cuenta de Google, en todos tus dispositivos.",
+    desc: "Un calendario “Tribbu” en tu cuenta de Google, en todos tus dispositivos. Se agrega una vez desde una computadora.",
   },
 ];
 
@@ -118,11 +118,12 @@ export default function BotonAgregarCalendario({ userId }) {
   // Guarda el método usado, no solo un booleano, porque el trigger distingue
   // "sincronizado de verdad" de "solo copió el enlace" (todavía falta pegarlo):
   //   "webcal"      iOS/dispositivo         "device"       Android/dispositivo
-  //   "gcal"        iOS/Google              "suscripcion"  Android/Google ("Ya lo agregué")
+  //   "suscripcion" Google ("Ya lo agregué"), ambas plataformas
   //   "copia"       copió / mandó por mail el enlace, en cualquier plataforma
-  // Legacy que se trata como "copia": "google" (un intento anterior en Android
-  // que resultó ser un falso positivo) y "1" (previo a guardar el método). No
-  // reutilizar esos valores.
+  // Legacy: "gcal" (el atajo in-app de iOS/Google que se descartó — cuenta como
+  // sincronizado, la suscripción que hizo sigue viva), "google" (un intento
+  // anterior en Android que resultó ser un falso positivo → "copia") y "1"
+  // (previo a guardar el método → "copia"). No reutilizar esos valores.
   const [metodo, setMetodo] = useState(null);
   const conectadoDispositivo = esAndroid && metodo === "device";
   const sincronizado = ["webcal", "gcal", "device", "suscripcion"].includes(metodo);
@@ -226,23 +227,6 @@ export default function BotonAgregarCalendario({ userId }) {
     marcarSincronizado("webcal");
   };
 
-  // iOS/Google
-  const abrirEnGoogle = async () => {
-    if (!webcalUrl) return;
-    // cid= espera un URL con esquema webcal:// para reconocerlo como una
-    // suscripción a un feed externo — con https:// a secas, Google falla con
-    // "Unable to add calendar" (misma conversión que la web).
-    const googleUrl = "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcalUrl);
-    try {
-      // Se marca al cerrar el browser (la promesa resuelve ahí), no al
-      // abrirlo: reduce el falso "sincronizado" si cierra sin confirmar.
-      await WebBrowser.openBrowserAsync(googleUrl);
-      marcarSincronizado("gcal");
-    } catch (e) {
-      console.warn("No se pudo abrir Google Calendar:", e?.message);
-    }
-  };
-
   // Android/dispositivo
   const conectarDispositivo = async () => {
     if (!feedUrl) return;
@@ -335,7 +319,7 @@ export default function BotonAgregarCalendario({ userId }) {
       );
     }
     if (destino === "google") {
-      return esAndroid ? (
+      return (
         <>
           <View style={styles.aviso}>
             <Text style={styles.avisoTxt}>
@@ -363,18 +347,6 @@ export default function BotonAgregarCalendario({ userId }) {
             </Pressable>
           )}
           <Text style={styles.hintSmall}>Google puede tardar unas horas en mostrar los eventos por primera vez.</Text>
-        </>
-      ) : (
-        <>
-          <View style={styles.row}>
-            <Pressable onPress={abrirEnGoogle} style={styles.btnPrimary}>
-              <Text style={styles.btnPrimaryTxt}>🗓️ Abrir Google Calendar</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.hintSmall}>
-            Se abre Google Calendar para confirmar la suscripción (puede pedirte iniciar sesión la primera vez). Google
-            puede tardar unas horas en mostrar los eventos.
-          </Text>
         </>
       );
     }

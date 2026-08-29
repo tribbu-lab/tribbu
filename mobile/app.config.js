@@ -112,13 +112,6 @@ export default {
           faceIDPermission: "tribbu usa Face ID para desbloquear la app más rápido.",
         },
       ],
-      // iOS: abre "Google Calendar" (render?cid=) en un SFSafariViewController
-      // — los universal links no se disparan ahí, así que la app nativa de
-      // Google Calendar no puede interceptar la URL (en Android exactamente
-      // esa intercepción vía App Links hundió el atajo web, y por eso allá la
-      // opción Google es una suscripción guiada desde una computadora — ver
-      // BotonAgregarCalendario.jsx).
-      "expo-web-browser",
       [
         // Android, opción "Calendario del dispositivo": crea un calendario
         // "Tribbu" local y escribe ahí los eventos del feed vía CalendarContract
