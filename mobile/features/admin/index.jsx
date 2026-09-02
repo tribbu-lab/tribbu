@@ -13,7 +13,7 @@
 // (tabla `alertas` + push) que ya usa `mobile/features/muro/index.jsx`.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
@@ -257,35 +257,37 @@ export function AdminPanel() {
       ) : null}
 
       <Modal visible={alertaSheet} transparent animationType="fade" onRequestClose={() => setAlertaSheet(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Publicar alerta</Text>
-            <Text style={styles.alertaSub}>Se envía como push a toda la comunidad del curso. Usalo solo para avisos urgentes — suena aunque el teléfono esté en silencio.</Text>
-            <TextInput
-              value={alertaMsg}
-              onChangeText={setAlertaMsg}
-              placeholder="Ej: Mañana no hay clases"
-              placeholderTextColor="#94A3B8"
-              multiline
-              style={[styles.input, styles.alertaInput]}
-            />
-            <View style={styles.modalBtns}>
-              <Pressable onPress={() => setAlertaSheet(false)} style={styles.cancelBtn}>
-                <Text style={styles.cancelTxt}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={enviarAlerta} disabled={alertaEnviando || !alertaMsg.trim()} style={styles.saveBtn}>
-                <Text style={styles.saveTxt}>{alertaEnviando ? "Enviando..." : "Enviar"}</Text>
-              </Pressable>
-            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Publicar alerta</Text>
+              <Text style={styles.alertaSub}>Se envía como push a toda la comunidad del curso. Usalo solo para avisos urgentes — suena aunque el teléfono esté en silencio.</Text>
+              <TextInput
+                value={alertaMsg}
+                onChangeText={setAlertaMsg}
+                placeholder="Ej: Mañana no hay clases"
+                placeholderTextColor="#94A3B8"
+                multiline
+                style={[styles.input, styles.alertaInput]}
+              />
+              <View style={styles.modalBtns}>
+                <Pressable onPress={() => setAlertaSheet(false)} style={styles.cancelBtn}>
+                  <Text style={styles.cancelTxt}>Cancelar</Text>
+                </Pressable>
+                <Pressable onPress={enviarAlerta} disabled={alertaEnviando || !alertaMsg.trim()} style={styles.saveBtn}>
+                  <Text style={styles.saveTxt}>{alertaEnviando ? "Enviando..." : "Enviar"}</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {horForm !== null ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <View style={styles.overlay}>
+          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <View style={styles.modalCard}>
-              <ScrollView>
+              <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>
 
                 <Text style={styles.label}>DÍA</Text>
@@ -376,7 +378,7 @@ export function AdminPanel() {
                 </View>
               </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </ScrollView>

@@ -382,34 +382,39 @@ export function CambiarPasswordModal({ visible, onClose }) {
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={cerrar}>
-      <View style={[styles.modalOverlay, { paddingTop: insets.top }]}>
+      <KeyboardAvoidingView
+        style={[styles.modalOverlay, { paddingTop: insets.top }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Cambiar contraseña</Text>
-          {ok ? (
-            <View style={styles.center}>
-              <Text style={styles.bigEmoji}>✅</Text>
-              <Text style={styles.okTxt}>Contraseña actualizada</Text>
-              <PrimaryBtn label="Cerrar" onPress={cerrar} />
-            </View>
-          ) : (
-            <>
-              <Text style={styles.modalLabel}>NUEVA CONTRASEÑA</Text>
-              <TextInput value={nueva} onChangeText={setNueva} secureTextEntry placeholder="Mínimo 6 caracteres" placeholderTextColor="#94A3B8" style={styles.modalInput} />
-              <Text style={styles.modalLabel}>CONFIRMAR CONTRASEÑA</Text>
-              <TextInput value={confirma} onChangeText={setConfirma} secureTextEntry placeholder="Repetí la contraseña" placeholderTextColor="#94A3B8" style={styles.modalInput} />
-              {err ? <Text style={styles.errDark}>{err}</Text> : null}
-              <View style={styles.modalBtns}>
-                <Pressable onPress={cerrar} style={styles.cancelBtn}>
-                  <Text style={styles.cancelTxt}>Cancelar</Text>
-                </Pressable>
-                <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
-                  <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Cambiar"}</Text>
-                </Pressable>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Cambiar contraseña</Text>
+            {ok ? (
+              <View style={styles.center}>
+                <Text style={styles.bigEmoji}>✅</Text>
+                <Text style={styles.okTxt}>Contraseña actualizada</Text>
+                <PrimaryBtn label="Cerrar" onPress={cerrar} />
               </View>
-            </>
-          )}
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>NUEVA CONTRASEÑA</Text>
+                <TextInput value={nueva} onChangeText={setNueva} secureTextEntry placeholder="Mínimo 6 caracteres" placeholderTextColor="#94A3B8" style={styles.modalInput} />
+                <Text style={styles.modalLabel}>CONFIRMAR CONTRASEÑA</Text>
+                <TextInput value={confirma} onChangeText={setConfirma} secureTextEntry placeholder="Repetí la contraseña" placeholderTextColor="#94A3B8" style={styles.modalInput} />
+                {err ? <Text style={styles.errDark}>{err}</Text> : null}
+                <View style={styles.modalBtns}>
+                  <Pressable onPress={cerrar} style={styles.cancelBtn}>
+                    <Text style={styles.cancelTxt}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
+                    <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Cambiar"}</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -514,7 +519,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
-  modalCard: { width: "100%", maxWidth: 380, backgroundColor: "white", borderRadius: 20, padding: 24 },
+  modalCard: { width: "100%", maxWidth: 380, maxHeight: "88%", backgroundColor: "white", borderRadius: 20, padding: 24 },
   modalTitle: { fontSize: 16, fontWeight: "900", color: T.text, marginBottom: 16 },
   modalLabel: { fontSize: 11, fontWeight: "700", color: "#94A3B8", marginBottom: 5 },
   modalInput: {

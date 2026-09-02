@@ -16,6 +16,8 @@ import {
   FlatList,
   Image,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Linking,
   StyleSheet,
 } from "react-native";
@@ -866,9 +868,9 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>🎉 {festejoExistente ? "Editar festejo" : "Nuevo festejo"}</Text>
             <Text style={styles.modalSub}>Festejo de {alumnoNombre}</Text>
 
@@ -969,7 +971,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1115,7 +1117,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
           <View style={styles.pagosHeader}>
             <View style={styles.flex1}>
@@ -1145,7 +1147,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
             </Pressable>
           </View>
 
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             {evento.imagen_url ? (
               <Image source={{ uri: evento.imagen_url }} style={styles.detalleImg} resizeMode="contain" />
             ) : null}
@@ -1254,7 +1256,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1284,9 +1286,9 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>🎁 Colecta regalo</Text>
             <Text style={styles.modalSub}>Cumpleaños de {maestroNombre}</Text>
 
@@ -1343,7 +1345,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

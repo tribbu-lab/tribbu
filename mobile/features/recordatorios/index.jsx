@@ -5,7 +5,18 @@
 // hueco + texto apagado.
 
 import { useState, useEffect, useCallback, useMemo, memo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, Modal, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  FlatList,
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+} from "react-native";
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
@@ -390,97 +401,104 @@ export function Recordatorios() {
 
 function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, cursosOpciones = [], onClose, onGuardar }) {
   const [subiendoAdj, setSubiendoAdj] = useState(false);
+  // KeyboardAvoidingView + ScrollView son imprescindibles acá: en iOS el teclado
+  // de un TextInput multiline no tiene tecla para cerrarse y tocar Views comunes
+  // no lo desenfoca — sin esto el teclado tapaba Guardar sin forma de cerrarlo.
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{editing ? "Editar recordatorio" : "Nuevo recordatorio"}</Text>
-          {cursosOpciones.length > 0 ? (
-            <>
-              <Text style={styles.modalLabel}>Para el curso de</Text>
-              <View style={styles.cursoRow}>
-                {cursosOpciones.map((o) => {
-                  const active = form.curso_id === o.curso_id;
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>{editing ? "Editar recordatorio" : "Nuevo recordatorio"}</Text>
+              {cursosOpciones.length > 0 ? (
+                <>
+                  <Text style={styles.modalLabel}>Para el curso de</Text>
+                  <View style={styles.cursoRow}>
+                    {cursosOpciones.map((o) => {
+                      const active = form.curso_id === o.curso_id;
+                      return (
+                        <Pressable
+                          key={o.curso_id}
+                          onPress={() => setForm((p) => ({ ...p, curso_id: o.curso_id }))}
+                          style={[styles.cursoBtn, active && styles.cursoBtnOn]}
+                        >
+                          <View style={[styles.tagDot, { backgroundColor: o.tag.color }]} />
+                          <Text style={[styles.cursoTxt, active && styles.cursoTxtOn]} numberOfLines={1}>
+                            {o.tag.nombre}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+
+              <Text style={styles.modalLabel}>Texto</Text>
+              <TextInput
+                value={form.texto}
+                onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
+                placeholder="Ej: Reunión de padres el viernes"
+                placeholderTextColor={t.placeholder}
+                multiline
+                style={[styles.modalInput, styles.modalTextarea]}
+              />
+
+              <Text style={styles.modalLabel}>Fecha (opcional)</Text>
+              <DateField
+                value={form.fecha || ""}
+                onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
+                clearable
+                style={styles.modalInput}
+              />
+
+              <Text style={styles.modalLabel}>Prioridad</Text>
+              <View style={styles.prioRow}>
+                {["alta", "media", "baja"].map((p) => {
+                  const active = form.prioridad === p;
                   return (
                     <Pressable
-                      key={o.curso_id}
-                      onPress={() => setForm((p) => ({ ...p, curso_id: o.curso_id }))}
-                      style={[styles.cursoBtn, active && styles.cursoBtnOn]}
+                      key={p}
+                      onPress={() => setForm((f) => ({ ...f, prioridad: p }))}
+                      style={[styles.prioBtn, active && { borderColor: PRIO[p].c, backgroundColor: PRIO[p].bg }]}
                     >
-                      <View style={[styles.tagDot, { backgroundColor: o.tag.color }]} />
-                      <Text style={[styles.cursoTxt, active && styles.cursoTxtOn]} numberOfLines={1}>
-                        {o.tag.nombre}
+                      <Text style={[styles.prioTxt, active && { color: p === "media" ? "#B45309" : PRIO[p].c }]}>
+                        {PRIO[p].l}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
-            </>
-          ) : null}
 
-          <Text style={styles.modalLabel}>Texto</Text>
-          <TextInput
-            value={form.texto}
-            onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
-            placeholder="Ej: Reunión de padres el viernes"
-            placeholderTextColor={t.placeholder}
-            multiline
-            style={[styles.modalInput, styles.modalTextarea]}
-          />
+              <Pressable
+                onPress={() => setForm((p) => ({ ...p, urgente: !p.urgente }))}
+                style={[styles.urgenteBtn, form.urgente && styles.urgenteOn]}
+              >
+                <Text style={[styles.urgenteTxt, form.urgente && styles.urgenteTxtOn]}>
+                  {form.urgente ? "✓ Urgente" : "Marcar urgente"}
+                </Text>
+              </Pressable>
 
-          <Text style={styles.modalLabel}>Fecha (opcional)</Text>
-          <DateField
-            value={form.fecha || ""}
-            onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
-            clearable
-            style={styles.modalInput}
-          />
+              <Text style={styles.modalLabel}>Adjuntos (opcional)</Text>
+              <AdjuntosInput
+                adjuntos={form.adjuntos || []}
+                onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))}
+                cursoId={cursoId}
+                onUploadingChange={setSubiendoAdj}
+              />
 
-          <Text style={styles.modalLabel}>Prioridad</Text>
-          <View style={styles.prioRow}>
-            {["alta", "media", "baja"].map((p) => {
-              const active = form.prioridad === p;
-              return (
-                <Pressable
-                  key={p}
-                  onPress={() => setForm((f) => ({ ...f, prioridad: p }))}
-                  style={[styles.prioBtn, active && { borderColor: PRIO[p].c, backgroundColor: PRIO[p].bg }]}
-                >
-                  <Text style={[styles.prioTxt, active && { color: p === "media" ? "#B45309" : PRIO[p].c }]}>
-                    {PRIO[p].l}
-                  </Text>
+              <View style={styles.modalBtns}>
+                <Pressable onPress={onClose} style={styles.cancelBtn}>
+                  <Text style={styles.cancelTxt}>Cancelar</Text>
                 </Pressable>
-              );
-            })}
-          </View>
-
-          <Pressable
-            onPress={() => setForm((p) => ({ ...p, urgente: !p.urgente }))}
-            style={[styles.urgenteBtn, form.urgente && styles.urgenteOn]}
-          >
-            <Text style={[styles.urgenteTxt, form.urgente && styles.urgenteTxtOn]}>
-              {form.urgente ? "✓ Urgente" : "Marcar urgente"}
-            </Text>
-          </Pressable>
-
-          <Text style={styles.modalLabel}>Adjuntos (opcional)</Text>
-          <AdjuntosInput
-            adjuntos={form.adjuntos || []}
-            onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))}
-            cursoId={cursoId}
-            onUploadingChange={setSubiendoAdj}
-          />
-
-          <View style={styles.modalBtns}>
-            <Pressable onPress={onClose} style={styles.cancelBtn}>
-              <Text style={styles.cancelTxt}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={onGuardar} disabled={saving || subiendoAdj} style={[styles.saveBtn, subiendoAdj && styles.saveBtnOff]}>
-              <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
-            </Pressable>
+                <Pressable onPress={onGuardar} disabled={saving || subiendoAdj} style={[styles.saveBtn, subiendoAdj && styles.saveBtnOff]}>
+                  <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -621,7 +639,7 @@ const styles = StyleSheet.create({
 
   // modal
   modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
-  modalCard: { width: "100%", maxWidth: 420, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
+  modalCard: { width: "100%", maxWidth: 420, maxHeight: "88%", backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
   modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 14 },
   // selector de curso destino (solo vista "Todos")
   cursoRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

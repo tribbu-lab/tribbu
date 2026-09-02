@@ -5,7 +5,7 @@
 // gestionan en Cumpleaños (no se abre su modal acá).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, safeUrl, fmtRangoFecha } from "@shared/helpers";
 import { MESES, T } from "@shared/theme";
@@ -617,9 +617,9 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo evento" : "Editar evento"}</Text>
 
             <Text style={styles.label}>TIPO</Text>
@@ -729,7 +729,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

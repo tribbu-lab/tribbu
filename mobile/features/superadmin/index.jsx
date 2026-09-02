@@ -6,7 +6,7 @@
 // EmojiPicker en mobile) y Share para compartir códigos (sin dep de portapapeles).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Share, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Share, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -738,7 +738,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo usuario" : "Editar usuario"}</Text>
@@ -869,7 +869,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -877,9 +877,9 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
 function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo curso" : "Editar curso"}</Text>
             <Text style={styles.label}>NOMBRE DEL CURSO</Text>
             <TextInput value={form.nombre || ""} onChangeText={(t) => setForm((p) => ({ ...p, nombre: t }))} placeholder="Ej: 4°B — Primaria" placeholderTextColor="#94A3B8" style={styles.input} />
@@ -901,7 +901,7 @@ function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -909,9 +909,9 @@ function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
 function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo maestro" : "Editar maestro"}</Text>
             {[
               { l: "Nombre completo", k: "nombre", ph: "Ej: Carlos Gómez" },
@@ -955,7 +955,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -963,9 +963,9 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
 function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo alumno" : "Editar alumno"}</Text>
             <View style={styles.row}>
               <View style={styles.flex1}>
@@ -993,7 +993,7 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1089,28 +1089,30 @@ function AlertasAdmin({ cursos }) {
 
       {modal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setModal(false)}>
-          <View style={styles.overlay}>
-            <View style={[styles.modalCard, { maxHeight: undefined }]}>
-              <Text style={styles.modalTitle}>🚨 Enviar alerta</Text>
-              <Text style={styles.subtitle}>Se mostrará destacada a todos los apoderados del curso.</Text>
-              <TextInput
-                value={msg}
-                onChangeText={setMsg}
-                placeholder="Ej: Se suspenden las clases de mañana."
-                placeholderTextColor="#94A3B8"
-                multiline
-                style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
-              />
-              <View style={styles.modalBtns}>
-                <Pressable onPress={() => setModal(false)} style={styles.cancelBtn}>
-                  <Text style={styles.cancelTxt}>Cancelar</Text>
-                </Pressable>
-                <Pressable onPress={enviar} disabled={loading || !msg.trim()} style={[styles.saveBtn, { backgroundColor: "#EF4444" }]}>
-                  <Text style={styles.saveTxt}>{loading ? "Enviando..." : "Enviar alerta"}</Text>
-                </Pressable>
-              </View>
+          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={styles.modalCard}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.modalTitle}>🚨 Enviar alerta</Text>
+                <Text style={styles.subtitle}>Se mostrará destacada a todos los apoderados del curso.</Text>
+                <TextInput
+                  value={msg}
+                  onChangeText={setMsg}
+                  placeholder="Ej: Se suspenden las clases de mañana."
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
+                />
+                <View style={styles.modalBtns}>
+                  <Pressable onPress={() => setModal(false)} style={styles.cancelBtn}>
+                    <Text style={styles.cancelTxt}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable onPress={enviar} disabled={loading || !msg.trim()} style={[styles.saveBtn, { backgroundColor: "#EF4444" }]}>
+                    <Text style={styles.saveTxt}>{loading ? "Enviando..." : "Enviar alerta"}</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </View>
@@ -1497,9 +1499,9 @@ function HorariosAdmin({ cursos }) {
 
       {horForm !== null ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <View style={styles.overlay}>
+          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <View style={styles.modalCard}>
-              <ScrollView>
+              <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>
                 <Text style={styles.label}>DÍA</Text>
                 <View style={styles.chipsWrap}>
@@ -1548,7 +1550,7 @@ function HorariosAdmin({ cursos }) {
                 </View>
               </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </View>
@@ -1666,38 +1668,40 @@ function UniformesAdmin({ cursos }) {
 
       {modal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setModal(null)}>
-          <View style={styles.overlay}>
-            <View style={[styles.modalCard, { maxHeight: undefined }]}>
-              <Text style={styles.modalTitle}>{modalTitle}{modal.u ? ` — ${modal.u.tipo}` : ""}</Text>
-              {modal.mode === "newU" || modal.mode === "editU" ? (
-                <>
-                  <Text style={styles.label}>NOMBRE</Text>
-                  <TextInput value={form.tipo} onChangeText={(t) => setForm((p) => ({ ...p, tipo: t }))} placeholder="Ej: Deportivo, Formal..." placeholderTextColor="#94A3B8" style={styles.input} />
-                  <Text style={styles.label}>EMOJI</Text>
-                  <View style={styles.chipsWrap}>
-                    {EMOJIS.map((e) => (
-                      <Pressable key={e} onPress={() => setForm((p) => ({ ...p, emoji: e }))} style={[styles.emojiBtn, form.emoji === e && styles.chipOn]}>
-                        <Text style={{ fontSize: 18 }}>{e}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.label}>ÍTEM</Text>
-                  <TextInput value={form.item} onChangeText={(t) => setForm((p) => ({ ...p, item: t }))} placeholder="Ej: Remera blanca manga corta" placeholderTextColor="#94A3B8" style={styles.input} />
-                </>
-              )}
-              <View style={styles.modalBtns}>
-                <Pressable onPress={() => setModal(null)} style={styles.cancelBtn}>
-                  <Text style={styles.cancelTxt}>Cancelar</Text>
-                </Pressable>
-                <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
-                  <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
-                </Pressable>
-              </View>
+          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={styles.modalCard}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.modalTitle}>{modalTitle}{modal.u ? ` — ${modal.u.tipo}` : ""}</Text>
+                {modal.mode === "newU" || modal.mode === "editU" ? (
+                  <>
+                    <Text style={styles.label}>NOMBRE</Text>
+                    <TextInput value={form.tipo} onChangeText={(t) => setForm((p) => ({ ...p, tipo: t }))} placeholder="Ej: Deportivo, Formal..." placeholderTextColor="#94A3B8" style={styles.input} />
+                    <Text style={styles.label}>EMOJI</Text>
+                    <View style={styles.chipsWrap}>
+                      {EMOJIS.map((e) => (
+                        <Pressable key={e} onPress={() => setForm((p) => ({ ...p, emoji: e }))} style={[styles.emojiBtn, form.emoji === e && styles.chipOn]}>
+                          <Text style={{ fontSize: 18 }}>{e}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.label}>ÍTEM</Text>
+                    <TextInput value={form.item} onChangeText={(t) => setForm((p) => ({ ...p, item: t }))} placeholder="Ej: Remera blanca manga corta" placeholderTextColor="#94A3B8" style={styles.input} />
+                  </>
+                )}
+                <View style={styles.modalBtns}>
+                  <Pressable onPress={() => setModal(null)} style={styles.cancelBtn}>
+                    <Text style={styles.cancelTxt}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
+                    <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </View>

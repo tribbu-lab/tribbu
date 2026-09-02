@@ -12,6 +12,8 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Image,
   Linking,
   StyleSheet,
@@ -640,9 +642,9 @@ function Uniformes({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
 function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuardar }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{title}</Text>
             {fields.map((f) => (
               <View key={f.k}>
@@ -666,7 +668,7 @@ function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuard
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -22,6 +22,8 @@ import {
   Pressable,
   ScrollView,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   TextInput,
   StyleSheet,
   RefreshControl,
@@ -608,28 +610,30 @@ function AlertaModal({ visible, onClose, onEnviar }) {
   const [msg, setMsg] = useState("");
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Publicar alerta</Text>
-          <Text style={styles.modalSub}>Se envía como push a toda la comunidad del curso.</Text>
-          <TextInput
-            value={msg}
-            onChangeText={setMsg}
-            placeholder="Ej: Mañana no hay clases"
-            placeholderTextColor={t.placeholder}
-            multiline
-            style={styles.modalInput}
-          />
-          <View style={styles.modalBtns}>
-            <Pressable onPress={onClose} style={styles.cancelBtn}>
-              <Text style={styles.cancelTxt}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={() => msg.trim() && onEnviar(msg.trim())} style={styles.saveBtn}>
-              <Text style={styles.saveTxt}>Enviar</Text>
-            </Pressable>
-          </View>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Publicar alerta</Text>
+            <Text style={styles.modalSub}>Se envía como push a toda la comunidad del curso.</Text>
+            <TextInput
+              value={msg}
+              onChangeText={setMsg}
+              placeholder="Ej: Mañana no hay clases"
+              placeholderTextColor={t.placeholder}
+              multiline
+              style={styles.modalInput}
+            />
+            <View style={styles.modalBtns}>
+              <Pressable onPress={onClose} style={styles.cancelBtn}>
+                <Text style={styles.cancelTxt}>Cancelar</Text>
+              </Pressable>
+              <Pressable onPress={() => msg.trim() && onEnviar(msg.trim())} style={styles.saveBtn}>
+                <Text style={styles.saveTxt}>Enviar</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -790,7 +794,7 @@ const styles = StyleSheet.create({
 
   // modal de alerta
   modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
-  modalCard: { width: "100%", maxWidth: 420, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xxl, padding: SPACE.xxl },
+  modalCard: { width: "100%", maxWidth: 420, maxHeight: "88%", backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xxl, padding: SPACE.xxl },
   modalTitle: { fontSize: 15, fontWeight: "900", color: t.text, marginBottom: 4 },
   modalSub: { fontSize: 12, color: t.textFaint, marginBottom: 14 },
   modalInput: {
