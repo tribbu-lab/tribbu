@@ -22,6 +22,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import * as XLSX from "xlsx";
 import { UploadMenuExcel } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
+import { CambiarPasswordModal } from "../auth";
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
 // wrappean se vuelven enormes e inmanejables. Único lugar para este patrón
@@ -107,8 +108,10 @@ function ModuloStats({ items }) {
   );
 }
 
-export function SuperAdmin() {
+export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [sec,setSec]           = useState("usuarios");
+  const [colegioNombre,setColegioNombre] = useState("");
+  const [cambiarPass,setCambiarPass] = useState(false);
   const [usuarios,setUsuarios] = useState([]);
   const [cursos,setCursos]     = useState([]);
   const [hijos,setHijos]       = useState([]);
@@ -207,12 +210,13 @@ export function SuperAdmin() {
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
-      supabase.from("colegio").select("año_lectivo_actual").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
+      supabase.from("colegio").select("año_lectivo_actual,nombre").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
     ]);
     setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
     setCursos(c.data||[]);
     setHijos(h.data||[]);
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
+    setColegioNombre(col.data?.nombre||"");
     const mcData = mc.data||[];
     setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
     const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))").order("nombre");
@@ -443,7 +447,7 @@ export function SuperAdmin() {
   if(loading) return <Spinner/>;
 
   return (
-    <div>
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
       <Toast />
       {/* Feedback banner para operaciones de Auth */}
       {authSyncMsg&&(
@@ -728,9 +732,11 @@ export function SuperAdmin() {
         </div>
       )}
 
-      <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?0:32,alignItems:"flex-start"}}>
-        {isMobile ? (
-          <nav style={{width:"100%",marginBottom:16}}>
+      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+
+      {isMobile ? (
+        <div style={{marginBottom:16,padding:"20px 16px 0"}}>
+          <nav>
             {SECCIONES.map(g=>(
               <div key={g.grupo} style={{marginBottom:10}}>
                 <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:"0 0 6px"}}>{g.grupo}</div>
@@ -742,18 +748,34 @@ export function SuperAdmin() {
               </div>
             ))}
           </nav>
-        ) : (
-          // Sidebar navy #0F172A (handoff Tribbu Admin, Parte 3): antes los
-          // ítems flotaban sobre el fondo blanco de la página, con navy solo
-          // en el botón activo — acá no leía como "panel", solo como texto.
-          <nav style={{width:236,flexShrink:0,position:"sticky",top:20,background:"#0F172A",borderRadius:18,padding:"18px 12px"}}>
-            <div style={{padding:"0 12px",marginBottom:18}}>
-              <Wordmark size={20} letterSpacing={-0.8}/>
-              <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
-                <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
-                <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>Super Admin</span>
-              </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginTop:14,padding:"10px 12px",borderRadius:12,background:"white",border:"1px solid #E2E8F0"}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:12.5,fontWeight:700,color:"#0F172A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</div>
+              {colegioNombre&&<div style={{fontSize:11,color:"#94A3B8"}}>{colegioNombre}</div>}
             </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <button onClick={()=>setCambiarPass(true)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>🔑</button>
+              <button onClick={onCerrarSesion} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Salir</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Sidebar navy #0F172A fijo a todo el alto (handoff Tribbu Admin,
+        // Parte 3): antes vivía "sticky" + con borde redondeado adentro de
+        // un contenedor centrado con margen (el de App.jsx) — se veía como
+        // un panel angosto flotando con aire de los dos lados, "una app
+        // adentro de la app". Ahora replica el mismo patrón que ya usa el
+        // sidebar del apoderado (App.jsx #tribbu-sidebar): fixed, pegado a
+        // los 3 bordes, sin radius — el contenido se corre con marginLeft.
+        <nav style={{width:236,position:"fixed",top:0,left:0,bottom:0,background:"#0F172A",display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto"}}>
+          <div style={{padding:"20px 20px 18px"}}>
+            <Wordmark size={20} letterSpacing={-0.8}/>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
+              <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
+              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>Super Admin</span>
+            </div>
+          </div>
+          <div style={{flex:1,padding:"0 12px",overflowY:"auto"}}>
             {SECCIONES.map(g=>(
               <div key={g.grupo} style={{marginBottom:18}}>
                 <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
@@ -764,9 +786,23 @@ export function SuperAdmin() {
                 </div>
               </div>
             ))}
-          </nav>
-        )}
-        <div style={{flex:1,minWidth:0,width:isMobile?"100%":undefined}}>
+          </div>
+          <div style={{padding:"0 12px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(139,92,246,0.25)",color:"#C4B5FD",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>
+                {(usuario?.nombre||"?").slice(0,1)}{(usuario?.apellido||"")[0]||""}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</div>
+                {colegioNombre&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{colegioNombre}</div>}
+              </div>
+            </div>
+            <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
+            <button onClick={onCerrarSesion} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
+          </div>
+        </nav>
+      )}
+        <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"24px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
       {(() => {
         const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
         const eyebrow = SECCIONES.find(g=>g.items.some(i=>i.id===sec))?.grupo;
@@ -1198,7 +1234,6 @@ export function SuperAdmin() {
         </div>
       )}
         </div>
-      </div>
     </div>
   );
 }

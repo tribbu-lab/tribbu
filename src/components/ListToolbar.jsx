@@ -88,12 +88,18 @@ export function ListToolbar({
       </div>
 
       {filterOptions?.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {filterOptions.map((f, i) => {
+        // Cada dimensión (Rol / Estado / Curso) en su propia fila — antes
+        // todas compartían un único flex-wrap, así que con varias
+        // dimensiones (o una con muchas opciones, como Curso) el salto de
+        // línea quedaba librado al ancho disponible en vez de ser un criterio
+        // explícito, y el resultado no calzaba con el mockup (una fila por
+        // filtro, siempre). Estandariza el patrón para las ~8 listas que
+        // usan este mismo componente, no solo Usuarios.
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filterOptions.map((f) => {
             const activo = filtros[f.key] || "all";
             return (
               <div key={f.key} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {i > 0 && <span style={{ width: 1, height: 20, background: "#E2E8F0", margin: "0 2px" }} />}
                 <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#94A3B8" }}>{f.label}</span>
                 <button onClick={() => setFiltro(f.key, "all")} style={chipStyle(activo === "all")}>Todos</button>
                 {f.options.map((o) => (

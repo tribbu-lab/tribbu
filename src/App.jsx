@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
-import { T, ROL_LABEL, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
+import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
 import { getHijoColor, setHijoColor } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
@@ -351,17 +351,7 @@ function App() {
   const cursosAdmin = items.filter(i=>i.rolEfectivo==="admin").map(i=>i.curso_id);
 
   if(usuario.rol==="super") return (
-    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
-      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
-      <div style={{background:"#0F172A",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-        <Wordmark size={22} letterSpacing={-1} />
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>🔑 Contraseña</button>
-          <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>Salir</button>
-        </div>
-      </div>
-      <div style={{padding:"24px 20px",maxWidth:1200,margin:"0 auto"}}><SuperAdmin/></div>
-    </div>
+    <SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/>
   );
 
   const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
@@ -443,7 +433,17 @@ function App() {
               <button onClick={()=>{ setCursoIdx(i); setColorPickerIdx(null); }} style={{width:"100%",padding:"8px 10px",borderRadius:10,border:"none",cursor:"pointer",background:i===cursoIdx?"rgba(255,255,255,0.12)":"transparent",color:"white",fontSize:12,fontWeight:i===cursoIdx?800:500,textAlign:"left",display:"flex",alignItems:"center",gap:8,WebkitTextFillColor:"white"}}>
                 {item._tipo==="todos"&&<span style={{fontSize:12,flexShrink:0}}>👥</span>}
                 {item._tipo==="hijo"&&<span style={{width:10,height:10,borderRadius:"50%",background:getHijoColorEfectivo(item),flexShrink:0,border:"2px solid rgba(255,255,255,0.3)"}}/>}
-                <span style={{flex:1,color:"white"}}>{item._tipo==="hijo"||item._tipo==="todos"?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                <span style={{flex:1,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item._tipo==="hijo"||item._tipo==="todos"?item.nombre:`${item.avatar||""} ${item.nombre}`}</span>
+                {/* Rol efectivo por item: un apoderado puede ser Room Parent en un
+                    curso y solo apoderado en otro — el label de rol de más abajo
+                    (tarjeta de usuario) solo refleja el item activo, así que acá
+                    se ve de un vistazo la diferencia entre hijos sin tener que
+                    cambiar de uno a otro. "Todos" no tiene rol propio (rolEfectivo
+                    es false/"padre" ahí por contrato). El texto queda blanco (la
+                    regla #tribbu-sidebar de más arriba lo fuerza con !important,
+                    ver la <style> antes de este div en el layout desktop) — la
+                    diferencia se ve en el fondo, teñido con ROL_COLOR. */}
+                {item._tipo==="hijo"&&<span style={{fontSize:8.5,fontWeight:800,padding:"2px 6px",borderRadius:999,flexShrink:0,background:(ROL_COLOR[item.rolEfectivo]||"#94A3B8")+"3D"}}>{ROL_LABEL[item.rolEfectivo]}</span>}
                 {item._tipo==="hijo"&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer",color:"white"}}>🎨</span>}
               </button>
             </div>
