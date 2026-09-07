@@ -27,6 +27,9 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   const [alumnosRegalo,setAlumnosRegalo] = useState([]);
   const [cumpleMap,setCumpleMap]         = useState({});
   const [guardandoRegaloId,setGuardandoRegaloId] = useState(null);
+  const [familias,setFamilias]     = useState([]);
+  const [roomParents,setRoomParents] = useState([]);
+  const [alertaModal,setAlertaModal] = useState(false);
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -78,19 +81,46 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   };
 
   const cargar = async () => {
-    const [c, hor, mae] = await Promise.all([
+    const [c, hor, mae, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id",cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,materia").eq("activo",true),
+      supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","admin"),
     ]);
     setCurso(c.data);
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
     setHorarios(hor.data||[]);
     setMaestros(mae.data||[]);
+    setRoomParents((ucData.data||[]).map(r=>r.usuarios).filter(Boolean));
+
+    const hijosCurso = hijosData.data||[];
+    const hijoIds = hijosCurso.map(h=>h.id);
+    const uh = hijoIds.length
+      ? await supabase.from("usuario_hijos").select("hijo_id, usuarios(nombre,apellido,email,telefono)").in("hijo_id",hijoIds)
+      : {data:[]};
+    const apodPorHijo = new Map();
+    for(const r of uh.data||[]) {
+      if(!r.usuarios) continue;
+      const arr = apodPorHijo.get(r.hijo_id)||[];
+      arr.push(r.usuarios);
+      apodPorHijo.set(r.hijo_id, arr);
+    }
+    setFamilias(hijosCurso.map(h=>({...h, apoderados: apodPorHijo.get(h.id)||[]})));
     cargarRegalos();
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
+
+  const familiasSinRegistrar = familias.filter(f=>f.apoderados.length===0);
+
+  const enviarAlerta = async (msg) => {
+    await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
+    await supabase.from("alertas").insert({curso_id:cursoId, mensaje:msg, hora:"Ahora", activa:true});
+    const userIds = await getUserIdsByCurso(cursoId);
+    await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
+    setAlertaModal(false);
+  };
 
   const guardarGeneral = async () => {
     setSaving(true);
@@ -116,8 +146,15 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     <div>
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
-      <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"regalos",l:"🎁 Regalos"}].map(t=>(
+
+      <button onClick={()=>setAlertaModal(true)} style={{width:"100%",minHeight:52,display:"flex",alignItems:"center",gap:10,borderRadius:14,background:"#FEF2F2",border:"1.5px solid #FCA5A5",padding:"0 16px",cursor:"pointer",marginBottom:16}}>
+        <span style={{fontSize:20}}>🚨</span>
+        <span style={{fontSize:13.5,fontWeight:700,color:"#DC2626"}}>Publicar alerta urgente al curso</span>
+      </button>
+      {alertaModal&&<AlertaModal onClose={()=>setAlertaModal(false)} onEnviar={enviarAlerta}/>}
+
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"familias",l:"Familias"},{id:"regalos",l:"🎁 Regalos"}].map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:tab===t.id?"#0F172A":"#F1F5F9",color:tab===t.id?"white":"#64748B"}}>{t.l}</button>
         ))}
       </div>
@@ -137,6 +174,11 @@ export function AdminPanel({ cursoId, cursoNombre }) {
             <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO SUGERIDO POR FAMILIA</div>
             <input type="number" value={form.monto_regalo} onChange={e=>setForm(p=>({...p,monto_regalo:e.target.value}))} placeholder="Ej: 2000" style={inp}/>
           </div>
+          {form.monto_regalo&&familias.length>0&&(
+            <div style={{fontSize:12.5,color:"#3B82F6",fontWeight:600,marginBottom:16,lineHeight:1.5}}>
+              Con {familias.length} familia{familias.length!==1?"s":""}, la colecta junta {form.moneda_regalo} {(Number(form.monto_regalo)*familias.length).toLocaleString("es-AR")}
+            </div>
+          )}
           <button onClick={guardarGeneral} disabled={saving} style={{width:"100%",padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
         </Card>
       )}
@@ -217,6 +259,39 @@ export function AdminPanel({ cursoId, cursoNombre }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {tab==="familias"&&(
+        <div>
+          <Card style={{padding:20,marginBottom:18}}>
+            <div style={{fontSize:14,fontWeight:800,marginBottom:12}}>Room Parents del curso</div>
+            {roomParents.length===0
+              ? <div style={{fontSize:13,color:"#94A3B8"}}>Sin Room Parents asignados</div>
+              : roomParents.map((r,i)=>(
+                  <div key={i} style={{fontSize:13,color:"#1E293B",marginBottom:6}}>{fmtNombre(r)} · {r.email}</div>
+                ))
+            }
+          </Card>
+
+          <div style={{fontSize:14,fontWeight:700,marginTop:4,marginBottom:2}}>
+            Familias sin registrar{familiasSinRegistrar.length?` · ${familiasSinRegistrar.length}`:""}
+          </div>
+          <div style={{fontSize:12,color:"#94A3B8",lineHeight:1.5,marginBottom:12}}>
+            Alumnos del curso a los que todavía ningún apoderado se vinculó con el código de invitación.
+          </div>
+          {familiasSinRegistrar.length===0 ? (
+            <Card style={{padding:20}}>
+              <div style={{fontSize:13,color:"#94A3B8",textAlign:"center"}}>Todas las familias ya se registraron ✨</div>
+            </Card>
+          ) : (
+            familiasSinRegistrar.map(f=>(
+              <div key={f.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"white",borderRadius:10,border:"1px solid #E2E8F0",padding:"10px 14px",marginBottom:6}}>
+                <span style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{fmtNombre(f)}</span>
+                <span style={{fontSize:11,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"3px 8px",borderRadius:20}}>Sin registrar</span>
+              </div>
+            ))
+          )}
         </div>
       )}
 
