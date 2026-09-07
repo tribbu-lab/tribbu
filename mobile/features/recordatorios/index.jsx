@@ -283,7 +283,14 @@ export function Recordatorios() {
       if (filtroOrigen === "normal" && r.grupo_id) return false;
       return true;
     })
-    .sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || ""));
+    .sort((a, b) => {
+      // Descendente por fecha del recordatorio (no por cuándo se publicó) —
+      // ver el mismo fix en src/features/recordatorios/index.jsx (web).
+      if (a.fecha && b.fecha) return b.fecha.localeCompare(a.fecha);
+      if (a.fecha && !b.fecha) return -1;
+      if (!a.fecha && b.fecha) return 1;
+      return (b.creado_en || "").localeCompare(a.creado_en || "");
+    });
 
   const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAG));
   const pagina_ = Math.min(pagina, totalPags);

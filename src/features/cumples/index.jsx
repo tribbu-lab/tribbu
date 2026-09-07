@@ -449,6 +449,8 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                 const isAlumno = a.tipo==="Alumno";
                 const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
                 const fest = isAlumno ? festejoMap[a.rawId] : null;
+                const cumple = cumpleMap[a.id]||{};
+                const responsable = cumple._responsable_hijo || cumple.responsable;
                 const primerNombre = a.nombre.split(" ")[0];
                 const eyebrow = `${i===0?"EL PRÓXIMO":"DESPUÉS"} · ${dias===0?"HOY":dias===1?"MAÑANA":`EN ${dias} DÍAS`}`;
                 const titulo = isAlumno ? `${primerNombre} cumple ${edadQueCumple(a.fecha_nacimiento)} 🎂` : `Cumple la Seño ${primerNombre}`;
@@ -458,11 +460,10 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                   tag?.nombre,
                   isAlumno?"alumno":"seño",
                 ].filter(Boolean);
-                // CTA: solo acciones que ya existen y funcionan de verdad —
-                // ver un festejo publicado, o crear el de tu propio hijo. Sin
-                // festejo y sin ser tu hijo, la tarjeta queda informativa
-                // (todavía no hay forma de "aportar al regalo" de un colega
-                // sin un vínculo real colecta↔cumple en la base).
+                // CTA principal: ver un festejo publicado, o crear el de tu
+                // propio hijo. Sin festejo y sin ser tu hijo, la tarjeta
+                // queda informativa (todavía no hay forma de "aportar al
+                // regalo" de un colega sin un vínculo real colecta↔cumple).
                 const cta = fest
                   ? {label:"Ver festejo", onClick:()=>setFestejoDetalle(fest)}
                   : (esMiHijo ? {label:"+ Crear festejo", onClick:()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id})} : null);
@@ -475,8 +476,15 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                       <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.8,color:"#94A3B8",marginBottom:3}}>{eyebrow}</div>
                       <div style={{fontSize:14.5,fontWeight:800,color:"#0F172A",marginBottom:2}}>{titulo}</div>
                       <div style={{fontSize:12,color:"#64748B",textTransform:"capitalize"}}>{metaPartes.join(" · ")}</div>
+                      {responsable&&<div style={{fontSize:11.5,color:"#64748B",marginTop:2}}>🎁 Regala: <strong>{fmtNombre(responsable)}</strong></div>}
                     </div>
-                    {cta&&<button onClick={cta.onClick} style={{padding:"10px 16px",borderRadius:11,border:"none",background:"#0F172A",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{cta.label}</button>}
+                    <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+                      {cta&&<button onClick={cta.onClick} style={{padding:"10px 16px",borderRadius:11,border:"none",background:"#0F172A",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap"}}>{cta.label}</button>}
+                      <div style={{display:"flex",gap:6}}>
+                        {esMiHijo&&fest&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B",fontWeight:600}}>Editar</button>}
+                        {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B",fontWeight:600}}>🎁 Regalo</button>}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -495,17 +503,28 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                     const isAlumno = a.tipo==="Alumno";
                     const esMiHijo = isAlumno && misHijosUniq.includes(a.rawId);
                     const fest = isAlumno ? festejoMap[a.rawId] : null;
+                    const cumple = cumpleMap[a.id]||{};
+                    const responsable = cumple._responsable_hijo || cumple.responsable;
                     const tag = tagDeCurso(a.curso_id);
                     const dotColor = tag?.color || (isAlumno ? "#3B82F6" : "#8B5CF6");
                     const rolTxt = isAlumno ? "alumno" : "seño";
                     const onClickRow = fest ? ()=>setFestejoDetalle(fest) : (esMiHijo ? ()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id}) : undefined);
+                    const metaTxt = [tag?.nombre, rolTxt, responsable?`regala ${fmtNombre(responsable).split(" ")[0]}`:null].filter(Boolean).join(" · ");
                     return (
-                      <div key={a.id} onClick={onClickRow} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 4px",borderRadius:10,cursor:onClickRow?"pointer":"default"}}>
-                        <span style={{width:7,height:7,borderRadius:"50%",background:dotColor,flexShrink:0}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:700,color:"#0F172A",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.nombre}</div>
-                          <div style={{fontSize:11,color:"#94A3B8"}}>{tag?`${tag.nombre} · `:""}{rolTxt}</div>
+                      <div key={a.id} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 4px",borderRadius:10}}>
+                        <div onClick={onClickRow} style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:9,cursor:onClickRow?"pointer":"default"}}>
+                          <span style={{width:7,height:7,borderRadius:"50%",background:dotColor,flexShrink:0}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#0F172A",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.nombre}</div>
+                            <div style={{fontSize:11,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{metaTxt}</div>
+                          </div>
                         </div>
+                        {esMiHijo&&fest&&(
+                          <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} title="Editar festejo" style={{width:22,height:22,borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✏️</button>
+                        )}
+                        {isAdmin&&(
+                          <button onClick={()=>setEditando(a)} title="Asignar quién regala" style={{width:22,height:22,borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🎁</button>
+                        )}
                         <span style={{fontSize:14,fontWeight:800,color:"#334155",fontVariantNumeric:"tabular-nums",flexShrink:0}}>{new Date(a.fecha_nacimiento+"T00:00:00").getDate()}</span>
                       </div>
                     );

@@ -147,7 +147,16 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(filtroOrigen==="colegio" && !r.grupo_id) return false;
     if(filtroOrigen==="normal"  &&  r.grupo_id) return false;
     return true;
-  }).sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
+  }).sort((a,b)=>{
+    // Descendente por fecha del recordatorio (no por cuándo se publicó): el
+    // orden anterior (solo creado_en) salteaba fechas sin ningún criterio
+    // visible para quien lo mira ("28 ago, 10 abr, 8 may, 15 may..."). Sin
+    // fecha (aviso genérico) cae al final, ordenado entre sí por creado_en.
+    if(a.fecha&&b.fecha) return b.fecha.localeCompare(a.fecha);
+    if(a.fecha&&!b.fecha) return -1;
+    if(!a.fecha&&b.fecha) return 1;
+    return (b.creado_en||"").localeCompare(a.creado_en||"");
+  });
 
   const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
   const pagina_ = Math.min(pagina,totalPags);
