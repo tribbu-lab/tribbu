@@ -189,8 +189,12 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     setMontoRegalo(montosUniq.length === 1 ? montosUniq[0] : null);
     setMonedaRegalo(monedasUniq.length === 1 ? monedasUniq[0] : "$");
 
+    // Solo festejos: evento_asistencia también se usa para "confirmar
+    // asistencia" en eventos comunes del Calendario (paseo/acto/reunión),
+    // que crean una fila por cada hijo del curso — sin este filtro esos
+    // eventos aparecían acá como si fueran una invitación de cumpleaños.
     const invFiltradas = (inv.data || []).filter(
-      (i) => i.evento && (hijoActivoId === null || i.alumno_invitado_id === hijoActivoId)
+      (i) => i.evento && i.evento.tipo === "festejo" && (hijoActivoId === null || i.alumno_invitado_id === hijoActivoId)
     );
     setInvitaciones(invFiltradas);
 
