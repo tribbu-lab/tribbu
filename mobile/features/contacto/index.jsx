@@ -257,7 +257,6 @@ export function Alumnos() {
               </Text>
             ) : null}
           </View>
-          {h.dni ? <Text style={styles.contactoRol}>DNI: {h.dni}</Text> : null}
         </View>
         <View style={styles.apodBox}>
           {apods.length === 0 ? (

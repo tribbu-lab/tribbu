@@ -284,7 +284,6 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
             <div style={{fontSize:13,fontWeight:700}}>{fmtAlumno(h)}</div>
             {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
           </div>
-          {h.dni&&<div style={{fontSize:11,color:"#94A3B8"}}>DNI: {h.dni}</div>}
         </div>
         {apods.length>0&&(
           <div style={{borderTop:"1px solid #F1F5F9",padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:10}}>

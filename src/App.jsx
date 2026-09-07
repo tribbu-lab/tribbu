@@ -17,7 +17,7 @@ import { Finanzas }        from "./features/finanzas";
 import { Comedor }         from "./features/comedor";
 import { RecordatoriosTab } from "./features/recordatorios";
 import { InfoUtil }        from "./features/info";
-import { Contacto, Alumnos } from "./features/contacto";
+import { Contacto } from "./features/contacto";
 import { AdminPanel }      from "./features/admin";
 import { SuperAdmin }      from "./features/superadmin";
 import { Encuestas }       from "./features/encuestas";
@@ -397,7 +397,7 @@ function App() {
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
-    ...(isAdmin?[{id:"alumnos",label:"Alumnos",emoji:"🎒"},{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
+    ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
   ];
 
   // Compartida entre Muro y la búsqueda global (header desktop): navegar a
@@ -424,7 +424,6 @@ function App() {
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
-      case "alumnos":  return <Alumnos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
     }

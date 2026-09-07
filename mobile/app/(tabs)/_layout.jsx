@@ -1,7 +1,8 @@
 // Layout de tabs: header persistente (selector de hijo/curso + notificaciones)
-// sobre un bottom-tab navigator nativo. Las tabs de admin (Alumnos/Admin) solo
-// se ofrecen cuando el item activo es "admin" (rolEfectivo). El deep-link de
-// push se engancha acá.
+// sobre un bottom-tab navigator nativo. La tab de admin (Admin) solo se
+// ofrece cuando el item activo es "admin" (rolEfectivo) — Alumnos vive en
+// Info Útil > Alumnos, sin ruta propia (antes estaba duplicada acá). El
+// deep-link de push se engancha acá.
 
 import { View, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
@@ -46,7 +47,6 @@ export default function TabsLayout() {
         <Tabs.Screen name="finanzas" options={hidden} />
         <Tabs.Screen name="info" options={hidden} />
         <Tabs.Screen name="contacto" options={hidden} />
-        <Tabs.Screen name="alumnos" options={hidden} />
         <Tabs.Screen name="admin" options={hidden} />
       </Tabs>
     </View>

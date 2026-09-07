@@ -1,8 +1,9 @@
-// "Más" — accesos a las features secundarias y a la cuenta. Las de admin
-// (Alumnos, Admin) solo aparecen si el item activo es Room Parent
-// (rolEfectivo === "admin"). Las acciones de cuenta (cambiar contraseña /
-// cerrar sesión) viven acá desde el patrón A3 (el header quedó solo con
-// notificaciones + chip del hijo).
+// "Más" — accesos a las features secundarias y a la cuenta. La de admin
+// (Admin) solo aparece si el item activo es Room Parent (rolEfectivo ===
+// "admin") — Alumnos ya no tiene entrada propia acá, vive en Info Útil >
+// Alumnos para los dos roles (antes estaba duplicada). Las acciones de
+// cuenta (cambiar contraseña / cerrar sesión) viven acá desde el patrón A3
+// (el header quedó solo con notificaciones + chip del hijo).
 
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
@@ -28,7 +29,6 @@ const BASE = [
   { id: "contacto", label: "Contacto", emoji: "📞" },
 ];
 const ADMIN = [
-  { id: "alumnos", label: "Alumnos", emoji: "🎒" },
   { id: "admin", label: "Admin", emoji: "⚙️" },
 ];
 
