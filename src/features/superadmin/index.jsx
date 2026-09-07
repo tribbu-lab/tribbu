@@ -189,9 +189,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   }];
 
   const ctrlMaestros = useListControls(maestros, {
-    searchFn: (m,q)=> m.nombre.toLowerCase().includes(q)||(m.materia||"").toLowerCase().includes(q),
+    searchFn: (m,q)=> fmtNombre(m).toLowerCase().includes(q)||(m.materia||"").toLowerCase().includes(q),
     sortOptions: [
-      {key:"nombre",  label:"Nombre",   val:m=>m.nombre},
+      {key:"nombre",  label:"Nombre",   val:m=>fmtNombre(m)},
       {key:"materia", label:"Materia",  val:m=>m.materia||""},
     ],
     filterOptions: [
@@ -400,11 +400,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_maestro") {
-      const { data, error } = await supabase.from("maestros").insert({nombre:sanitize(form.nombre),materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
+      const { data, error } = await supabase.from("maestros").insert({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
       if(error) { showToast("Error al guardar el maestro", "error"); return; }
       if(data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:data.id,curso_id:cid})));
     } else {
-      const { error } = await supabase.from("maestros").update({nombre:sanitize(form.nombre),materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+      const { error } = await supabase.from("maestros").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
       if(error) { showToast("Error al actualizar el maestro", "error"); return; }
       await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
       if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
@@ -654,7 +654,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
-            {[{label:"Nombre completo",key:"nombre",ph:"Ej: Carlos Gómez"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
+            {[{label:"Nombre",key:"nombre",ph:"Ej: Carlos"},{label:"Apellido",key:"apellido",ph:"Ej: Gómez"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
                 <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
@@ -823,7 +823,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
             {sec==="maestros" && (
-              <button onClick={()=>{ setForm({nombre:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
+              <button onClick={()=>{ setForm({nombre:"",apellido:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
             )}
             {sec==="alumnos" && (
               <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
@@ -1160,7 +1160,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
                     <div style={{width:34,height:34,borderRadius:999,background:"#F5F3FF",color:"#8B5CF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>👨‍🏫</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.nombre}</div>
+                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(m)}</div>
                       {m.email&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.email}</div>}
                     </div>
                   </div>
@@ -1171,7 +1171,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   </div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
                     <button onClick={()=>{ setForm({...m,cursos:[...(m.cursos||[])]}); setModal("editar_maestro"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:m.nombre,msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>setConfirm({nombre:fmtNombre(m),msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
                 </div>
               );
@@ -1779,7 +1779,7 @@ export function HorariosAdmin({ cursos }) {
     if(!cid) return;
     const [hor, mae] = await Promise.all([
       supabase.from("horarios").select("*").eq("curso_id",cid).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,materia").eq("activo",true)
+      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo",true)
         .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cid)).data?.map(r=>r.maestro_id)||[]),
     ]);
     setHorarios(hor.data||[]);
@@ -1820,7 +1820,7 @@ export function HorariosAdmin({ cursos }) {
             { key:"hora_inicio", label:"Hora inicio", tipo:"hora", requerido:true },
             { key:"hora_fin", label:"Hora fin", tipo:"hora", requerido:true },
             { key:"materia", label:"Materia", tipo:"texto", placeholder:"Ej: Matemáticas", requerido:true, span:2 },
-            { key:"docente", label:"Docente", tipo:"opciones", span:2, opciones:[{value:"",label:"Sin asignar"},...maestros.map(m=>({value:m.nombre,label:m.nombre}))] },
+            { key:"docente", label:"Docente", tipo:"opciones", span:2, opciones:[{value:"",label:"Sin asignar"},...maestros.map(m=>({value:fmtNombre(m),label:fmtNombre(m)}))] },
             { key:"color", label:"Color", tipo:"color", span:2 },
           ]}
           onCancelar={()=>setHorForm(null)}

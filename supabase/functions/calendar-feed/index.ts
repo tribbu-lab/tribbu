@@ -207,7 +207,7 @@ serve(async (req) => {
     const [{ data: eventos }, { data: hijos }, { data: maestroCursos }, { data: recordatorios }] = await Promise.all([
       supabase.from("eventos").select("*").in("curso_id", cursoIds),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,curso_id").in("curso_id", cursoIds),
-      supabase.from("maestro_cursos").select("curso_id, maestros(id,nombre,fecha_nacimiento)").in("curso_id", cursoIds),
+      supabase.from("maestro_cursos").select("curso_id, maestros(id,nombre,apellido,fecha_nacimiento)").in("curso_id", cursoIds),
       supabase
         .from("recordatorios")
         .select("id,curso_id,texto,fecha,hora_inicio,hora_fin,para_usuario_id")
@@ -230,10 +230,11 @@ serve(async (req) => {
       const nombre = [h.nombre, h.apellido].filter(Boolean).join(" ");
       vevents.push(buildCumpleVevent("hijo", h.id, nombre, h.fecha_nacimiento, nombrePorCurso.get(h.curso_id) || ""));
     }
-    for (const mc of (maestroCursos || []) as { curso_id: string; maestros: { id: string; nombre: string; fecha_nacimiento: string | null } | null }[]) {
+    for (const mc of (maestroCursos || []) as { curso_id: string; maestros: { id: string; nombre: string; apellido: string | null; fecha_nacimiento: string | null } | null }[]) {
       const m = mc.maestros;
       if (!m?.fecha_nacimiento) continue;
-      vevents.push(buildCumpleVevent("maestro", m.id, m.nombre, m.fecha_nacimiento, nombrePorCurso.get(mc.curso_id) || ""));
+      const nombreMaestro = [m.nombre, m.apellido].filter(Boolean).join(" ");
+      vevents.push(buildCumpleVevent("maestro", m.id, nombreMaestro, m.fecha_nacimiento, nombrePorCurso.get(mc.curso_id) || ""));
     }
 
     return new Response(buildIcs(vevents), { headers: icsHeaders });

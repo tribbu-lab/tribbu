@@ -65,7 +65,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase
         .from("maestros")
-        .select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)")
+        .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
         .in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
     ]);
@@ -86,7 +86,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         .map((m) => ({
           id: `c-m-${m.id}`,
           tipo: "cumple",
-          nombre: m.nombre,
+          nombre: fmtNombre(m),
           fecha_nacimiento: m.fecha_nacimiento,
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),

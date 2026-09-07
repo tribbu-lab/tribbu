@@ -41,7 +41,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
     if(!cursoIds?.length) return;
     const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds).order("nombre"),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
+      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").in("curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).eq("tipo","festejo"),
       // Traer invitaciones de los hijos del usuario en estos cursos (RLS filtra por apoderado del hijo)
@@ -71,7 +71,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
         curso_id:a.curso_id,
       })),
       ...maestrosUniq.filter(m=>m.fecha_nacimiento).map(m=>({
-        id:`m-${m.id}`, rawId:m.id, nombre:m.nombre, tipo:"Maestro",
+        id:`m-${m.id}`, rawId:m.id, nombre:fmtNombre(m), tipo:"Maestro",
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6",
         // El !inner ya filtró los cursos a cursoIds; si el maestro está en varios, se etiqueta con el primero.
         curso_id:m.maestro_cursos?.[0]?.curso_id ?? null,

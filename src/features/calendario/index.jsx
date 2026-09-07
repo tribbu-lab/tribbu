@@ -80,7 +80,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
     const [ev, al, ma, hor, col] = await Promise.all([
       supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
+      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
       supabase.from("colegio").select("horario_clases").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
     ]);
@@ -94,7 +94,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         fecha_nacimiento: a.fecha_nacimiento, curso_id: a.curso_id,
       })),
       ...(ma.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
-        id:`c-m-${m.id}`, tipo:"cumple", nombre:m.nombre, color:"#8B5CF6",
+        id:`c-m-${m.id}`, tipo:"cumple", nombre:fmtNombre(m), color:"#8B5CF6",
         fecha_nacimiento: m.fecha_nacimiento, curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
       })),
     ];

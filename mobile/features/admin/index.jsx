@@ -96,7 +96,7 @@ export function AdminPanel() {
     const [c, hor, mae, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id", cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id", cursoId).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,materia").eq("activo", true),
+      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo", true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id", cursoId).order("apellido"),
       supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "admin"),
     ]);
@@ -462,11 +462,11 @@ export function AdminPanel() {
                   {maestros.map((m) => (
                     <Pressable
                       key={m.id}
-                      onPress={() => setHorForm((p) => ({ ...p, docente: m.nombre }))}
-                      style={[styles.chip, horForm.docente === m.nombre && styles.chipOn]}
+                      onPress={() => setHorForm((p) => ({ ...p, docente: fmtNombre(m) }))}
+                      style={[styles.chip, horForm.docente === fmtNombre(m) && styles.chipOn]}
                     >
-                      <Text style={[styles.chipTxt, horForm.docente === m.nombre && styles.chipTxtOn]}>
-                        {m.nombre}
+                      <Text style={[styles.chipTxt, horForm.docente === fmtNombre(m) && styles.chipTxtOn]}>
+                        {fmtNombre(m)}
                         {m.materia ? ` · ${m.materia}` : ""}
                       </Text>
                     </Pressable>

@@ -121,7 +121,7 @@ export function Muro() {
       supabase.from("recordatorios").select("*").in("curso_id", cursosScope).order("creado_en", { ascending: false }),
       supabase.from("colectas").select("*").in("curso_id", cursosScope),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
+      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
       supabase.from("eventos").select("*").in("curso_id", cursosScope).gte("fecha", fechaHoy).lte("fecha", fecha15).order("fecha"),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId) : Promise.resolve({ data: [] }),
       userId && misHijosIds.length
@@ -157,7 +157,7 @@ export function Muro() {
       ...(maestrosData.data || []).filter((m) => m.fecha_nacimiento).map((m) => ({
         id: `m-${m.id}`,
         esMio: false,
-        nombre: m.nombre,
+        nombre: fmtNombre(m),
         tipo: "Maestro",
         curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         ...nextBday(m.fecha_nacimiento),

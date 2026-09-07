@@ -84,7 +84,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     const [c, hor, mae, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id",cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,materia").eq("activo",true),
+      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo",true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
       supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","admin"),
     ]);
@@ -213,7 +213,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
                   <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
                   <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
                     <option value="">-- Sin asignar --</option>
-                    {maestros.map(m=><option key={m.id} value={m.nombre}>{m.nombre}{m.materia?" - "+m.materia:""}</option>)}
+                    {maestros.map(m=><option key={m.id} value={fmtNombre(m)}>{fmtNombre(m)}{m.materia?" - "+m.materia:""}</option>)}
                   </select>
                 </div>
                 <div style={{marginBottom:16}}>

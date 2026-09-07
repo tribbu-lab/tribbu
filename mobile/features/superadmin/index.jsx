@@ -264,6 +264,7 @@ export function SuperAdmin() {
         .from("maestros")
         .insert({
           nombre: sanitize(form.nombre),
+          apellido: sanitize(form.apellido) || null,
           materia: sanitize(form.materia) || null,
           email: sanitize(form.email) || null,
           avatar,
@@ -278,6 +279,7 @@ export function SuperAdmin() {
         .from("maestros")
         .update({
           nombre: sanitize(form.nombre),
+          apellido: sanitize(form.apellido) || null,
           materia: sanitize(form.materia) || null,
           email: sanitize(form.email) || null,
           activo: form.activo !== false,
@@ -395,9 +397,9 @@ export function SuperAdmin() {
     pageSize: 12,
   });
   const ctrlMaestros = useListControls(maestros, {
-    searchFn: (m, q) => m.nombre.toLowerCase().includes(q) || (m.materia || "").toLowerCase().includes(q),
+    searchFn: (m, q) => fmtNombre(m).toLowerCase().includes(q) || (m.materia || "").toLowerCase().includes(q),
     sortOptions: [
-      { key: "nombre", label: "Nombre", val: (m) => m.nombre },
+      { key: "nombre", label: "Nombre", val: (m) => fmtNombre(m) },
       { key: "materia", label: "Materia", val: (m) => m.materia || "" },
     ],
     pageSize: 12,
@@ -568,7 +570,7 @@ export function SuperAdmin() {
         <View>
           <Pressable
             onPress={() => {
-              setForm({ nombre: "", materia: "", email: "", cursos: [], activo: true });
+              setForm({ nombre: "", apellido: "", materia: "", email: "", cursos: [], activo: true });
               setModal("nuevo_maestro");
             }}
             style={[styles.dashedBtn, { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
@@ -580,7 +582,7 @@ export function SuperAdmin() {
             <View key={m.id} style={[styles.itemCard, !m.activo && styles.itemInactivo]}>
               <View style={styles.flex1}>
                 <View style={styles.itemTop}>
-                  <Text style={styles.itemNombre}>{m.nombre}</Text>
+                  <Text style={styles.itemNombre}>{fmtNombre(m)}</Text>
                   {m.materia ? <Pill label={m.materia} color="#8B5CF6" bg="#F5F3FF" /> : null}
                   {!m.activo ? <Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9" /> : null}
                 </View>
@@ -599,7 +601,7 @@ export function SuperAdmin() {
                 >
                   <Text>✏️</Text>
                 </Pressable>
-                <Pressable onPress={() => setConfirm({ nombre: m.nombre, msg: "Esta acción no se puede deshacer.", action: () => eliminarMaestro(m.id) })} style={styles.iconBtn}>
+                <Pressable onPress={() => setConfirm({ nombre: fmtNombre(m), msg: "Esta acción no se puede deshacer.", action: () => eliminarMaestro(m.id) })} style={styles.iconBtn}>
                   <Text>🗑️</Text>
                 </Pressable>
               </View>
@@ -919,7 +921,8 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo maestro" : "Editar maestro"}</Text>
             {[
-              { l: "Nombre completo", k: "nombre", ph: "Ej: Carlos Gómez" },
+              { l: "Nombre", k: "nombre", ph: "Ej: Carlos" },
+              { l: "Apellido", k: "apellido", ph: "Ej: Gómez" },
               { l: "Materia", k: "materia", ph: "Ej: Matemáticas" },
               { l: "Email", k: "email", ph: "carlos@mail.com" },
             ].map((f) => (
@@ -1423,7 +1426,7 @@ function HorariosAdmin({ cursos }) {
     const ids = (mc.data || []).map((r) => r.maestro_id);
     const [hor, mae] = await Promise.all([
       supabase.from("horarios").select("*").eq("curso_id", cid).order("dia").order("hora_inicio"),
-      ids.length ? supabase.from("maestros").select("id,nombre,materia").eq("activo", true).in("id", ids) : Promise.resolve({ data: [] }),
+      ids.length ? supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo", true).in("id", ids) : Promise.resolve({ data: [] }),
     ]);
     setHorarios(hor.data || []);
     setMaestros(mae.data || []);
@@ -1534,8 +1537,8 @@ function HorariosAdmin({ cursos }) {
                     <Text style={[styles.chipTxt, !horForm.docente && styles.chipTxtOn]}>Sin asignar</Text>
                   </Pressable>
                   {maestros.map((m) => (
-                    <Pressable key={m.id} onPress={() => setHorForm((p) => ({ ...p, docente: m.nombre }))} style={[styles.chip, horForm.docente === m.nombre && styles.chipOn]}>
-                      <Text style={[styles.chipTxt, horForm.docente === m.nombre && styles.chipTxtOn]}>{m.nombre}</Text>
+                    <Pressable key={m.id} onPress={() => setHorForm((p) => ({ ...p, docente: fmtNombre(m) }))} style={[styles.chip, horForm.docente === fmtNombre(m) && styles.chipOn]}>
+                      <Text style={[styles.chipTxt, horForm.docente === fmtNombre(m) && styles.chipTxtOn]}>{fmtNombre(m)}</Text>
                     </Pressable>
                   ))}
                 </View>

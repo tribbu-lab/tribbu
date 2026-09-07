@@ -161,7 +161,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         .order("nombre"),
       supabase
         .from("maestros")
-        .select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)")
+        .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
         .in("maestro_cursos.curso_id", cursoIds),
       supabase
         .from("cumples")
@@ -233,7 +233,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         .map((m) => ({
           id: `m-${m.id}`,
           rawId: m.id,
-          nombre: m.nombre,
+          nombre: fmtNombre(m),
           tipo: "Maestro",
           fecha_nacimiento: m.fecha_nacimiento,
           color: "#8B5CF6",

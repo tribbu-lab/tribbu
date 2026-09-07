@@ -85,7 +85,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       supabase.from("cumples").select("*").in("curso_id",cursoIds).order("id"),
       supabase.from("colectas").select("*").in("curso_id",cursoIds),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
-      supabase.from("maestros").select("id,nombre,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
+      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
       (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).eq("asiste","pendiente") : Promise.resolve({data:[]}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
@@ -114,7 +114,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         fecha_nacimiento:a.fecha_nacimiento, color:a.color||"#3B82F6", curso_id:a.curso_id,
       })),
       ...(maestrosData.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
-        id:`m-${m.id}`, nombre:m.nombre, tipo:"Maestro",
+        id:`m-${m.id}`, nombre:fmtNombre(m), tipo:"Maestro",
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6", curso_id:m.maestro_cursos?.[0]?.curso_id,
       })),
     ].filter(a=>nextBday(a.fecha_nacimiento)<=15)
