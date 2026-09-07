@@ -361,7 +361,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
             <View style={styles.colectaActions}>
               <Pressable onPress={() => setVistaAdmin(c)} style={styles.verPagosBtn}>
-                <Text style={styles.verPagosTxt}>Ver quién puso</Text>
+                <Text style={styles.verPagosTxt}>Ver Detalle Colecta</Text>
               </Pressable>
               {isAdmin ? (
                 <>
