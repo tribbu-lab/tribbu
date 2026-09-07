@@ -5,7 +5,8 @@ import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+         sanitize, safeUrl, getHijoColor, setHijoColor,
+         bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -21,6 +22,11 @@ import * as XLSX from "xlsx";
 export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
   const misHijosUniq = [...new Set(misHijos)];
   const isMobile = useIsMobile();
+  // "Tu festejo" (banner verde): una vez cerrado por el usuario no vuelve a
+  // aparecer para ESE festejo — cerrarBannerFestejo persiste en localStorage
+  // (bannerFestejoCerrado la lee), este estado solo fuerza el re-render.
+  const [bannerCerrados,setBannerCerrados] = useState({});
+  const cerrarBanner = (festId) => { cerrarBannerFestejo(userId, festId); setBannerCerrados(p=>({...p,[festId]:true})); };
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
   const [festejoMap,setFestejoMap]     = useState({});
@@ -292,23 +298,31 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
             {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}
           </div>
 
-          {/* Banner rápido: crear festejo de su hijo (apoderado o room parent) */}
+          {/* Banner rápido: crear festejo de su hijo (apoderado o room parent).
+              El estado "ya tiene festejo" (verde) se puede cerrar — una vez
+              visto no hace falta que ocupe lugar cada vez que se entra a
+              Cumpleaños; el de "todavía sin festejo" (amarillo) sigue siempre
+              visible porque es una acción pendiente, no un aviso informativo. */}
           {misHijosUniq.length>0&&(()=>{
             const hijosConCumple = lista.filter(a=>a.tipo==="Alumno"&&misHijosUniq.includes(a.rawId));
             if(!hijosConCumple.length) return null;
             return hijosConCumple.map(a=>{
               const fest = festejoMap[a.rawId];
+              if(fest&&(bannerCerrados[fest.id]||bannerFestejoCerrado(userId,fest.id))) return null;
               const dias = nextBday(a.fecha_nacimiento);
               const bl   = bdayLabel(dias);
               return (
-                <div key={a.rawId} style={{marginBottom:16,background:fest?"#F0FDF4":"linear-gradient(135deg,#FEF9C3,#FFFBEB)",border:`1.5px solid ${fest?"#BBF7D0":"#FCD34D"}`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+                <div key={a.rawId} style={{position:"relative",marginBottom:16,background:fest?"#F0FDF4":"linear-gradient(135deg,#FEF9C3,#FFFBEB)",border:`1.5px solid ${fest?"#BBF7D0":"#FCD34D"}`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  {fest&&(
+                    <button onClick={()=>cerrarBanner(fest.id)} aria-label="Cerrar aviso" style={{position:"absolute",top:8,right:8,width:22,height:22,borderRadius:"50%",border:"none",background:"rgba(16,185,129,0.14)",color:"#059669",cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
+                  )}
                   <div style={{fontSize:28}}>🎂</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:800,color:"#0F172A",marginBottom:2}}>{a.nombre}</div>
                     <div style={{fontSize:11,color:"#64748B"}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:8,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
                   </div>
                   {fest
-                    ? <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+                    ? <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",marginRight:18}}>
                         <button onClick={()=>setFestejoDetalle(fest)} style={{padding:"6px 12px",borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>🎉 Ver festejo</button>
                         <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"white",cursor:"pointer",fontSize:11,color:"#10B981",fontWeight:600}}>Editar</button>
                       </div>

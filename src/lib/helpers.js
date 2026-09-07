@@ -113,3 +113,26 @@ export const setHijoColor = (userId, hijoId, color) => {
     backend.setItem(`hcolor_${userId}_${hijoId}`, color);
   } catch { /* noop */ }
 };
+
+/**
+ * Tarjeta "Tu festejo" (banner verde/amarillo de Cumpleaños con el festejo
+ * del propio hijo): una vez cerrada por el usuario queda oculta — clave por
+ * festejo.id, así el aviso vuelve a aparecer para el festejo de otro año.
+ */
+export const bannerFestejoCerrado = (userId, festejoId) => {
+  const backend = getStorageBackend();
+  if (!backend || !festejoId) return false;
+  try {
+    return backend.getItem(`festejo_cerrado_${userId}_${festejoId}`) === "1";
+  } catch {
+    return false;
+  }
+};
+
+export const cerrarBannerFestejo = (userId, festejoId) => {
+  const backend = getStorageBackend();
+  if (!backend || !festejoId) return;
+  try {
+    backend.setItem(`festejo_cerrado_${userId}_${festejoId}`, "1");
+  } catch { /* noop */ }
+};

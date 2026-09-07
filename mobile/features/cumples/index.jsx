@@ -25,7 +25,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { fmtNombre, fmtF, sanitize, safeUrl } from "@shared/helpers";
+import { fmtNombre, fmtF, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -93,6 +93,12 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   const [festejoModal, setFestejoModal] = useState(null);
   const [festejoDetalle, setFestejoDetalle] = useState(null);
   const [colectaRegaloModal, setColectaRegaloModal] = useState(null);
+  // "Tu festejo": una vez cerrado no vuelve a aparecer para ESE festejo
+  // (bannerFestejoCerrado/cerrarBannerFestejo persisten en AsyncStorage vía
+  // el mismo backend de storage que getHijoColor); este estado solo fuerza
+  // el re-render al cerrar.
+  const [bannerCerrados, setBannerCerrados] = useState({});
+  const cerrarBanner = (festId) => { cerrarBannerFestejo(userId, festId); setBannerCerrados((p) => ({ ...p, [festId]: true })); };
 
   const verificarRecordatoriosRegalo = useCallback(
     async (cumpleMapActual, listaActual) => {
@@ -420,10 +426,19 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       {hijosConCumple.length > 0 ? <Text style={styles.label}>Tu festejo</Text> : null}
       {hijosConCumple.map((a) => {
         const fest = festejoMap[a.rawId];
+        // Con festejo ya publicado, el banner se puede cerrar (aviso ya
+        // visto) — sin festejo sigue siempre visible, es una acción
+        // pendiente, no solo informativa.
+        if (fest && (bannerCerrados[fest.id] || bannerFestejoCerrado(userId, fest.id))) return null;
         const bl = bdayLabel(nextBday(a.fecha_nacimiento));
         const ct = childTheme(a.color);
         return (
           <View key={`b-${a.rawId}`} style={[styles.banner, { borderLeftColor: ct.main }]}>
+            {fest ? (
+              <Pressable onPress={() => cerrarBanner(fest.id)} hitSlop={8} style={styles.bannerCerrarBtn} accessibilityLabel="Cerrar aviso">
+                <MaterialCommunityIcons name="close" size={14} color={t.textFaint} />
+              </Pressable>
+            ) : null}
             <View style={styles.bannerTop}>
               <Avatar nombre={a.nombre} color={a.color} size={38} />
               <View style={styles.flex1}>
@@ -1372,7 +1387,9 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
     padding: 13,
     marginBottom: SPACE.sm,
+    position: "relative",
   },
+  bannerCerrarBtn: { position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center", zIndex: 1 },
   bannerTop: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
   bannerNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   bannerFecha: { fontSize: 12, color: t.textMuted, marginTop: 2 },
