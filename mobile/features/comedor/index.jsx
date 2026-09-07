@@ -3,7 +3,7 @@
 // expo-file-system (base64) + la lib xlsx (misma que la web).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -28,13 +28,19 @@ const CAMPOS = [
 const iso = (d) => d.toISOString().split("T")[0];
 const pad = (n) => String(n).padStart(2, "0");
 
-export function Comedor() {
+// puedeEditar/mostrarUpload permiten embeber este mismo componente en el
+// Menú de Super Admin (puedeEditar=true, mostrarUpload=false porque esa
+// pantalla ya trae su propio UploadMenuExcel) sin depender de isAdmin de
+// useSession(), que para una cuenta Super Admin puede no reflejar ningún
+// curso real.
+export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
   const { isAdmin } = useSession();
   const [menu, setMenu] = useState([]);
   const [vista, setVista] = useState("semanal");
   const [fechaSel, setFechaSel] = useState(iso(new Date()));
   const [mes, setMes] = useState(new Date());
   const [diaExpandido, setDiaExpandido] = useState(iso(new Date())); // fecha (string) abierta en "Por fecha", hoy por defecto
+  const [editModal, setEditModal] = useState(null); // null | {fecha, entrada, plato, plato2, acompanamiento, postre, postre2}
 
   const cargarMenu = useCallback(() => {
     supabase
@@ -47,6 +53,23 @@ export function Comedor() {
   useEffect(() => {
     cargarMenu();
   }, [cargarMenu]);
+
+  const abrirEdicion = (fecha) => {
+    const existente = menu.find((m) => m.fecha === fecha);
+    setEditModal(existente ? { ...existente } : { fecha, entrada: "", plato: "", plato2: "", acompanamiento: "", postre: "", postre2: "" });
+  };
+  const guardarDia = async (form) => {
+    const { error } = await supabase.from("menu").upsert(form, { onConflict: "fecha" });
+    if (error) { console.warn("Comedor.guardarDia:", error?.message); return; }
+    setEditModal(null);
+    cargarMenu();
+  };
+  const borrarDia = async (fecha) => {
+    const { error } = await supabase.from("menu").delete().eq("fecha", fecha);
+    if (error) { console.warn("Comedor.borrarDia:", error?.message); return; }
+    setEditModal(null);
+    cargarMenu();
+  };
 
   const year = mes.getFullYear();
   const month = mes.getMonth();
@@ -93,7 +116,7 @@ export function Comedor() {
       <Text style={styles.h1}>Comedor 🍽️</Text>
       <Text style={styles.subtitle}>Menú de {MESES[new Date().getMonth()]} · cargado por el colegio</Text>
 
-      {isAdmin ? <UploadMenuExcel onDone={cargarMenu} /> : null}
+      {mostrarUpload && isAdmin ? <UploadMenuExcel onDone={cargarMenu} /> : null}
 
       <View style={styles.tabs}>
         {[
@@ -224,16 +247,21 @@ export function Comedor() {
                     color={t.textFaint}
                   />
                 </Pressable>
-                {abierto && m ? (
+                {abierto && (m || puedeEditar) ? (
                   <View style={styles.porFechaDetalle}>
-                    {CAMPOS.filter((c) => m[c.key]).map((c) => (
+                    {m ? CAMPOS.filter((c) => m[c.key]).map((c) => (
                       <View key={c.key} style={styles.porFechaPlato}>
                         <Text style={[styles.platoLabel, { color: c.color }]}>
                           {c.emoji} {c.label.toUpperCase()}
                         </Text>
                         <Text style={styles.platoTxt}>{m[c.key]}</Text>
                       </View>
-                    ))}
+                    )) : null}
+                    {puedeEditar ? (
+                      <Pressable onPress={() => abrirEdicion(fecha)} style={styles.editarDiaBtn}>
+                        <Text style={styles.editarDiaTxt}>{m ? "✏️ Editar día" : "+ Cargar día"}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -242,7 +270,66 @@ export function Comedor() {
           <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
         </View>
       ) : null}
+
+      {editModal ? (
+        <MenuDiaModal dia={editModal} onClose={() => setEditModal(null)} onSave={guardarDia} onBorrar={borrarDia} />
+      ) : null}
     </ScrollView>
+  );
+}
+
+function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
+  const [form, setForm] = useState(dia);
+  const [saving, setSaving] = useState(false);
+  const esNuevo = !dia.entrada && !dia.plato && !dia.plato2 && !dia.acompanamiento && !dia.postre && !dia.postre2;
+  const camposForm = [
+    { key: "entrada", label: "Entrada" },
+    { key: "plato", label: "Plato principal 1" },
+    { key: "plato2", label: "Plato principal 2" },
+    { key: "acompanamiento", label: "Plato principal 3" },
+    { key: "postre", label: "Postre 1" },
+    { key: "postre2", label: "Postre 2" },
+  ];
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.modalCard}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>{esNuevo ? "Cargar día" : "Editar día"}</Text>
+            <Text style={styles.modalSub}>
+              {new Date(dia.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+            </Text>
+            {camposForm.map((f) => (
+              <View key={f.key}>
+                <Text style={styles.label}>{f.label.toUpperCase()}</Text>
+                <TextInput
+                  value={form[f.key] || ""}
+                  onChangeText={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
+                  style={styles.input}
+                />
+              </View>
+            ))}
+            <View style={styles.modalBtns}>
+              <Pressable onPress={onClose} style={styles.cancelBtn}>
+                <Text style={styles.cancelTxt}>Cancelar</Text>
+              </Pressable>
+              {!esNuevo ? (
+                <Pressable onPress={() => onBorrar(dia.fecha)} style={styles.borrarBtn}>
+                  <Text style={styles.borrarTxt}>Borrar</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={async () => { setSaving(true); await onSave(form); setSaving(false); }}
+                disabled={saving}
+                style={styles.saveBtn}
+              >
+                <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -476,4 +563,20 @@ const styles = StyleSheet.create({
   previewBtnConfirmar: { backgroundColor: SLATE[900] },
   previewBtnConfirmarTxt: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
   uploadMsg: { fontSize: 13, marginTop: 10, fontWeight: "600" },
+
+  editarDiaBtn: { alignSelf: "flex-start", marginTop: SPACE.sm, marginHorizontal: SPACE.md, marginBottom: SPACE.sm, paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  editarDiaTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
+  modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
+  modalTitle: { fontSize: 16, fontWeight: "800", color: t.textStrong, letterSpacing: -0.2, marginBottom: 2 },
+  modalSub: { fontSize: 12, color: t.textFaint, marginBottom: 14, textTransform: "capitalize" },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: 6, marginTop: SPACE.sm },
+  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 14, color: t.text },
+  modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textMuted, fontSize: 14, fontWeight: "700" },
+  borrarBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: RADIUS.lg, alignItems: "center", justifyContent: "center" },
+  borrarTxt: { color: t.danger, fontSize: 14, fontWeight: "700" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
 });

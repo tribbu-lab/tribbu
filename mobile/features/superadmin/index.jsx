@@ -23,7 +23,7 @@ import { DateField } from "../../components/DateField";
 import { AdjuntosInput } from "../../components/Adjuntos";
 import { useListControls } from "../../lib/useListControls";
 import { useSession } from "../../context/Session";
-import { UploadMenuExcel } from "../comedor";
+import { UploadMenuExcel, Comedor } from "../comedor";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
 // para que el mismo mental model funcione en las dos plataformas. "Colegio" y
@@ -111,6 +111,10 @@ const leerExcel = async () => {
 
 export function SuperAdmin() {
   const [sec, setSec] = useState(null);
+  // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
+  // remontada en vez de exponer un callback nuevo en un componente que hoy
+  // no toma props de recarga externa.
+  const [menuRefreshKey, setMenuRefreshKey] = useState(0);
   const [usuarios, setUsuarios] = useState([]);
   const [cursos, setCursos] = useState([]);
   const [hijos, setHijos] = useState([]);
@@ -663,8 +667,9 @@ export function SuperAdmin() {
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>
-          <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel. Se reemplazan los días incluidos.</Text>
-          <UploadMenuExcel onDone={() => {}} />
+          <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
+          <UploadMenuExcel onDone={() => setMenuRefreshKey((k) => k + 1)} />
+          <Comedor key={menuRefreshKey} puedeEditar mostrarUpload={false} />
         </View>
       ) : null}
         </View>

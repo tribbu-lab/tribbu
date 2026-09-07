@@ -20,7 +20,7 @@ import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authA
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import * as XLSX from "xlsx";
-import { UploadMenuExcel } from "../comedor";
+import { Comedor } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 import { CambiarPasswordModal } from "../auth";
 
@@ -1208,8 +1208,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="menu"&&(
         <div>
           <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🍽️ Menú comedor</div>
-          <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel. Se reemplaza el menú completo con cada carga.</div>
-          <UploadMenuExcel onDone={()=>{}}/>
+          <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin tener que resubir todo.</div>
+          <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile}/>
           <div style={{marginTop:16,background:"#F8FAFC",borderRadius:14,padding:"16px 18px",border:"1px solid #E2E8F0"}}>
             <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:10}}>📋 Formato esperado del Excel</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>

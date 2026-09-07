@@ -21,11 +21,32 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
   const [mes,setMes]           = useState(new Date());
+  // Edición día a día: solo desde el "perfil de administración" donde se
+  // carga el comedor (Super Admin) — el mismo criterio que ya gatea el
+  // upload de Excel más abajo, para no exponer esto a padres/Room Parent.
+  const [editModal,setEditModal] = useState(null); // null | {fecha, entrada, plato, plato2, acompanamiento, postre, postre2}
 
   const cargarMenu = () => {
     supabase.from("menu").select("*").order("fecha").then(r=>setMenu(r.data||[]));
   };
   useEffect(()=>{ cargarMenu(); },[cursoId]);
+
+  const abrirEdicion = (fecha) => {
+    const existente = menu.find(m=>m.fecha===fecha);
+    setEditModal(existente ? {...existente} : {fecha, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:""});
+  };
+  const guardarDia = async (form) => {
+    const { error } = await supabase.from("menu").upsert(form, { onConflict:"fecha" });
+    if(error) { console.error("Comedor.guardarDia:", error); return; }
+    setEditModal(null);
+    cargarMenu();
+  };
+  const borrarDia = async (fecha) => {
+    const { error } = await supabase.from("menu").delete().eq("fecha", fecha);
+    if(error) { console.error("Comedor.borrarDia:", error); return; }
+    setEditModal(null);
+    cargarMenu();
+  };
 
   const diaActual = menu.find(m=>m.fecha===fechaSel);
   const year=mes.getFullYear(), month=mes.getMonth();
@@ -73,8 +94,10 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Comedor 🍽️</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
+      {!isSuper&&<>
+        <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Comedor 🍽️</div>
+        <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
+      </>}
       {isSuper && <UploadMenuExcel onDone={cargarMenu}/>}
       <div style={{display:"flex",flexWrap:"nowrap",alignItems:"center",gap:6,marginBottom:18}}>
         {[{id:"diario",l:"Día"},{id:"semanal",l:"Semana"},{id:"mensual",l:"Mes"}].map(v=>(
@@ -86,7 +109,8 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
         <div style={{maxWidth:520}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
             <input type="date" value={fechaSel} onChange={e=>setFechaSel(e.target.value)} style={{padding:"8px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,fontWeight:600,outline:"none",background:"white",color:"#0F172A"}}/>
-            <div style={{fontSize:12,color:"#94A3B8",textTransform:"capitalize"}}>{new Date(fechaSel+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
+            <div style={{fontSize:12,color:"#94A3B8",textTransform:"capitalize",flex:1}}>{new Date(fechaSel+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
+            {isSuper&&<button onClick={()=>abrirEdicion(fechaSel)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#3B82F6",whiteSpace:"nowrap"}}>{diaActual?"✏️ Editar":"+ Cargar"}</button>}
           </div>
           {diaActual ? (
             // Tarjeta navy (handoff Tribbu App.dc.html: "Menú de hoy en
@@ -199,18 +223,19 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
             const hoyStr = new Date().toISOString().split("T")[0];
             const filas = Array.from({length:daysInMonth},(_,i)=>i+1)
               .map(day=>{ const fecha=`${year}-${pad(month+1)}-${pad(day)}`; return { day, fecha, m: menu.find(x=>x.fecha===fecha) }; })
-              .filter(f=>f.m || f.fecha===hoyStr);
+              // Admin ve el mes completo (para poder cargar días sueltos); padres solo lo ya cargado + hoy.
+              .filter(f=>isSuper || f.m || f.fecha===hoyStr);
             if(filas.length===0) return <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Sin menú cargado para {MESES[month]}</div>;
             return (
               <div style={{border:"1px solid #E7ECF3",borderRadius:18,background:"white",overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"90px 1.3fr 1.5fr 1fr 70px",gap:14,padding:"12px 20px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
+                <div style={{display:"grid",gridTemplateColumns:isSuper?"90px 1.3fr 1.5fr 1fr 40px":"90px 1.3fr 1.5fr 1fr 70px",gap:14,padding:"12px 20px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
                   {["Día","Entrada","Principal","Postre",""].map(c=><div key={c} style={{fontSize:10.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{c}</div>)}
                 </div>
                 {filas.map(({day,fecha,m})=>{
                   const esHoy = fecha===hoyStr;
                   const d = new Date(fecha+"T00:00:00");
                   return (
-                    <div key={fecha} style={{display:"grid",gridTemplateColumns:"90px 1.3fr 1.5fr 1fr 70px",gap:14,alignItems:"center",padding:"13px 20px",borderBottom:"1px solid #F8FAFC",background:esHoy?"#F8FBFF":"white"}}>
+                    <div key={fecha} style={{display:"grid",gridTemplateColumns:isSuper?"90px 1.3fr 1.5fr 1fr 40px":"90px 1.3fr 1.5fr 1fr 70px",gap:14,alignItems:"center",padding:"13px 20px",borderBottom:"1px solid #F8FAFC",background:esHoy?"#F8FBFF":"white"}}>
                       <div>
                         <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:esHoy?"#1D4ED8":"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
                         <div style={{fontSize:15,fontWeight:800,marginTop:1}}>{day}</div>
@@ -219,7 +244,9 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
                       <div style={{fontSize:13.5,fontWeight:600}}>{[m?.plato,m?.plato2,m?.acompanamiento].filter(Boolean).join(" · ")||"—"}</div>
                       <div style={{fontSize:13.5,color:"#475569"}}>{[m?.postre,m?.postre2].filter(Boolean).join(" · ")||"—"}</div>
                       <div style={{display:"flex",justifyContent:"flex-end"}}>
-                        {esHoy&&<span style={{fontSize:10,fontWeight:800,letterSpacing:0.5,textTransform:"uppercase",color:"#1D4ED8",background:"#EFF6FF",border:"1px solid #BFDBFE",padding:"4px 9px",borderRadius:999}}>Hoy</span>}
+                        {isSuper
+                          ? <button onClick={()=>abrirEdicion(fecha)} style={{width:24,height:24,borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{m?"✏️":"+"}</button>
+                          : (esHoy&&<span style={{fontSize:10,fontWeight:800,letterSpacing:0.5,textTransform:"uppercase",color:"#1D4ED8",background:"#EFF6FF",border:"1px solid #BFDBFE",padding:"4px 9px",borderRadius:999}}>Hoy</span>)}
                       </div>
                     </div>
                   );
@@ -233,6 +260,41 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
           </div>
         </div>
       )}
+      {editModal&&<MenuDiaModal dia={editModal} onClose={()=>setEditModal(null)} onSave={guardarDia} onBorrar={borrarDia}/>}
+    </div>
+  );
+}
+
+function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
+  const [form,setForm] = useState(dia);
+  const [saving,setSaving] = useState(false);
+  const esNuevo = !dia.entrada&&!dia.plato&&!dia.plato2&&!dia.acompanamiento&&!dia.postre&&!dia.postre2;
+  const camposForm = [
+    {key:"entrada",       label:"Entrada"},
+    {key:"plato",         label:"Plato principal 1"},
+    {key:"plato2",        label:"Plato principal 2"},
+    {key:"acompanamiento",label:"Plato principal 3"},
+    {key:"postre",        label:"Postre 1"},
+    {key:"postre2",       label:"Postre 2"},
+  ];
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>{esNuevo?"Cargar día":"Editar día"}</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16,textTransform:"capitalize"}}>{new Date(dia.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</div>
+        {camposForm.map(f=>(
+          <div key={f.key} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.label.toUpperCase()}</div>
+            <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} style={inp}/>
+          </div>
+        ))}
+        <div style={{display:"flex",gap:8,marginTop:14}}>
+          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+          {!esNuevo&&<button onClick={()=>onBorrar(dia.fecha)} style={{padding:"11px 14px",borderRadius:10,border:"none",background:"transparent",cursor:"pointer",fontSize:13,fontWeight:700,color:"#EF4444"}}>Borrar</button>}
+          <button onClick={async()=>{ setSaving(true); await onSave(form); setSaving(false); }} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:saving?"#93C5FD":"#3B82F6",color:"white",cursor:saving?"default":"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+        </div>
+      </Card>
     </div>
   );
 }
