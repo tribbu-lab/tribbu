@@ -58,7 +58,7 @@ const LEIDOS = [
 const ORIGENES = [
   { value: "all", label: "Todos" },
   { value: "colegio", label: "Del colegio" },
-  { value: "normal", label: "Normales" },
+  { value: "normal", label: "Apoderados" },
 ];
 
 const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, onLeido, onEditar, onEliminar }) {

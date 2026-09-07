@@ -270,7 +270,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         <select value={filtroOrigen} onChange={e=>{setFiltroOrigen(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todos los orígenes</option>
           <option value="colegio">🏫 Comunicaciones del colegio</option>
-          <option value="normal">Avisos normales</option>
+          <option value="normal">Apoderados</option>
         </select>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           {filtrados.some(r=>!leidosSet.has(r.id))&&(
