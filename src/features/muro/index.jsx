@@ -247,7 +247,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
 
   const pendientes = [
     ...datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
-      key:`r-${r.id}`, tipo:"Recordatorio", color:"#DC2626", soft:"#FEF2F2", borde:"#FECACA",
+      key:`r-${r.id}`, tipo:"Aviso", color:"#DC2626", soft:"#FEF2F2", borde:"#FECACA",
       icon:"📌", titulo:r.texto,
       meta:`Sin leer${r.fecha?` · ${new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}`:""}${fmtRangoHora(r.hora_inicio,r.hora_fin)?` · ${fmtRangoHora(r.hora_inicio,r.hora_fin)}`:""}${r.grupo_id?" · 🏫 Comunicación del colegio":""}`,
       accion:"Marcar leído", btnBg:"#EFF6FF", btnFg:"#1D4ED8",

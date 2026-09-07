@@ -30,7 +30,7 @@ export function BusquedaGlobal({ query, cursoIds, tagDeCurso, onNavigate, onLimp
       const items = [
         ...(recs.data || []).map(r => ({
           id: `rec-${r.id}`, emoji: "📌", soft: "#EFF6FF",
-          titulo: r.texto, meta: ["Recordatorio", tagDeCurso?.(r.curso_id)?.nombre, fmtFecha(r.fecha)].filter(Boolean).join(" · "),
+          titulo: r.texto, meta: ["Aviso", tagDeCurso?.(r.curso_id)?.nombre, fmtFecha(r.fecha)].filter(Boolean).join(" · "),
           go: () => onNavigate("recordatorios"),
         })),
         ...(evs.data || []).map(e => ({

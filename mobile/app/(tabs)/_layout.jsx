@@ -37,7 +37,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="muro" options={{ title: "Inicio" }} />
         <Tabs.Screen name="calendario" options={{ title: "Calendario" }} />
         <Tabs.Screen name="cumples" options={{ title: "Cumpleaños" }} />
-        <Tabs.Screen name="recordatorios" options={{ title: "Recordatorios" }} />
+        <Tabs.Screen name="recordatorios" options={{ title: "Avisos" }} />
         <Tabs.Screen name="mas" options={{ title: "Más" }} />
 
         {/* Secundarias: navegables desde "Más", fuera del bottom-bar */}

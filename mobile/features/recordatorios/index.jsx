@@ -320,7 +320,7 @@ export function Recordatorios() {
         ListHeaderComponent={
           <View style={styles.headerWrap}>
             <View style={styles.titleRow}>
-              <Text style={styles.h1}>Recordatorios</Text>
+              <Text style={styles.h1}>Avisos</Text>
               <Pressable onPress={abrirNuevo} style={styles.nuevoBtn}>
                 <MaterialCommunityIcons name="plus" size={14} color={t.onAccent} />
                 <Text style={styles.nuevoTxt}>Nuevo</Text>
@@ -377,8 +377,8 @@ export function Recordatorios() {
         ListEmptyComponent={
           <EmptyState
             emoji="📌"
-            title="Sin recordatorios"
-            note="Cuando el curso tenga avisos o recordatorios, aparecen acá."
+            title="Sin avisos"
+            note="Cuando el curso tenga avisos, aparecen acá."
             compact
           />
         }
@@ -417,7 +417,7 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>{editing ? "Editar recordatorio" : "Nuevo recordatorio"}</Text>
+              <Text style={styles.modalTitle}>{editing ? "Editar aviso" : "Nuevo aviso"}</Text>
               {cursosOpciones.length > 0 ? (
                 <>
                   <Text style={styles.modalLabel}>Para el curso de</Text>

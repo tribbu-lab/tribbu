@@ -18,7 +18,7 @@ const t = THEMES.light;
 
 const FILTROS = [
   { key: "todos", label: "Todo" },
-  { key: "recordatorio", label: "Recordatorios" },
+  { key: "recordatorio", label: "Avisos" },
   { key: "evento", label: "Eventos" },
   { key: "familia", label: "Familias" },
   { key: "colecta", label: "Colectas" },
@@ -110,7 +110,7 @@ export function Buscar() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Buscar recordatorios, eventos, familias, colectas..."
+          placeholder="Buscar avisos, eventos, familias, colectas..."
           placeholderTextColor={t.textFaint}
           style={styles.input}
           autoFocus

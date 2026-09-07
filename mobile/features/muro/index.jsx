@@ -305,7 +305,7 @@ export function Muro() {
   const pendientes = [
     ...recsVisibles.map((r) => ({
       key: `r-${r.id}`,
-      tipo: "Recordatorio",
+      tipo: "Aviso",
       dot: t.danger,
       soft: t.dangerSoft,
       borde: t.dangerBorder,

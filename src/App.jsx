@@ -382,7 +382,7 @@ function App() {
     {id:"clases",        label:"Calendario",    emoji:"📅"},
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
-    {id:"recordatorios", label:"Recordatorios", emoji:"📌"},
+    {id:"recordatorios", label:"Avisos", emoji:"📌"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},

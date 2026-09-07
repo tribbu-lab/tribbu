@@ -164,8 +164,8 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
   return (
     <div style={{maxWidth:900}}>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Recordatorios</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos y recordatorios del curso</div>
+      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Avisos</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos del curso</div>
 
       {isSuper&&(
         <div style={{marginBottom:16}}>
@@ -198,7 +198,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           <div style={{minHeight:"100%",display:"flex",alignItems:"center",justifyContent:"center",padding:20,boxSizing:"border-box"}}>
           <Card style={{padding:24,width:"100%",maxWidth:420}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar recordatorio":"Nuevo recordatorio"}</div>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:14}}>{modal?.id?"Editar aviso":"Nuevo aviso"}</div>
             {!modal?.id&&cursosOpciones.length>0&&(
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PARA EL CURSO DE</div>
@@ -270,7 +270,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         <select value={filtroOrigen} onChange={e=>{setFiltroOrigen(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todos los orígenes</option>
           <option value="colegio">🏫 Comunicaciones del colegio</option>
-          <option value="normal">Recordatorios normales</option>
+          <option value="normal">Avisos normales</option>
         </select>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           {filtrados.some(r=>!leidosSet.has(r.id))&&(
@@ -293,7 +293,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         </div>
       )}
 
-      {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin recordatorios</div>}
+      {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin avisos</div>}
       {visible.map(r=>{
         const prio = PRIO[r.prioridad||"media"];
         const esLeido = leidosSet.has(r.id);

@@ -18,9 +18,9 @@ const ACTIVE = BLUE[600];
 // (alto de la píldora + safe area + respiro). Usar en contentContainerStyle.
 export const TAB_BAR_SPACE = 112;
 
-// "Recordatorios" se abrevia a "Avisos" solo en la barra (la pantalla conserva
-// su nombre completo): 5 slots de ~66pt no soportan 13 caracteres con el
-// escalado de fuente del sistema.
+// La feature interna sigue llamándose "recordatorios" (tabla, rutas, tab id)
+// pero el nombre visible para el usuario es "Avisos" en todos lados — acá,
+// en el título de la pantalla y en el buscador.
 const TABS = [
   { name: "muro", label: "Inicio", icon: "home-outline" },
   { name: "calendario", label: "Calendario", icon: "calendar-month-outline" },

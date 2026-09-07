@@ -195,7 +195,7 @@ export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCu
       <Pressable style={styles.overlay} onPress={onCerrar}>
         <Pressable style={[styles.panel, { paddingTop: insets.top }]} onPress={() => {}}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Avisos</Text>
+            <Text style={styles.panelTitle}>Notificaciones</Text>
             <View style={styles.panelHeaderActions}>
               {hayNoLeidos ? (
                 <Pressable onPress={onMarcarTodoLeido} style={styles.marcarTodoBtn} hitSlop={6}>
