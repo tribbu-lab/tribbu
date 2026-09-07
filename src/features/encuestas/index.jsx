@@ -23,6 +23,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const [cargando,  setCargando]  = useState(true);
   const [filtro,    setFiltro]    = useState("activas");
   const [modal,     setModal]     = useState(false);
+  const [editId,    setEditId]    = useState(null); // id de la encuesta en edición, o null si es alta
   const [form,      setForm]      = useState({ pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: null });
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState(null);
@@ -60,11 +61,22 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const opcionesDe = (eid) => opciones.filter(o => o.encuesta_id === eid);
   const votosDe    = (eid) => votos.filter(v => v.encuesta_id === eid);
   const miVoto     = (eid) => votos.find(v => v.encuesta_id === eid && v.usuario_id === userId)?.opcion_id || null;
-  const estaCerrada = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
+  const estaCerrada   = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
+  const estaEliminada = (e) => !!e.eliminada_en;
   const puedeGestionar = (e) => e.creado_por === userId || (esVistaTodos ? cursosAdmin.includes(e.curso_id) : isAdmin);
+  // Editar las opciones solo tiene sentido mientras nadie votó todavía —
+  // después de eso borrar/reemplazar opciones dejaría votos huérfanos.
+  const puedeEditarOpciones = (e) => puedeGestionar(e) && !estaCerrada(e) && !estaEliminada(e) && votosDe(e.id).length === 0;
 
   const abrirModal = () => {
+    setEditId(null);
     setForm({ pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: cursoId || cursoIds[0] || null });
+    setModal(true);
+  };
+
+  const abrirModalEditar = (e) => {
+    setEditId(e.id);
+    setForm({ pregunta: e.pregunta || "", opciones: opcionesDe(e.id).map(o => o.texto), fecha_cierre: e.fecha_cierre || "", curso_id: e.curso_id });
     setModal(true);
   };
 
@@ -105,6 +117,37 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     }
   };
 
+  // Edición de una encuesta existente — solo llega a ejecutarse con 0 votos
+  // (puedeEditarOpciones lo garantiza en la UI), así que reemplazar todas las
+  // opciones no puede dejar votos huérfanos.
+  const guardarEdicion = async () => {
+    const opcionesLimpias = form.opciones.map(o => o.trim()).filter(Boolean);
+    if (!form.pregunta?.trim() || opcionesLimpias.length < MIN_OPCIONES || !editId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: encErr } = await supabase
+        .from("encuestas")
+        .update({ pregunta: sanitize(form.pregunta), fecha_cierre: form.fecha_cierre || null })
+        .eq("id", editId);
+      if (encErr) throw encErr;
+      const { error: delErr } = await supabase.from("encuesta_opciones").delete().eq("encuesta_id", editId);
+      if (delErr) throw delErr;
+      const { error: opError } = await supabase
+        .from("encuesta_opciones")
+        .insert(opcionesLimpias.map((texto, i) => ({ encuesta_id: editId, texto: sanitize(texto), orden: i })));
+      if (opError) throw opError;
+      setModal(false);
+      setEditId(null);
+      cargar();
+    } catch (e) {
+      console.error("Encuestas.guardarEdicion:", e);
+      setError("No se pudieron guardar los cambios. Probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const votar = async (eid, oid) => {
     if (!userId || votando) return;
     setVotando(eid);
@@ -126,18 +169,31 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     setVotando(null);
   };
 
-  const cerrar = async (id) => {
+  const terminar = async (id) => {
     const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id);
-    if (err) { console.error("Encuestas.cerrar:", err); setError("No se pudo cerrar la encuesta."); return; }
+    if (err) { console.error("Encuestas.terminar:", err); setError("No se pudo terminar la encuesta."); return; }
     cargar();
   };
+  const reabrir = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: false }).eq("id", id);
+    if (err) { console.error("Encuestas.reabrir:", err); setError("No se pudo reabrir la encuesta."); return; }
+    cargar();
+  };
+  // Borrado suave (encuestas.eliminada_en) para que el creador o el Room
+  // Parent puedan recuperarla si la borraron sin querer.
   const eliminar = async (id) => {
-    const { error: err } = await supabase.from("encuestas").delete().eq("id", id);
+    const { error: err } = await supabase.from("encuestas").update({ eliminada_en: new Date().toISOString() }).eq("id", id);
     if (err) { console.error("Encuestas.eliminar:", err); setError("No se pudo eliminar la encuesta."); return; }
     cargar();
   };
+  const recuperar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ eliminada_en: null }).eq("id", id);
+    if (err) { console.error("Encuestas.recuperar:", err); setError("No se pudo recuperar la encuesta."); return; }
+    cargar();
+  };
 
-  const visibles = encuestas.filter(e => filtro === "activas" ? !estaCerrada(e) : estaCerrada(e));
+  const visibles = encuestas.filter(e => !estaEliminada(e) && (filtro === "activas" ? !estaCerrada(e) : estaCerrada(e)));
+  const eliminadas = encuestas.filter(e => estaEliminada(e) && puedeGestionar(e));
 
   return (
     <div>
@@ -148,9 +204,9 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
             <Card style={{ padding: 24, width: "100%", maxWidth: 420 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, marginBottom: 14 }}>Nueva encuesta</div>
+              <div style={{ fontSize: 15, fontWeight: 900, marginBottom: 14 }}>{editId ? "Editar encuesta" : "Nueva encuesta"}</div>
 
-              {cursosOpciones.length > 0 && (
+              {!editId && cursosOpciones.length > 0 && (
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", marginBottom: 5 }}>PARA EL CURSO DE</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -194,16 +250,16 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
               {error && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>⚠️ {error}</div>}
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setModal(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#94A3B8" }}>Cancelar</button>
-                <button onClick={crear} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: "none", background: saving ? "#93C5FD" : T.accent, color: "white", cursor: saving ? "default" : "pointer", fontSize: 13, fontWeight: 700 }}>{saving ? "Publicando..." : "Publicar encuesta"}</button>
+                <button onClick={() => { setModal(false); setEditId(null); }} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#94A3B8" }}>Cancelar</button>
+                <button onClick={editId ? guardarEdicion : crear} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: "none", background: saving ? "#93C5FD" : T.accent, color: "white", cursor: saving ? "default" : "pointer", fontSize: 13, fontWeight: 700 }}>{saving ? "Guardando..." : (editId ? "Guardar cambios" : "Publicar encuesta")}</button>
               </div>
             </Card>
           </div>
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-        {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }].map(t => (
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+        {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }, { id: "eliminadas", l: "Eliminadas" }].map(t => (
           <button key={t.id} onClick={() => setFiltro(t.id)} style={{ padding: "7px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, background: filtro === t.id ? "#0F172A" : "white", color: filtro === t.id ? "white" : "#94A3B8", boxShadow: filtro === t.id ? "0 3px 12px rgba(0,0,0,0.15)" : "0 1px 6px rgba(0,0,0,0.06)" }}>{t.l}</button>
         ))}
         <button onClick={abrirModal} style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 8, border: "none", background: T.accent, color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>+ Nueva encuesta</button>
@@ -212,13 +268,39 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
       {error && !modal && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>⚠️ {error}</div>}
 
       {cargando && <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Cargando...</div>}
-      {!cargando && visibles.length === 0 && (
+      {!cargando && filtro !== "eliminadas" && visibles.length === 0 && (
         <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>
           {filtro === "activas" ? "Sin encuestas activas" : "Sin encuestas cerradas"}
         </div>
       )}
+      {!cargando && filtro === "eliminadas" && eliminadas.length === 0 && (
+        <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Sin encuestas eliminadas</div>
+      )}
 
-      {!cargando && visibles.length > 0 && (
+      {!cargando && filtro === "eliminadas" && eliminadas.length > 0 && (
+        <div style={isMobile ? { display: "flex", flexDirection: "column", gap: 12 } : { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12, alignItems: "start" }}>
+          {eliminadas.map(e => {
+            const tag = tagDeCurso?.(e.curso_id);
+            return (
+              <Card key={e.id} style={{ padding: 16, opacity: 0.75 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", lineHeight: 1.4, marginBottom: 6 }}>{e.pregunta}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                  {tag && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#F1F5F9", color: "#64748B" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color, display: "inline-block" }} />
+                      {tag.nombre}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: "#94A3B8" }}>Eliminada el {new Date(e.eliminada_en).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}</span>
+                </div>
+                <button onClick={() => recuperar(e.id)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: T.accent, color: "white", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>↩️ Recuperar</button>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {!cargando && filtro !== "eliminadas" && visibles.length > 0 && (
         <div style={isMobile ? { display: "flex", flexDirection: "column", gap: 16 } : { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12, alignItems: "start" }}>
           {visibles.map(e => {
             const ops = opcionesDe(e.id);
@@ -274,8 +356,11 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
                 </div>
 
                 {puedeGestionar(e) && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {!cerrada && <button onClick={() => cerrar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748B" }}>Cerrar encuesta</button>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                    {puedeEditarOpciones(e) && <button onClick={() => abrirModalEditar(e)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748B" }}>✏️ Editar</button>}
+                    {!cerrada
+                      ? <button onClick={() => terminar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748B" }}>Terminar encuesta</button>
+                      : <button onClick={() => reabrir(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#10B981" }}>Reabrir</button>}
                     <button onClick={() => eliminar(e.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#EF4444" }}>Eliminar</button>
                   </div>
                 )}

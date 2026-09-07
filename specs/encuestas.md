@@ -60,7 +60,29 @@ creó.
       *(Enforced también a nivel RLS, no solo en la UI — ver Technical
       Notes.)*
 - [x] Eliminar una encuesta: quien la creó, un admin del curso, o Super
-      Admin — mismo criterio de permisos que recordatorios hoy.
+      Admin — mismo criterio de permisos que recordatorios hoy. *(Ya estaba
+      así en la UI desde el lanzamiento y reforzado por RLS en
+      `encuestas.sql` — `encuestas_update`/`encuestas_delete` solo permiten
+      `creado_por = mi_usuario_id() OR es_admin_curso(curso_id) OR
+      es_super()`.)*
+- [x] "Eliminar" es un **borrado suave** (`encuestas.eliminada_en`, ver
+      `supabase/encuestas-recuperar-y-editar.sql`): desaparece de
+      Activas/Cerradas pero el creador o un admin del curso puede
+      **recuperarla** desde una tercera pestaña "Eliminadas" si la borró sin
+      querer.
+- [x] **Reabrir** una encuesta terminada por error: mismo criterio de
+      permisos que terminar/eliminar, botón visible cuando está cerrada.
+- [x] Botón "Cerrar encuesta" renombrado a **"Terminar encuesta"** (más
+      claro que no es reversible por accidente — igual se puede reabrir).
+- [x] **Editar la pregunta y las opciones** mientras la encuesta sigue
+      abierta y **todavía nadie votó** — mismo criterio de permisos
+      (creador/admin/super). Reemplaza todas las filas de
+      `encuesta_opciones` (seguro solo con 0 votos: ninguna fila vieja tiene
+      votos que puedan quedar huérfanos). Deja de ofrecerse en cuanto entra
+      el primer voto. Policy `encuesta_opciones_delete` agregada en
+      `supabase/encuestas-recuperar-y-editar.sql` (antes no existía a
+      propósito — ver el `Out of Scope` original — y sin ella el DELETE no
+      hacía nada por RLS default-deny).
 - [x] Vista consolidada **"Todos"**: la lista junta las encuestas de todos
       los cursos del usuario, cada una etiquetada con `tagDeCurso(curso_id)`
       (mismo patrón que Recordatorios/Cumpleaños). El voto sigue siendo por
@@ -135,8 +157,11 @@ pruebe el flujo completo una vez el otro proceso de build/dev termine.
     es_admin_curso(curso_id) OR es_super()`; DELETE mismo criterio que
     UPDATE.
   - `encuesta_opciones`: SELECT para miembros del curso de la encuesta
-    padre; INSERT solo junto con la encuesta (mismo creador); sin
-    UPDATE/DELETE en v1 (no se editan opciones después de creada).
+    padre; INSERT solo junto con la encuesta (mismo creador); DELETE para
+    creador/admin/super **y solo si la encuesta todavía no tiene ningún
+    voto** (`supabase/encuestas-recuperar-y-editar.sql`) — habilita
+    "Editar" (reemplazar todas las opciones) sin poder dejar votos
+    huérfanos ni aunque alguien se salte la UI.
   - `encuesta_votos`: SELECT para miembros del curso (necesario para el
     conteo en vivo — implica que un apoderado técnicamente puede ver qué
     votó cada `usuario_id`, no solo el agregado; ver "Out of Scope" sobre
@@ -178,8 +203,6 @@ pruebe el flujo completo una vez el otro proceso de build/dev termine.
   única por apoderado.
 - Voto anónimo / ocultar quién votó qué a nivel RLS — ver nota de
   `encuesta_votos` arriba; queda para una versión futura si hace falta.
-- Editar la pregunta o las opciones después de creada (si hace falta
-  corregir, borrar y crear de nuevo).
 - Integración con el centro de notificaciones in-app (el panel 🔔 de
   `features/notificaciones`) — hoy solo lee `recordatorios` + `alertas`;
   agregar `encuestas` ahí queda para después.

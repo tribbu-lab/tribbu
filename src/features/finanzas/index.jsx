@@ -154,6 +154,10 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
   const getPago = (colectaId, alumnoId) =>
     pagos.find(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
 
+  // Una vez que hay algún pago registrado, editar el monto/título distorsionaría
+  // lo ya recaudado — igual que las opciones de una encuesta con votos.
+  const tienePagos = (c) => pagos.some(p=>p.colecta_id===c.id&&p.estado==="pagado");
+
   const fmtM = (n, moneda="$") => n!=null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
 
   // Deuda propia (aside de escritorio, handoff Tribbu Apoderado Web, Parte 7):
@@ -305,7 +309,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
                     {isAdmin&&<>
-                      <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
+                      {!tienePagos(c)&&<button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>}
                       <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
                       <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
                     </>}

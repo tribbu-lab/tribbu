@@ -34,6 +34,7 @@ export function Encuestas() {
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState("activas");
   const [modal, setModal] = useState(false);
+  const [editId, setEditId] = useState(null); // id de la encuesta en edición, o null si es alta
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -79,11 +80,22 @@ export function Encuestas() {
   const opcionesDe = (eid) => opciones.filter((o) => o.encuesta_id === eid);
   const votosDe = (eid) => votos.filter((v) => v.encuesta_id === eid);
   const miVoto = (eid) => votos.find((v) => v.encuesta_id === eid && v.usuario_id === userId)?.opcion_id || null;
-  const estaCerrada = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
+  const estaCerrada   = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
+  const estaEliminada = (e) => !!e.eliminada_en;
   const puedeGestionar = (e) => e.creado_por === userId || (esVistaTodos ? cursosAdmin.has(e.curso_id) : isAdmin);
+  // Editar las opciones solo tiene sentido mientras nadie votó todavía —
+  // después de eso borrar/reemplazar opciones dejaría votos huérfanos.
+  const puedeEditarOpciones = (e) => puedeGestionar(e) && !estaCerrada(e) && !estaEliminada(e) && votosDe(e.id).length === 0;
 
   const abrirModal = () => {
+    setEditId(null);
     setForm({ ...FORM_VACIO, opciones: ["", ""], curso_id: cursoId || cursoIds[0] || null });
+    setModal(true);
+  };
+
+  const abrirModalEditar = (e) => {
+    setEditId(e.id);
+    setForm({ ...FORM_VACIO, pregunta: e.pregunta || "", opciones: opcionesDe(e.id).map((o) => o.texto), fecha_cierre: e.fecha_cierre || "", curso_id: e.curso_id });
     setModal(true);
   };
 
@@ -125,6 +137,37 @@ export function Encuestas() {
     }
   };
 
+  // Edición de una encuesta existente — solo llega a ejecutarse con 0 votos
+  // (puedeEditarOpciones lo garantiza en la UI), así que reemplazar todas las
+  // opciones no puede dejar votos huérfanos.
+  const guardarEdicion = async () => {
+    const opcionesLimpias = form.opciones.map((o) => o.trim()).filter(Boolean);
+    if (!form.pregunta?.trim() || opcionesLimpias.length < MIN_OPCIONES || !editId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { error: encErr } = await supabase
+        .from("encuestas")
+        .update({ pregunta: sanitize(form.pregunta), fecha_cierre: form.fecha_cierre || null })
+        .eq("id", editId);
+      if (encErr) throw encErr;
+      const { error: delErr } = await supabase.from("encuesta_opciones").delete().eq("encuesta_id", editId);
+      if (delErr) throw delErr;
+      const { error: opError } = await supabase
+        .from("encuesta_opciones")
+        .insert(opcionesLimpias.map((texto, i) => ({ encuesta_id: editId, texto: sanitize(texto), orden: i })));
+      if (opError) throw opError;
+      setModal(false);
+      setEditId(null);
+      cargar();
+    } catch (e) {
+      console.warn("Encuestas.guardarEdicion:", e?.message);
+      setError("No se pudieron guardar los cambios. Probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const votar = async (eid, oid) => {
     if (!userId || votando) return;
     setVotando(eid);
@@ -144,23 +187,36 @@ export function Encuestas() {
     setVotando(null);
   };
 
-  const cerrar = async (id) => {
+  const terminar = async (id) => {
     const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: true }).eq("id", id);
-    if (err) { console.warn("Encuestas.cerrar:", err?.message); setError("No se pudo cerrar la encuesta."); return; }
+    if (err) { console.warn("Encuestas.terminar:", err?.message); setError("No se pudo terminar la encuesta."); return; }
     cargar();
   };
+  const reabrir = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ cerrada_manual: false }).eq("id", id);
+    if (err) { console.warn("Encuestas.reabrir:", err?.message); setError("No se pudo reabrir la encuesta."); return; }
+    cargar();
+  };
+  // Borrado suave (encuestas.eliminada_en) para que el creador o el Room
+  // Parent puedan recuperarla si la borraron sin querer.
   const eliminar = async (id) => {
-    const { error: err } = await supabase.from("encuestas").delete().eq("id", id);
+    const { error: err } = await supabase.from("encuestas").update({ eliminada_en: new Date().toISOString() }).eq("id", id);
     if (err) { console.warn("Encuestas.eliminar:", err?.message); setError("No se pudo eliminar la encuesta."); return; }
     cargar();
   };
+  const recuperar = async (id) => {
+    const { error: err } = await supabase.from("encuestas").update({ eliminada_en: null }).eq("id", id);
+    if (err) { console.warn("Encuestas.recuperar:", err?.message); setError("No se pudo recuperar la encuesta."); return; }
+    cargar();
+  };
 
-  const visibles = encuestas.filter((e) => (filtro === "activas" ? !estaCerrada(e) : estaCerrada(e)));
+  const visibles = encuestas.filter((e) => !estaEliminada(e) && (filtro === "activas" ? !estaCerrada(e) : estaCerrada(e)));
+  const eliminadas = encuestas.filter((e) => estaEliminada(e) && puedeGestionar(e));
 
   return (
     <View style={styles.screen}>
       <FlatList
-        data={visibles}
+        data={filtro === "eliminadas" ? eliminadas : visibles}
         keyExtractor={(e) => e.id}
         contentContainerStyle={{ padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE }}
         ListHeaderComponent={
@@ -169,7 +225,7 @@ export function Encuestas() {
             <Text style={styles.sub}>Sondeos rápidos del curso — un voto por apoderado</Text>
             <View style={styles.toolbar}>
               <View style={styles.chips}>
-                {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }].map((ch) => (
+                {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }, { id: "eliminadas", l: "Eliminadas" }].map((ch) => (
                   <Pressable key={ch.id} onPress={() => setFiltro(ch.id)} style={[styles.chip, filtro === ch.id && styles.chipOn]}>
                     <Text style={[styles.chipTxt, filtro === ch.id && styles.chipTxtOn]}>{ch.l}</Text>
                   </Pressable>
@@ -184,30 +240,37 @@ export function Encuestas() {
           !cargando ? (
             <EmptyState
               emoji="📊"
-              title={filtro === "activas" ? "Sin encuestas activas" : "Sin encuestas cerradas"}
+              title={filtro === "activas" ? "Sin encuestas activas" : filtro === "cerradas" ? "Sin encuestas cerradas" : "Sin encuestas eliminadas"}
               note={filtro === "activas" ? "Creá la primera para sondear al curso." : null}
             />
           ) : null
         }
-        renderItem={({ item: e }) => (
-          <EncuestaCard
-            e={e}
-            opciones={opcionesDe(e.id)}
-            votos={votosDe(e.id)}
-            miVoto={miVoto(e.id)}
-            cerrada={estaCerrada(e)}
-            votando={votando === e.id}
-            tag={tagDeCurso(e.curso_id)}
-            puedeGestionar={puedeGestionar(e)}
-            onVotar={(oid) => votar(e.id, oid)}
-            onCerrar={() => cerrar(e.id)}
-            onEliminar={() => eliminar(e.id)}
-          />
-        )}
+        renderItem={({ item: e }) =>
+          filtro === "eliminadas" ? (
+            <EncuestaEliminadaCard e={e} tag={tagDeCurso(e.curso_id)} onRecuperar={() => recuperar(e.id)} />
+          ) : (
+            <EncuestaCard
+              e={e}
+              opciones={opcionesDe(e.id)}
+              votos={votosDe(e.id)}
+              miVoto={miVoto(e.id)}
+              cerrada={estaCerrada(e)}
+              votando={votando === e.id}
+              tag={tagDeCurso(e.curso_id)}
+              puedeGestionar={puedeGestionar(e)}
+              puedeEditar={puedeEditarOpciones(e)}
+              onVotar={(oid) => votar(e.id, oid)}
+              onEditar={() => abrirModalEditar(e)}
+              onTerminar={() => terminar(e.id)}
+              onReabrir={() => reabrir(e.id)}
+              onEliminar={() => eliminar(e.id)}
+            />
+          )
+        }
       />
 
-      <Sheet visible={modal} onClose={() => setModal(false)} title="Nueva encuesta">
-        {cursosOpciones.length > 0 ? (
+      <Sheet visible={modal} onClose={() => { setModal(false); setEditId(null); }} title={editId ? "Editar encuesta" : "Nueva encuesta"}>
+        {!editId && cursosOpciones.length > 0 ? (
           <>
             <Text style={styles.label}>Para el curso de</Text>
             <View style={styles.cursoRow}>
@@ -255,13 +318,19 @@ export function Encuestas() {
         <DateField value={form.fecha_cierre} onChange={(v) => setForm((p) => ({ ...p, fecha_cierre: v }))} placeholder="Sin fecha límite" clearable style={styles.input} />
 
         {error && modal ? <Text style={styles.errorTxt}>⚠️ {error}</Text> : null}
-        <Button title={saving ? "Publicando..." : "Publicar encuesta"} onPress={crear} disabled={saving} loading={saving} style={{ marginTop: SPACE.lg }} />
+        <Button
+          title={saving ? "Guardando..." : editId ? "Guardar cambios" : "Publicar encuesta"}
+          onPress={editId ? guardarEdicion : crear}
+          disabled={saving}
+          loading={saving}
+          style={{ marginTop: SPACE.lg }}
+        />
       </Sheet>
     </View>
   );
 }
 
-function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puedeGestionar, onVotar, onCerrar, onEliminar }) {
+function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puedeGestionar, puedeEditar, onVotar, onEditar, onTerminar, onReabrir, onEliminar }) {
   const total = votos.length;
   // Pie contextual (Parte 4 del handoff): reemplaza tener que inferir el
   // estado mirando la fecha y si ya voté.
@@ -325,16 +394,47 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puede
 
       {puedeGestionar ? (
         <View style={styles.gestionRow}>
-          {!cerrada ? (
-            <Pressable onPress={onCerrar} style={styles.gestionBtn}>
-              <Text style={styles.gestionTxt}>Cerrar encuesta</Text>
+          {puedeEditar ? (
+            <Pressable onPress={onEditar} style={styles.gestionBtn}>
+              <Text style={styles.gestionTxt}>✏️ Editar</Text>
             </Pressable>
           ) : null}
+          {!cerrada ? (
+            <Pressable onPress={onTerminar} style={styles.gestionBtn}>
+              <Text style={styles.gestionTxt}>Terminar encuesta</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={onReabrir} style={styles.gestionBtn}>
+              <Text style={styles.gestionTxtExito}>Reabrir</Text>
+            </Pressable>
+          )}
           <Pressable onPress={onEliminar} style={styles.gestionBtn}>
             <Text style={styles.gestionTxtDanger}>Eliminar</Text>
           </Pressable>
         </View>
       ) : null}
+    </Card>
+  );
+}
+
+function EncuestaEliminadaCard({ e, tag, onRecuperar }) {
+  return (
+    <Card style={styles.cardCerrada}>
+      <Text style={styles.pregunta}>{e.pregunta}</Text>
+      <View style={styles.metaRow}>
+        {tag ? (
+          <View style={styles.tagRow}>
+            <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+            <Text style={styles.tagTxt}>{tag.nombre}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.metaTxt}>
+          Eliminada el {new Date(e.eliminada_en).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
+        </Text>
+      </View>
+      <Pressable onPress={onRecuperar} style={styles.recuperarBtn}>
+        <Text style={styles.recuperarTxt}>↩️ Recuperar</Text>
+      </Pressable>
     </Card>
   );
 }
@@ -379,10 +479,13 @@ const styles = StyleSheet.create({
   opcionVotando: { opacity: 0.6 },
   errorTxt: { fontSize: 12, color: t.danger, backgroundColor: t.dangerSoft, borderRadius: RADIUS.sm, padding: SPACE.sm, marginTop: SPACE.sm },
 
-  gestionRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md },
+  gestionRow: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md, flexWrap: "wrap" },
   gestionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.border },
   gestionTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
+  gestionTxtExito: { fontSize: 11, fontWeight: "700", color: t.success },
   gestionTxtDanger: { fontSize: 11, fontWeight: "700", color: t.danger },
+  recuperarBtn: { alignSelf: "flex-start", marginTop: SPACE.sm, paddingVertical: 6, paddingHorizontal: 14, borderRadius: RADIUS.md, backgroundColor: t.accent },
+  recuperarTxt: { fontSize: 11, fontWeight: "700", color: "#FFFFFF" },
 
   label: { fontSize: 11, fontWeight: "700", color: t.textMuted, marginBottom: 5, marginTop: SPACE.md, textTransform: "uppercase" },
   input: { borderWidth: 1.5, borderColor: t.border, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 12, fontSize: 13, color: t.textStrong, backgroundColor: t.surface2 },

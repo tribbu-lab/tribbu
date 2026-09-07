@@ -166,6 +166,10 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const getPago = (colectaId, alumnoId) =>
     pagos.find((p) => p.colecta_id === colectaId && p.alumno_id === alumnoId);
 
+  // Una vez que hay algún pago registrado, editar el monto/título distorsionaría
+  // lo ya recaudado — igual que las opciones de una encuesta con votos.
+  const tienePagos = (c) => pagos.some((p) => p.colecta_id === c.id && p.estado === "pagado");
+
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevo = estadoActual === "pagado" ? "pendiente" : "pagado";
     const fecha_pago = nuevo === "pagado" ? new Date().toISOString().slice(0, 10) : null;
@@ -365,22 +369,24 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               </Pressable>
               {isAdmin ? (
                 <>
-                  <Pressable
-                    onPress={() => {
-                      setForm({
-                        titulo: c.titulo || "",
-                        descripcion: c.descripcion || "",
-                        monto_sugerido: c.monto_sugerido ? String(c.monto_sugerido) : "",
-                        moneda: c.moneda || "$",
-                        responsable_id: c.responsable_id || "",
-                        fecha_limite: c.fecha_limite || "",
-                      });
-                      setModal(c);
-                    }}
-                    style={styles.iconBtn}
-                  >
-                    <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                  </Pressable>
+                  {!tienePagos(c) ? (
+                    <Pressable
+                      onPress={() => {
+                        setForm({
+                          titulo: c.titulo || "",
+                          descripcion: c.descripcion || "",
+                          monto_sugerido: c.monto_sugerido ? String(c.monto_sugerido) : "",
+                          moneda: c.moneda || "$",
+                          responsable_id: c.responsable_id || "",
+                          fecha_limite: c.fecha_limite || "",
+                        });
+                        setModal(c);
+                      }}
+                      style={styles.iconBtn}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                  ) : null}
                   <Pressable onPress={() => toggleActiva(c)} style={styles.iconBtn}>
                     <Text style={[styles.iconTxt, { color: c.activa ? "#B45309" : t.success }]}>
                       {c.activa ? "Cerrar" : "Reabrir"}
