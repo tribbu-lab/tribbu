@@ -24,8 +24,58 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   const [maestros,setMaestros] = useState([]);
   const [horForm,setHorForm]   = useState(null);
   const [horSaving,setHorSaving] = useState(false);
+  const [alumnosRegalo,setAlumnosRegalo] = useState([]);
+  const [cumpleMap,setCumpleMap]         = useState({});
+  const [guardandoRegaloId,setGuardandoRegaloId] = useState(null);
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
+  const nextBday = (fecha) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const d = new Date(fecha+"T00:00:00");
+    let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+    if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
+    return Math.round((next - hoy) / (1000*60*60*24));
+  };
+
+  const cargarRegalos = async () => {
+    const { data: al } = await supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre");
+    const conCumple = (al||[]).filter(a=>a.fecha_nacimiento).sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
+    setAlumnosRegalo(conCumple);
+
+    const { data: cu } = await supabase.from("cumples").select("*").eq("curso_id",cursoId).not("alumno_id","is",null);
+    const responsableUids = [...new Set((cu||[]).map(c=>c.responsable_id).filter(Boolean))];
+    let uidToHijo = {};
+    if(responsableUids.length && conCumple.length) {
+      const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("usuario_id",responsableUids).in("hijo_id", conCumple.map(a=>a.id));
+      const hijoById = {}; conCumple.forEach(a=>{ hijoById[a.id]=a; });
+      (uh||[]).forEach(r=>{ if(hijoById[r.hijo_id]) uidToHijo[r.usuario_id]=hijoById[r.hijo_id]; });
+    }
+    const map = {};
+    (cu||[]).forEach(c=>{ if(c.alumno_id) map[c.alumno_id] = {...c, _responsable_hijo: uidToHijo[c.responsable_id]||null}; });
+    setCumpleMap(map);
+  };
+
+  const asignarRegalo = async (alumnoId, responsableHijoId) => {
+    setGuardandoRegaloId(alumnoId);
+    let resolvedUserId = null;
+    if(responsableHijoId) {
+      const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id").eq("hijo_id",responsableHijoId).limit(1);
+      resolvedUserId = uh?.[0]?.usuario_id || null;
+    }
+    const existente = cumpleMap[alumnoId];
+    if(existente?.id) await supabase.from("cumples").update({responsable_id:resolvedUserId}).eq("id",existente.id);
+    else if(resolvedUserId) await supabase.from("cumples").insert({curso_id:cursoId, alumno_id:alumnoId, responsable_id:resolvedUserId});
+    await cargarRegalos();
+    setGuardandoRegaloId(null);
+  };
+
+  const toggleComprado = async (alumnoId) => {
+    const existente = cumpleMap[alumnoId];
+    if(!existente?.id) return;
+    await supabase.from("cumples").update({comprado:!existente.comprado}).eq("id",existente.id);
+    cargarRegalos();
+  };
 
   const cargar = async () => {
     const [c, hor, mae] = await Promise.all([
@@ -37,6 +87,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
     setHorarios(hor.data||[]);
     setMaestros(mae.data||[]);
+    cargarRegalos();
   };
 
   useEffect(()=>{ cargar(); },[cursoId]);
@@ -66,7 +117,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
       <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"}].map(t=>(
+        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"regalos",l:"🎁 Regalos"}].map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:tab===t.id?"#0F172A":"#F1F5F9",color:tab===t.id?"white":"#64748B"}}>{t.l}</button>
         ))}
       </div>
@@ -166,6 +217,45 @@ export function AdminPanel({ cursoId, cursoNombre }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {tab==="regalos"&&(
+        <div>
+          <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:16,lineHeight:1.5}}>Asigná qué familia le regala a cada compañero — ordenado por el próximo cumpleaños. Se guarda solo, sin ventanas: elegí en el desplegable de cada fila.</div>
+          {alumnosRegalo.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Ningún alumno del curso tiene fecha de nacimiento cargada.</div>}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {alumnosRegalo.map(a=>{
+              const cumple = cumpleMap[a.id];
+              const dias = nextBday(a.fecha_nacimiento);
+              const bl = dias===0?{l:"Hoy",c:"#EF4444"}:dias===1?{l:"Mañana",c:"#F59E0B"}:dias<=7?{l:`${dias}d`,c:"#F59E0B"}:{l:`${dias}d`,c:"#94A3B8"};
+              const guardando = guardandoRegaloId===a.id;
+              return (
+                <Card key={a.id} style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:12,opacity:guardando?0.6:1}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:(a.color||"#3B82F6")+"1F",color:a.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{a.nombre?.slice(0,1)}{a.apellido?.slice(0,1)}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{fmtNombre(a)}</div>
+                    <div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:6,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
+                  </div>
+                  <select
+                    value={cumple?._responsable_hijo?.id||""}
+                    onChange={e=>asignarRegalo(a.id, e.target.value||null)}
+                    disabled={guardando}
+                    style={{...inp,width:190,marginBottom:0}}
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {alumnosRegalo.filter(x=>x.id!==a.id).map(x=>(
+                      <option key={x.id} value={x.id}>{fmtNombre(x)}</option>
+                    ))}
+                  </select>
+                  <label style={{display:"flex",alignItems:"center",gap:5,fontSize:11.5,color:cumple?.id?"#64748B":"#CBD5E1",whiteSpace:"nowrap",cursor:cumple?.id?"pointer":"default"}}>
+                    <input type="checkbox" checked={!!cumple?.comprado} disabled={!cumple?.id} onChange={()=>toggleComprado(a.id)}/>
+                    Comprado
+                  </label>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

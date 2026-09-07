@@ -37,6 +37,59 @@ export function AdminPanel() {
   const [alertaSheet, setAlertaSheet] = useState(false);
   const [alertaMsg, setAlertaMsg] = useState("");
   const [alertaEnviando, setAlertaEnviando] = useState(false);
+  const [alumnosRegalo, setAlumnosRegalo] = useState([]);
+  const [cumpleMap, setCumpleMap] = useState({});
+  const [expandidoId, setExpandidoId] = useState(null);
+  const [guardandoRegaloId, setGuardandoRegaloId] = useState(null);
+
+  const nextBday = (fecha) => {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const d = new Date(fecha + "T00:00:00");
+    let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+    if (next < hoy) next.setFullYear(hoy.getFullYear() + 1);
+    return Math.round((next - hoy) / (1000 * 60 * 60 * 24));
+  };
+
+  const cargarRegalos = useCallback(async () => {
+    if (!cursoId) return;
+    const { data: al } = await supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id", cursoId).order("nombre");
+    const conCumple = (al || []).filter((a) => a.fecha_nacimiento).sort((a, b) => nextBday(a.fecha_nacimiento) - nextBday(b.fecha_nacimiento));
+    setAlumnosRegalo(conCumple);
+
+    const { data: cu } = await supabase.from("cumples").select("*").eq("curso_id", cursoId).not("alumno_id", "is", null);
+    const responsableUids = [...new Set((cu || []).map((c) => c.responsable_id).filter(Boolean))];
+    let uidToHijo = {};
+    if (responsableUids.length && conCumple.length) {
+      const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("usuario_id", responsableUids).in("hijo_id", conCumple.map((a) => a.id));
+      const hijoById = {}; conCumple.forEach((a) => { hijoById[a.id] = a; });
+      (uh || []).forEach((r) => { if (hijoById[r.hijo_id]) uidToHijo[r.usuario_id] = hijoById[r.hijo_id]; });
+    }
+    const map = {};
+    (cu || []).forEach((c) => { if (c.alumno_id) map[c.alumno_id] = { ...c, _responsable_hijo: uidToHijo[c.responsable_id] || null }; });
+    setCumpleMap(map);
+  }, [cursoId]);
+
+  const asignarRegalo = async (alumnoId, responsableHijoId) => {
+    setGuardandoRegaloId(alumnoId);
+    let resolvedUserId = null;
+    if (responsableHijoId) {
+      const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id").eq("hijo_id", responsableHijoId).limit(1);
+      resolvedUserId = uh?.[0]?.usuario_id || null;
+    }
+    const existente = cumpleMap[alumnoId];
+    if (existente?.id) await supabase.from("cumples").update({ responsable_id: resolvedUserId }).eq("id", existente.id);
+    else if (resolvedUserId) await supabase.from("cumples").insert({ curso_id: cursoId, alumno_id: alumnoId, responsable_id: resolvedUserId });
+    await cargarRegalos();
+    setGuardandoRegaloId(null);
+    setExpandidoId(null);
+  };
+
+  const toggleComprado = async (alumnoId) => {
+    const existente = cumpleMap[alumnoId];
+    if (!existente?.id) return;
+    await supabase.from("cumples").update({ comprado: !existente.comprado }).eq("id", existente.id);
+    cargarRegalos();
+  };
 
   const cargar = useCallback(async () => {
     if (!cursoId) return;
@@ -65,7 +118,8 @@ export function AdminPanel() {
       apodPorHijo.set(r.hijo_id, arr);
     }
     setFamilias(hijosCurso.map((h) => ({ ...h, apoderados: apodPorHijo.get(h.id) || [] })));
-  }, [cursoId]);
+    cargarRegalos();
+  }, [cursoId, cargarRegalos]);
 
   useEffect(() => {
     cargar();
@@ -137,6 +191,7 @@ export function AdminPanel() {
           { id: "general", l: "General" },
           { id: "horarios", l: "Horarios" },
           { id: "familias", l: "Familias" },
+          { id: "regalos", l: "🎁 Regalos" },
         ].map((t) => (
           <Pressable key={t.id} onPress={() => setTab(t.id)} style={[styles.tab, tab === t.id && styles.tabActive]}>
             <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.l}</Text>
@@ -252,6 +307,67 @@ export function AdminPanel() {
                 <Text style={styles.familiaPend}>Sin registrar</Text>
               </View>
             ))
+          )}
+        </View>
+      ) : null}
+
+      {tab === "regalos" ? (
+        <View>
+          <Text style={styles.regalosIntro}>
+            Asigná qué familia le regala a cada compañero — ordenado por el próximo cumpleaños. Tocá una fila para elegir.
+          </Text>
+          {alumnosRegalo.length === 0 ? (
+            <Text style={styles.muted}>Ningún alumno del curso tiene fecha de nacimiento cargada.</Text>
+          ) : (
+            alumnosRegalo.map((a) => {
+              const cumple = cumpleMap[a.id];
+              const dias = nextBday(a.fecha_nacimiento);
+              const bl = dias === 0 ? { l: "Hoy", c: "#EF4444" } : dias === 1 ? { l: "Mañana", c: "#F59E0B" } : dias <= 7 ? { l: `${dias}d`, c: "#F59E0B" } : { l: `${dias}d`, c: "#94A3B8" };
+              const abierto = expandidoId === a.id;
+              const guardando = guardandoRegaloId === a.id;
+              return (
+                <View key={a.id} style={styles.regaloCard}>
+                  <Pressable onPress={() => setExpandidoId(abierto ? null : a.id)} style={styles.regaloHeader}>
+                    <View style={[styles.avatarChico, { backgroundColor: (a.color || "#3B82F6") + "1F" }]}>
+                      <Text style={[styles.avatarChicoTxt, { color: a.color || "#3B82F6" }]}>{a.nombre?.slice(0, 1)}{a.apellido?.slice(0, 1)}</Text>
+                    </View>
+                    <View style={styles.flex1}>
+                      <Text style={styles.regaloNombre}>{fmtNombre(a)}</Text>
+                      <Text style={styles.regaloFecha}>
+                        {new Date(a.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
+                        <Text style={{ color: bl.c, fontWeight: "700" }}> · {bl.l}</Text>
+                      </Text>
+                    </View>
+                    <Text style={styles.regaloAsignado} numberOfLines={1}>
+                      {cumple?._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : "Sin asignar"}
+                    </Text>
+                    <Text style={styles.regaloChevron}>{abierto ? "▲" : "▼"}</Text>
+                  </Pressable>
+                  {abierto ? (
+                    <View style={styles.regaloOpciones}>
+                      <Pressable onPress={() => asignarRegalo(a.id, null)} disabled={guardando} style={styles.regaloOpcion}>
+                        <Text style={styles.regaloOpcionTxt}>— Sin asignar —</Text>
+                      </Pressable>
+                      {alumnosRegalo.filter((x) => x.id !== a.id).map((x) => {
+                        const sel = cumple?._responsable_hijo?.id === x.id;
+                        return (
+                          <Pressable key={x.id} onPress={() => asignarRegalo(a.id, x.id)} disabled={guardando} style={[styles.regaloOpcion, sel && styles.regaloOpcionOn]}>
+                            <Text style={[styles.regaloOpcionTxt, sel && styles.regaloOpcionTxtOn]}>{fmtNombre(x)}</Text>
+                            {sel ? <Text style={styles.regaloOpcionCheck}>✓</Text> : null}
+                          </Pressable>
+                        );
+                      })}
+                      <Pressable onPress={() => toggleComprado(a.id)} disabled={!cumple?.id} style={styles.compradoRow}>
+                        <View style={[styles.compradoBox, cumple?.comprado && styles.compradoBoxOn]}>
+                          {cumple?.comprado ? <Text style={styles.compradoCheck}>✓</Text> : null}
+                        </View>
+                        <Text style={[styles.compradoTxt, !cumple?.id && styles.compradoTxtDisabled]}>Regalo comprado</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })
           )}
         </View>
       ) : null}
@@ -414,6 +530,27 @@ const styles = StyleSheet.create({
   familiaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "white", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 10, paddingHorizontal: 14, marginBottom: 6 },
   familiaNombre: { fontSize: 13, fontWeight: "600", color: T.text },
   familiaPend: { fontSize: 11, fontWeight: "700", color: "#B45309", backgroundColor: "#FFFBEB", paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999 },
+  regalosIntro: { fontSize: 12.5, color: "#94A3B8", lineHeight: 18, marginBottom: 14 },
+  regaloCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 8, overflow: "hidden" },
+  regaloHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, minHeight: 44 },
+  avatarChico: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  avatarChicoTxt: { fontSize: 11.5, fontWeight: "800" },
+  regaloNombre: { fontSize: 13.5, fontWeight: "700", color: T.text },
+  regaloFecha: { fontSize: 11, color: "#94A3B8", marginTop: 1 },
+  regaloAsignado: { fontSize: 11.5, color: "#64748B", fontWeight: "600", maxWidth: 90, textAlign: "right" },
+  regaloChevron: { fontSize: 10, color: "#CBD5E1", marginLeft: 2 },
+  regaloOpciones: { borderTopWidth: 1, borderTopColor: "#F1F5F9", maxHeight: 260 },
+  regaloOpcion: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 40, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  regaloOpcionOn: { backgroundColor: "#EFF6FF" },
+  regaloOpcionTxt: { fontSize: 13, color: T.text },
+  regaloOpcionTxtOn: { color: T.accent, fontWeight: "700" },
+  regaloOpcionCheck: { fontSize: 12, color: T.accent, fontWeight: "800" },
+  compradoRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 14, backgroundColor: "#FAFAFA" },
+  compradoBox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
+  compradoBoxOn: { backgroundColor: T.green, borderColor: T.green },
+  compradoCheck: { fontSize: 12, color: "white", fontWeight: "900" },
+  compradoTxt: { fontSize: 12.5, fontWeight: "600", color: T.text },
+  compradoTxtDisabled: { color: "#CBD5E1" },
   label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
   row: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
   input: { minHeight: 44, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: "#F8FAFC" },
