@@ -8,7 +8,6 @@ import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
          sanitize, safeUrl, getHijoColor, setHijoColor,
          bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
 import { Card } from "../../components/Card";
-import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -30,7 +29,6 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
   const [lista,setLista]               = useState([]);
   const [cumpleMap,setCumpleMap]       = useState({});
   const [festejoMap,setFestejoMap]     = useState({});
-  const [editando,setEditando]         = useState(null);
   const [festejoModal,setFestejoModal] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [colectaRegaloModal,setColectaRegaloModal] = useState(null);
@@ -180,38 +178,6 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
 
   useEffect(()=>{ cargar(); },[cursoIds]);
 
-  const guardarResponsable = async ({responsable_id, comprado}) => {
-    const isAlumno = editando.tipo==="Alumno";
-    const cumpleExistente = cumpleMap[editando.id];
-    const existenteId = cumpleExistente?.id || null;
-
-    // responsable_id llega como rawId de hijos — resolver usuario_id vinculado
-    let resolvedId = null;
-    if(responsable_id) {
-      const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id").eq("hijo_id", responsable_id).limit(1);
-      resolvedId = uh?.[0]?.usuario_id || null;
-      console.log("guardarResponsable — hijo seleccionado:", responsable_id, "→ usuario:", resolvedId, "existenteId:", existenteId);
-    }
-
-    const payload = { responsable_id: resolvedId, comprado };
-
-    if(existenteId) {
-      const { error } = await supabase.from("cumples").update(payload).eq("id", existenteId);
-      if(error) console.error("Error UPDATE cumple:", JSON.stringify(error));
-    } else {
-      const { error } = await supabase.from("cumples").insert({
-        // Curso del alumno/maestro editado (en vista Todos no hay curso de sesión).
-        curso_id: editando.curso_id,
-        alumno_id: isAlumno ? editando.rawId : null,
-        maestro_id_ref: !isAlumno ? editando.rawId : null,
-        ...payload,
-      });
-      if(error) console.error("Error INSERT cumple:", JSON.stringify(error));
-    }
-    setEditando(null);
-    await cargar();
-  };
-
   const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     // Curso del maestro homenajeado (nunca el de sesión, que es null en vista Todos).
     const cursoDestino = colectaRegaloModal?.cursoId ?? cursoId;
@@ -290,7 +256,6 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
 
   return (
     <div>
-      {editando&&<ResponsableModal cumple={{...editando, responsable_id:cumpleMap[editando.id]?._responsable_hijo?.id||null, comprado:cumpleMap[editando.id]?.comprado||false}} alumnos={lista} onClose={()=>setEditando(null)} onSave={guardarResponsable}/>}
       {festejoModal&&<FestejoModal alumnoId={festejoModal.alumnoId} alumnoNombre={festejoModal.alumnoNombre} cursoId={festejoModal.cursoId ?? cursoId} userId={userId} festejoExistente={festejoModal.festejo} onClose={()=>setFestejoModal(null)} onSave={()=>{ setFestejoModal(null); cargar(); }}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijosUniq||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
@@ -400,10 +365,9 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                           }
                         </div>
                       )}
-                      {isAdmin&&(
+                      {isAdmin&&a.tipo==="Maestro"&&(
                         <div style={{display:"flex",gap:4}}>
-                          <button onClick={()=>setEditando(a)} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>🎁 Regalo</button>
-                          {a.tipo==="Maestro"&&<button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId,cursoId:a.curso_id})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>}
+                          <button onClick={()=>setColectaRegaloModal({maestroNombre:a.nombre,maestroId:a.rawId,cursoId:a.curso_id})} style={{fontSize:10,padding:"2px 8px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",color:"#3B82F6"}}>+ Colecta</button>
                         </div>
                       )}
                     </div>
@@ -486,7 +450,6 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                       {cta&&<button onClick={cta.onClick} style={{padding:"10px 16px",borderRadius:11,border:"none",background:"#0F172A",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap"}}>{cta.label}</button>}
                       <div style={{display:"flex",gap:6}}>
                         {esMiHijo&&fest&&<button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B",fontWeight:600}}>Editar</button>}
-                        {isAdmin&&<button onClick={()=>setEditando(a)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B",fontWeight:600}}>🎁 Regalo</button>}
                       </div>
                     </div>
                   </div>
@@ -525,9 +488,6 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                         </div>
                         {esMiHijo&&fest&&(
                           <button onClick={()=>setFestejoModal({alumnoId:a.rawId,alumnoNombre:a.nombre,cursoId:a.curso_id,festejo:fest})} title="Editar festejo" style={{width:22,height:22,borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✏️</button>
-                        )}
-                        {isAdmin&&(
-                          <button onClick={()=>setEditando(a)} title="Asignar quién regala" style={{width:22,height:22,borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🎁</button>
                         )}
                         <span style={{fontSize:14,fontWeight:800,color:"#334155",fontVariantNumeric:"tabular-nums",flexShrink:0}}>{new Date(a.fecha_nacimiento+"T00:00:00").getDate()}</span>
                       </div>
@@ -991,54 +951,6 @@ export function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUp
             </div>
           )
         )}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-export function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
-  const [responsableId, setResponsableId] = useState(cumple?.responsable_id||null);
-  const [comprado, setComprado]           = useState(cumple?.comprado||false);
-
-  const handleGuardar = (e) => {
-    e.stopPropagation();
-    onSave({ responsable_id: responsableId, comprado });
-  };
-
-  // Compañeros: alumnos del curso excluyendo al cumpleañero
-  const companeros = alumnos.filter(a => a.tipo==="Alumno" && a.rawId !== cumple.rawId);
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>🎁 Regalo de {cumple.nombre}</div>
-        <div style={{fontSize:12,color:"#94A3B8",marginBottom:18}}>
-          🎂 {new Date(cumple.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}
-          <span style={{marginLeft:8}}><Pill label={cumple.tipo==="Maestro"?"Maestro":"Alumno"} color={cumple.tipo==="Maestro"?"#8B5CF6":"#3B82F6"} bg={cumple.tipo==="Maestro"?"#F5F3FF":"#EFF6FF"}/></span>
-        </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>¿Quién regala?</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
-            <div onClick={()=>setResponsableId(null)} style={{padding:"9px 12px",borderRadius:10,border:`2px solid ${!responsableId?"#94A3B8":"#E2E8F0"}`,background:!responsableId?"#F8FAFC":"white",cursor:"pointer",fontSize:13,color:"#94A3B8",fontWeight:600}}>Sin asignar</div>
-            {companeros.map(a=>{
-              const sel = responsableId===a.rawId;
-              return (
-                <div key={a.rawId} onClick={()=>setResponsableId(a.rawId)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:10,border:`2px solid ${sel?(a.color||"#3B82F6"):"#E2E8F0"}`,background:sel?(a.color||"#3B82F6")+"18":"white",cursor:"pointer"}}>
-                  <span style={{fontSize:13,fontWeight:sel?700:500,flex:1}}>{a.nombre}</span>
-                  {sel&&<span style={{fontSize:13,color:a.color||"#3B82F6",fontWeight:700}}>✓</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Estado del regalo</div>
-          <button onClick={()=>setComprado(p=>!p)} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${comprado?"#10B981":"#E2E8F0"}`,background:comprado?"#F0FDF4":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:comprado?"#10B981":"#94A3B8"}}>{comprado?"Comprado":"Pendiente"}</button>
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-          <button onClick={handleGuardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
         </div>
       </Card>
     </div>

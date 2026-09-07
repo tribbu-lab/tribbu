@@ -1,10 +1,11 @@
 // Cumpleaños (puerto RN de src/features/cumples). Lista unificada de cumpleaños
 // de alumnos + maestros del curso (búsqueda/orden/filtro vía useListControls +
-// FlatList), banners de festejo del propio hijo, "mis invitaciones", y 4 modales:
-// ResponsableModal (quién regala), FestejoModal (alta/edición + invitados +
-// imagen), FestejoDetalleModal (RSVP + totales + export Excel) y ColectaRegaloModal
-// (admin crea colecta de regalo para un maestro). La asignación de regalo genera
-// recordatorios automáticos al responsable (misma lógica que la web).
+// FlatList), banners de festejo del propio hijo, "mis invitaciones", y 3 modales:
+// FestejoModal (alta/edición + invitados + imagen), FestejoDetalleModal (RSVP +
+// totales + export Excel) y ColectaRegaloModal (admin crea colecta de regalo
+// para un maestro). Asignar quién regala es solo desde Admin → Regalos (no
+// desde acá, para evitar que se pise con lo que hace el Room Parent ahí) —
+// esa asignación sigue generando recordatorios automáticos al responsable.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -89,7 +90,6 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   const [monedaRegalo, setMonedaRegalo] = useState("$");
   const [apoderados, setApoderados] = useState([]);
 
-  const [editando, setEditando] = useState(null);
   const [festejoModal, setFestejoModal] = useState(null);
   const [festejoDetalle, setFestejoDetalle] = useState(null);
   const [colectaRegaloModal, setColectaRegaloModal] = useState(null);
@@ -320,36 +320,6 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       onClearOpenFestejo?.();
     }
   }, [openFestejoId, invitaciones, festejoMap, onClearOpenFestejo]);
-
-  const guardarResponsable = async ({ responsable_id, comprado }) => {
-    const isAlumno = editando.tipo === "Alumno";
-    const cumpleExistente = cumpleMap[editando.id];
-    const existenteId = cumpleExistente?.id || null;
-
-    let resolvedId = null;
-    if (responsable_id) {
-      const { data: uh } = await supabase
-        .from("usuario_hijos")
-        .select("usuario_id")
-        .eq("hijo_id", responsable_id)
-        .limit(1);
-      resolvedId = uh?.[0]?.usuario_id || null;
-    }
-    const payload = { responsable_id: resolvedId, comprado };
-    if (existenteId) {
-      await supabase.from("cumples").update(payload).eq("id", existenteId);
-    } else {
-      await supabase.from("cumples").insert({
-        // Curso del alumno/maestro editado (en vista Todos no hay curso de sesión).
-        curso_id: editando.curso_id,
-        alumno_id: isAlumno ? editando.rawId : null,
-        maestro_id_ref: !isAlumno ? editando.rawId : null,
-        ...payload,
-      });
-    }
-    setEditando(null);
-    await cargar();
-  };
 
   const crearColectaRegalo = async ({ maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id }) => {
     // Curso del maestro homenajeado (nunca el de sesión, que es null en vista Todos).
@@ -625,19 +595,14 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
               <Text style={styles.miniCrearTxt}>+ Festejo</Text>
             </Pressable>
           ) : null}
-          {isAdmin ? (
+          {isAdmin && a.tipo === "Maestro" ? (
             <View style={styles.adminBtns}>
-              <Pressable onPress={() => setEditando(a)} style={styles.miniAdmin}>
-                <Text style={styles.miniAdminTxt}>🎁 Regalo</Text>
+              <Pressable
+                onPress={() => setColectaRegaloModal({ maestroNombre: a.nombre, maestroId: a.rawId, cursoId: a.curso_id })}
+                style={styles.miniColecta}
+              >
+                <Text style={styles.miniColectaTxt}>+ Colecta</Text>
               </Pressable>
-              {a.tipo === "Maestro" ? (
-                <Pressable
-                  onPress={() => setColectaRegaloModal({ maestroNombre: a.nombre, maestroId: a.rawId, cursoId: a.curso_id })}
-                  style={styles.miniColecta}
-                >
-                  <Text style={styles.miniColectaTxt}>+ Colecta</Text>
-                </Pressable>
-              ) : null}
             </View>
           ) : null}
         </View>
@@ -662,18 +627,6 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         contentContainerStyle={styles.content}
       />
 
-      {editando ? (
-        <ResponsableModal
-          cumple={{
-            ...editando,
-            responsable_id: cumpleMap[editando.id]?._responsable_hijo?.id || null,
-            comprado: cumpleMap[editando.id]?.comprado || false,
-          }}
-          alumnos={lista}
-          onClose={() => setEditando(null)}
-          onSave={guardarResponsable}
-        />
-      ) : null}
       {festejoModal ? (
         <FestejoModal
           alumnoId={festejoModal.alumnoId}
@@ -708,69 +661,6 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         />
       ) : null}
     </View>
-  );
-}
-
-// ── ResponsableModal ──────────────────────────────────────────────────────────
-export function ResponsableModal({ cumple, alumnos, onClose, onSave }) {
-  const [responsableId, setResponsableId] = useState(cumple?.responsable_id || null);
-  const [comprado, setComprado] = useState(cumple?.comprado || false);
-  const companeros = alumnos.filter((a) => a.tipo === "Alumno" && a.rawId !== cumple.rawId);
-
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
-          <ScrollView>
-            <Text style={styles.modalTitle}>🎁 Regalo de {cumple.nombre}</Text>
-            <Text style={styles.modalSub}>🎂 {fmtDiaMes(cumple.fecha_nacimiento)}</Text>
-
-            <Text style={styles.label}>¿QUIÉN REGALA?</Text>
-            <Pressable
-              onPress={() => setResponsableId(null)}
-              style={[styles.optRow, !responsableId && styles.optRowSel]}
-            >
-              <Text style={styles.optTxt}>Sin asignar</Text>
-            </Pressable>
-            {companeros.map((a) => {
-              const sel = responsableId === a.rawId;
-              return (
-                <Pressable
-                  key={a.rawId}
-                  onPress={() => setResponsableId(a.rawId)}
-                  style={[styles.optRow, sel && { borderColor: a.color || T.accent, backgroundColor: t.accentSoft }]}
-                >
-                  <Text style={[styles.optTxt, sel && { fontWeight: "700" }]}>{a.nombre}</Text>
-                  {sel ? <Text style={{ color: a.color || T.accent, fontWeight: "700" }}>✓</Text> : null}
-                </Pressable>
-              );
-            })}
-
-            <Text style={styles.label}>ESTADO DEL REGALO</Text>
-            <Pressable
-              onPress={() => setComprado((p) => !p)}
-              style={[styles.togglePill, comprado && styles.togglePillOn]}
-            >
-              <Text style={[styles.toggleTxt, comprado && { color: "#10B981" }]}>
-                {comprado ? "Comprado" : "Pendiente"}
-              </Text>
-            </Pressable>
-
-            <View style={styles.modalBtns}>
-              <Pressable onPress={onClose} style={styles.cancelBtn}>
-                <Text style={styles.cancelTxt}>Cancelar</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onSave({ responsable_id: responsableId, comprado })}
-                style={styles.saveBtn}
-              >
-                <Text style={styles.saveTxt}>Guardar</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
@@ -1469,8 +1359,6 @@ const styles = StyleSheet.create({
   miniCrear: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
   miniCrearTxt: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
   adminBtns: { flexDirection: "row", gap: 4 },
-  miniAdmin: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
-  miniAdminTxt: { fontSize: 10, color: t.textMuted, fontWeight: "600" },
   miniColecta: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
   miniColectaTxt: { fontSize: 10, color: BLUE[600], fontWeight: "700" },
 
@@ -1485,9 +1373,6 @@ const styles = StyleSheet.create({
   optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44, borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, paddingVertical: 8, marginBottom: 6, backgroundColor: t.surface },
   optRowSel: { borderColor: t.accent, backgroundColor: t.accentSoft },
   optTxt: { fontSize: 13, color: t.text, flex: 1 },
-  togglePill: { alignSelf: "flex-start", borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: t.surface },
-  togglePillOn: { borderColor: t.success, backgroundColor: t.successSoft },
-  toggleTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
   monedaBtn: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center", backgroundColor: t.surface },
   monedaBtnOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
   monedaTxt: { fontSize: 13, fontWeight: "700", color: t.textFaint },
