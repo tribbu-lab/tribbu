@@ -607,7 +607,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     : SECCIONES;
 
   return (
-    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",overflowX:"hidden"}}>
+      <style>{`#tribbu-sa-nav::-webkit-scrollbar{width:6px}#tribbu-sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:3px}#tribbu-sa-nav::-webkit-scrollbar-track{background:transparent}`}</style>
       <Toast />
       {/* Feedback banner para operaciones de Auth */}
       {authSyncMsg&&(
@@ -994,17 +995,17 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         // adentro de la app". Ahora replica el mismo patrón que ya usa el
         // sidebar del apoderado (App.jsx #tribbu-sidebar): fixed, pegado a
         // los 3 bordes, sin radius — el contenido se corre con marginLeft.
-        <nav style={{width:236,position:"fixed",top:0,left:0,bottom:0,background:"#0F172A",display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto"}}>
-          <div style={{padding:"20px 20px 18px"}}>
+        <nav style={{width:236,position:"fixed",top:0,left:0,bottom:0,background:"#0F172A",display:"flex",flexDirection:"column",zIndex:100,overflow:"hidden"}}>
+          <div style={{padding:"20px 20px 16px",flexShrink:0}}>
             <Wordmark size={20} letterSpacing={-0.8}/>
             <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
               <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
               <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":"Admin del colegio"}</span>
             </div>
           </div>
-          <div style={{flex:1,padding:"0 12px",overflowY:"auto"}}>
+          <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"0 12px",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
             {seccionesVisibles.map(g=>(
-              <div key={g.grupo} style={{marginBottom:18}}>
+              <div key={g.grupo} style={{marginBottom:14}}>
                 <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
                 <div style={{display:"flex",flexDirection:"column"}}>
                   {g.items.map(t=>(
@@ -1014,7 +1015,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             ))}
           </div>
-          <div style={{padding:"0 12px 16px"}}>
+          <div style={{padding:"12px 12px 16px",flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
               <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(139,92,246,0.25)",color:"#C4B5FD",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>
                 {(usuario?.nombre||"?").slice(0,1)}{(usuario?.apellido||"")[0]||""}
@@ -1130,7 +1131,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             };
             const idsVisibles = ctrlUsuarios.items.map(u=>u.id);
             const todosMarcados = idsVisibles.length>0 && idsVisibles.every(id=>selUsuarios.has(id));
-            const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
+            const gridCols = "44px minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr) 118px 96px";
             return (
         <>
           <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"room",label:"Room Parent",color:ROL_COLOR.room}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
@@ -1187,7 +1188,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       <div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
                     </div>
                   </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:5,minWidth:0}}>
                     {accesosDeUsuario(u).map((a,i)=>(
                       <span key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",borderRadius:999,background:a.color+"18",border:`1px solid ${a.color}40`}}>
                         <span style={{width:6,height:6,borderRadius:999,background:a.color}}/>
@@ -1197,7 +1198,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     {/* super/colegio_admin ya no aparecen en esta lista — ver
                         "👑 Super Admins" y "🏫 Colegio" → Administradores. */}
                   </div>
-                  <div style={{fontSize:12,color:"#64748B"}}>{hijosNombres || "—"}</div>
+                  <div style={{fontSize:12,color:"#64748B",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{hijosNombres || "—"}</div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center"}}>
                     <span style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:999,background:u.activo?"#F0FDF4":"#F1F5F9",border:`1px solid ${u.activo?"#A7F3D0":"#E2E8F0"}`}}>
                       <span style={{width:6,height:6,borderRadius:999,background:u.activo?"#059669":"#94A3B8"}}/>
