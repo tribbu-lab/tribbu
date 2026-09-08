@@ -154,7 +154,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {key:"id",     label:"Más reciente", val:u=>u.id},
     ],
     filterOptions: [
-      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
+      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"colegio_admin",label:"Admin de Colegio"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
       {key:"curso", label:"Curso", options:[], match:(u,v)=>{
         const cid=v;
@@ -315,7 +315,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     if(modal==="nuevo_usuario" && !form.pass) return;
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
-    const rolGlobal = form.esSuper ? "super" : (form.cursosAdmin||[]).length>0 ? "admin" : "padre";
+    // colegio_admin: solo super puede otorgarlo (el toggle ni se muestra a
+    // colegio_admin — ver JSX más abajo), y siempre queda con el colegio_id
+    // que super tiene entrado (colegioId) — un colegio_admin necesita ese
+    // scope para que RLS lo acote (ver es_colegio_admin_de en multi-colegio.sql).
+    const rolGlobal = form.esSuper ? "super" : form.esAdminColegio ? "colegio_admin" : (form.cursosAdmin||[]).length>0 ? "admin" : "padre";
+    const colegioIdUsuario = rolGlobal==="colegio_admin" ? colegioId : null;
 
     if(modal==="nuevo_usuario") {
       // Crear en Supabase Auth via Edge Function (sin exponer service key al cliente)
@@ -331,7 +336,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolGlobal,
         avatar, activo: form.activo, dni: sanitize(form.dni)||null,
-        telefono: sanitize(form.telefono)||null, auth_id,
+        telefono: sanitize(form.telefono)||null, auth_id, colegio_id: colegioIdUsuario,
       }).select().single();
       if(data) {
         if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:data.id,curso_id:cid,rol:"admin"})));
@@ -346,6 +351,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, rol: rolGlobal, activo: form.activo,
         dni: sanitize(form.dni)||null, telefono: sanitize(form.telefono)||null,
+        colegio_id: colegioIdUsuario,
       }).eq("id", form.id);
       // Sincronizar email y/o clave en Supabase Auth via Edge Function
       const emailCambio = emailNuevo !== (form._emailOriginal||"").toLowerCase();
@@ -601,7 +607,21 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
 
-            {!form.esSuper&&(
+            {/* Admin de Colegio toggle — solo super, y solo con un colegio
+                entrado (colegioId): un colegio_admin necesita ese colegio_id
+                para que RLS lo acote (es_colegio_admin_de en multi-colegio.sql).
+                No se ofrece a colegio_admin: RLS igual lo rechazaría. */}
+            {esSuper&&colegioId&&!form.esSuper&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso especial</div>
+                <button onClick={()=>setForm(p=>({...p,esAdminColegio:!p.esAdminColegio}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.esAdminColegio?"#F59E0B":"#E2E8F0"}`,background:form.esAdminColegio?"#FFFBEB":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.esAdminColegio?"#F59E0B":"#94A3B8"}}>
+                  {form.esAdminColegio?`★ Admin de ${colegioNombre}`:"◇ Admin de Colegio"}
+                </button>
+                {form.esAdminColegio&&<div style={{fontSize:11,color:"#F59E0B",marginTop:4}}>Gestiona todo este colegio (usuarios, cursos, alumnos, etc). No necesita cursos ni hijos.</div>}
+              </div>
+            )}
+
+            {!form.esSuper&&!form.esAdminColegio&&(
               <>
                 {/* ── Sección 1: Hijos vinculados ── */}
                 <div style={{marginBottom:16}}>
@@ -1000,7 +1020,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
             return (
         <>
-          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin},{value:"super",label:"Super Admin",color:ROL_COLOR.super}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin},{value:"colegio_admin",label:"Admin de Colegio",color:ROL_COLOR.colegio_admin},{value:"super",label:"Super Admin",color:ROL_COLOR.super}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
           <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
             {selUsuarios.size>0 && (
@@ -1062,6 +1082,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       </span>
                     ))}
                     {u.rol==="super" && <Pill label="Super Admin" color={ROL_COLOR.super} bg={ROL_BG.super}/>}
+                    {u.rol==="colegio_admin" && <Pill label="Admin de Colegio" color={ROL_COLOR.colegio_admin} bg={ROL_BG.colegio_admin}/>}
                   </div>
                   <div style={{fontSize:12,color:"#64748B"}}>{hijosNombres || "—"}</div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center"}}>
@@ -1071,7 +1092,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     </span>
                   </div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",gap:6}}>
-                    <button onClick={()=>{ setForm({...u,esSuper:u.rol==="super",cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>{ setForm({...u,esSuper:u.rol==="super",esAdminColegio:u.rol==="colegio_admin",cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                     <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                     {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
                   </div>

@@ -17,9 +17,9 @@ export const T = {
   purple:  "#8B5CF6",
 };
 
-export const ROL_LABEL = { padre: "Apoderado", admin: "Room Parent", super: "Super Admin" };
-export const ROL_COLOR = { padre: "#3B82F6",   admin: "#10B981",    super: "#8B5CF6" };
-export const ROL_BG    = { padre: "#EFF6FF",   admin: "#F0FDF4",    super: "#F5F3FF" };
+export const ROL_LABEL = { padre: "Apoderado", admin: "Room Parent", super: "Super Admin", colegio_admin: "Admin de Colegio" };
+export const ROL_COLOR = { padre: "#3B82F6",   admin: "#10B981",    super: "#8B5CF6",       colegio_admin: "#F59E0B" };
+export const ROL_BG    = { padre: "#EFF6FF",   admin: "#F0FDF4",    super: "#F5F3FF",       colegio_admin: "#FFFBEB" };
 
 export const HIJO_COLORS_CUSTOM = [
   "#F43F5E","#F97316","#EAB308","#22C55E",
