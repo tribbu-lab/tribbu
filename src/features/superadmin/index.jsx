@@ -73,13 +73,13 @@ const SECCIONES = [
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
-const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"} ] };
+const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"}, {id:"super_admins",l:"👑 Super Admins"} ] };
 
 // Header contextual por módulo (handoff Tribbu Admin): eyebrow (grupo) +
 // título + descripción de qué gestiona la pantalla — reemplaza el título
 // fijo "Panel Super Admin" que no cambiaba entre módulos.
 const SECCION_INFO = {
-  usuarios:       { titulo:"Usuarios", descripcion:"Apoderados, Room Parents y Super Admins. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A." },
+  usuarios:       { titulo:"Usuarios", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores del colegio se gestionan en 🏫 Colegio, y los Super Admin de plataforma en 👑 Super Admins." },
   maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
   codigos:        { titulo:"Códigos de invitación", descripcion:"Para que las familias se registren solas en la app, sin que un admin les cree la cuenta a mano." },
@@ -92,6 +92,7 @@ const SECCION_INFO = {
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
   colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
+  super_admins:   { titulo:"Super Admins", descripcion:"Las cuentas con acceso total a la plataforma — ven y gestionan todos los colegios sin restricción. Usalo con cuidado." },
 };
 
 // 4 tarjetas de stats reusables por módulo (handoff Tribbu Admin, Parte 3
@@ -126,6 +127,16 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [colegios,setColegios]           = useState([]);
   const [modalColegio,setModalColegio]   = useState(null);
   const [savingColegio,setSavingColegio] = useState(false);
+  // Cuentas "especiales" (super de plataforma / colegio_admin de este
+  // colegio) — se gestionan fuera de Usuarios (ver 👑 Super Admins y el
+  // bloque "Administradores" dentro de 🏫 Colegio), no mezcladas con
+  // apoderados/Room Parents. superAdmins sale de u.data sin el filtro por
+  // colegio de cargar() (super no tiene colegio_id) — ver cargar() abajo.
+  const [superAdmins,setSuperAdmins]     = useState([]);
+  const [modalSuper,setModalSuper]       = useState(null);
+  const [formSuper,setFormSuper]         = useState({});
+  const [modalAdmin,setModalAdmin]       = useState(null);
+  const [formAdmin,setFormAdmin]         = useState({});
   const [cambiarPass,setCambiarPass] = useState(false);
   const [usuarios,setUsuarios] = useState([]);
   const [cursos,setCursos]     = useState([]);
@@ -146,7 +157,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const isMobile = useIsMobile();
   const { showToast, Toast } = useToast();
 
-  const ctrlUsuarios = useListControls(usuarios, {
+  // super y colegio_admin se gestionan aparte (👑 Super Admins / 🏫 Colegio →
+  // Administradores) — esta lista es solo apoderado/Room Parent de este colegio.
+  const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin");
+  const ctrlUsuarios = useListControls(usuariosNormales, {
     searchFn: (u,q)=> u.nombre.toLowerCase().includes(q)||u.email.toLowerCase().includes(q),
     sortOptions: [
       {key:"nombre", label:"Nombre", val:u=>u.nombre},
@@ -154,7 +168,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {key:"id",     label:"Más reciente", val:u=>u.id},
     ],
     filterOptions: [
-      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"},{value:"colegio_admin",label:"Admin de Colegio"},{value:"super",label:"Super Admin"}], match:(u,v)=>u.rol===v},
+      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
       {key:"curso", label:"Curso", options:[], match:(u,v)=>{
         const cid=v;
@@ -236,6 +250,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       esSuper ? supabase.from("colegios").select("*").order("creado_en") : Promise.resolve({data:[]}),
     ]);
     setColegios(cols.data||[]);
+    if(esSuper) setSuperAdmins((u.data||[]).filter(x=>x.rol==="super"));
     // RLS ya acota todo lo de arriba para colegio_admin (su colegio_id) — este
     // filtro client-side solo importa para super, que ve TODOS los colegios
     // sin restricción y necesita elegir uno para que las pantallas de abajo
@@ -315,12 +330,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     if(modal==="nuevo_usuario" && !form.pass) return;
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
-    // colegio_admin: solo super puede otorgarlo (el toggle ni se muestra a
-    // colegio_admin — ver JSX más abajo), y siempre queda con el colegio_id
-    // que super tiene entrado (colegioId) — un colegio_admin necesita ese
-    // scope para que RLS lo acote (ver es_colegio_admin_de en multi-colegio.sql).
-    const rolGlobal = form.esSuper ? "super" : form.esAdminColegio ? "colegio_admin" : (form.cursosAdmin||[]).length>0 ? "admin" : "padre";
-    const colegioIdUsuario = rolGlobal==="colegio_admin" ? colegioId : null;
+    // super y colegio_admin ya no se dan de alta acá — ver "👑 Super Admins"
+    // y el bloque "Administradores" dentro de "🏫 Colegio" (guardarCuentaEspecial).
+    // Esta pantalla solo maneja apoderado/Room Parent de este colegio.
+    const rolGlobal = (form.cursosAdmin||[]).length>0 ? "admin" : "padre";
 
     if(modal==="nuevo_usuario") {
       // Crear en Supabase Auth via Edge Function (sin exponer service key al cliente)
@@ -336,7 +349,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolGlobal,
         avatar, activo: form.activo, dni: sanitize(form.dni)||null,
-        telefono: sanitize(form.telefono)||null, auth_id, colegio_id: colegioIdUsuario,
+        telefono: sanitize(form.telefono)||null, auth_id,
       }).select().single();
       if(data) {
         if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:data.id,curso_id:cid,rol:"admin"})));
@@ -351,7 +364,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, rol: rolGlobal, activo: form.activo,
         dni: sanitize(form.dni)||null, telefono: sanitize(form.telefono)||null,
-        colegio_id: colegioIdUsuario,
       }).eq("id", form.id);
       // Sincronizar email y/o clave en Supabase Auth via Edge Function
       const emailCambio = emailNuevo !== (form._emailOriginal||"").toLowerCase();
@@ -387,6 +399,56 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
     }
     setModal(null); cargar();
+  };
+
+  // Alta/edición de una cuenta "especial" (super de plataforma o colegio_admin
+  // de un colegio puntual) — comparte la lógica de Auth + tabla usuarios con
+  // guardarUsuario de arriba, pero sin cursos/hijos (no aplica a ninguna de
+  // las dos) y con rol/colegio_id fijos según quién la llama. Usado por
+  // "👑 Super Admins" (rolFijo="super", colegioIdFijo=null) y el bloque
+  // "Administradores" dentro de "🏫 Colegio" (rolFijo="colegio_admin",
+  // colegioIdFijo=colegioId entrado). Solo super puede crear/editar estas
+  // cuentas (RLS lo exige del lado servidor — ver usuarios_insert/update en
+  // multi-colegio.sql — acá solo se oculta la UI para no ofrecer algo que
+  // fallaría).
+  const guardarCuentaEspecial = async (rolFijo, colegioIdFijo, esNuevo, form, setForm, cerrarModal) => {
+    if(!form.nombre||!form.email) return;
+    if(esNuevo && !form.pass) return;
+    const apellido = form.apellido||"";
+    const avatar = (`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||(rolFijo==="super"?"SA":"CA");
+    if(esNuevo) {
+      let auth_id = null;
+      try {
+        const { auth_id: newId } = await authAdminCreate(sanitize(form.email).toLowerCase(), form.pass);
+        auth_id = newId || null;
+      } catch(e) { console.error("Error creando en Auth:", e); showToast("Error al crear la cuenta en Auth","error"); return; }
+      const { error } = await supabase.from("usuarios").insert({
+        nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
+        email: sanitize(form.email).toLowerCase(), rol: rolFijo, colegio_id: colegioIdFijo,
+        avatar, activo: true, auth_id,
+      });
+      if(error) { showToast("Error al crear la cuenta","error"); return; }
+    } else {
+      const passNueva = form._passNueva && form._passNueva.trim();
+      const emailNuevo = sanitize(form.email).toLowerCase();
+      await supabase.from("usuarios").update({
+        nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
+        email: emailNuevo, activo: form.activo,
+      }).eq("id", form.id);
+      const emailCambio = emailNuevo !== (form._emailOriginal||"").toLowerCase();
+      if(passNueva || emailCambio) {
+        try {
+          let authId = form.auth_id;
+          if(!authId) {
+            const found = await authAdminFind(form._emailOriginal||form.email);
+            authId = found.auth_id || null;
+            if(authId) await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
+          }
+          if(authId) await authAdminUpdate(authId, { ...(emailCambio?{email:emailNuevo}:{}), ...(passNueva?{password:passNueva}:{}) });
+        } catch(e) { showToast(`⚠️ Error sincronizando Auth: ${e.message}`,"error"); }
+      }
+    }
+    cerrarModal(); setForm({}); cargar();
   };
 
   // Clona la configuración estática de un curso (horarios, Room Parent, maestro,
@@ -593,35 +655,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               />
             </div>
 
-            {/* Super Admin toggle — solo super puede otorgar este rol (un
-                colegio_admin que lo intentara sería rechazado por RLS de
-                todos modos, ver usuarios_insert/update en multi-colegio.sql;
-                se oculta acá para no ofrecer un botón que va a fallar). */}
-            {esSuper&&(
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso especial</div>
-                <button onClick={()=>setForm(p=>({...p,esSuper:!p.esSuper}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.esSuper?"#8B5CF6":"#E2E8F0"}`,background:form.esSuper?"#F5F3FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.esSuper?"#8B5CF6":"#94A3B8"}}>
-                  {form.esSuper?"★ Super Admin":"◇ Super Admin"}
-                </button>
-                {form.esSuper&&<div style={{fontSize:11,color:"#8B5CF6",marginTop:4}}>Acceso total al sistema. No necesita cursos ni hijos.</div>}
-              </div>
-            )}
-
-            {/* Admin de Colegio toggle — solo super, y solo con un colegio
-                entrado (colegioId): un colegio_admin necesita ese colegio_id
-                para que RLS lo acote (es_colegio_admin_de en multi-colegio.sql).
-                No se ofrece a colegio_admin: RLS igual lo rechazaría. */}
-            {esSuper&&colegioId&&!form.esSuper&&(
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso especial</div>
-                <button onClick={()=>setForm(p=>({...p,esAdminColegio:!p.esAdminColegio}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.esAdminColegio?"#F59E0B":"#E2E8F0"}`,background:form.esAdminColegio?"#FFFBEB":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.esAdminColegio?"#F59E0B":"#94A3B8"}}>
-                  {form.esAdminColegio?`★ Admin de ${colegioNombre}`:"◇ Admin de Colegio"}
-                </button>
-                {form.esAdminColegio&&<div style={{fontSize:11,color:"#F59E0B",marginTop:4}}>Gestiona todo este colegio (usuarios, cursos, alumnos, etc). No necesita cursos ni hijos.</div>}
-              </div>
-            )}
-
-            {!form.esSuper&&!form.esAdminColegio&&(
+            {/* super y colegio_admin ya no se dan de alta acá — ver
+                "👑 Super Admins" y el bloque "Administradores" dentro de
+                "🏫 Colegio". Esta pantalla es solo apoderado/Room Parent. */}
+            {(
               <>
                 {/* ── Sección 1: Hijos vinculados ── */}
                 <div style={{marginBottom:16}}>
@@ -729,6 +766,79 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardarUsuario} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_usuario"?"Crear usuario":"Guardar cambios"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Administradores del colegio (colegio_admin) — desde "🏫 Colegio",
+          no desde Usuarios. Comparte guardarCuentaEspecial con el modal de
+          Super Admins de abajo, cambia solo rol/colegio_id fijos y color. */}
+      {(modalAdmin==="nuevo"||modalAdmin?.edit) && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador"}</div>
+            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>Administrador de {colegioNombre}.</div>
+            {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <input value={formAdmin[f.key]||""} onChange={e=>setFormAdmin(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{modalAdmin==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
+              <input
+                value={modalAdmin==="nuevo"?(formAdmin.pass||""):(formAdmin._passNueva||"")}
+                onChange={e=>modalAdmin==="nuevo"?setFormAdmin(p=>({...p,pass:e.target.value})):setFormAdmin(p=>({...p,_passNueva:e.target.value,pass:e.target.value}))}
+                type="password"
+                placeholder={modalAdmin==="nuevo"?"Contraseña de acceso":"Dejar vacío para no cambiar"}
+                style={inp}
+              />
+            </div>
+            {modalAdmin?.edit&&(
+              <div style={{marginBottom:16}}>
+                <button onClick={()=>setFormAdmin(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${formAdmin.activo?"#10B981":"#EF4444"}`,background:formAdmin.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:formAdmin.activo?"#10B981":"#EF4444"}}>{formAdmin.activo?"✓ Activo":"✗ Inactivo"}</button>
+              </div>
+            )}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{ setModalAdmin(null); setFormAdmin({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>guardarCuentaEspecial("colegio_admin",colegioId,modalAdmin==="nuevo",formAdmin,setFormAdmin,()=>setModalAdmin(null))} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?"Crear administrador":"Guardar cambios"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Super Admins de plataforma — desde "👑 Super Admins", nunca desde
+          Usuarios ni desde un colegio puntual (colegio_id siempre null). */}
+      {(modalSuper==="nuevo"||modalSuper?.edit) && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{modalSuper==="nuevo"?"Nuevo Super Admin":"Editar Super Admin"}</div>
+            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>Acceso total a la plataforma — todos los colegios, sin restricción.</div>
+            {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <input value={formSuper[f.key]||""} onChange={e=>setFormSuper(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{modalSuper==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
+              <input
+                value={modalSuper==="nuevo"?(formSuper.pass||""):(formSuper._passNueva||"")}
+                onChange={e=>modalSuper==="nuevo"?setFormSuper(p=>({...p,pass:e.target.value})):setFormSuper(p=>({...p,_passNueva:e.target.value,pass:e.target.value}))}
+                type="password"
+                placeholder={modalSuper==="nuevo"?"Contraseña de acceso":"Dejar vacío para no cambiar"}
+                style={inp}
+              />
+            </div>
+            {modalSuper?.edit&&(
+              <div style={{marginBottom:16}}>
+                <button onClick={()=>setFormSuper(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${formSuper.activo?"#10B981":"#EF4444"}`,background:formSuper.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:formSuper.activo?"#10B981":"#EF4444"}}>{formSuper.activo?"✓ Activo":"✗ Inactivo"}</button>
+              </div>
+            )}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{ setModalSuper(null); setFormSuper({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>guardarCuentaEspecial("super",null,modalSuper==="nuevo",formSuper,setFormSuper,()=>setModalSuper(null))} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#8B5CF6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalSuper==="nuevo"?"Crear Super Admin":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -939,7 +1049,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   📤 Cargar Excel
                   <UploadApoderadosExcel onDone={cargar} compact/>
                 </label>
-                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",esSuper:false,cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
+                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
               </div>
             )}
             {sec==="maestros" && (
@@ -947,6 +1057,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {sec==="colegios" && (
               <button onClick={()=>{ setForm({nombre:"",año_lectivo_actual:new Date().getFullYear(),adminNombre:"",adminApellido:"",adminEmail:"",adminPass:""}); setModalColegio("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo colegio</button>
+            )}
+            {sec==="super_admins" && (
+              <button onClick={()=>{ setFormSuper({nombre:"",apellido:"",email:"",pass:"",activo:true}); setModalSuper("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#8B5CF6",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo Super Admin</button>
             )}
             {sec==="alumnos" && (
               <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
@@ -968,9 +1081,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         const cursosConRP = new Set(roomParents.flatMap(u=>u.cursosAdmin||[])).size;
         const hijosConApoderado = new Set(usuarios.flatMap(u=>u.hijos||[]));
         const sinRegistrarse = hijos.filter(h=>!hijosConApoderado.has(h.id)).length;
-        const inactivos = usuarios.filter(u=>!u.activo).length;
+        const inactivos = usuariosNormales.filter(u=>!u.activo).length;
         const STATS = [
-          {n:usuarios.length, l:"Usuarios", sub:null, c:"#0F172A", bg:"#F1F5F9"},
+          {n:usuariosNormales.length, l:"Usuarios", sub:null, c:"#0F172A", bg:"#F1F5F9"},
           {n:roomParents.length, l:"Room Parents", sub:cursosConRP?`en ${cursosConRP} curso${cursosConRP!==1?"s":""}`:null, c:"#8B5CF6", bg:"#F5F3FF"},
           {n:sinRegistrarse, l:"Sin registrarse", sub:sinRegistrarse?"invitados":null, c:"#F59E0B", bg:"#FFFBEB"},
           {n:inactivos, l:"Inactivos", sub:null, c:"#94A3B8", bg:"#F8FAFC"},
@@ -1020,7 +1133,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
             return (
         <>
-          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin},{value:"colegio_admin",label:"Admin de Colegio",color:ROL_COLOR.colegio_admin},{value:"super",label:"Super Admin",color:ROL_COLOR.super}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
           <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
             {selUsuarios.size>0 && (
@@ -1081,8 +1194,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                         <span style={{fontSize:11,fontWeight:700,color:a.color}}>{a.label}</span>
                       </span>
                     ))}
-                    {u.rol==="super" && <Pill label="Super Admin" color={ROL_COLOR.super} bg={ROL_BG.super}/>}
-                    {u.rol==="colegio_admin" && <Pill label="Admin de Colegio" color={ROL_COLOR.colegio_admin} bg={ROL_BG.colegio_admin}/>}
+                    {/* super/colegio_admin ya no aparecen en esta lista — ver
+                        "👑 Super Admins" y "🏫 Colegio" → Administradores. */}
                   </div>
                   <div style={{fontSize:12,color:"#64748B"}}>{hijosNombres || "—"}</div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center"}}>
@@ -1092,7 +1205,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     </span>
                   </div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",gap:6}}>
-                    <button onClick={()=>{ setForm({...u,esSuper:u.rol==="super",esAdminColegio:u.rol==="colegio_admin",cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>{ setForm({...u,cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                     <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                     {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
                   </div>
@@ -1340,6 +1453,28 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         </div>
       )}
 
+      {sec==="super_admins"&&esSuper&&(
+        <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+          {superAdmins.length===0&&<div style={{padding:20,fontSize:13,color:"#94A3B8"}}>No hay ninguna cuenta Super Admin cargada.</div>}
+          {superAdmins.map(u=>(
+            <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"14px 18px",borderBottom:"1px solid #F1F5F9"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+                <div style={{width:38,height:38,borderRadius:999,background:ROL_BG.super,color:ROL_COLOR.super,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
+                  <div style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
+                <button onClick={()=>{ setFormSuper({...u,_emailOriginal:u.email}); setModalSuper({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {modalColegio==="nuevo"&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
@@ -1372,9 +1507,50 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         </div>
       )}
 
-      {sec==="colegio"&&(
-        <Contacto isSuperAdmin={true} colegioId={esColegioAdmin?miColegioId:colegioId}/>
-      )}
+      {sec==="colegio"&&(() => {
+        const colegioIdActivo = esColegioAdmin?miColegioId:colegioId;
+        // Solo super gestiona los colegio_admin de un colegio (RLS bloquea a
+        // un colegio_admin crear/editar pares suyos — ver usuarios_insert/
+        // update en multi-colegio.sql), así que este bloque no se ofrece a
+        // colegio_admin. `usuarios` ya viene scopeado a este colegio por
+        // cargar() (colegio_id===colegioIdActivo), colegio_admin incluido.
+        const adminsDelColegio = usuarios.filter(u=>u.rol==="colegio_admin");
+        return (
+          <>
+            {esSuper&&(
+              <div style={{marginBottom:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:900}}>🔑 Administradores de {colegioNombre}</div>
+                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.</div>
+                  </div>
+                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>
+                </div>
+                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+                  {adminsDelColegio.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay administradores para este colegio.</div>}
+                  {adminsDelColegio.map(u=>(
+                    <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                        <div style={{width:34,height:34,borderRadius:999,background:ROL_BG.colegio_admin,color:ROL_COLOR.colegio_admin,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
+                          <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
+                        <button onClick={()=>{ setFormAdmin({...u,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                        <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <Contacto isSuperAdmin={true} colegioId={colegioIdActivo}/>
+          </>
+        );
+      })()}
 
       {sec==="menu"&&(
         <div>
