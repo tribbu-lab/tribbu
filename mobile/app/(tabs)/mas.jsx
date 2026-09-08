@@ -1,6 +1,6 @@
 // "Más" — accesos a las features secundarias y a la cuenta. La de admin
 // (Admin) solo aparece si el item activo es Room Parent (rolEfectivo ===
-// "admin") — Alumnos ya no tiene entrada propia acá, vive en Info Útil >
+// rolEfectivo "room") — Alumnos ya no tiene entrada propia acá, vive en Info Útil >
 // Alumnos para los dos roles (antes estaba duplicada). Las acciones de
 // cuenta (cambiar contraseña / cerrar sesión) viven acá desde el patrón A3
 // (el header quedó solo con notificaciones + chip del hijo).

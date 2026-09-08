@@ -82,7 +82,7 @@ Componentes consumen **semánticos** (`t.surface`), nunca rampas ni hex. Si un v
 ## 3 · Theming por rol y por hijo
 
 ```js
-roleTheme("admin")  // { label:"Room Parent", main:"#10B981", soft:"#F0FDF4", border:α }
+roleTheme("room")   // { label:"Room Parent", main:"#10B981", soft:"#F0FDF4", border:α }
 childTheme(color)   // { main, soft:α(0.14), border:α(0.35) } — default #0F172A
 ```
 

@@ -143,7 +143,7 @@ export function Recordatorios() {
   // En vista "Todos" el permiso de edición se resuelve contra el rol en el curso
   // de cada fila, no contra el isAdmin de sesión (que en Todos es false).
   const cursosAdmin = useMemo(
-    () => new Set((items || []).filter((i) => i.rolEfectivo === "admin").map((i) => i.curso_id)),
+    () => new Set((items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id)),
     [items]
   );
 

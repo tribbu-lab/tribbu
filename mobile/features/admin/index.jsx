@@ -1,5 +1,5 @@
 // Admin (puerto RN de src/features/admin · AdminPanel). Solo visible cuando el
-// item activo es Room Parent (rolEfectivo === "admin"). Tres pestañas:
+// item activo es Room Parent (rolEfectivo === "room"). Tres pestañas:
 // - General: monto/moneda de regalo del curso (tabla `cursos`) + una línea
 //   calculada ("con N familias, la colecta junta $X").
 // - Horarios: alta/edición/baja de clases (tabla `horarios`) con selector de
@@ -98,7 +98,7 @@ export function AdminPanel() {
       supabase.from("horarios").select("*").eq("curso_id", cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo", true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id", cursoId).order("apellido"),
-      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "admin"),
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "room"),
     ]);
     setForm({ monto_regalo: c.data?.monto_regalo ? String(c.data.monto_regalo) : "", moneda_regalo: c.data?.moneda_regalo || "$" });
     setHorarios(hor.data || []);

@@ -616,7 +616,7 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
     setTodosHijos(hijos||[]);
     if(userId) {
       const { data: u } = await supabase.from("usuarios").select("rol").eq("id",userId).single();
-      setIsAdmin(u?.rol==="admin"||u?.rol==="super");
+      setIsAdmin(u?.rol==="room"||u?.rol==="super");
     }
     setCargando(false);
   };

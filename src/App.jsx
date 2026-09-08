@@ -177,7 +177,7 @@ function App() {
         .from("usuario_cursos")
         .select("curso_id")
         .eq("usuario_id", usuario.id)
-        .eq("rol", "admin");
+        .eq("rol", "room");
 
       const cursosAdmin = new Set((ucData||[]).map(r=>r.curso_id));
 
@@ -187,7 +187,7 @@ function App() {
         .map(h=>({
           ...h,
           _tipo: "hijo",
-          rolEfectivo: cursosAdmin.has(h.curso_id) ? "admin" : "padre",
+          rolEfectivo: cursosAdmin.has(h.curso_id) ? "room" : "padre",
         }));
 
       // Con hijos en más de un curso, "Todos" es un acceso más (el primero y el
@@ -328,7 +328,7 @@ function App() {
   // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
   const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
   const esPadre     = rolEfectivo==="padre";
-  const isAdmin     = rolEfectivo==="admin";
+  const isAdmin     = rolEfectivo==="room";
   const cursoId     = _cursoId;
   const cursoNombre = esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre;
   // Solo para el placeholder del buscador global (mockup: "Buscar en 4°B y
@@ -348,7 +348,7 @@ function App() {
       })()
     : cursoNombre;
   // Cursos donde el usuario es Room Parent — para permisos por fila en Todos.
-  const cursosAdmin = items.filter(i=>i.rolEfectivo==="admin").map(i=>i.curso_id);
+  const cursosAdmin = items.filter(i=>i.rolEfectivo==="room").map(i=>i.curso_id);
 
   // colegio_admin (multi-colegio): mismo panel que super, acotado a su
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.

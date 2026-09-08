@@ -168,11 +168,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {key:"id",     label:"Más reciente", val:u=>u.id},
     ],
     filterOptions: [
-      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"admin",label:"Room Parent"}], match:(u,v)=>u.rol===v},
+      {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"room",label:"Room Parent"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
       {key:"curso", label:"Curso", options:[], match:(u,v)=>{
         const cid=v;
-        if(u.rol==="admin") return (u.cursos||[]).includes(cid);
+        if(u.rol==="room") return (u.cursos||[]).includes(cid);
         if(u.rol==="padre") return (u.hijos||[]).some(hid=>hijos.find(h=>h.id===hid&&h.curso_id===cid));
         return false;
       }},
@@ -268,7 +268,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           || x.usuario_hijos.some(r=>hijoIdsSet.has(r.hijo_id))
         )
       : (esSuper?[]:(u.data||[]));
-    setUsuarios(usuariosFiltrados.map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
+    setUsuarios(usuariosFiltrados.map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="room").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
     setCursos(cursosDelColegio);
     setHijos(hijosDelColegio);
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
@@ -333,7 +333,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // super y colegio_admin ya no se dan de alta acá — ver "👑 Super Admins"
     // y el bloque "Administradores" dentro de "🏫 Colegio" (guardarCuentaEspecial).
     // Esta pantalla solo maneja apoderado/Room Parent de este colegio.
-    const rolGlobal = (form.cursosAdmin||[]).length>0 ? "admin" : "padre";
+    const rolGlobal = (form.cursosAdmin||[]).length>0 ? "room" : "padre";
 
     if(modal==="nuevo_usuario") {
       // Crear en Supabase Auth via Edge Function (sin exponer service key al cliente)
@@ -352,7 +352,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         telefono: sanitize(form.telefono)||null, auth_id,
       }).select().single();
       if(data) {
-        if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:data.id,curso_id:cid,rol:"admin"})));
+        if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:data.id,curso_id:cid,rol:"room"})));
         if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:data.id,hijo_id:hid})));
       }
     } else {
@@ -390,11 +390,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
       // crear_apoderado en el registro) no se tocan — borrarlas dejaba al
       // apoderado sin membresía de curso.
-      await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).eq("rol","admin");
+      await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).eq("rol","room");
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
       if((form.cursosAdmin||[]).length) {
         await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).in("curso_id",form.cursosAdmin);
-        await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:form.id,curso_id:cid,rol:"admin"})));
+        await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:form.id,curso_id:cid,rol:"room"})));
       }
       if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
     }
@@ -532,7 +532,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     const rows = [...selUsuarios]
       .map(id=>usuarios.find(u=>u.id===id))
       .filter(u=>u && !(u.usuarioCursos||[]).some(r=>r.curso_id===cursoId))
-      .map(u=>({usuario_id:u.id, curso_id:cursoId, rol:"admin"}));
+      .map(u=>({usuario_id:u.id, curso_id:cursoId, rol:"room"}));
     if(rows.length===0) { showToast("Los usuarios seleccionados ya tienen ese curso asignado", "error"); return; }
     const { error } = await supabase.from("usuario_cursos").insert(rows);
     if(error) { showToast("Error al asignar el curso", "error"); return; }
@@ -1077,7 +1077,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         // mostraba SIEMPRE, en los 12 módulos, con las mismas 4 métricas de
         // usuarios — ahora cada módulo tiene las suyas (ver sec==="maestros"
         // más abajo para el primer ejemplo).
-        const roomParents = usuarios.filter(u=>u.rol==="admin");
+        const roomParents = usuarios.filter(u=>u.rol==="room");
         const cursosConRP = new Set(roomParents.flatMap(u=>u.cursosAdmin||[])).size;
         const hijosConApoderado = new Set(usuarios.flatMap(u=>u.hijos||[]));
         const sinRegistrarse = hijos.filter(h=>!hijosConApoderado.has(h.id)).length;
@@ -1133,7 +1133,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             const gridCols = "44px 1.6fr 1.2fr 1fr 118px 96px";
             return (
         <>
-          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"admin",label:"Room Parent",color:ROL_COLOR.admin}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"room",label:"Room Parent",color:ROL_COLOR.room}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
           <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
             {selUsuarios.size>0 && (
@@ -1234,7 +1234,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       })()}
 
       {sec==="cursos" && (() => {
-        const conRP = cursosParaListado.filter(c=>usuarios.some(u=>u.rol==="admin"&&u.cursos.includes(c.id))).length;
+        const conRP = cursosParaListado.filter(c=>usuarios.some(u=>u.rol==="room"&&u.cursos.includes(c.id))).length;
         const totalAlumnos = hijos.filter(h=>cursosParaListado.some(c=>c.id===h.curso_id)).length;
         const gridCols = "1.8fr 1.8fr 100px 130px";
         return (
@@ -1273,7 +1273,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <button onClick={ctrlCursos.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
               </div>
             ) : ctrlCursos.items.map(c=>{
-              const admins=usuarios.filter(u=>u.rol==="admin"&&u.cursos.includes(c.id));
+              const admins=usuarios.filter(u=>u.rol==="room"&&u.cursos.includes(c.id));
               const alumnosCurso=hijos.filter(h=>h.curso_id===c.id).length;
               return (
                 <div key={c.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",borderLeft:`3px solid ${c.color}`}}>

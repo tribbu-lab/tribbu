@@ -86,7 +86,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
       supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo",true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
-      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","admin"),
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","room"),
     ]);
     setCurso(c.data);
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});

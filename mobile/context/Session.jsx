@@ -3,7 +3,7 @@
 //
 // Carga la sesión de Supabase (persistida en AsyncStorage), arma el `usuario`,
 // deriva `items` = hijos del usuario + cursos donde es Room Parent, y expone el
-// `cursoIdx` activo con su `rolEfectivo` ("padre" | "admin"). El Super Admin
+// `cursoIdx` activo con su `rolEfectivo` ("padre" | "room"). El Super Admin
 // (usuario.rol === "super") se maneja como flujo aparte en la navegación.
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
@@ -76,7 +76,7 @@ export function SessionProvider({ children }) {
           .from("usuario_cursos")
           .select("curso_id")
           .eq("usuario_id", usuario.id)
-          .eq("rol", "admin"),
+          .eq("rol", "room"),
       ]);
       if (cancel) return;
       const cursosAdmin = new Set((ucData || []).map((r) => r.curso_id));
@@ -86,7 +86,7 @@ export function SessionProvider({ children }) {
         .map((h) => ({
           ...h,
           _tipo: "hijo",
-          rolEfectivo: cursosAdmin.has(h.curso_id) ? "admin" : "padre",
+          rolEfectivo: cursosAdmin.has(h.curso_id) ? "room" : "padre",
         }));
       // Con hijos en más de un curso, "Todos" es un acceso más (el primero y el
       // default): la vista unificada domina todas las pantallas vía cursoIds.
@@ -202,7 +202,7 @@ export function SessionProvider({ children }) {
       esVistaTodos,
       cursoNombre: esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre ?? null,
       rolEfectivo,
-      isAdmin: rolEfectivo === "admin",
+      isAdmin: rolEfectivo === "room",
       esPadre: rolEfectivo === "padre",
       hijoActivoId: itemActual?._tipo === "hijo" ? itemActual.id : null,
       misHijos: items.filter((i) => i._tipo === "hijo").map((i) => i.id),

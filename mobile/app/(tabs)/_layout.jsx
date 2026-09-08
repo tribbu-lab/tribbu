@@ -1,6 +1,6 @@
 // Layout de tabs: header persistente (selector de hijo/curso + notificaciones)
 // sobre un bottom-tab navigator nativo. La tab de admin (Admin) solo se
-// ofrece cuando el item activo es "admin" (rolEfectivo) — Alumnos vive en
+// ofrece cuando el item activo tiene rolEfectivo "room" — Alumnos vive en
 // Info Útil > Alumnos, sin ruta propia (antes estaba duplicada acá). El
 // deep-link de push se engancha acá.
 

@@ -140,7 +140,7 @@ export function SuperAdmin() {
         ...x,
         hijos: x.usuario_hijos.map((r) => r.hijo_id),
         cursos: x.usuario_cursos.map((r) => r.curso_id),
-        cursosAdmin: x.usuario_cursos.filter((r) => r.rol === "admin").map((r) => r.curso_id),
+        cursosAdmin: x.usuario_cursos.filter((r) => r.rol === "room").map((r) => r.curso_id),
       }))
     );
     setCursos(c.data || []);
@@ -165,7 +165,7 @@ export function SuperAdmin() {
     if (modal === "nuevo_usuario" && !form.pass) return;
     const apellido = form.apellido || "";
     const avatar = form.avatar || `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase() || form.nombre.slice(0, 2).toUpperCase();
-    const rolGlobal = form.esSuper ? "super" : (form.cursosAdmin || []).length > 0 ? "admin" : "padre";
+    const rolGlobal = form.esSuper ? "super" : (form.cursosAdmin || []).length > 0 ? "room" : "padre";
 
     if (modal === "nuevo_usuario") {
       let auth_id = null;
@@ -192,7 +192,7 @@ export function SuperAdmin() {
         .single();
       if (data) {
         if ((form.cursosAdmin || []).length)
-          await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: data.id, curso_id: cid, rol: "admin" })));
+          await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: data.id, curso_id: cid, rol: "room" })));
         if ((form.hijos || []).length)
           await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: data.id, hijo_id: hid })));
       }
@@ -233,11 +233,11 @@ export function SuperAdmin() {
       // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
       // crear_apoderado en el registro) no se tocan — borrarlas dejaba al
       // apoderado sin membresía de curso.
-      await supabase.from("usuario_cursos").delete().eq("usuario_id", form.id).eq("rol", "admin");
+      await supabase.from("usuario_cursos").delete().eq("usuario_id", form.id).eq("rol", "room");
       await supabase.from("usuario_hijos").delete().eq("usuario_id", form.id);
       if ((form.cursosAdmin || []).length) {
         await supabase.from("usuario_cursos").delete().eq("usuario_id", form.id).in("curso_id", form.cursosAdmin);
-        await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: form.id, curso_id: cid, rol: "admin" })));
+        await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: form.id, curso_id: cid, rol: "room" })));
       }
       if ((form.hijos || []).length)
         await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: form.id, hijo_id: hid })));
@@ -367,7 +367,7 @@ export function SuperAdmin() {
         label: "Rol",
         options: [
           { value: "padre", label: "Apoderado" },
-          { value: "admin", label: "Room Parent" },
+          { value: "room", label: "Room Parent" },
           { value: "super", label: "Super Admin" },
         ],
         match: (u, v) => u.rol === v,
@@ -410,7 +410,7 @@ export function SuperAdmin() {
   const stats = [
     { n: usuarios.filter((u) => u.activo).length, l: "Usuarios activos", c: "#10B981", bg: "#F0FDF4" },
     { n: usuarios.filter((u) => u.rol === "padre").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
-    { n: usuarios.filter((u) => u.rol === "admin").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
+    { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
     { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },
   ];
 
@@ -530,7 +530,7 @@ export function SuperAdmin() {
             <Text style={[styles.dashedTxt, { color: "#3B82F6" }]}>+ Agregar nuevo curso</Text>
           </Pressable>
           {cursos.map((c) => {
-            const admins = usuarios.filter((u) => u.rol === "admin" && u.cursos.includes(c.id));
+            const admins = usuarios.filter((u) => u.rol === "room" && u.cursos.includes(c.id));
             const padres = usuarios.filter((u) => u.rol === "padre" && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
             return (
               <View key={c.id} style={[styles.itemCard, { borderLeftWidth: 4, borderLeftColor: c.color }]}>
