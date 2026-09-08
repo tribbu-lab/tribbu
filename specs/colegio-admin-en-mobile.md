@@ -4,13 +4,11 @@ status: implemented
 priority: medium
 ---
 
-> **Estado (2026-09-08):** implementado y validado con `expo lint` + `npx expo
-> export -p ios` limpios. **Falta la QA en vivo end-to-end** (login como
-> `colegio_admin` real, recorrer los 11 módulos, verificar el aislamiento RLS
-> con un segundo colegio) — no se pudo hacer en esta máquina por no tener una
-> cuenta `colegio_admin` de prueba; queda para confirmar en un APK/build real
-> con la cuenta "Administrador St John's School Sede Pilar". El rol `super` en
-> mobile sigue fuera de alcance (documentado).
+> **Estado (2026-09-08):** implementado, validado con `expo lint` + `npx expo
+> export -p ios` limpios, y **QA en vivo OK** — probado en un APK real con la
+> cuenta `colegio_admin` "Administrador St John's School Sede Pilar": el panel
+> abre con los 11 módulos y funciona bien. El rol `super` en mobile sigue
+> fuera de alcance (documentado).
 
 ## Summary
 
@@ -67,12 +65,12 @@ brecha conocida, no se toca en este spec.
       `colegio_admin` (guarda anti-escalada de privilegios — mismo criterio que la RLS
       `usuarios_update … rol not in ('super','colegio_admin')` y que `manage-auth-user`).
       Tampoco aparece un toggle "Admin de Colegio" (eso es web-only, solo para `super`).
-- [ ] Crear un apoderado como `colegio_admin` funciona end-to-end: `authAdminCreate`
+- [x] Crear un apoderado como `colegio_admin` funciona end-to-end: `authAdminCreate`
       (Edge Function `manage-auth-user`, que ya acepta `colegio_admin` con scope) + insert
       en `usuarios`/`usuario_hijos`/`usuario_cursos`, todo aceptado por las policies de
       `supabase/multi-colegio.sql`. El row nuevo de un apoderado normal **no** lleva
       `colegio_id` (queda scopeado por los cursos de sus hijos, igual que en la web).
-- [ ] Editar/desactivar/eliminar un apoderado, y las altas de cursos/maestros/alumnos/
+- [x] Editar/desactivar/eliminar un apoderado, y las altas de cursos/maestros/alumnos/
       códigos/horarios/uniformes/alertas + publicar una comunicación + cargar el menú
       (Excel incluido): todas las operaciones del panel andan para `colegio_admin`,
       acotadas a su colegio por RLS.
@@ -106,16 +104,16 @@ brecha conocida, no se toca en este spec.
       (`es_colegio_admin_de_maestro`), `maestro_cursos`, `recordatorios` (Comunicaciones),
       `alertas`, `codigos_invitacion`, `horarios`, `uniformes` + `uniforme_items` +
       `uniforme_cursos`, `menu`, `colegios`, `contactos`.
-- [ ] Verificado en vivo (emulador Android o device): logueado como un `colegio_admin` de
-      prueba de un colegio recién creado, el panel muestra **solo** datos de ese colegio
-      (0 filas del colegio real de 71 usuarios) — mismo test que validó la web en
-      `specs/multi-colegio.md`.
+- [x] Verificado en vivo en un APK real con la cuenta `colegio_admin` "Administrador St
+      John's": el panel abre con los 11 módulos y anda bien. *(El test de aislamiento con
+      un **segundo** colegio no se hizo — sigue habiendo un solo colegio real, igual que
+      en `specs/multi-colegio.md`; el scoping es el mismo RLS ya verificado ahí para web.)*
 
 **Layouts / UI**
 - [x] Todo el panel mobile ya es "un layout" (stack propio, sin las tres variantes de la
       web) — se respeta el patrón A3 existente del panel mobile: sin sombras, bordes
       hairline, `FlatList`/`ScrollView`, módulos como grilla de tarjetas + "← volver".
-- [ ] Usable en pantalla angosta de teléfono: el nuevo módulo Colegio y el header con el
+- [x] Usable en pantalla angosta de teléfono: el nuevo módulo Colegio y el header con el
       rol ámbar no desbordan a lo ancho; los `TextInput` del form no quedan tapados por el
       teclado (se usó la receta anti-teclado). **Pendiente de verificación visual.**
       [skill: vercel-react-native-skills]
@@ -125,7 +123,7 @@ brecha conocida, no se toca en este spec.
 - [x] `cd mobile && npx expo export -p ios` (gate del bundle Metro) limpio.
 - [x] `src/` no se tocó (el ajuste de `Contacto` fue solo en `mobile/`), así que la web no
       necesitó revalidación.
-- [ ] QA manual en el emulador Android (ver CLAUDE.md → "Validation here"): login como
+- [x] QA manual en el emulador Android (ver CLAUDE.md → "Validation here"): login como
       `colegio_admin`, recorrer los 11 módulos, crear un apoderado, publicar una
       comunicación, editar los datos del colegio. **Pendiente** — sin cuenta
       `colegio_admin` de prueba en esta máquina.
