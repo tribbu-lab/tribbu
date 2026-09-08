@@ -380,11 +380,13 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
         </>
       ) : (
         <>
-          {/* Escritorio — mockup Tribbu Apoderado Web: eyebrow + título limpio
-              (sin stat-line ni pill de monto), tarjetas destacadas compactas
-              en vez del banner estirado, y todo el resto agrupado por mes en
-              tarjetas en vez de buscador+filtros+grilla plana. */}
-          <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:6}}>Cumpleaños</div>
+          {/* Escritorio — mockup Tribbu Apoderado Web: título limpio (sin
+              stat-line ni pill de monto), tarjetas destacadas compactas en
+              vez del banner estirado, y todo el resto agrupado por mes en
+              tarjetas en vez de buscador+filtros+grilla plana. El eyebrow
+              "CUMPLEAÑOS" que iba arriba del título se sacó — repetía la
+              misma palabra dos veces seguidas (mismo error reportado en
+              Calendario, acá literal dentro de la propia vista). */}
           <div style={{fontSize:28,fontWeight:900,color:"#0F172A",marginBottom:4,letterSpacing:-0.5}}>Cumpleaños</div>
           <div style={{fontSize:13.5,color:"#64748B",marginBottom:24}}>Del curso y de los maestros.</div>
 
