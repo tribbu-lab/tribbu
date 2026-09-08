@@ -10,8 +10,10 @@ const useStyles = makeThemedStyles((t) => {
   const dark = t.name === "dark";
   return {
     base: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", borderRadius: RADIUS.full },
+    xs: { paddingVertical: 2, paddingHorizontal: 7, gap: 3 },
     sm: { paddingVertical: 4, paddingHorizontal: 12 },
     md: { paddingVertical: 6, paddingHorizontal: 12 },
+    txtXs: { fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
     txtSm: { ...TYPE.pill },
     txtMd: { ...TYPE.chip, fontWeight: "700" },
     dot: { width: 7, height: 7, borderRadius: RADIUS.full },
@@ -66,7 +68,7 @@ export function Badge({
       ) : null}
       <Text
         style={[
-          size === "md" ? s.txtMd : s.txtSm,
+          size === "md" ? s.txtMd : size === "xs" ? s.txtXs : s.txtSm,
           color ? { color } : s[`${tone}Txt`] || s.accentTxt,
           textStyle,
         ]}

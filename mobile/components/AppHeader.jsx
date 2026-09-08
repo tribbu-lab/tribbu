@@ -47,6 +47,11 @@ export function AppHeader({ notif }) {
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
+  // El rol solo se muestra cuando aporta información: "Apoderado" es el caso por
+  // defecto de casi todos y llenaba el header de píldoras redundantes (reportado
+  // por el usuario). Solo Room Parent / roles especiales llevan badge.
+  const rolConSenal = (rol) => rol && rol !== "padre";
+
   // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
   // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer
   // color" realmente vuelva al estado sin personalizar. item.color (el color
@@ -75,7 +80,7 @@ export function AppHeader({ notif }) {
           </Pressable>
           {unicoHijo ? (
             <>
-              <RoleBadge rol={unicoHijo.rolEfectivo} size="sm" />
+              {rolConSenal(unicoHijo.rolEfectivo) ? <RoleBadge rol={unicoHijo.rolEfectivo} size="xs" /> : null}
               <Pressable
                 onPress={() => setColorPickerItem(unicoHijo)}
                 style={styles.kidChip}
@@ -127,8 +132,10 @@ export function AppHeader({ notif }) {
                   </Text>
                   {/* Rol efectivo por item: un apoderado puede ser Room Parent
                       en un curso y solo apoderado en otro (ver App.jsx web,
-                      mismo criterio) — se ve de un vistazo sin cambiar de hijo. */}
-                  {item._tipo === "hijo" ? <RoleBadge rol={item.rolEfectivo} size="sm" /> : null}
+                      mismo criterio) — se ve de un vistazo sin cambiar de hijo.
+                      Solo se marca el rol con señal (Room Parent, etc.); el
+                      apoderado por defecto no lleva badge. */}
+                  {item._tipo === "hijo" && rolConSenal(item.rolEfectivo) ? <RoleBadge rol={item.rolEfectivo} size="xs" /> : null}
                 </Pressable>
                 {item._tipo === "hijo" && active ? (
                   <Pressable onPress={() => setColorPickerItem(item)} style={styles.paintBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Color de ${item.nombre}`}>
