@@ -29,6 +29,7 @@ export function SessionProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [cursoIdx, setCursoIdx] = useState(0);
+  const [colegiosPorId, setColegiosPorId] = useState({});
   const [hijoColorsVer, setHijoColorsVer] = useState(0); // fuerza recálculo al cambiar color
 
   const cargarUsuario = useCallback(async (authUser) => {
@@ -70,7 +71,7 @@ export function SessionProvider({ children }) {
       const [{ data: uhData }, { data: ucData }] = await Promise.all([
         supabase
           .from("usuario_hijos")
-          .select("hijo_id, hijos(*, cursos(nombre,color,avatar))")
+          .select("hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))")
           .eq("usuario_id", usuario.id),
         supabase
           .from("usuario_cursos")
@@ -93,6 +94,16 @@ export function SessionProvider({ children }) {
       const cursosDistintos = new Set(next.map((h) => h.curso_id).filter(Boolean));
       setItems(cursosDistintos.size > 1 ? [{ _tipo: "todos", id: "__todos__", nombre: "Todos" }, ...next] : next);
       setCursoIdx(0);
+
+      // Logo del colegio para el header (ver App.jsx de la web, mismo patrón) —
+      // un query chico, solo los colegios realmente en juego.
+      const colegioIds = [...new Set(next.map((h) => h.cursos?.colegio_id).filter(Boolean))];
+      if (colegioIds.length) {
+        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url").in("id", colegioIds);
+        if (!cancel) setColegiosPorId(Object.fromEntries((cols || []).map((c) => [c.id, c])));
+      } else if (!cancel) {
+        setColegiosPorId({});
+      }
     })();
     return () => {
       cancel = true;
@@ -189,6 +200,9 @@ export function SessionProvider({ children }) {
     // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
     const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
     const cursoId = esVistaTodos ? null : itemActual?.curso_id ?? null;
+    // Igual criterio que colegioActivo en src/App.jsx (web): solo con un
+    // colegio inequívoco (no en Todos, ni sin logo cargado).
+    const colegioActivo = !esVistaTodos ? colegiosPorId[itemActual?.cursos?.colegio_id] : null;
     return {
       usuario,
       authLoading,
@@ -201,6 +215,7 @@ export function SessionProvider({ children }) {
       cursoIds: esVistaTodos ? cursosHijos : cursoId ? [cursoId] : [],
       esVistaTodos,
       cursoNombre: esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre ?? null,
+      colegioActivo,
       rolEfectivo,
       isAdmin: rolEfectivo === "room",
       esPadre: rolEfectivo === "padre",
@@ -217,7 +232,7 @@ export function SessionProvider({ children }) {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
+  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

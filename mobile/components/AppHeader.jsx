@@ -5,7 +5,7 @@
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, Image, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -13,6 +13,7 @@ import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } fr
 import { useSession } from "../context/Session";
 import { NotificacionesPanel } from "../features/notificaciones";
 import { Wordmark } from "./Wordmark";
+import { RoleBadge } from "./Badge";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -27,6 +28,7 @@ export function AppHeader({ notif }) {
     cursoIdx,
     setCursoIdx,
     itemActual,
+    colegioActivo,
     tagDeCurso,
     colorDeItem,
     colorCustomDeItem,
@@ -55,7 +57,14 @@ export function AppHeader({ notif }) {
   return (
     <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
-        <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={dk.accent} letterSpacing={-1} />
+        <View style={styles.brandRow}>
+          <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={dk.accent} letterSpacing={-1} />
+          {/* Logo del colegio — chico, al lado del wordmark, nunca lo
+              reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
+          {colegioActivo?.logo_url ? (
+            <Image source={{ uri: colegioActivo.logo_url }} accessibilityLabel={colegioActivo.nombre} style={styles.colegioLogo} />
+          ) : null}
+        </View>
         <View style={styles.actions}>
           <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
             <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
@@ -65,17 +74,20 @@ export function AppHeader({ notif }) {
             {noLeidos > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
           </Pressable>
           {unicoHijo ? (
-            <Pressable
-              onPress={() => setColorPickerItem(unicoHijo)}
-              style={styles.kidChip}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel={`Color de ${unicoHijo.nombre}`}
-            >
-              <View style={[styles.kidDot, { backgroundColor: colorDeItem(unicoHijo) }]} />
-              <Text style={styles.kidName}>{unicoHijo.nombre?.split(" ")[0]}</Text>
-              <MaterialCommunityIcons name="palette-outline" size={13} color="rgba(255,255,255,0.55)" />
-            </Pressable>
+            <>
+              <RoleBadge rol={unicoHijo.rolEfectivo} size="sm" />
+              <Pressable
+                onPress={() => setColorPickerItem(unicoHijo)}
+                style={styles.kidChip}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={`Color de ${unicoHijo.nombre}`}
+              >
+                <View style={[styles.kidDot, { backgroundColor: colorDeItem(unicoHijo) }]} />
+                <Text style={styles.kidName}>{unicoHijo.nombre?.split(" ")[0]}</Text>
+                <MaterialCommunityIcons name="palette-outline" size={13} color="rgba(255,255,255,0.55)" />
+              </Pressable>
+            </>
           ) : null}
         </View>
       </View>
@@ -113,6 +125,10 @@ export function AppHeader({ notif }) {
                   <Text style={styles.chipTxt}>
                     {item._tipo === "todos" || item._tipo === "hijo" ? item.nombre : `${item.avatar || ""} ${item.nombre}`}
                   </Text>
+                  {/* Rol efectivo por item: un apoderado puede ser Room Parent
+                      en un curso y solo apoderado en otro (ver App.jsx web,
+                      mismo criterio) — se ve de un vistazo sin cambiar de hijo. */}
+                  {item._tipo === "hijo" ? <RoleBadge rol={item.rolEfectivo} size="sm" /> : null}
                 </Pressable>
                 {item._tipo === "hijo" && active ? (
                   <Pressable onPress={() => setColorPickerItem(item)} style={styles.paintBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Color de ${item.nombre}`}>
@@ -185,6 +201,8 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 const styles = StyleSheet.create({
   header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
+  colegioLogo: { width: TYPE.h1.fontSize, height: TYPE.h1.fontSize, borderRadius: RADIUS.sm, backgroundColor: "rgba(255,255,255,0.9)" },
   actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   iconBtn: {
     minWidth: 34,
