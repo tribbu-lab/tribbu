@@ -6,15 +6,16 @@
 // EmojiPicker en mobile) y Share para compartir códigos (sin dep de portapapeles).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Share, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Image, Pressable, ScrollView, TextInput, Modal, Share, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
-import { fmtNombre, fmtF, fmtRangoHora, sanitize, uuidLite } from "@shared/helpers";
+import { fmtNombre, fmtF, fmtRangoHora, sanitize, safeUrl, uuidLite } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
+import { pickAndUploadImage } from "../../lib/media";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { ListToolbar } from "../../components/ListToolbar";
@@ -45,6 +46,7 @@ const SECCIONES = [
     { id: "comunicaciones", l: "📢 Comunicaciones" },
   ]},
   { grupo: "Colegio", items: [
+    { id: "colegio", l: "🏫 Colegio" },
     { id: "menu", l: "🍽️ Menú" },
   ]},
 ];
@@ -110,6 +112,9 @@ const leerExcel = async () => {
 };
 
 export function SuperAdmin() {
+  // colegio_admin: mismo panel, acotado a su colegio por RLS. Sin sección
+  // "Plataforma" (no existe en mobile) y sin el toggle de Super Admin.
+  const { esColegioAdmin, usuario } = useSession();
   const [sec, setSec] = useState(null);
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
@@ -417,10 +422,16 @@ export function SuperAdmin() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.titleRow}>
-        <Text style={styles.h1}>Panel Super Admin</Text>
-        <Pill label="Super Admin" color="#8B5CF6" bg="#F5F3FF" />
+        <Text style={styles.h1}>{esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
+        <Pill
+          label={esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
+          color={esColegioAdmin ? ROL_COLOR.colegio_admin : "#8B5CF6"}
+          bg={esColegioAdmin ? ROL_BG.colegio_admin : "#F5F3FF"}
+        />
       </View>
-      <Text style={styles.subtitle}>Gestión global de usuarios, roles y cursos</Text>
+      <Text style={styles.subtitle}>
+        {esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión global de usuarios, roles y cursos"}
+      </Text>
 
       <View style={styles.statsRow}>
         {stats.map((s) => (
@@ -661,6 +672,7 @@ export function SuperAdmin() {
         </View>
       ) : null}
 
+      {sec === "colegio" ? <ColegioAdmin colegioId={usuario?.colegio_id} /> : null}
       {sec === "codigos" ? <CodigosInvitacion cursos={cursos} /> : null}
       {sec === "horarios" ? <HorariosAdmin cursos={cursos} /> : null}
       {sec === "uniformes" ? <UniformesAdmin cursos={cursos} /> : null}
@@ -685,6 +697,7 @@ export function SuperAdmin() {
           setForm={setForm}
           cursos={cursos}
           hijos={hijos}
+          ocultarAccesoEspecial={esColegioAdmin}
           onClose={() => setModal(null)}
           onSave={guardarUsuario}
         />
@@ -723,7 +736,7 @@ export function SuperAdmin() {
 }
 
 // ── UsuarioModal ────────────────────────────────────────────────────────────────
-function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }) {
+function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspecial = false, onClose, onSave }) {
   const busq = (form._busqHijo || "").toLowerCase();
   const filtrados = busq
     ? hijos
@@ -780,10 +793,14 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
               style={styles.input}
             />
 
-            <Text style={styles.label}>ACCESO ESPECIAL</Text>
-            <Pressable onPress={() => setForm((p) => ({ ...p, esSuper: !p.esSuper }))} style={[styles.togglePill, form.esSuper && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}>
-              <Text style={[styles.toggleTxt, form.esSuper && { color: "#8B5CF6" }]}>{form.esSuper ? "★ Super Admin" : "◇ Super Admin"}</Text>
-            </Pressable>
+            {ocultarAccesoEspecial ? null : (
+              <>
+                <Text style={styles.label}>ACCESO ESPECIAL</Text>
+                <Pressable onPress={() => setForm((p) => ({ ...p, esSuper: !p.esSuper }))} style={[styles.togglePill, form.esSuper && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}>
+                  <Text style={[styles.toggleTxt, form.esSuper && { color: "#8B5CF6" }]}>{form.esSuper ? "★ Super Admin" : "◇ Super Admin"}</Text>
+                </Pressable>
+              </>
+            )}
 
             {!form.esSuper ? (
               <>
@@ -1035,6 +1052,203 @@ function ApoderadosModal({ alumno, onClose }) {
 }
 
 // ── AlertasAdmin ────────────────────────────────────────────────────────────────
+// ── ColegioAdmin (datos de contacto del colegio) ─────────────────────────────
+// Edita la fila de `colegios` (plural, multi-tenant) del colegio_admin — NO la
+// tabla singleton `colegio` (deprecada). RLS `colegios_update` ya permite
+// es_colegio_admin_de(id). El logo va por pickAndUploadImage (bucket adjuntos,
+// mismo criterio que LogoUploadInput de la web).
+function ColegioAdmin({ colegioId }) {
+  const [colegio, setColegio] = useState(null);
+  const [colId, setColId] = useState(colegioId || null);
+  const [cargando, setCargando] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({});
+  const [guardando, setGuardando] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [err, setErr] = useState("");
+
+  const cargar = useCallback(async () => {
+    // colegio_admin: su usuario.colegio_id. super (fuera de alcance, pero no
+    // debe romper): cae al único colegio existente, igual que el fallback de
+    // mobile/features/contacto.
+    let id = colegioId || null;
+    if (!id) {
+      const { data } = await supabase.from("colegios").select("id").limit(1).maybeSingle();
+      id = data?.id || null;
+    }
+    setColId(id);
+    if (!id) {
+      setCargando(false);
+      return;
+    }
+    const { data } = await supabase.from("colegios").select("*").eq("id", id).single();
+    setColegio(data || null);
+    setCargando(false);
+  }, [colegioId]);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const abrir = () => {
+    setErr("");
+    setForm({
+      nombre: colegio?.nombre || "",
+      telefono: colegio?.telefono || "",
+      email: colegio?.email || "",
+      direccion: colegio?.direccion || "",
+      url_maps: colegio?.url_maps || "",
+      horario_clases: colegio?.horario_clases || "",
+      horario_secretaria: colegio?.horario_secretaria || "",
+      sitio_web: colegio?.sitio_web || "",
+      logo_url: colegio?.logo_url || "",
+    });
+    setModal(true);
+  };
+
+  const subirLogo = async () => {
+    setErr("");
+    setSubiendoLogo(true);
+    try {
+      const r = await pickAndUploadImage({ bucket: "adjuntos", pathPrefix: `colegios/${colId}/` });
+      if (r?.url) setForm((p) => ({ ...p, logo_url: r.url }));
+    } catch (e) {
+      setErr(e.message || "No se pudo subir el logo");
+    }
+    setSubiendoLogo(false);
+  };
+
+  const guardar = async () => {
+    if (!(form.nombre || "").trim()) {
+      setErr("El nombre no puede quedar vacío");
+      return;
+    }
+    setGuardando(true);
+    setErr("");
+    const { error } = await supabase
+      .from("colegios")
+      .update({
+        nombre: sanitize(form.nombre),
+        telefono: sanitize(form.telefono) || null,
+        email: sanitize(form.email) || null,
+        direccion: sanitize(form.direccion) || null,
+        url_maps: safeUrl(form.url_maps) || null,
+        horario_clases: sanitize(form.horario_clases) || null,
+        horario_secretaria: sanitize(form.horario_secretaria) || null,
+        sitio_web: safeUrl(form.sitio_web) || null,
+        logo_url: form.logo_url || null,
+      })
+      .eq("id", colId);
+    setGuardando(false);
+    if (error) {
+      setErr("No se pudo guardar. Reintentá.");
+      return;
+    }
+    setModal(false);
+    cargar();
+  };
+
+  if (cargando) return <Spinner />;
+  if (!colegio) return <Text style={styles.muted}>No se encontró el colegio.</Text>;
+
+  const filas = [
+    { l: "Nombre", v: colegio.nombre },
+    { l: "Teléfono", v: colegio.telefono },
+    { l: "Email", v: colegio.email },
+    { l: "Dirección", v: colegio.direccion },
+    { l: "Horario de clases", v: colegio.horario_clases },
+    { l: "Secretaría", v: colegio.horario_secretaria },
+    { l: "Sitio web", v: colegio.sitio_web },
+    { l: "Mapa (URL)", v: colegio.url_maps },
+  ];
+
+  const campos = [
+    { l: "Nombre", k: "nombre", ph: "Nombre del colegio" },
+    { l: "Teléfono", k: "telefono", ph: "Ej: +54 11 1234-5678", kb: "phone-pad" },
+    { l: "Email", k: "email", ph: "contacto@colegio.edu.ar", kb: "email-address" },
+    { l: "Dirección", k: "direccion", ph: "Calle 123, Ciudad" },
+    { l: "Horario de clases", k: "horario_clases", ph: "Ej: 8:00 a 16:30" },
+    { l: "Secretaría", k: "horario_secretaria", ph: "Ej: Lun a Vie 9 a 13" },
+    { l: "Sitio web", k: "sitio_web", ph: "https://...", kb: "url" },
+    { l: "Mapa (URL)", k: "url_maps", ph: "https://maps.google.com/...", kb: "url" },
+  ];
+
+  return (
+    <View>
+      <Text style={styles.cardTitle}>🏫 Datos del colegio</Text>
+      <Text style={styles.subtitle}>Lo que ven las familias en la pantalla de Contacto.</Text>
+
+      <View style={styles.colegioCard}>
+        {colegio.logo_url ? <Image source={{ uri: colegio.logo_url }} style={styles.colegioLogo} resizeMode="contain" /> : null}
+        {filas.map((f) => (
+          <View key={f.l} style={styles.colegioFila}>
+            <Text style={styles.colegioFilaLabel}>{f.l}</Text>
+            <Text style={styles.colegioFilaVal}>{f.v || "—"}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable onPress={abrir} style={[styles.dashedBtn, { borderColor: T.accent, backgroundColor: "#EFF6FF", marginTop: 14 }]}>
+        <Text style={[styles.dashedTxt, { color: T.accent }]}>✏️ Editar datos del colegio</Text>
+      </Pressable>
+
+      {modal ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setModal(false)}>
+          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={styles.modalCard}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.modalTitle}>Editar datos del colegio</Text>
+
+                <Text style={styles.label}>LOGO</Text>
+                <View style={styles.logoRow}>
+                  {form.logo_url ? (
+                    <Image source={{ uri: form.logo_url }} style={styles.logoPreview} resizeMode="contain" />
+                  ) : (
+                    <View style={[styles.logoPreview, styles.logoEmpty]} />
+                  )}
+                  <Pressable onPress={subirLogo} disabled={subiendoLogo} style={styles.logoBtn}>
+                    <Text style={styles.logoBtnTxt}>{subiendoLogo ? "Subiendo…" : form.logo_url ? "Cambiar" : "Subir logo"}</Text>
+                  </Pressable>
+                  {form.logo_url ? (
+                    <Pressable onPress={() => setForm((p) => ({ ...p, logo_url: "" }))} style={styles.logoBtn}>
+                      <Text style={[styles.logoBtnTxt, { color: "#EF4444" }]}>Quitar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {campos.map((f) => (
+                  <View key={f.k}>
+                    <Text style={styles.label}>{f.l.toUpperCase()}</Text>
+                    <TextInput
+                      value={form[f.k] || ""}
+                      onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
+                      placeholder={f.ph}
+                      placeholderTextColor="#94A3B8"
+                      autoCapitalize={f.kb === "email-address" || f.kb === "url" ? "none" : "sentences"}
+                      keyboardType={f.kb || "default"}
+                      style={styles.input}
+                    />
+                  </View>
+                ))}
+
+                {err ? <Text style={styles.colegioErr}>⚠️ {err}</Text> : null}
+
+                <View style={styles.modalBtns}>
+                  <Pressable onPress={() => setModal(false)} style={styles.cancelBtn}>
+                    <Text style={styles.cancelTxt}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable onPress={guardar} disabled={guardando} style={styles.saveBtn}>
+                    <Text style={styles.saveTxt}>{guardando ? "Guardando…" : "Guardar"}</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      ) : null}
+    </View>
+  );
+}
+
 function AlertasAdmin({ cursos }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [alerta, setAlerta] = useState(null);
@@ -2045,4 +2259,17 @@ const styles = StyleSheet.create({
   uploadEmoji: { fontSize: 20 },
   uploadTitle: { fontSize: 13, fontWeight: "700" },
   uploadHint: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+
+  // Colegio (datos de contacto)
+  colegioCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", padding: 14 },
+  colegioLogo: { width: 64, height: 64, borderRadius: 12, backgroundColor: "#F1F5F9", marginBottom: 12 },
+  colegioFila: { borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingVertical: 8 },
+  colegioFilaLabel: { fontSize: 10.5, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5 },
+  colegioFilaVal: { fontSize: 13.5, color: T.text, marginTop: 2 },
+  colegioErr: { fontSize: 12, fontWeight: "700", color: "#EF4444", marginTop: 12 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  logoPreview: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#F1F5F9" },
+  logoEmpty: { borderWidth: 1.5, borderColor: "#E2E8F0", borderStyle: "dashed" },
+  logoBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", justifyContent: "center" },
+  logoBtnTxt: { fontSize: 12, fontWeight: "700", color: T.text },
 });

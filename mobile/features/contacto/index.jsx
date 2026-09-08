@@ -16,8 +16,6 @@ import { Spinner } from "../../components/Spinner";
 
 const t = THEMES.light;
 
-const COLEGIO_ID = "d31b5547-246b-46fa-906e-950e51d4af58";
-
 const abrir = async (url) => {
   const safe = safeUrl(url);
   if (!safe) return;
@@ -34,19 +32,30 @@ const abrir = async (url) => {
 const waLink = (telefono) => (telefono ? `https://wa.me/${telefono.replace(/[^0-9]/g, "")}` : null);
 
 export function Contacto() {
+  // `colegios` (plural) = tabla multi-tenant. El colegio del curso activo, o
+  // —en "Todos" / sin curso— el primero (hoy hay uno solo). Reemplaza el id
+  // hardcodeado + la tabla singleton `colegio` (deprecada).
+  const { colegioActivo } = useSession();
   const [colegio, setColegio] = useState(null);
   const [contactos, setContactos] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
+    let colId = colegioActivo?.id || null;
+    if (!colId) {
+      const { data } = await supabase.from("colegios").select("id").limit(1).maybeSingle();
+      colId = data?.id || null;
+    }
     const [col, con] = await Promise.all([
-      supabase.from("colegio").select("*").eq("id", COLEGIO_ID).single(),
-      supabase.from("contactos").select("*").order("nombre"),
+      colId ? supabase.from("colegios").select("*").eq("id", colId).single() : Promise.resolve({ data: {} }),
+      colId
+        ? supabase.from("contactos").select("*").eq("colegio_id", colId).order("nombre")
+        : supabase.from("contactos").select("*").order("nombre"),
     ]);
     setColegio(col.data || {});
     setContactos(con.data || []);
     setCargando(false);
-  }, []);
+  }, [colegioActivo?.id]);
 
   useEffect(() => {
     cargar();

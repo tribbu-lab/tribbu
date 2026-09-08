@@ -31,7 +31,8 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { usuario, isSuper, authLoading } = useSession();
+  const { usuario, isSuper, esColegioAdmin, authLoading } = useSession();
+  const vaAlPanel = isSuper || esColegioAdmin; // ambos van al stack (super), no a las tabs
   const segments = useSegments();
   const router = useRouter();
 
@@ -60,12 +61,12 @@ function RootNavigator() {
     const grupo = segments[0]; // "login" | "(tabs)" | "(super)" | undefined
     if (!usuario) {
       if (grupo !== "login") router.replace("/login");
-    } else if (isSuper) {
+    } else if (vaAlPanel) {
       if (grupo !== "(super)") router.replace("/(super)");
     } else {
       if (grupo !== "(tabs)") router.replace("/(tabs)/muro");
     }
-  }, [usuario, isSuper, authLoading, segments, router]);
+  }, [usuario, vaAlPanel, authLoading, segments, router]);
 
   if (authLoading || (usuario && bioState === "checking")) {
     return <Spinner style={{ backgroundColor: "#0F172A" }} />;
