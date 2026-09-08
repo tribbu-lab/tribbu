@@ -41,6 +41,14 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
   const [mes, setMes] = useState(new Date());
   const [diaExpandido, setDiaExpandido] = useState(iso(new Date())); // fecha (string) abierta en "Por fecha", hoy por defecto
   const [editModal, setEditModal] = useState(null); // null | {fecha, entrada, plato, plato2, acompanamiento, postre, postre2}
+  // Multi-colegio: menu.colegio_id es NOT NULL (ver supabase/multi-colegio.sql).
+  // Mobile todavía no tiene selector de colegio (queda para una próxima
+  // versión, ver specs/multi-colegio.md) — se resuelve al único/primer
+  // colegio existente, mismo criterio que la web fuera de Super Admin.
+  const [colegioId, setColegioId] = useState(null);
+  useEffect(() => {
+    supabase.from("colegios").select("id").order("creado_en").limit(1).single().then((r) => setColegioId(r.data?.id ?? null));
+  }, []);
 
   const cargarMenu = useCallback(() => {
     supabase
@@ -56,16 +64,16 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
 
   const abrirEdicion = (fecha) => {
     const existente = menu.find((m) => m.fecha === fecha);
-    setEditModal(existente ? { ...existente } : { fecha, entrada: "", plato: "", plato2: "", acompanamiento: "", postre: "", postre2: "" });
+    setEditModal(existente ? { ...existente } : { fecha, colegio_id: colegioId, entrada: "", plato: "", plato2: "", acompanamiento: "", postre: "", postre2: "" });
   };
   const guardarDia = async (form) => {
-    const { error } = await supabase.from("menu").upsert(form, { onConflict: "fecha" });
+    const { error } = await supabase.from("menu").upsert({ ...form, colegio_id: form.colegio_id || colegioId }, { onConflict: "colegio_id,fecha" });
     if (error) { console.warn("Comedor.guardarDia:", error?.message); return; }
     setEditModal(null);
     cargarMenu();
   };
   const borrarDia = async (fecha) => {
-    const { error } = await supabase.from("menu").delete().eq("fecha", fecha);
+    const { error } = await supabase.from("menu").delete().eq("fecha", fecha).eq("colegio_id", colegioId);
     if (error) { console.warn("Comedor.borrarDia:", error?.message); return; }
     setEditModal(null);
     cargarMenu();
@@ -116,7 +124,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
       <Text style={styles.h1}>Comedor 🍽️</Text>
       <Text style={styles.subtitle}>Menú de {MESES[new Date().getMonth()]} · cargado por el colegio</Text>
 
-      {mostrarUpload && isAdmin ? <UploadMenuExcel onDone={cargarMenu} /> : null}
+      {mostrarUpload && isAdmin ? <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId} /> : null}
 
       <View style={styles.tabs}>
         {[
@@ -339,7 +347,7 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
 // El upsert real (onConflict:"fecha", pisa lo que ya había) solo corre al
 // confirmar el preview, nunca al leer el archivo — antes se escribía sin
 // avisar qué días se estaban reemplazando.
-export function UploadMenuExcel({ onDone }) {
+export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
   const [stage, setStage] = useState("idle"); // idle | leyendo | error | preview
   const [errorMsg, setErrorMsg] = useState("");
   const [preview, setPreview] = useState([]); // [{fecha, row, estado}]
@@ -390,9 +398,18 @@ export function UploadMenuExcel({ onDone }) {
       const colPostre2 = keys.find((k) => k.toLowerCase().includes("postre") && k.includes("2"));
       if (!colFecha) throw new Error(`No encontré columna de fecha. Renombrá esa columna a "fecha". Columnas encontradas: ${keys.join(", ")}`);
 
+      // Multi-colegio: menu.colegio_id es NOT NULL. Sin colegioId explícito se
+      // resuelve al único/primer colegio existente (mobile no tiene selector
+      // de colegio todavía, ver specs/multi-colegio.md).
+      let colegioDestino = colegioIdProp;
+      if (!colegioDestino) {
+        const { data: col } = await supabase.from("colegios").select("id").order("creado_en").limit(1).single();
+        colegioDestino = col?.id;
+      }
       const inserts = rows
         .map((r) => ({
           fecha: parseFecha(r[colFecha]),
+          colegio_id: colegioDestino,
           entrada: colEntrada ? r[colEntrada] || null : null,
           plato: colPlato1 ? r[colPlato1] || null : null,
           plato2: colPlato2 ? r[colPlato2] || null : null,
@@ -406,7 +423,7 @@ export function UploadMenuExcel({ onDone }) {
       // Preview antes de escribir: el upsert real (onConflict:"fecha") pisa
       // sin avisar, así que primero se lee qué ya había cargado para esos
       // mismos días.
-      const { data: existentes } = await supabase.from("menu").select("fecha").in("fecha", inserts.map((r) => r.fecha));
+      const { data: existentes } = await supabase.from("menu").select("fecha").eq("colegio_id", colegioDestino).in("fecha", inserts.map((r) => r.fecha));
       const existentesSet = new Set((existentes || []).map((r) => r.fecha));
       const conEstado = inserts.map((r) => {
         const vacio = !r.entrada && !r.plato && !r.plato2 && !r.acompanamiento && !r.postre && !r.postre2;
@@ -425,7 +442,7 @@ export function UploadMenuExcel({ onDone }) {
     const aCargar = preview.filter((r) => r.estado !== "vacio").map(({ estado, ...r }) => r);
     if (aCargar.length === 0) { setStage("idle"); return; }
     setConfirmando(true);
-    const { error } = await supabase.from("menu").upsert(aCargar, { onConflict: "fecha" });
+    const { error } = await supabase.from("menu").upsert(aCargar, { onConflict: "colegio_id,fecha" });
     setConfirmando(false);
     if (error) {
       setErrorMsg(error.message || "No se pudo guardar el menú.");

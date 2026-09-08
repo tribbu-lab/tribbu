@@ -13,7 +13,7 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 
 
-export function Contacto({ cursoId, isSuperAdmin=false }) {
+export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
   const [editColegio,setEditColegio]= useState(false);
@@ -25,29 +25,39 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
+  // Multi-colegio: sin colegioId explícito (apoderado/admin normal, fuera de
+  // Super Admin), se resuelve al único/primer colegio — hoy sigue habiendo
+  // uno solo en la base. Cuando exista más de uno, cada pantalla que use
+  // este componente deberá empezar a pasar el colegioId real (vía "Mi
+  // acceso"), ver specs/multi-colegio.md.
   const cargar = async () => {
+    const colQuery = colegioId
+      ? supabase.from("colegios").select("*").eq("id",colegioId).single()
+      : supabase.from("colegios").select("*").order("creado_en").limit(1).single();
     const [col, con] = await Promise.all([
-      supabase.from("colegio").select("*").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
-      supabase.from("contactos").select("*").order("nombre"),
+      colQuery,
+      colegioId
+        ? supabase.from("contactos").select("*").eq("colegio_id",colegioId).order("nombre")
+        : supabase.from("contactos").select("*").order("nombre"),
     ]);
     setColegio(col.data||{});
     setContactos(con.data||[]);
   };
 
-  useEffect(()=>{ cargar(); },[]);
+  useEffect(()=>{ cargar(); },[colegioId]);
 
   const guardarColegio = async () => {
     setSaving(true);
-    const {id:_id, ...colegioData} = colegioForm;
+    const {id, ...colegioData} = colegioForm;
     if(colegioData.año_lectivo_actual!=null) colegioData.año_lectivo_actual = Number(colegioData.año_lectivo_actual)||null;
-    await supabase.from("colegio").update(colegioData).eq("id","d31b5547-246b-46fa-906e-950e51d4af58");
+    await supabase.from("colegios").update(colegioData).eq("id",id||colegio?.id);
     setSaving(false); setEditColegio(false); cargar();
   };
 
   const guardarContacto = async () => {
     if(!form.nombre?.trim()) return;
     setSaving(true);
-    const payload = { nombre:sanitize(form.nombre)||null, rol:sanitize(form.rol)||null, telefono:sanitize(form.telefono)||null, email:sanitize(form.email)||null };
+    const payload = { nombre:sanitize(form.nombre)||null, rol:sanitize(form.rol)||null, telefono:sanitize(form.telefono)||null, email:sanitize(form.email)||null, colegio_id: colegio?.id||colegioId };
     let err;
     if(modal?.id) { const r = await supabase.from("contactos").update(payload).eq("id",modal.id); err=r.error; }
     else          { const r = await supabase.from("contactos").insert(payload); err=r.error; }
@@ -78,6 +88,14 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
                 <input value={colegioForm[f.k]||""} onChange={e=>setColegioForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
               </div>
             ))}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>LOGO (URL)</div>
+              <input value={colegioForm.logo_url||""} onChange={e=>setColegioForm(p=>({...p,logo_url:e.target.value}))} placeholder="https://..." style={inp}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>COLOR PRIMARIO</div>
+              <input value={colegioForm.color_primario||""} onChange={e=>setColegioForm(p=>({...p,color_primario:e.target.value}))} placeholder="#3B82F6" style={inp}/>
+            </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>AÑO LECTIVO ACTUAL</div>
               <input type="number" value={colegioForm.año_lectivo_actual??""} onChange={e=>setColegioForm(p=>({...p,año_lectivo_actual:e.target.value}))} placeholder="Ej: 2026" style={inp}/>

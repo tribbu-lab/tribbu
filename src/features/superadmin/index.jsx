@@ -71,6 +71,10 @@ const SECCIONES = [
   ]},
 ];
 
+// Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
+// para colegio_admin. Ver specs/multi-colegio.md.
+const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"} ] };
+
 // Header contextual por módulo (handoff Tribbu Admin): eyebrow (grupo) +
 // título + descripción de qué gestiona la pantalla — reemplaza el título
 // fijo "Panel Super Admin" que no cambiaba entre módulos.
@@ -87,6 +91,7 @@ const SECCION_INFO = {
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
+  colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
 };
 
 // 4 tarjetas de stats reusables por módulo (handoff Tribbu Admin, Parte 3
@@ -109,8 +114,18 @@ function ModuloStats({ items }) {
 }
 
 export function SuperAdmin({ usuario, onCerrarSesion }) {
-  const [sec,setSec]           = useState("usuarios");
+  // Multi-colegio: super es plataforma (sin colegio_id, ve/gestiona todos);
+  // colegio_admin queda acotado al suyo por RLS en cada query de abajo —
+  // ninguna de ellas necesita agregar un filtro de colegio_id a mano.
+  const esSuper = usuario?.rol==="super";
+  const esColegioAdmin = usuario?.rol==="colegio_admin";
+  const miColegioId = usuario?.colegio_id ?? null;
+  const [sec,setSec]           = useState(esSuper?"colegios":"usuarios");
+  const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
+  const [colegios,setColegios]           = useState([]);
+  const [modalColegio,setModalColegio]   = useState(null);
+  const [savingColegio,setSavingColegio] = useState(false);
   const [cambiarPass,setCambiarPass] = useState(false);
   const [usuarios,setUsuarios] = useState([]);
   const [cursos,setCursos]     = useState([]);
@@ -200,28 +215,98 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     pageSize:12,
   });
 
-  useEffect(()=>{ cargar(); },[]);
+  // colegio_admin: fijo a su propio colegio. super: el que haya elegido en
+  // "Colegios" (null hasta que elija uno — no hay nada más que mostrar).
+  useEffect(()=>{ if(esColegioAdmin) setColegioId(miColegioId); },[esColegioAdmin, miColegioId]);
+
+  useEffect(()=>{ cargar(); },[colegioId]);
 
   const cargar = async () => {
     setLoading(true);
-    const [u,c,h,m,mc,col] = await Promise.all([
+    const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
+    const [u,c,h,m,mc,col,cols] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
       supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
-      supabase.from("colegio").select("año_lectivo_actual,nombre").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
+      activeColegioId
+        ? supabase.from("colegios").select("id,año_lectivo_actual,nombre").eq("id",activeColegioId).single()
+        : Promise.resolve({data:null}),
+      esSuper ? supabase.from("colegios").select("*").order("creado_en") : Promise.resolve({data:[]}),
     ]);
-    setUsuarios((u.data||[]).map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
-    setCursos(c.data||[]);
-    setHijos(h.data||[]);
+    setColegios(cols.data||[]);
+    // RLS ya acota todo lo de arriba para colegio_admin (su colegio_id) — este
+    // filtro client-side solo importa para super, que ve TODOS los colegios
+    // sin restricción y necesita elegir uno para que las pantallas de abajo
+    // (Usuarios/Cursos/Alumnos/Maestros/...) muestren solo el suyo. Sin
+    // colegio elegido, super ve la pantalla "Colegios" y estas listas quedan
+    // vacías (no hay "colegio activo" del que mostrar nada todavía).
+    const cursosDelColegio = activeColegioId ? (c.data||[]).filter(x=>x.colegio_id===activeColegioId) : (esSuper?[]:(c.data||[]));
+    const cursoIdsSet = new Set(cursosDelColegio.map(x=>x.id));
+    const hijosDelColegio = activeColegioId ? (h.data||[]).filter(x=>cursoIdsSet.has(x.curso_id)) : (esSuper?[]:(h.data||[]));
+    const hijoIdsSet = new Set(hijosDelColegio.map(x=>x.id));
+    const usuariosFiltrados = activeColegioId
+      ? (u.data||[]).filter(x=>
+          x.colegio_id===activeColegioId
+          || x.usuario_cursos.some(r=>cursoIdsSet.has(r.curso_id))
+          || x.usuario_hijos.some(r=>hijoIdsSet.has(r.hijo_id))
+        )
+      : (esSuper?[]:(u.data||[]));
+    setUsuarios(usuariosFiltrados.map(u=>({...u,hijos:u.usuario_hijos.map(r=>r.hijo_id),cursos:u.usuario_cursos.map(r=>r.curso_id),cursosAdmin:u.usuario_cursos.filter(r=>r.rol==="admin").map(r=>r.curso_id),usuarioCursos:u.usuario_cursos})));
+    setCursos(cursosDelColegio);
+    setHijos(hijosDelColegio);
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
     setColegioNombre(col.data?.nombre||"");
-    const mcData = mc.data||[];
-    setMaestros((m.data||[]).map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
-    const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))").order("nombre");
-    setAlumnos(al.data||[]);
+    const mcData = activeColegioId ? (mc.data||[]).filter(r=>cursoIdsSet.has(r.curso_id)) : (esSuper?[]:(mc.data||[]));
+    const maestroIdsDelColegio = new Set(mcData.map(r=>r.maestro_id));
+    const maestrosDelColegio = activeColegioId ? (m.data||[]).filter(x=>maestroIdsDelColegio.has(x.id)) : (esSuper?[]:(m.data||[]));
+    setMaestros(maestrosDelColegio.map(x=>({...x, cursos: mcData.filter(r=>r.maestro_id===x.id).map(r=>r.curso_id)})));
+    if(activeColegioId || !esSuper) {
+      const al = await supabase.from("hijos").select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))").order("nombre");
+      setAlumnos(activeColegioId ? (al.data||[]).filter(x=>cursoIdsSet.has(x.curso_id)) : (al.data||[]));
+    } else {
+      setAlumnos([]);
+    }
     setLoading(false);
+  };
+
+  // Alta de un colegio nuevo — solo super (ver specs/multi-colegio.md).
+  // Crea la fila en colegios y, si se cargaron los datos del primer admin,
+  // su cuenta rol="colegio_admin" acotada a ese colegio_id (mismo patrón de
+  // Auth + fila usuarios que ya usa guardarUsuario más abajo).
+  const guardarColegioNuevo = async () => {
+    if(!form.nombre?.trim()) { showToast("Falta el nombre del colegio","error"); return; }
+    setSavingColegio(true);
+    const { data: nuevoColegio, error: errCol } = await supabase.from("colegios").insert({
+      nombre: sanitize(form.nombre),
+      año_lectivo_actual: Number(form.año_lectivo_actual)||new Date().getFullYear(),
+    }).select().single();
+    if(errCol||!nuevoColegio) { showToast("Error al crear el colegio","error"); setSavingColegio(false); return; }
+
+    if(form.adminEmail?.trim() && form.adminPass?.trim()) {
+      try {
+        const { auth_id } = await authAdminCreate(sanitize(form.adminEmail).toLowerCase(), form.adminPass);
+        if(auth_id) {
+          const apellido = form.adminApellido||"";
+          const avatar = (`${(form.adminNombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||"CA";
+          await supabase.from("usuarios").insert({
+            nombre: sanitize(form.adminNombre)||"Admin",
+            apellido: sanitize(form.adminApellido)||null,
+            email: sanitize(form.adminEmail).toLowerCase(),
+            rol: "colegio_admin",
+            colegio_id: nuevoColegio.id,
+            avatar, activo: true, auth_id,
+          });
+        }
+      } catch(e) {
+        console.error("Error creando colegio_admin:", e);
+        showToast("Colegio creado, pero falló el alta del administrador — creálo a mano desde Usuarios.", "error");
+      }
+    }
+    setSavingColegio(false); setModalColegio(null);
+    showToast(`Colegio "${nuevoColegio.nombre}" creado`,"ok");
+    cargar();
   };
 
   const guardarUsuario = async () => {
@@ -446,6 +531,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   if(loading) return <Spinner/>;
 
+  // Nav visible: super sin colegio elegido todavía solo tiene "Plataforma"
+  // (nada más que mostrar sin un colegio activo); con uno elegido, o siendo
+  // colegio_admin (que siempre tiene el suyo), se agrega el resto tal cual.
+  const seccionesVisibles = esSuper
+    ? (colegioId ? [SECCION_PLATAFORMA, ...SECCIONES] : [SECCION_PLATAFORMA])
+    : SECCIONES;
+
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light"}}>
       <Toast />
@@ -495,14 +587,19 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               />
             </div>
 
-            {/* Super Admin toggle */}
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso especial</div>
-              <button onClick={()=>setForm(p=>({...p,esSuper:!p.esSuper}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.esSuper?"#8B5CF6":"#E2E8F0"}`,background:form.esSuper?"#F5F3FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.esSuper?"#8B5CF6":"#94A3B8"}}>
-                {form.esSuper?"★ Super Admin":"◇ Super Admin"}
-              </button>
-              {form.esSuper&&<div style={{fontSize:11,color:"#8B5CF6",marginTop:4}}>Acceso total al sistema. No necesita cursos ni hijos.</div>}
-            </div>
+            {/* Super Admin toggle — solo super puede otorgar este rol (un
+                colegio_admin que lo intentara sería rechazado por RLS de
+                todos modos, ver usuarios_insert/update en multi-colegio.sql;
+                se oculta acá para no ofrecer un botón que va a fallar). */}
+            {esSuper&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso especial</div>
+                <button onClick={()=>setForm(p=>({...p,esSuper:!p.esSuper}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.esSuper?"#8B5CF6":"#E2E8F0"}`,background:form.esSuper?"#F5F3FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.esSuper?"#8B5CF6":"#94A3B8"}}>
+                  {form.esSuper?"★ Super Admin":"◇ Super Admin"}
+                </button>
+                {form.esSuper&&<div style={{fontSize:11,color:"#8B5CF6",marginTop:4}}>Acceso total al sistema. No necesita cursos ni hijos.</div>}
+              </div>
+            )}
 
             {!form.esSuper&&(
               <>
@@ -737,7 +834,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {isMobile ? (
         <div style={{marginBottom:16,padding:"20px 16px 0"}}>
           <nav>
-            {SECCIONES.map(g=>(
+            {seccionesVisibles.map(g=>(
               <div key={g.grupo} style={{marginBottom:10}}>
                 <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:"0 0 6px"}}>{g.grupo}</div>
                 <div style={{display:"flex",flexDirection:"row",flexWrap:"wrap",gap:6}}>
@@ -772,11 +869,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <Wordmark size={20} letterSpacing={-0.8}/>
             <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
               <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
-              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>Super Admin</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":"Admin del colegio"}</span>
             </div>
           </div>
           <div style={{flex:1,padding:"0 12px",overflowY:"auto"}}>
-            {SECCIONES.map(g=>(
+            {seccionesVisibles.map(g=>(
               <div key={g.grupo} style={{marginBottom:18}}>
                 <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
                 <div style={{display:"flex",flexDirection:"column"}}>
@@ -805,10 +902,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"24px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
       {(() => {
         const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
-        const eyebrow = SECCIONES.find(g=>g.items.some(i=>i.id===sec))?.grupo;
+        const eyebrow = [SECCION_PLATAFORMA,...SECCIONES].find(g=>g.items.some(i=>i.id===sec))?.grupo;
         return (
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:24,flexWrap:"wrap"}}>
             <div style={{maxWidth:640}}>
+              {esSuper&&colegioId&&sec!=="colegios"&&(
+                <button onClick={()=>{ setColegioId(null); setSec("colegios"); }} style={{border:"none",background:"transparent",cursor:"pointer",fontSize:11.5,fontWeight:700,color:"#3B82F6",padding:0,marginBottom:6}}>← Volver a Colegios ({colegioNombre})</button>
+              )}
               {eyebrow && <div style={{fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{eyebrow}</div>}
               <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{info.titulo}</div>
               <div style={{fontSize:13,color:"#94A3B8",marginTop:6,lineHeight:1.5}}>{info.descripcion}</div>
@@ -824,6 +924,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {sec==="maestros" && (
               <button onClick={()=>{ setForm({nombre:"",apellido:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
+            )}
+            {sec==="colegios" && (
+              <button onClick={()=>{ setForm({nombre:"",año_lectivo_actual:new Date().getFullYear(),adminNombre:"",adminApellido:"",adminEmail:"",adminPass:""}); setModalColegio("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo colegio</button>
             )}
             {sec==="alumnos" && (
               <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
@@ -1201,15 +1304,62 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="uniformes"&&(
         <UniformesAdmin cursos={cursosAnoActual}/>
       )}
+      {sec==="colegios"&&esSuper&&(
+        <div>
+          {colegios.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Todavía no hay ningún colegio cargado.</div>}
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+            {colegios.map(c=>(
+              <Card key={c.id} style={{padding:18,cursor:"pointer"}} onClick={()=>{ setColegioId(c.id); setSec("usuarios"); }}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{c.nombre||"(sin nombre)"}</div>
+                <div style={{fontSize:12,color:"#94A3B8"}}>Año lectivo vigente: {c.año_lectivo_actual}</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:10}}>Entrar a administrar →</div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {modalColegio==="nuevo"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>Nuevo colegio</div>
+            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Crea el colegio y, opcionalmente, su primer administrador (colegio_admin).</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Nombre del colegio</div>
+              <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Colegio San Martín" style={inp}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Año lectivo inicial</div>
+              <input type="number" value={form.año_lectivo_actual||""} onChange={e=>setForm(p=>({...p,año_lectivo_actual:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{fontSize:11,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8,borderTop:"1px solid #F1F5F9",paddingTop:12}}>Primer administrador (opcional)</div>
+            {[{l:"Nombre",k:"adminNombre"},{l:"Apellido",k:"adminApellido"},{l:"Email",k:"adminEmail"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>{f.l}</div>
+                <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Contraseña</div>
+              <input type="password" value={form.adminPass||""} onChange={e=>setForm(p=>({...p,adminPass:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setModalColegio(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardarColegioNuevo} disabled={savingColegio} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingColegio?"Creando...":"Crear colegio"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {sec==="colegio"&&(
-        <Contacto isSuperAdmin={true}/>
+        <Contacto isSuperAdmin={true} colegioId={esColegioAdmin?miColegioId:colegioId}/>
       )}
 
       {sec==="menu"&&(
         <div>
           <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🍽️ Menú comedor</div>
           <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin tener que resubir todo.</div>
-          <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile}/>
+          <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile} colegioId={esColegioAdmin?miColegioId:colegioId}/>
           <div style={{marginTop:16,background:"#F8FAFC",borderRadius:14,padding:"16px 18px",border:"1px solid #E2E8F0"}}>
             <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:10}}>📋 Formato esperado del Excel</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>

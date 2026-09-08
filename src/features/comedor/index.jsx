@@ -16,7 +16,7 @@ import { useListControls } from "../../hooks/useListControls";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
-export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
+export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=null }) {
   const [menu,setMenu]         = useState([]);
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
@@ -26,23 +26,34 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
   // upload de Excel más abajo, para no exponer esto a padres/Room Parent.
   const [editModal,setEditModal] = useState(null); // null | {fecha, entrada, plato, plato2, acompanamiento, postre, postre2}
 
+  // Multi-colegio: menu.colegio_id es NOT NULL desde supabase/multi-colegio.sql
+  // (antes había un solo comedor global). Sin colegioId explícito (uso normal
+  // de apoderado/admin fuera de Super Admin), RLS igual acota lo que
+  // devuelve la SELECT a los colegios donde el usuario es miembro — acá
+  // filtramos también client-side para no mezclar fechas de dos colegios si
+  // alguna vez el usuario fuera miembro de más de uno.
   const cargarMenu = () => {
-    supabase.from("menu").select("*").order("fecha").then(r=>setMenu(r.data||[]));
+    const q = colegioId
+      ? supabase.from("menu").select("*").eq("colegio_id",colegioId).order("fecha")
+      : supabase.from("menu").select("*").order("fecha");
+    q.then(r=>setMenu(r.data||[]));
   };
-  useEffect(()=>{ cargarMenu(); },[cursoId]);
+  useEffect(()=>{ cargarMenu(); },[cursoId, colegioId]);
 
   const abrirEdicion = (fecha) => {
     const existente = menu.find(m=>m.fecha===fecha);
-    setEditModal(existente ? {...existente} : {fecha, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:""});
+    setEditModal(existente ? {...existente} : {fecha, colegio_id:colegioId, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:""});
   };
   const guardarDia = async (form) => {
-    const { error } = await supabase.from("menu").upsert(form, { onConflict:"fecha" });
+    const { error } = await supabase.from("menu").upsert({...form, colegio_id:form.colegio_id||colegioId}, { onConflict:"colegio_id,fecha" });
     if(error) { console.error("Comedor.guardarDia:", error); return; }
     setEditModal(null);
     cargarMenu();
   };
   const borrarDia = async (fecha) => {
-    const { error } = await supabase.from("menu").delete().eq("fecha", fecha);
+    let q = supabase.from("menu").delete().eq("fecha", fecha);
+    if(colegioId) q = q.eq("colegio_id", colegioId);
+    const { error } = await q;
     if(error) { console.error("Comedor.borrarDia:", error); return; }
     setEditModal(null);
     cargarMenu();
@@ -98,7 +109,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
         <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Comedor 🍽️</div>
         <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
       </>}
-      {isSuper && <UploadMenuExcel onDone={cargarMenu}/>}
+      {isSuper && <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId}/>}
       <div style={{display:"flex",flexWrap:"nowrap",alignItems:"center",gap:6,marginBottom:18}}>
         {[{id:"diario",l:"Día"},{id:"semanal",l:"Semana"},{id:"mensual",l:"Mes"}].map(v=>(
           <button key={v.id} onClick={()=>setVista(v.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",flexShrink:0,background:vista===v.id?"#0F172A":"#F1F5F9",color:vista===v.id?"white":"#64748B"}}>{v.l}</button>
@@ -299,7 +310,7 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
   );
 }
 
-export function UploadMenuExcel({ onDone }) {
+export function UploadMenuExcel({ onDone, colegioId=null }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
 
@@ -353,8 +364,17 @@ export function UploadMenuExcel({ onDone }) {
         }
         return s;
       };
+      // Multi-colegio: menu.colegio_id es NOT NULL — sin colegioId explícito
+      // (contexto viejo, o llamado fuera de Super Admin) se resuelve al
+      // único/primer colegio existente, mismo criterio que Contacto/Comedor.
+      let colegioDestino = colegioId;
+      if(!colegioDestino) {
+        const { data: col } = await supabase.from("colegios").select("id").order("creado_en").limit(1).single();
+        colegioDestino = col?.id;
+      }
       const inserts = rows.map(r=>({
         fecha:          parseFecha(r[colFecha]),
+        colegio_id:     colegioDestino,
         entrada:        colEntrada ?r[colEntrada]||null :null,
         plato:          colPlato1  ?r[colPlato1]||null  :null,
         plato2:         colPlato2  ?r[colPlato2]||null  :null,
@@ -363,7 +383,7 @@ export function UploadMenuExcel({ onDone }) {
         postre2:        colPostre2 ?r[colPostre2]||null :null,
       })).filter(r=>r.fecha);
       if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
-      const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "fecha" });
+      const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "colegio_id,fecha" });
       if(error) throw error;
       setMsg(`✅ ${inserts.length} días actualizados correctamente`);
       onDone();

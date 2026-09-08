@@ -164,7 +164,7 @@ function App() {
   });
 
   useEffect(()=>{
-    if(!usuario||usuario.rol==="super") return;
+    if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
     const cargarItems = async () => {
       // 1. Hijos del usuario
       const { data: uhData } = await supabase
@@ -350,7 +350,9 @@ function App() {
   // Cursos donde el usuario es Room Parent — para permisos por fila en Todos.
   const cursosAdmin = items.filter(i=>i.rolEfectivo==="admin").map(i=>i.curso_id);
 
-  if(usuario.rol==="super") return (
+  // colegio_admin (multi-colegio): mismo panel que super, acotado a su
+  // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
+  if(usuario.rol==="super"||usuario.rol==="colegio_admin") return (
     <SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/>
   );
 
