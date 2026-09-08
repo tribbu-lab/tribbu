@@ -144,7 +144,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Admin</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Admin</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
 
       <button onClick={()=>setAlertaModal(true)} style={{width:"100%",minHeight:52,display:"flex",alignItems:"center",gap:10,borderRadius:14,background:"#FEF2F2",border:"1.5px solid #FCA5A5",padding:"0 16px",cursor:"pointer",marginBottom:16}}>

@@ -186,7 +186,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       )}
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
-        <div style={{fontSize:22,fontWeight:900}}>Calendario 📅</div>
+        <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Calendario 📅</div>
         {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
       </div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>Clases, eventos y cumpleaños</div>

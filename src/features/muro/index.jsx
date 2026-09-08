@@ -309,7 +309,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
       <div>
       <div style={{marginBottom:18}}>
-        <div style={{fontSize:22,fontWeight:900}}>Hola{userName?`, ${userName}`:""} 👋</div>
+        <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
       </div>
       {error&&<ErrorMuro onReintentar={cargar} tieneDatos style={{marginBottom:18}}/>}

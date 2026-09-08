@@ -261,7 +261,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
       {colectaRegaloModal&&<ColectaRegaloModal maestroNombre={colectaRegaloModal.maestroNombre} montoDefault={montoRegalo} monedaDefault={monedaRegalo} usuarios={apoderados} onClose={()=>setColectaRegaloModal(null)} onSave={crearColectaRegalo}/>}
       {isMobile ? (
         <>
-          <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Cumpleaños 🎂</div>
+          <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Cumpleaños 🎂</div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
             <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}</div>
             {montoRegalo&&<div style={{fontSize:12,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"4px 12px",borderRadius:20,border:"1px solid #BBF7D0"}}>🎁 Monto por familia: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")}</div>}

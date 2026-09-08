@@ -95,7 +95,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true }) {
   return (
     <div>
       {!isSuper&&<>
-        <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Comedor 🍽️</div>
+        <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Comedor 🍽️</div>
         <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
       </>}
       {isSuper && <UploadMenuExcel onDone={cargarMenu}/>}

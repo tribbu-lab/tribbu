@@ -62,7 +62,7 @@ export function Contacto({ cursoId, isSuperAdmin=false }) {
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:16}}>Contacto</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Contacto</div>
 
       {/* Info colegio */}
       <Card style={{padding:18,marginBottom:16}}>
@@ -310,7 +310,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:16}}>Alumnos</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Alumnos</div>
       <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar alumno..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"white",boxSizing:"border-box",marginBottom:12}}/>
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>{filtrados.length} alumnos</div>
       {grupos.map(g=>{

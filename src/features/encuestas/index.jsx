@@ -197,7 +197,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
   return (
     <div>
-      <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Encuestas 📊</div>
+      <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 4, letterSpacing: -0.3 }}>Encuestas 📊</div>
       <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>Sondeos rápidos del curso — un voto por apoderado</div>
 
       {modal && (

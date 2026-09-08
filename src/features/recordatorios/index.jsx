@@ -164,7 +164,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
   return (
     <div style={{maxWidth:900}}>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Avisos</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Avisos</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos del curso</div>
 
       {isSuper&&(

@@ -171,7 +171,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Colectas</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Colectas</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{esVistaTodos?"Colectas de todos tus cursos":"Colectas del curso"}</div>
 
       {/* Modal nueva/editar colecta */}

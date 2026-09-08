@@ -30,7 +30,7 @@ export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin,
 
   return (
     <div>
-      <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Info Útil</div>
+      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Info Útil</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Listas y uniformes del curso</div>
       <div style={{display:"flex",gap:7,marginBottom:18,maxWidth:440}}>
         {[{id:"utiles",l:"Útiles"},{id:"uniformes",l:"Uniformes"},{id:"libros",l:"Libros"},{id:"alumnos",l:"Alumnos"}].map(s=>(
