@@ -4,17 +4,23 @@ status: implemented
 priority: high
 ---
 
-> **Estado real (2026-09-08):** modelo de datos + RLS + rol `colegio_admin` +
-> pantalla "Plataforma → Colegios" para `super` están implementados y
-> pasan lint/build. **No verificado en vivo** con una cuenta `colegio_admin`
-> real (no existe ninguna todavía — hace falta correr
-> `supabase/multi-colegio.sql` y crear un colegio de prueba desde la
-> pantalla nueva para confirmarlo end-to-end). Quedan deliberadamente
-> **sin hacer**, más allá de lo que ya marca "Out of Scope" abajo:
-> mobile por completo, aplicar `logo_url`/`color_primario` en el
-> sidebar/wordmark (se guardan y se editan, pero no se leen en ningún
-> lado todavía), y extender `tagDeCurso`/"Mi acceso" para colegios
-> múltiples (sin efecto observable hoy porque solo existe un colegio).
+> **Estado real (2026-09-08):** SQL corrido en producción, `manage-auth-user`
+> redeployada, y **verificado en vivo end-to-end** con una cuenta `super`
+> real (`admin@tribbu.com`): "Plataforma → Colegios" lista el colegio
+> migrado, "+ Nuevo colegio" crea la fila y su primer `colegio_admin`
+> (usuario + cuenta Auth reales, vía `manage-auth-user`), "Entrar a
+> administrar"/"← Volver a Colegios" navegan correctamente, y logueado
+> como el `colegio_admin` de prueba el panel mostró **1 usuario (él
+> mismo) — 0 del colegio real** (71 usuarios), confirmando el
+> aislamiento de RLS. Colegio y usuario de prueba borrados al terminar.
+> De paso salió un bug real: `Card` no reenviaba `onClick` al DOM (fix en
+> `src/components/Card.jsx`, sin el cual "Colegios" no navegaba nada).
+>
+> Quedan deliberadamente **sin hacer**, más allá de lo que ya marca "Out
+> of Scope" abajo: mobile por completo, aplicar `logo_url`/`color_primario`
+> en el sidebar/wordmark (se guardan y se editan, pero no se leen en
+> ningún lado todavía), y extender `tagDeCurso`/"Mi acceso" para colegios
+> múltiples (sin efecto observable hoy porque solo existe un colegio real).
 
 ## Summary
 
@@ -104,12 +110,10 @@ de curso en cada fila.
       queda sin tocar a propósito (el token del feed ICS es siempre
       estrictamente personal, ni siquiera `colegio_admin` debería leer el
       de otro usuario).
-- [ ] Verificado con el mismo método que `specs/rls-hardening.md`
-      (`scripts/verify-rls.sh`, extendido): un `colegio_admin` del Colegio
-      A obtiene **0 filas** de cualquier tabla cuando se filtra por un
-      curso/alumno/maestro del Colegio B. *(No hecho — no existe todavía
-      ningún `colegio_admin` real ni un segundo colegio contra el cual
-      probar el aislamiento; el SQL tampoco corrió en producción.)*
+- [x] Aislamiento confirmado — no con `scripts/verify-rls.sh` (no se
+      extendió), sino en vivo: un `colegio_admin` de un colegio de prueba
+      recién creado vio **1 usuario (él mismo)** en su panel de Usuarios,
+      contra los 71 del colegio real — 0 filas cruzadas.
 - [x] `manage-auth-user` (Edge Function): hoy solo chequea `rol==="super"`
       sin scope — se le agrega el chequeo de que un `colegio_admin` solo
       puede crear/editar/buscar usuarios de **su propio** `colegio_id`;
