@@ -294,32 +294,35 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
     : [{ cursoId: null, hijos: filtrados }];
   const conEncabezados = grupos.length>1;
 
+  const fmtNac = (f) => new Date(f+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short",year:"numeric"});
+
   const renderAlumno = (h) => {
     const apods = apodMap[h.id]||[];
     return (
-      <div key={h.id} style={{background:"white",borderRadius:12,marginBottom:6,border:"1px solid #E2E8F0",overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700}}>{fmtAlumno(h)}</div>
-            {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8"}}>{new Date(h.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>}
-          </div>
+      <div key={h.id} style={{background:"white",borderRadius:12,marginBottom:8,border:"1px solid #E2E8F0",overflow:"hidden"}}>
+        <div style={{padding:"11px 14px 10px"}}>
+          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A",lineHeight:1.3}}>{fmtAlumno(h)}</div>
+          {h.fecha_nacimiento&&<div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtNac(h.fecha_nacimiento)}</div>}
         </div>
-        {apods.length>0&&(
-          <div style={{borderTop:"1px solid #F1F5F9",padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:10}}>
+        {apods.length>0?(
+          <div style={{borderTop:"1px solid #F1F5F9",padding:"9px 14px",display:"flex",flexDirection:"column",gap:9}}>
             {apods.map(a=>(
-              <div key={a.id} style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:7,height:7,borderRadius:"50%",background:"#3B82F6",flexShrink:0}}/>
-                <div>
-                  <span style={{fontSize:12,fontWeight:600,color:"#0F172A"}}>{fmtNombre(a)}</span>
-                  {a.telefono&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.telefono}</span>}
-                  {a.email&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:6}}>{a.email}</span>}
+              <div key={a.id} style={{display:"flex",gap:8}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0,marginTop:5}}/>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#0F172A",lineHeight:1.3}}>{fmtNombre(a)}</div>
+                  {(a.telefono||a.email)&&(
+                    <div style={{fontSize:11,color:"#64748B",marginTop:2,display:"flex",flexWrap:"wrap",columnGap:12,rowGap:1}}>
+                      {a.telefono&&<a href={`tel:${a.telefono}`} style={{color:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>{a.telefono}</a>}
+                      {a.email&&<a href={`mailto:${a.email}`} style={{color:"inherit",textDecoration:"none",wordBreak:"break-all"}}>{a.email}</a>}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-        )}
-        {apods.length===0&&(
-          <div style={{borderTop:"1px solid #F1F5F9",padding:"6px 14px"}}>
+        ):(
+          <div style={{borderTop:"1px solid #F1F5F9",padding:"7px 14px"}}>
             <span style={{fontSize:11,color:"#CBD5E1"}}>Sin apoderados vinculados</span>
           </div>
         )}

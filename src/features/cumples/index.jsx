@@ -388,7 +388,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
               misma palabra dos veces seguidas (mismo error reportado en
               Calendario, acá literal dentro de la propia vista). */}
           <div style={{fontSize:28,fontWeight:900,color:"#0F172A",marginBottom:4,letterSpacing:-0.5}}>Cumpleaños</div>
-          <div style={{fontSize:13.5,color:"#64748B",marginBottom:24}}>Del curso y de los maestros.</div>
+          <div style={{fontSize:13.5,color:"#64748B",marginBottom:24}}>Del curso y de los maestros</div>
 
           {invitaciones.length>0&&(
             <div style={{marginBottom:20}}>

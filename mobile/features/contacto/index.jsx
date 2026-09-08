@@ -240,23 +240,16 @@ export function Alumnos() {
     : [{ cursoId: null, hijos: filtrados }];
   const conEncabezados = grupos.length > 1;
 
+  const fmtNac = (f) =>
+    new Date(f + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+
   const renderAlumno = (h) => {
     const apods = apodMap[h.id] || [];
     return (
       <View key={h.id} style={styles.alumnoCard}>
         <View style={styles.alumnoTop}>
-          <View style={styles.flex1}>
-            <Text style={styles.alumnoNombre}>{fmtAlumno(h)}</Text>
-            {h.fecha_nacimiento ? (
-              <Text style={styles.contactoRol}>
-                {new Date(h.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </Text>
-            ) : null}
-          </View>
+          <Text style={styles.alumnoNombre}>{fmtAlumno(h)}</Text>
+          {h.fecha_nacimiento ? <Text style={styles.alumnoNac}>{fmtNac(h.fecha_nacimiento)}</Text> : null}
         </View>
         <View style={styles.apodBox}>
           {apods.length === 0 ? (
@@ -265,11 +258,15 @@ export function Alumnos() {
             apods.map((a) => (
               <View key={a.id} style={styles.apodRow}>
                 <View style={styles.apodDot} />
-                <Text style={styles.apodNombre}>
-                  {fmtNombre(a)}
-                  {a.telefono ? `  ${a.telefono}` : ""}
-                  {a.email ? `  ${a.email}` : ""}
-                </Text>
+                <View style={styles.flex1}>
+                  <Text style={styles.apodNombre}>{fmtNombre(a)}</Text>
+                  {a.telefono ? <Text style={styles.apodDato}>{a.telefono}</Text> : null}
+                  {a.email ? (
+                    <Text style={styles.apodDato} numberOfLines={1}>
+                      {a.email}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
             ))
           )}
@@ -388,11 +385,13 @@ const styles = StyleSheet.create({
     borderColor: t.borderStrong,
     overflow: "hidden",
   },
-  alumnoTop: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md },
-  alumnoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
-  apodBox: { borderTopWidth: 1, borderTopColor: t.border, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm },
-  apodRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.xs },
-  apodDot: { width: 7, height: 7, borderRadius: RADIUS.full, backgroundColor: t.accent },
-  apodNombre: { fontSize: 12, fontWeight: "600", color: t.text, flex: 1 },
+  alumnoTop: { padding: SPACE.md, paddingBottom: SPACE.sm },
+  alumnoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong, lineHeight: 18 },
+  alumnoNac: { fontSize: 11.5, color: t.textMuted, marginTop: 2 },
+  apodBox: { borderTopWidth: 1, borderTopColor: t.border, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, gap: SPACE.sm },
+  apodRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.sm },
+  apodDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: t.accent, marginTop: 5 },
+  apodNombre: { fontSize: 12.5, fontWeight: "600", color: t.textStrong, lineHeight: 16 },
+  apodDato: { fontSize: 11.5, color: t.textMuted, marginTop: 1 },
   sinApod: { fontSize: 12, color: SLATE[300] },
 });
