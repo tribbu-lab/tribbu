@@ -30,7 +30,7 @@ import { UploadMenuExcel, Comedor } from "../comedor";
 // "Promoción" no tienen módulo acá porque son web-only (ver CLAUDE.md).
 const SECCIONES = [
   { grupo: "Personas", items: [
-    { id: "usuarios", l: "👤 Usuarios" },
+    { id: "usuarios", l: "👤 Apoderados" },
     { id: "maestros", l: "👨‍🏫 Maestros" },
     { id: "alumnos", l: "🎒 Alumnos" },
     { id: "codigos", l: "🔑 Códigos" },
@@ -408,9 +408,9 @@ export function SuperAdmin() {
   if (loading) return <Spinner />;
 
   const stats = [
-    { n: usuarios.filter((u) => u.activo).length, l: "Usuarios activos", c: "#10B981", bg: "#F0FDF4" },
-    { n: usuarios.filter((u) => u.rol === "padre").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
+    { n: usuarios.length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
+    { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos", c: "#94A3B8", bg: "#F8FAFC" },
     { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },
   ];
 
@@ -466,7 +466,7 @@ export function SuperAdmin() {
             }}
             style={[styles.dashedBtn, { borderColor: "#3B82F6", backgroundColor: "#EFF6FF" }]}
           >
-            <Text style={[styles.dashedTxt, { color: "#3B82F6" }]}>+ Agregar usuario individual</Text>
+            <Text style={[styles.dashedTxt, { color: "#3B82F6" }]}>+ Agregar apoderado individual</Text>
           </Pressable>
           <ListToolbar {...ctrlUsuarios} placeholder="Buscar por nombre o email..." />
           {ctrlUsuarios.items.map((u) => (
@@ -748,7 +748,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.modalTitle}>{esNuevo ? "Nuevo usuario" : "Editar usuario"}</Text>
+            <Text style={styles.modalTitle}>{esNuevo ? "Nuevo apoderado" : "Editar apoderado"}</Text>
             {[
               { l: "Nombre", k: "nombre", ph: "Ej: María" },
               { l: "Apellido", k: "apellido", ph: "Ej: García" },
@@ -871,7 +871,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, onClose, onSave }
                 <Text style={styles.cancelTxt}>Cancelar</Text>
               </Pressable>
               <Pressable onPress={onSave} style={styles.saveBtn}>
-                <Text style={styles.saveTxt}>{esNuevo ? "Crear usuario" : "Guardar cambios"}</Text>
+                <Text style={styles.saveTxt}>{esNuevo ? "Crear apoderado" : "Guardar cambios"}</Text>
               </Pressable>
             </View>
           </ScrollView>

@@ -50,7 +50,7 @@ function CursoListSelector({ cursos, seleccionados, onToggle, multi=true, maxHei
 // wrappeaba y se volvía inmanejable). Mismo agrupamiento en mobile.
 const SECCIONES = [
   { grupo: "Personas", items: [
-    {id:"usuarios",l:"👤 Usuarios"},
+    {id:"usuarios",l:"👤 Apoderados"},
     {id:"maestros",l:"👨‍🏫 Maestros"},
     {id:"alumnos",l:"🎒 Alumnos"},
     {id:"codigos",l:"🔑 Códigos"},
@@ -79,7 +79,7 @@ const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"�
 // título + descripción de qué gestiona la pantalla — reemplaza el título
 // fijo "Panel Super Admin" que no cambiaba entre módulos.
 const SECCION_INFO = {
-  usuarios:       { titulo:"Usuarios", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores del colegio se gestionan en 🏫 Colegio, y los Super Admin de plataforma en 👑 Super Admins." },
+  usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores del colegio se gestionan en 🏫 Colegio, y los Super Admin de plataforma en 👑 Super Admins." },
   maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
   codigos:        { titulo:"Códigos de invitación", descripcion:"Para que las familias se registren solas en la app, sin que un admin les cree la cuenta a mano." },
@@ -316,7 +316,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         }
       } catch(e) {
         console.error("Error creando colegio_admin:", e);
-        showToast("Colegio creado, pero falló el alta del administrador — creálo a mano desde Usuarios.", "error");
+        showToast("Colegio creado, pero falló el alta del administrador — creálo a mano desde Apoderados.", "error");
       }
     }
     setSavingColegio(false); setModalColegio(null);
@@ -499,7 +499,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     const { error } = await supabase.from("usuario_hijos").delete().eq("usuario_id",id)
       .then(() => supabase.from("usuario_cursos").delete().eq("usuario_id",id))
       .then(() => supabase.from("usuarios").delete().eq("id",id));
-    if(error) { showToast("Error al eliminar el usuario", "error"); setConfirm(null); return; }
+    if(error) { showToast("Error al eliminar el apoderado", "error"); setConfirm(null); return; }
     setConfirm(null); cargar();
   };
 
@@ -533,7 +533,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       .map(id=>usuarios.find(u=>u.id===id))
       .filter(u=>u && !(u.usuarioCursos||[]).some(r=>r.curso_id===cursoId))
       .map(u=>({usuario_id:u.id, curso_id:cursoId, rol:"room"}));
-    if(rows.length===0) { showToast("Los usuarios seleccionados ya tienen ese curso asignado", "error"); return; }
+    if(rows.length===0) { showToast("Los apoderados seleccionados ya tienen ese curso asignado", "error"); return; }
     const { error } = await supabase.from("usuario_cursos").insert(rows);
     if(error) { showToast("Error al asignar el curso", "error"); return; }
     showToast(`${rows.length} usuario${rows.length!==1?"s":""} asignado${rows.length!==1?"s":""} como Room Parent`, "ok");
@@ -634,7 +634,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modal==="nuevo_usuario"||modal?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo usuario":"Editar usuario"}</div>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo apoderado":"Editar apoderado"}</div>
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"},{label:"DNI",key:"dni",type:"text",ph:"Ej: 12345678"},{label:"Teléfono",key:"telefono",type:"tel",ph:"Ej: +54 11 1234-5678"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
@@ -765,7 +765,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarUsuario} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_usuario"?"Crear usuario":"Guardar cambios"}</button>
+              <button onClick={guardarUsuario} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_usuario"?"Crear apoderado":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1049,7 +1049,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   📤 Cargar Excel
                   <UploadApoderadosExcel onDone={cargar} compact/>
                 </label>
-                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo usuario</button>
+                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo apoderado</button>
               </div>
             )}
             {sec==="maestros" && (
@@ -1083,7 +1083,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         const sinRegistrarse = hijos.filter(h=>!hijosConApoderado.has(h.id)).length;
         const inactivos = usuariosNormales.filter(u=>!u.activo).length;
         const STATS = [
-          {n:usuariosNormales.length, l:"Usuarios", sub:null, c:"#0F172A", bg:"#F1F5F9"},
+          {n:usuariosNormales.length, l:"Apoderados", sub:null, c:"#0F172A", bg:"#F1F5F9"},
           {n:roomParents.length, l:"Room Parents", sub:cursosConRP?`en ${cursosConRP} curso${cursosConRP!==1?"s":""}`:null, c:"#8B5CF6", bg:"#F5F3FF"},
           {n:sinRegistrarse, l:"Sin registrarse", sub:sinRegistrarse?"invitados":null, c:"#F59E0B", bg:"#FFFBEB"},
           {n:inactivos, l:"Inactivos", sub:null, c:"#94A3B8", bg:"#F8FAFC"},
@@ -1138,7 +1138,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
             {selUsuarios.size>0 && (
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#0F172A"}}>
-                <span style={{fontSize:12.5,fontWeight:700,color:"white"}}>{selUsuarios.size} usuario{selUsuarios.size!==1?"s":""} seleccionado{selUsuarios.size!==1?"s":""}</span>
+                <span style={{fontSize:12.5,fontWeight:700,color:"white"}}>{selUsuarios.size} apoderado{selUsuarios.size!==1?"s":""} seleccionado{selUsuarios.size!==1?"s":""}</span>
                 <div style={{flex:1}}/>
                 <button onClick={()=>showToast("El sistema de invitaciones por email todavía no está definido", "error")} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reenviar invitación</button>
                 <button onClick={()=>setAsignarCursoModal(true)} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Asignar a curso</button>
@@ -1156,12 +1156,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
                 <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
               </>}
-              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlUsuarios.total} usuarios</div>}
+              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlUsuarios.total} apoderados</div>}
             </div>
 
             {ctrlUsuarios.items.length===0 ? (
               <div style={{textAlign:"center",padding:"48px 24px"}}>
-                <div style={{fontSize:15,fontWeight:800}}>Ningún usuario coincide</div>
+                <div style={{fontSize:15,fontWeight:800}}>Ningún apoderado coincide</div>
                 <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo de los filtros de rol y estado.</div>
                 <button onClick={ctrlUsuarios.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
               </div>
@@ -1223,7 +1223,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setAsignarCursoModal(false)}>
               <div style={{background:"white",borderRadius:16,padding:22,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
                 <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Asignar a curso</div>
-                <div style={{fontSize:12,color:"#64748B",marginBottom:14}}>Los {selUsuarios.size} usuarios seleccionados quedan como Room Parent del curso que elijas.</div>
+                <div style={{fontSize:12,color:"#64748B",marginBottom:14}}>Los {selUsuarios.size} apoderados seleccionados quedan como Room Parent del curso que elijas.</div>
                 <CursoListSelector cursos={cursosAnoActual} seleccionados={[]} onToggle={(cid)=>asignarCursoLote(cid)} multi={false} maxHeight={260}/>
                 <button onClick={()=>setAsignarCursoModal(false)} style={{width:"100%",marginTop:14,padding:"10px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
               </div>
@@ -2507,7 +2507,7 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
 
 // `compact`: variante para el header contextual (handoff Tribbu Admin) — solo
 // el input + mensaje, sin el cuadro punteado grande, que en el mockup no
-// existe (ahí el CTA principal es "+ Nuevo usuario" arriba a la derecha).
+// existe (ahí el CTA principal es "+ Nuevo apoderado" arriba a la derecha).
 export function UploadApoderadosExcel({ onDone, compact=false }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
