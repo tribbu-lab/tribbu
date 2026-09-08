@@ -7,6 +7,7 @@ export { Spinner }     from "./Spinner";
 export { Paginador }   from "./Paginador";
 export { ListToolbar } from "./ListToolbar";
 export { AdjuntosInput, AdjuntosList, MAX_ADJUNTOS } from "./Adjuntos";
+export { LogoUploadInput } from "./LogoUploadInput";
 export { Wordmark }     from "./Wordmark";
 export { AdminFormModal } from "./AdminFormModal";
 export { ConfirmDestructivoModal } from "./ConfirmDestructivoModal";

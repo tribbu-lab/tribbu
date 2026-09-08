@@ -9,6 +9,7 @@ import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
+import { LogoUploadInput } from "../../components/LogoUploadInput";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 
@@ -89,8 +90,8 @@ export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
               </div>
             ))}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>LOGO (URL)</div>
-              <input value={colegioForm.logo_url||""} onChange={e=>setColegioForm(p=>({...p,logo_url:e.target.value}))} placeholder="https://..." style={inp}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>LOGO</div>
+              <LogoUploadInput colegioId={colegio?.id} value={colegioForm.logo_url} onChange={url=>setColegioForm(p=>({...p,logo_url:url}))}/>
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>COLOR PRIMARIO</div>

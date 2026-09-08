@@ -108,6 +108,7 @@ function App() {
   const [openFecha,     setOpenFecha]     = useState(null);
   const [cursoIdx,      setCursoIdx]      = useState(0);
   const [items,         setItems]         = useState([]);
+  const [colegiosPorId, setColegiosPorId] = useState({});
   const [hijoColorsMap, setHijoColorsMap] = useState({});
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
   const [badgeCount,    setBadgeCount]    = useState(0);
@@ -169,7 +170,7 @@ function App() {
       // 1. Hijos del usuario
       const { data: uhData } = await supabase
         .from("usuario_hijos")
-        .select("hijo_id, hijos(*, cursos(nombre,color,avatar))")
+        .select("hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))")
         .eq("usuario_id", usuario.id);
 
       // 2. Cursos donde es Room Parent
@@ -194,6 +195,18 @@ function App() {
       // default): la vista unificada domina todas las pantallas vía cursoIds.
       const cursosDistintos = new Set(items.map(h=>h.curso_id).filter(Boolean));
       setItems(cursosDistintos.size>1 ? [{_tipo:"todos", id:"__todos__", nombre:"Todos"}, ...items] : items);
+
+      // Logo del colegio activo (sidebar/header) — un query chico, solo los
+      // colegios realmente en juego. En "Todos" (>1 colegio posible, aunque
+      // hoy no pasa en la práctica) no se resuelve ninguno en particular acá:
+      // el picker de abajo usa itemActual, que en Todos es null.
+      const colegioIds = [...new Set(items.map(h=>h.cursos?.colegio_id).filter(Boolean))];
+      if(colegioIds.length) {
+        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url").in("id",colegioIds);
+        setColegiosPorId(Object.fromEntries((cols||[]).map(c=>[c.id,c])));
+      } else {
+        setColegiosPorId({});
+      }
     };
     cargarItems();
   },[usuario]);
@@ -324,6 +337,10 @@ function App() {
   const itemActual   = items[cursoIdx];
   const esVistaTodos = _esVistaTodos;
   const cursoIds     = _cursoIds;
+  // Logo del colegio para el header/sidebar (ver LogoUploadInput en Contacto
+  // y cargarItems más arriba) — solo con un colegio inequívoco (no en Todos,
+  // no para super/colegio_admin, que no pasan por acá).
+  const colegioActivo = !esVistaTodos ? colegiosPorId[itemActual?.cursos?.colegio_id] : null;
   // En "Todos" no hay curso único: sin rol admin (las acciones por curso
   // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
   const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
@@ -492,7 +509,12 @@ function App() {
 
         {/* Barra superior: logo + usuario */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
-          <Wordmark size={22} letterSpacing={-1} />
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Wordmark size={22} letterSpacing={-1} />
+            {/* Logo del colegio — chico, al lado del wordmark, nunca lo
+                reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
+            {colegioActivo?.logo_url&&<img src={colegioActivo.logo_url} alt={colegioActivo.nombre} title={colegioActivo.nombre} style={{width:22,height:22,borderRadius:6,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2}}/>}
+          </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
             {/* Campana de notificaciones */}
@@ -598,7 +620,12 @@ function App() {
       <style>{`#tribbu-sidebar button, #tribbu-sidebar span, #tribbu-sidebar div { color: white !important; -webkit-text-fill-color: white !important; }`}</style>
       <div id="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
-          <Wordmark size={26} letterSpacing={-1} style={{marginBottom:4}} />
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <Wordmark size={26} letterSpacing={-1} />
+            {/* Logo del colegio — chico, al lado del wordmark, nunca lo
+                reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
+            {colegioActivo?.logo_url&&<img src={colegioActivo.logo_url} alt={colegioActivo.nombre} title={colegioActivo.nombre} style={{width:26,height:26,borderRadius:7,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2,flexShrink:0}}/>}
+          </div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
         </div>
 
