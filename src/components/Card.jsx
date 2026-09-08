@@ -8,7 +8,7 @@ import { T } from "../lib/theme";
  *   <Card>contenido</Card>
  *   <Card style={{ padding: 12 }}>contenido compacto</Card>
  */
-export function Card({ children, style = {} }) {
+export function Card({ children, style = {}, ...rest }) {
   return (
     <div
       style={{
@@ -21,6 +21,7 @@ export function Card({ children, style = {} }) {
         transition:    "transform 0.2s ease",
         ...style,
       }}
+      {...rest}
     >
       {children}
     </div>
