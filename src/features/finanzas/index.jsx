@@ -255,7 +255,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         </div>
       )}
 
-      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
+      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:(!isAdmin&&deudaTotal>0)?"1fr 320px":"1fr",gap:20,alignItems:"start"}}>
       <div>
       {/* Botón nueva colecta (admin) */}
       {isAdmin&&(
@@ -363,23 +363,16 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       </div>
 
       {/* Aside de escritorio (handoff Tribbu Apoderado Web, Parte 7): deuda
-          propia agregada + nota de encuadre. "Aprovecha el ancho", no
-          agrega funcionalidad nueva — mismos datos ya cargados. */}
-      {!isMobile&&(
+          propia agregada. "Aprovecha el ancho", no agrega funcionalidad
+          nueva — mismos datos ya cargados. */}
+      {!isMobile&&!isAdmin&&deudaTotal>0&&(
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          {!isAdmin&&deudaTotal>0&&(
-            <div style={{border:"1px solid #FDE68A",borderRadius:16,background:"#FFFBEB",padding:20}}>
-              <div style={{fontSize:22}}>💰</div>
-              <div style={{fontSize:15,fontWeight:800,marginTop:8}}>Te falta aportar {fmtM(deudaTotal)}</div>
-              <div style={{fontSize:12.5,color:"#78350F",marginTop:5,lineHeight:1.6}}>
-                En {coleccionesConDeuda} colecta{coleccionesConDeuda!==1?"s":""} abierta{coleccionesConDeuda!==1?"s":""}.
-              </div>
+          <div style={{border:"1px solid #FDE68A",borderRadius:16,background:"#FFFBEB",padding:20}}>
+            <div style={{fontSize:22}}>💰</div>
+            <div style={{fontSize:15,fontWeight:800,marginTop:8}}>Te falta aportar {fmtM(deudaTotal)}</div>
+            <div style={{fontSize:12.5,color:"#78350F",marginTop:5,lineHeight:1.6}}>
+              En {coleccionesConDeuda} colecta{coleccionesConDeuda!==1?"s":""} abierta{coleccionesConDeuda!==1?"s":""}.
             </div>
-          )}
-          <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:20}}>
-            <div style={{fontSize:20,color:"#94A3B8"}}>🔒</div>
-            <div style={{fontSize:14,fontWeight:800,marginTop:8}}>tribbu no mueve plata</div>
-            <div style={{fontSize:12.5,color:"#64748B",marginTop:5,lineHeight:1.6}}>Registrás que aportaste y el Room Parent lo confirma. Los datos bancarios los comparte quien organiza la colecta.</div>
           </div>
         </div>
       )}

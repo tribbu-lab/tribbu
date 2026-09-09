@@ -402,10 +402,6 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         );
       })}
 
-      {colectas.length > 0 ? (
-        <Text style={styles.notaEncuadre}>💡 tribbu no mueve plata: los datos para aportar (alias, cuenta, etc.) los define quien organiza la colecta. Acá solo se registra quién ya aportó.</Text>
-      ) : null}
-
       <ColectaFormModal
         visible={modal !== null}
         form={form}
@@ -624,7 +620,6 @@ const styles = StyleSheet.create({
   deudaBanner: { backgroundColor: t.warningSoft, borderWidth: 1.5, borderColor: "#FDE68A", borderRadius: RADIUS.xl, padding: 14, marginBottom: SPACE.lg },
   deudaTitulo: { fontSize: 14.5, fontWeight: "800", color: "#B45309" },
   deudaSub: { fontSize: 12, color: "#92400E", marginTop: 3 },
-  notaEncuadre: { fontSize: 11.5, color: t.textFaint, lineHeight: 16, textAlign: "center", marginTop: 4, marginBottom: 8 },
   colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden", borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   cerrada: { opacity: 0.6 },
   colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border, flexDirection: "row", gap: 12 },
