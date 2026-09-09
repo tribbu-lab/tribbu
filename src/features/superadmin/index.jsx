@@ -598,9 +598,27 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   };
 
   const eliminarAlumno = async (id) => {
+    // No hay ON DELETE CASCADE en las FKs que apuntan a hijos, así que hay que
+    // limpiar a mano todo lo que referencia al alumno antes del delete final,
+    // o Postgres lo rechaza (23503) y la baja "no anda" sin motivo visible.
+    // Orden: asistencias (dependen de eventos y de hijos) → festejos propios →
+    // pagos de colecta → config de cumpleaños → vínculo con apoderados → hijo.
+    const { data: festejos } = await supabase.from("eventos").select("id").eq("tipo","festejo").eq("alumno_id",id);
+    const festejoIds = (festejos||[]).map(e=>e.id);
+    await supabase.from("evento_asistencia").delete().eq("alumno_invitado_id",id);
+    if(festejoIds.length) {
+      await supabase.from("evento_asistencia").delete().in("evento_id",festejoIds);
+      await supabase.from("eventos").delete().in("id",festejoIds);
+    }
+    await supabase.from("colecta_pagos").delete().eq("alumno_id",id);
+    await supabase.from("cumples").delete().eq("alumno_id",id);
     await supabase.from("usuario_hijos").delete().eq("hijo_id",id);
     const { error } = await supabase.from("hijos").delete().eq("id",id);
-    if(error) { showToast("Error al eliminar el alumno", "error"); setConfirm(null); return; }
+    if(error) {
+      console.error("eliminarAlumno:", error);
+      showToast(`No se pudo eliminar: ${error.details || error.message}`, "error");
+      setConfirm(null); return;
+    }
     setConfirm(null); cargar();
   };
 

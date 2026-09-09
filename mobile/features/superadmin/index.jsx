@@ -6,7 +6,7 @@
 // EmojiPicker en mobile) y Share para compartir códigos (sin dep de portapapeles).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Image, Pressable, ScrollView, TextInput, Modal, Share, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Image, Pressable, ScrollView, TextInput, Modal, Share, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -357,9 +357,26 @@ export function SuperAdmin() {
     cargar();
   };
   const eliminarAlumno = async (id) => {
+    // No hay ON DELETE CASCADE en las FKs que apuntan a hijos: hay que limpiar
+    // todo lo que referencia al alumno antes del delete final (asistencias →
+    // festejos propios → pagos de colecta → cumpleaños → vínculo apoderados).
+    const { data: festejos } = await supabase.from("eventos").select("id").eq("tipo", "festejo").eq("alumno_id", id);
+    const festejoIds = (festejos || []).map((e) => e.id);
+    await supabase.from("evento_asistencia").delete().eq("alumno_invitado_id", id);
+    if (festejoIds.length) {
+      await supabase.from("evento_asistencia").delete().in("evento_id", festejoIds);
+      await supabase.from("eventos").delete().in("id", festejoIds);
+    }
+    await supabase.from("colecta_pagos").delete().eq("alumno_id", id);
+    await supabase.from("cumples").delete().eq("alumno_id", id);
     await supabase.from("usuario_hijos").delete().eq("hijo_id", id);
-    await supabase.from("hijos").delete().eq("id", id);
+    const { error } = await supabase.from("hijos").delete().eq("id", id);
     setConfirm(null);
+    if (error) {
+      console.warn("eliminarAlumno:", error);
+      Alert.alert("No se pudo eliminar", error.details || error.message || "Error al eliminar el alumno");
+      return;
+    }
     cargar();
   };
 
