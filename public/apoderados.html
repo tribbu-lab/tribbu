@@ -96,6 +96,11 @@
   .phoneFrame img{width:100%;display:block;border-radius:36px 36px 0 0}
 
   section{padding:96px 0 0}
+  /* .wrap pisa el padding de section (misma cara, más especificidad):
+     lo devolvemos con un selector combinado, solo el top y sin tocar el
+     padding horizontal de .wrap */
+  section.wrap{padding-top:104px}
+  @media (max-width:900px){section.wrap{padding-top:64px}}
   .eyebrow{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--blue-text)}
   h2{margin:12px 0 0;font-size:44px;line-height:1.1;font-weight:800;letter-spacing:-1.6px}
   @media (max-width:900px){h2{font-size:30px;letter-spacing:-1px}}
@@ -125,7 +130,6 @@
   .testAvatar{width:42px;height:42px;border-radius:999px;background:rgba(96,165,250,.2);color:var(--blue-lighter);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
   .testNombre{font-size:14.5px;font-weight:700;color:#fff}
   .testSub{font-size:12.5px;color:rgba(255,255,255,.5);margin-top:2px}
-  .quoteMark{font-size:30px;color:var(--blue-light);position:relative}
 
   /* modulos */
   .modGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
@@ -390,7 +394,6 @@
     </div>
     <div class="testimonio">
       <div class="testimonioGlow"></div>
-      <span class="quoteMark">"</span>
       <q>Dejé de ser la mamá que pregunta "¿alguien sabe si mañana hay clase?" a las once de la noche.</q>
       <div class="testAutor">
         <div class="testAvatar">MT</div>
