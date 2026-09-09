@@ -205,6 +205,12 @@
   .webPendRight{display:flex;align-items:center;gap:9px;flex:none}
   .webPendAccion{padding:0 13px;min-height:34px;display:flex;align-items:center;border-radius:9px;background:var(--blue-soft);color:var(--blue-text);font-size:12.5px;font-weight:800}
   .webPendChip{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px}
+  /* en pantallas angostas el bloque de acción no entra al lado del texto
+     (el título terminaba partido palabra por palabra) → baja a su renglón */
+  @media (max-width:620px){
+    .webPendCard{flex-wrap:wrap}
+    .webPendRight{width:100%;margin-top:12px;margin-left:51px;justify-content:flex-start}
+  }
   .webAgendaCard{border:1px solid var(--border);border-radius:15px;background:#fff;overflow:hidden}
   .webAgendaRow{display:flex;align-items:center;gap:11px;padding:13px}
   .webAgendaRow+.webAgendaRow{border-top:1px solid var(--sep)}
