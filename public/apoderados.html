@@ -69,12 +69,8 @@
   .storeBadges{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .storeBadges a{display:block;line-height:0;transition:opacity .15s}
   .storeBadges a:hover{opacity:.82}
-  .storeBadges .badgeApple{height:50px;width:auto;display:block}
-  .storeBadges .badgeGoogle{height:58px;width:auto;display:block;margin:-4px 0}
-  @media (max-width:420px){
-    .storeBadges .badgeApple{height:44px}
-    .storeBadges .badgeGoogle{height:51px}
-  }
+  .storeBadges img{height:50px;width:auto;display:block}
+  @media (max-width:420px){.storeBadges img{height:44px}}
 
   /* hero */
   .hero{background:var(--navy);position:relative;overflow:hidden}
@@ -275,7 +271,7 @@
   /* cta final */
   .ctaFinal{border-radius:28px;background:linear-gradient(#F8FAFC,#EFF6FF);border:1px solid #DDE7F6;padding:64px;text-align:center;margin-bottom:96px}
   @media (max-width:900px){.ctaFinal{padding:32px}}
-  .ctaFinal img{width:60px;height:60px;border-radius:16px;display:block;margin:0 auto 24px}
+  .ctaFinal > img{width:60px;height:60px;border-radius:16px;display:block;margin:0 auto 24px}
   .ctaFinal h2{max-width:700px;margin-left:auto;margin-right:auto}
   .ctaFinal p{margin:18px auto 0;font-size:17.5px;line-height:1.6;color:var(--body);max-width:520px}
   .ctaFinalBtns{display:flex;justify-content:center;gap:12px;margin-top:32px;flex-wrap:wrap}
