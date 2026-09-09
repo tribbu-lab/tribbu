@@ -20,7 +20,8 @@
     --pink:#EC4899; --pink-text:#DB2777; --pink-soft:#FDF2F8;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased}
+  html{overflow-x:hidden}
+  body{margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden}
   a{color:var(--blue-text);text-decoration:none}
   a:hover{color:#1D4ED8}
   button{font-family:inherit}
@@ -28,7 +29,7 @@
   .wrap{max-width:1180px;margin:0 auto;padding:0 40px}
   @media (max-width:900px){.wrap{padding:0 20px}}
   .hide-mobile{display:initial}
-  @media (max-width:900px){.hide-mobile{display:none}}
+  @media (max-width:900px){.hide-mobile{display:none!important}}
 
   /* header */
   header{position:sticky;top:0;z-index:20;background:rgba(11,18,32,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
@@ -42,13 +43,43 @@
   .headerActions{display:flex;align-items:center;gap:14px}
   .btnGhostDark{display:flex;align-items:center;gap:7px;min-height:42px;padding:0 14px;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:transparent;color:rgba(255,255,255,.85);font-size:13.5px;font-weight:700;cursor:pointer}
   .btnGhostDark:hover{border-color:rgba(255,255,255,.4);color:#fff}
-  .btnBlue{min-height:42px;padding:0 20px;border:none;border-radius:11px;background:var(--blue);color:#fff;font-size:14px;font-weight:800;cursor:pointer}
-  .btnBlue:hover{background:var(--blue-text)}
+  .btnBlue{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 20px;border:none;border-radius:11px;background:var(--blue);color:#fff;font-size:14px;font-weight:800;cursor:pointer;text-decoration:none}
+  .btnBlue:hover{background:var(--blue-text);color:#fff}
+
+  /* menú mobile */
+  .menuBtn{display:none;width:42px;height:42px;flex:none;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:transparent;color:#fff;cursor:pointer}
+  .menuBtn:active{background:rgba(255,255,255,.08)}
+  .menuBtn svg{width:20px;height:20px;display:block}
+  @media (max-width:900px){
+    .menuBtn{display:flex}
+    .headerInner{gap:0;justify-content:space-between}
+  }
+  .mobileMenu{position:fixed;inset:0;z-index:60;background:rgba(11,18,32,.98);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:none;flex-direction:column;padding:22px 22px 32px;overflow-y:auto}
+  .mobileMenu.open{display:flex}
+  .mmTop{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+  .mmClose{width:42px;height:42px;flex:none;border:none;background:rgba(255,255,255,.08);border-radius:11px;color:#fff;font-size:19px;cursor:pointer}
+  .mobileMenu nav{flex-direction:column;gap:0;flex:none}
+  .mobileMenu nav a{font-size:19px;font-weight:700;color:#fff;padding:17px 2px;border-bottom:1px solid rgba(255,255,255,.09)}
+  .mmActions{display:flex;flex-direction:column;gap:12px;margin-top:26px}
+  .mmActions a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:12px;font-size:15px;font-weight:800;text-decoration:none}
+  .mmActions .prim{background:var(--blue);color:#fff}
+  .mmActions .ghost{border:1.5px solid rgba(255,255,255,.18);color:#fff}
+
+  /* badges de tiendas */
+  .storeBadges{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .storeBadges a{display:block;line-height:0;transition:opacity .15s}
+  .storeBadges a:hover{opacity:.82}
+  .storeBadges .badgeApple{height:50px;width:auto;display:block}
+  .storeBadges .badgeGoogle{height:58px;width:auto;display:block;margin:-4px 0}
+  @media (max-width:420px){
+    .storeBadges .badgeApple{height:44px}
+    .storeBadges .badgeGoogle{height:51px}
+  }
 
   /* hero */
   .hero{background:var(--navy);position:relative;overflow:hidden}
   .heroGlow{position:absolute;top:-180px;right:-120px;width:620px;height:620px;border-radius:999px;background:radial-gradient(circle,rgba(59,130,246,.22),transparent 68%)}
-  .heroGrid{padding:84px 0 0;display:grid;grid-template-columns:1fr 430px;gap:56px;align-items:center;position:relative}
+  .heroGrid{padding-top:84px;display:grid;grid-template-columns:1fr 430px;gap:56px;align-items:center;position:relative}
   @media (max-width:980px){.heroGrid{grid-template-columns:1fr;padding-top:56px}}
   .badge-tracc{display:inline-flex;align-items:center;gap:9px;padding:7px 14px;border-radius:999px;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.3);margin-bottom:26px}
   .badge-tracc .dot{width:7px;height:7px;border-radius:999px;background:var(--blue-light)}
@@ -138,7 +169,7 @@
   .urlBar{flex:1;max-width:340px;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;background:#fff;border:1px solid #E2E8F0}
   .urlBar span{font-size:12.5px;font-weight:600;color:var(--muted)}
   .webBody{display:grid;grid-template-columns:220px 1fr;background:var(--bg);min-height:560px;font-family:'DM Sans',system-ui,sans-serif}
-  @media (max-width:760px){.webBody{grid-template-columns:1fr;min-height:auto}.webSidebar{display:none}}
+  @media (max-width:760px){.webBody{grid-template-columns:1fr;min-height:auto}.webSidebar{display:none!important}}
   .webSidebar{background:var(--navy2);padding:24px 12px 16px;display:flex;flex-direction:column}
   .webSidebar .wm{font-size:26px;color:#fff;letter-spacing:-1px;padding:0 8px}
   .webSidebar .tag{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.4);margin:4px 0 16px;padding:0 8px}
@@ -184,7 +215,7 @@
   .webAgendaMeta{display:flex;align-items:center;gap:6px;margin-top:2px}
   .webAgendaMeta span.t{font-size:11.5px;color:var(--label)}
   .kdotsm{width:7px;height:7px;border-radius:999px;display:block}
-  .webPlusGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+  .webPlusGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px}
   @media (max-width:900px){.webPlusGrid{grid-template-columns:1fr}}
   .webPlusCard{display:flex;align-items:flex-start;gap:12px;padding:20px;border:1px solid var(--border2);border-radius:16px;background:var(--bg)}
   .webPlusCard .ico{color:var(--blue-text);font-size:19px}
@@ -211,7 +242,7 @@
   /* colegios navy */
   .colegiosSection{margin-top:96px;background:var(--navy);position:relative;overflow:hidden;padding:0}
   .colegiosGlow{position:absolute;top:-200px;left:50%;width:760px;height:520px;border-radius:999px;background:radial-gradient(circle,rgba(59,130,246,.18),transparent 70%)}
-  .colegiosGrid{padding:84px 0;position:relative;display:grid;grid-template-columns:1fr 400px;gap:64px;align-items:center}
+  .colegiosGrid{padding-top:84px;padding-bottom:84px;position:relative;display:grid;grid-template-columns:1fr 400px;gap:64px;align-items:center}
   @media (max-width:900px){.colegiosGrid{grid-template-columns:1fr}}
   .colegiosGrid .eyebrow{color:var(--blue-light)}
   .colegiosGrid h2{color:#fff}
@@ -289,10 +320,32 @@
     </nav>
     <div class="headerActions">
       <a href="/app" class="btnGhostDark hide-mobile">🌐 tribbu.ar/app</a>
-      <button class="btnBlue" onclick="avisar('La app está en App Store y Google Play muy pronto')">Descargar la app</button>
+      <a href="#descargar" class="btnBlue hide-mobile">Descargar la app</a>
+      <button class="menuBtn" onclick="toggleMenu(true)" aria-label="Abrir menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
     </div>
   </div>
 </header>
+
+<div class="mobileMenu" id="mobileMenu">
+  <div class="mmTop">
+    <div class="logo"><img src="/icon-192.png" alt="tribbu"><span class="wm" style="font-size:23px">tribbu<span style="color:#3B82F6">.</span></span></div>
+    <button class="mmClose" onclick="toggleMenu(false)" aria-label="Cerrar menú">✕</button>
+  </div>
+  <nav>
+    <a href="#producto" onclick="toggleMenu(false)">Producto</a>
+    <a href="#roles" onclick="toggleMenu(false)">Para quién es</a>
+    <a href="#web" onclick="toggleMenu(false)">Versión web</a>
+    <a href="#colegios" onclick="toggleMenu(false)">Colegios</a>
+    <a href="#empezar" onclick="toggleMenu(false)">Cómo entrar</a>
+    <a href="#faq" onclick="toggleMenu(false)">Preguntas</a>
+  </nav>
+  <div class="mmActions">
+    <a href="#descargar" class="prim" onclick="toggleMenu(false)">⬇️ Descargar la app</a>
+    <a href="/app" class="ghost">🌐 Entrar desde el navegador</a>
+  </div>
+</div>
 
 <section class="hero" style="padding-top:0">
   <div class="heroGlow"></div>
@@ -302,9 +355,12 @@
       <h1 class="heroTitle">La comunidad<br>del curso, sin<br><span class="accent">200 mensajes</span> sin leer.</h1>
       <p class="heroP">Recordatorios, calendario, cumples, colectas y comedor de cada uno de tus hijos en un solo lugar. Lo que importa, arriba. Lo demás, en silencio.</p>
       <div class="heroCtas">
-        <button class="btnCtaPrimary" onclick="avisar('La app está en App Store y Google Play muy pronto')">⬇️ Descargar gratis</button>
-        <button class="btnCtaGhost" onclick="avisar('El video llega pronto')">▶️ Ver cómo funciona</button>
+        <div class="storeBadges">
+          <a href="https://apps.apple.com/ar/app/id6787757386" target="_blank" rel="noopener"><img class="badgeApple" src="/apoderados-media/appstore-badge.svg" alt="Descargar en el App Store"></a>
+          <a href="https://play.google.com/store/apps/details?id=com.tribbu.app" target="_blank" rel="noopener"><img class="badgeGoogle" src="/apoderados-media/googleplay-badge.png" alt="Disponible en Google Play"></a>
+        </div>
       </div>
+      <button class="btnCtaGhost" style="margin-top:16px" onclick="avisar('El video llega pronto')">▶️ Ver cómo funciona</button>
       <a href="/app" class="heroWebLink">🌐 O entrá sin instalar nada desde tribbu.ar/app →</a>
     </div>
     <div class="heroPhone">
@@ -383,7 +439,7 @@
   <div class="multihijo">
     <div>
       <div class="eyebrow">Multi-hijo</div>
-      <h2 style="font-size:38px;letter-spacing:-1.3px">Dos hijos, dos cursos, una sola agenda.</h2>
+      <h2 style="font-size:38px;letter-spacing:-1.3px">Todos tus hijos, una sola agenda.</h2>
       <p class="lead" style="font-size:16.5px;max-width:480px">El calendario suma los eventos de todos tus hijos y te deja filtrar por chico con un toque. Cada uno con su color, para saber de quién es cada cosa de un vistazo.</p>
       <div class="bullets">
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Un color por hijo en toda la app</span></div>
@@ -477,7 +533,6 @@
   <div class="webPlusGrid">
     <div class="webPlusCard"><span class="ico">🔄</span><div><b>Todo sincronizado</b><span>Lo que marcás leído en la web aparece leído en el teléfono.</span></div></div>
     <div class="webPlusCard"><span class="ico">⌨️</span><div><b>Pensada para escribir</b><span>Los Room Parents redactan recordatorios y cargan colectas con teclado.</span></div></div>
-    <div class="webPlusCard"><span class="ico">📲</span><div><b>Se instala como app</b><span>Es PWA: la fijás en el escritorio y abre en pantalla completa, sin pasar por la tienda.</span></div></div>
   </div>
 </section>
 
@@ -499,7 +554,7 @@
       <div>
         <h3>Enterarte sin leer 200 mensajes.</h3>
         <p>Abrís tribbu y arriba está lo único que tenés que resolver hoy: el recordatorio sin leer, la colecta sin pagar, la invitación sin responder. El resto espera.</p>
-        <button class="rolesCta" onclick="avisar('La app está en App Store y Google Play muy pronto')">Descargar la app</button>
+        <button class="rolesCta" onclick="document.getElementById('descargar').scrollIntoView({behavior:'smooth'})">Descargar la app</button>
       </div>
       <div class="rolesItems">
         <div class="rolesItem"><span class="ico">📌</span><div><b>Pendientes accionables</b><span>Marcás leído, pagás o confirmás desde la misma tarjeta.</span></div></div>
@@ -512,7 +567,7 @@
       <div>
         <h3>Organizar el curso sin ser secretaria.</h3>
         <p>Publicás una vez y sabés quién leyó. Las colectas se llevan solas: quién puso, quién falta, cuánto queda, sin planillas ni capturas de transferencias.</p>
-        <button class="rolesCta" onclick="avisar('La app está en App Store y Google Play muy pronto')">Crear mi curso</button>
+        <button class="rolesCta" onclick="document.getElementById('empezar').scrollIntoView({behavior:'smooth'})">Crear mi curso</button>
       </div>
       <div class="rolesItems">
         <div class="rolesItem"><span class="ico">📢</span><div><b>Avisos con confirmación</b><span>Ves las 24 familias y quién todavía no abrió.</span></div></div>
@@ -557,12 +612,12 @@
     <div>
       <div class="eyebrow">Para arrancar</div>
       <h2 style="font-size:38px;letter-spacing:-1.3px">Cómo entrar por primera vez.</h2>
-      <p class="lead" style="font-size:15.5px;color:var(--muted)">Tres pasos, una sola vez. Después entrás con tu mail y contraseña — o con huella digital en el celular.</p>
+      <p class="lead" style="font-size:15.5px;color:var(--muted)">Tres pasos, una sola vez. Después entrás con tu mail y contraseña — o con acceso biométrico en el celular.</p>
     </div>
     <div>
       <div class="pasoCard"><div class="pasoNum">1</div><div><b>Recibís un código de invitación</b><span>El colegio comparte un código por curso, junto con el mail que vas a usar para entrar.</span></div></div>
       <div class="pasoCard"><div class="pasoNum">2</div><div><b>Te registrás con ese código</b><span>En la pantalla de ingreso elegís "Registrarme con código de invitación" y definís tu contraseña.</span></div></div>
-      <div class="pasoCard" style="margin-bottom:0"><div class="pasoNum">3</div><div><b>Listo, entrás cuando quieras</b><span>Con tu mail y contraseña, en el celular o en tribbu.ar/app. En el teléfono podés usar huella digital.</span></div></div>
+      <div class="pasoCard" style="margin-bottom:0"><div class="pasoNum">3</div><div><b>Listo, entrás cuando quieras</b><span>Con tu mail y contraseña, en el celular o en tribbu.ar/app. En el teléfono podés usar acceso biométrico (huella o Face ID).</span></div></div>
     </div>
   </div>
 </section>
@@ -578,16 +633,18 @@
   </div>
 </section>
 
-<section class="wrap">
+<section class="wrap" id="descargar">
   <div class="ctaFinal">
     <img src="/icon-192.png" alt="tribbu">
     <h2>Pedile el código al Room Parent<br>y entrá en dos minutos.</h2>
     <p>Gratis para las familias, siempre. El colegio paga solo si quiere el panel institucional.</p>
     <div class="ctaFinalBtns">
-      <button class="btnDark" onclick="avisar('La app está en App Store y Google Play muy pronto')">Descargar para iOS</button>
-      <button class="btnOutlineLight" onclick="avisar('La app está en App Store y Google Play muy pronto')">Descargar para Android</button>
-      <a href="/app" class="btnOutlineLight" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none">🌐 Usar en el navegador</a>
+      <div class="storeBadges" style="justify-content:center">
+        <a href="https://apps.apple.com/ar/app/id6787757386" target="_blank" rel="noopener"><img class="badgeApple" src="/apoderados-media/appstore-badge.svg" alt="Descargar en el App Store"></a>
+        <a href="https://play.google.com/store/apps/details?id=com.tribbu.app" target="_blank" rel="noopener"><img class="badgeGoogle" src="/apoderados-media/googleplay-badge.png" alt="Disponible en Google Play"></a>
+      </div>
     </div>
+    <a href="/app" class="btnOutlineLight" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;margin-top:16px">🌐 Usar en el navegador</a>
     <div class="ctaFoot">iOS · Android · y tribbu.ar/app desde cualquier navegador</div>
   </div>
 </section>
@@ -600,7 +657,7 @@
     </div>
     <div class="footCol"><div class="lbl">Producto</div><div class="links"><a href="#producto">Muro</a><a href="#producto">Calendario</a><a href="#producto">Colectas</a><a href="#producto">Comedor</a><a href="#web">Versión web</a></div></div>
     <div class="footCol"><div class="lbl">Roles</div><div class="links"><a href="#roles">Familias</a><a href="#roles">Room Parents</a><a href="#roles">Colegios</a><a href="#roles">Docentes</a></div></div>
-    <div class="footCol"><div class="lbl">tribbu</div><div class="links"><a href="#producto">Nosotros</a><a href="/privacidad.html">Privacidad</a><a href="#faq">Términos</a><a href="mailto:info@tribbu.ar">Contacto</a></div></div>
+    <div class="footCol"><div class="lbl">tribbu</div><div class="links"><a href="#producto">Nosotros</a><a href="/privacidad.html">Privacidad</a><a href="#faq">Términos</a><a href="mailto:info@tribbu.ar?subject=Consulta%20desde%20tribbu.ar">Contacto</a></div></div>
   </div>
   <div class="wrap footBottom">
     <span>© 2026 tribbu.ar · Buenos Aires, Argentina</span>
@@ -611,6 +668,13 @@
 <div id="toast"><span class="chk">✓</span><span class="txt" id="toastTxt"></span></div>
 
 <script>
+  function toggleMenu(open){
+    var m = document.getElementById('mobileMenu');
+    m.classList.toggle('open', open);
+    document.body.style.overflow = open ? 'hidden' : '';
+  }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') toggleMenu(false); });
+
   function avisar(msg){
     var t = document.getElementById('toast');
     document.getElementById('toastTxt').textContent = msg;
@@ -638,7 +702,7 @@
     ["¿Es gratis para las familias?", "Sí, y lo va a seguir siendo. Descargás la app, entrás con el código de tu curso y usás todo sin pagar nada. Cobramos solo el panel institucional a los colegios que lo quieren."],
     ["¿Reemplaza al grupo de WhatsApp?", "Reemplaza lo que el grupo hace mal: avisos que se pierden, colectas sin registro, autorizaciones que nadie encuentra. El chiste del viernes seguilo mandando por WhatsApp."],
     ["Tengo dos hijos en cursos distintos.", "Es justamente el caso que nos importa. Una sola cuenta, un selector arriba y un calendario que suma los dos cursos con un color por chico."],
-    ["¿Cómo entro por primera vez?", "El colegio comparte un código de invitación por curso. Desde la pantalla de ingreso elegís “Registrarme con código de invitación”, definís tu contraseña y listo. Después entrás con mail y contraseña, o con huella digital en el celular."],
+    ["¿Cómo entro por primera vez?", "El colegio comparte un código de invitación por curso. Desde la pantalla de ingreso elegís “Registrarme con código de invitación”, definís tu contraseña y listo. Después entrás con mail y contraseña, o con acceso biométrico en el celular."],
     ["¿Quién puede publicar en mi curso?", "Los Room Parents del curso y el colegio, si está habilitado. El resto de las familias lee, responde y confirma, pero no publica recordatorios."],
     ["¿Qué pasa con los datos de los chicos?", "Se guardan cifrados, no se comparten con terceros y no vendemos publicidad. Los teléfonos de las familias nunca quedan visibles para el resto del curso."],
   ];
