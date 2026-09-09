@@ -103,7 +103,9 @@
   @media (max-width:900px){section.wrap{padding-top:64px}}
   .eyebrow{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--blue-text)}
   h2{margin:12px 0 0;font-size:44px;line-height:1.1;font-weight:800;letter-spacing:-1.6px}
-  @media (max-width:900px){h2{font-size:30px;letter-spacing:-1px}}
+  /* varios h2 traen font-size inline (38-42px) que pisa el media query;
+     con !important los uniformamos en mobile */
+  @media (max-width:900px){h2{font-size:30px!important;letter-spacing:-1px!important}}
   .lead{margin:18px 0 0;font-size:17px;line-height:1.65;color:var(--body);max-width:520px}
 
   /* problema */
@@ -159,6 +161,7 @@
   .bulletRow .ico{color:var(--green-text);font-size:19px}
   .bulletRow span.txt{font-size:15px;font-weight:600;color:#334155}
   .multihijo img{width:100%;max-width:340px;display:block;border-radius:26px;border:1px solid #E2E8F0;box-shadow:0 24px 48px -20px rgba(15,23,42,.28)}
+  @media (max-width:900px){.multihijo img{max-width:230px;margin:0 auto}}
 
   /* versión web */
   .webHead{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;margin-bottom:36px;flex-wrap:wrap}
@@ -247,6 +250,7 @@
 
   /* colegios navy */
   .colegiosSection{margin-top:96px;background:var(--navy);position:relative;overflow:hidden;padding:0}
+  @media (max-width:900px){.colegiosSection{margin-top:64px}}
   .colegiosGlow{position:absolute;top:-200px;left:50%;width:760px;height:520px;border-radius:999px;background:radial-gradient(circle,rgba(59,130,246,.18),transparent 70%)}
   .colegiosGrid{padding-top:84px;padding-bottom:84px;position:relative;display:grid;grid-template-columns:1fr 400px;gap:64px;align-items:center}
   @media (max-width:900px){.colegiosGrid{grid-template-columns:1fr}}
@@ -295,6 +299,7 @@
   footer{background:var(--navy);padding:56px 0 40px}
   .footGrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:48px}
   @media (max-width:760px){.footGrid{grid-template-columns:1fr 1fr}}
+  @media (max-width:520px){.footGrid{grid-template-columns:1fr;gap:32px}}
   .footBrand .logo span{font-size:23px}
   .footBrand p{margin:16px 0 0;font-size:14px;line-height:1.65;color:rgba(255,255,255,.45);max-width:280px}
   .footCol .lbl{font-size:11.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.35)}
