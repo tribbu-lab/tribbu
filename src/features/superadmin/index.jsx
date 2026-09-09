@@ -333,7 +333,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // super y colegio_admin ya no se dan de alta acá — ver "👑 Super Admins"
     // y el bloque "Administradores" dentro de "🏫 Colegio" (guardarCuentaEspecial).
     // Esta pantalla solo maneja apoderado/Room Parent de este colegio.
-    const rolGlobal = (form.cursosAdmin||[]).length>0 ? "room" : "padre";
+    // Room Parent solo vale en cursos donde el apoderado tiene un hijo: si
+    // form.cursosAdmin arrastró un curso sin hijo (asignación huérfana de una
+    // promoción/reorganización, invisible en el modal porque no se renderiza
+    // toggle para ella), se descarta acá — si no, el delete+reinsert de abajo
+    // la volvía a crear y no había forma de sacarla desde el panel.
+    const cursosConHijoDelForm = new Set((form.hijos||[]).map(hid=>hijos.find(h=>h.id===hid)?.curso_id).filter(Boolean));
+    const cursosAdminLimpio = (form.cursosAdmin||[]).filter(cid=>cursosConHijoDelForm.has(cid));
+    const rolGlobal = cursosAdminLimpio.length>0 ? "room" : "padre";
 
     if(modal==="nuevo_usuario") {
       // Crear en Supabase Auth via Edge Function (sin exponer service key al cliente)
@@ -352,7 +359,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         telefono: sanitize(form.telefono)||null, auth_id,
       }).select().single();
       if(data) {
-        if((form.cursosAdmin||[]).length) await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:data.id,curso_id:cid,rol:"room"})));
+        if(cursosAdminLimpio.length) await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:data.id,curso_id:cid,rol:"room"})));
         if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:data.id,hijo_id:hid})));
       }
     } else {
@@ -389,12 +396,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       }
       // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
       // crear_apoderado en el registro) no se tocan — borrarlas dejaba al
-      // apoderado sin membresía de curso.
+      // apoderado sin membresía de curso. El delete de todas las filas "room"
+      // + reinsert de cursosAdminLimpio (ya sin cursos huérfanos) también sirve
+      // de auto-limpieza: guardar un apoderado con una asignación Room Parent
+      // vieja de un curso donde ya no tiene hijo la elimina.
       await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).eq("rol","room");
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
-      if((form.cursosAdmin||[]).length) {
-        await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).in("curso_id",form.cursosAdmin);
-        await supabase.from("usuario_cursos").insert((form.cursosAdmin||[]).map(cid=>({usuario_id:form.id,curso_id:cid,rol:"room"})));
+      if(cursosAdminLimpio.length) {
+        await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:form.id,curso_id:cid,rol:"room"})));
       }
       if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
     }

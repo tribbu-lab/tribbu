@@ -170,7 +170,13 @@ export function SuperAdmin() {
     if (modal === "nuevo_usuario" && !form.pass) return;
     const apellido = form.apellido || "";
     const avatar = form.avatar || `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase() || form.nombre.slice(0, 2).toUpperCase();
-    const rolGlobal = form.esSuper ? "super" : (form.cursosAdmin || []).length > 0 ? "room" : "padre";
+    // Room Parent solo vale en cursos donde el apoderado tiene un hijo: se
+    // descartan asignaciones huérfanas (curso sin hijo, invisibles en el
+    // modal) — si no, el delete+reinsert de abajo las recreaba y no había
+    // forma de sacarlas desde el panel.
+    const cursosConHijoDelForm = new Set((form.hijos || []).map((hid) => hijos.find((h) => h.id === hid)?.curso_id).filter(Boolean));
+    const cursosAdminLimpio = (form.cursosAdmin || []).filter((cid) => cursosConHijoDelForm.has(cid));
+    const rolGlobal = form.esSuper ? "super" : cursosAdminLimpio.length > 0 ? "room" : "padre";
 
     if (modal === "nuevo_usuario") {
       let auth_id = null;
@@ -196,8 +202,8 @@ export function SuperAdmin() {
         .select()
         .single();
       if (data) {
-        if ((form.cursosAdmin || []).length)
-          await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: data.id, curso_id: cid, rol: "room" })));
+        if (cursosAdminLimpio.length)
+          await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map((cid) => ({ usuario_id: data.id, curso_id: cid, rol: "room" })));
         if ((form.hijos || []).length)
           await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: data.id, hijo_id: hid })));
       }
@@ -240,9 +246,8 @@ export function SuperAdmin() {
       // apoderado sin membresía de curso.
       await supabase.from("usuario_cursos").delete().eq("usuario_id", form.id).eq("rol", "room");
       await supabase.from("usuario_hijos").delete().eq("usuario_id", form.id);
-      if ((form.cursosAdmin || []).length) {
-        await supabase.from("usuario_cursos").delete().eq("usuario_id", form.id).in("curso_id", form.cursosAdmin);
-        await supabase.from("usuario_cursos").insert((form.cursosAdmin || []).map((cid) => ({ usuario_id: form.id, curso_id: cid, rol: "room" })));
+      if (cursosAdminLimpio.length) {
+        await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map((cid) => ({ usuario_id: form.id, curso_id: cid, rol: "room" })));
       }
       if ((form.hijos || []).length)
         await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: form.id, hijo_id: hid })));
