@@ -339,15 +339,63 @@ export function SuperAdmin() {
     cargar();
   };
   const eliminarUsuario = async (id) => {
-    await supabase.from("usuario_hijos").delete().eq("usuario_id", id);
-    await supabase.from("usuario_cursos").delete().eq("usuario_id", id);
-    await supabase.from("usuarios").delete().eq("id", id);
+    // Las FKs a usuarios no tienen ON DELETE CASCADE: limpiar todo lo que
+    // apunta al usuario (mismo set que la Edge Function delete-account, +
+    // encuestas). Lo que es historial del curso se anula. La fila de Auth NO
+    // se borra desde acá (requiere service key).
+    for (const [tabla, col] of [
+      ["push_tokens", "usuario_id"], ["recordatorio_leidos", "usuario_id"],
+      ["evento_asistencia", "usuario_id"], ["libro_adquirido", "usuario_id"],
+      ["util_adquirido", "usuario_id"], ["uniforme_adquirido", "usuario_id"],
+      ["encuesta_votos", "usuario_id"], ["recordatorios", "para_usuario_id"],
+      ["usuario_cursos", "usuario_id"], ["usuario_hijos", "usuario_id"],
+    ]) {
+      await supabase.from(tabla).delete().eq(col, id);
+    }
+    for (const [tabla, col] of [
+      ["colecta_pagos", "pagado_por"], ["colectas", "responsable_id"],
+      ["cumples", "responsable_id"], ["encuestas", "creado_por"],
+    ]) {
+      await supabase.from(tabla).update({ [col]: null }).eq(col, id);
+    }
+    const { error } = await supabase.from("usuarios").delete().eq("id", id);
     setConfirm(null);
+    if (error) {
+      console.warn("eliminarUsuario:", error);
+      Alert.alert("No se pudo eliminar", error.details || error.message || "Error al eliminar el apoderado");
+      return;
+    }
     cargar();
   };
   const eliminarCurso = async (id) => {
-    await supabase.from("cursos").delete().eq("id", id);
+    // Solo se borra un curso sin alumnos ni contenido (el caso real: un
+    // duplicado vacío). Si tiene, se rechaza — el cascade completo desde el
+    // cliente sería enorme y frágil.
+    const [al, rec, ev, col, ale, enc] = await Promise.all([
+      supabase.from("hijos").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.from("recordatorios").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.from("eventos").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.from("colectas").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.from("alertas").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.from("encuestas").select("id", { count: "exact", head: true }).eq("curso_id", id),
+    ]);
+    const alumnos = al.count || 0;
+    const contenido = (rec.count || 0) + (ev.count || 0) + (col.count || 0) + (ale.count || 0) + (enc.count || 0);
+    if (alumnos > 0 || contenido > 0) {
+      setConfirm(null);
+      Alert.alert("No se puede borrar", `El curso tiene ${alumnos} alumno(s) y ${contenido} elemento(s) de contenido. Promové/movés los alumnos y archivá el contenido primero.`);
+      return;
+    }
+    for (const tabla of ["horarios", "usuario_cursos", "maestro_cursos", "uniforme_cursos", "utiles", "libros", "codigos_invitacion"]) {
+      await supabase.from(tabla).delete().eq("curso_id", id);
+    }
+    const { error } = await supabase.from("cursos").delete().eq("id", id);
     setConfirm(null);
+    if (error) {
+      console.warn("eliminarCurso:", error);
+      Alert.alert("No se pudo eliminar", error.details || error.message || "Error al eliminar el curso");
+      return;
+    }
     cargar();
   };
   const eliminarMaestro = async (id) => {
@@ -587,7 +635,7 @@ export function SuperAdmin() {
                     <Text>✏️</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => setConfirm({ nombre: c.nombre, msg: "Se eliminarán todos los datos asociados al curso.", action: () => eliminarCurso(c.id) })}
+                    onPress={() => setConfirm({ nombre: c.nombre, msg: "Solo se puede borrar un curso sin alumnos ni contenido. Se borra también su config: horarios, Room Parents, maestros, uniformes, útiles y libros.", action: () => eliminarCurso(c.id) })}
                     style={styles.iconBtn}
                   >
                     <Text>🗑️</Text>

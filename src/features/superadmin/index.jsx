@@ -505,10 +505,33 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   };
 
   const eliminarUsuario = async (id) => {
-    const { error } = await supabase.from("usuario_hijos").delete().eq("usuario_id",id)
-      .then(() => supabase.from("usuario_cursos").delete().eq("usuario_id",id))
-      .then(() => supabase.from("usuarios").delete().eq("id",id));
-    if(error) { showToast("Error al eliminar el apoderado", "error"); setConfirm(null); return; }
+    // Las FKs a usuarios no tienen ON DELETE CASCADE — hay que limpiar a mano
+    // todo lo que apunta al usuario (mismo set que la Edge Function
+    // delete-account, + encuestas). Lo que es "historial del curso" se anula
+    // en vez de borrarse. Nota: la fila de Supabase Auth NO se borra desde acá
+    // (requiere service key) — queda como huérfana; para eso haría falta una
+    // acción "delete" en manage-auth-user.
+    for(const [tabla,col] of [
+      ["push_tokens","usuario_id"], ["recordatorio_leidos","usuario_id"],
+      ["evento_asistencia","usuario_id"], ["libro_adquirido","usuario_id"],
+      ["util_adquirido","usuario_id"], ["uniforme_adquirido","usuario_id"],
+      ["encuesta_votos","usuario_id"], ["recordatorios","para_usuario_id"],
+      ["usuario_cursos","usuario_id"], ["usuario_hijos","usuario_id"],
+    ]) {
+      await supabase.from(tabla).delete().eq(col,id);
+    }
+    for(const [tabla,col] of [
+      ["colecta_pagos","pagado_por"], ["colectas","responsable_id"],
+      ["cumples","responsable_id"], ["encuestas","creado_por"],
+    ]) {
+      await supabase.from(tabla).update({[col]:null}).eq(col,id);
+    }
+    const { error } = await supabase.from("usuarios").delete().eq("id",id);
+    if(error) {
+      console.error("eliminarUsuario:", error);
+      showToast(`No se pudo eliminar: ${error.details || error.message}`, "error");
+      setConfirm(null); return;
+    }
     setConfirm(null); cargar();
   };
 
@@ -552,8 +575,36 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   };
 
   const eliminarCurso = async (id) => {
+    // Borrar un curso con alumnos o contenido sería un cascade enorme y
+    // frágil desde el cliente (cada alumno arrastra festejos/pagos/votos, y
+    // RLS puede tapar algún delete a mitad de camino). El caso real de baja
+    // es un duplicado recién creado que quedó vacío, así que: si el curso
+    // tiene alumnos o contenido, se rechaza con un mensaje claro; si está
+    // limpio, se borra junto con su config (lo que clona "Duplicar").
+    const [al,rec,ev,col,ale,enc] = await Promise.all([
+      supabase.from("hijos").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.from("recordatorios").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.from("eventos").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.from("colectas").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.from("alertas").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.from("encuestas").select("id",{count:"exact",head:true}).eq("curso_id",id),
+    ]);
+    const alumnos = al.count||0;
+    const contenido = (rec.count||0)+(ev.count||0)+(col.count||0)+(ale.count||0)+(enc.count||0);
+    if(alumnos>0 || contenido>0) {
+      const partes = [alumnos>0?`${alumnos} alumno${alumnos!==1?"s":""}`:null, contenido>0?`${contenido} elemento${contenido!==1?"s":""} de contenido`:null].filter(Boolean).join(" y ");
+      showToast(`No se puede borrar: el curso tiene ${partes}. Promové/movés los alumnos y archivá el contenido primero.`, "error");
+      setConfirm(null); return;
+    }
+    for(const tabla of ["horarios","usuario_cursos","maestro_cursos","uniforme_cursos","utiles","libros","codigos_invitacion"]) {
+      await supabase.from(tabla).delete().eq("curso_id",id);
+    }
     const { error } = await supabase.from("cursos").delete().eq("id",id);
-    if(error) { showToast("Error al eliminar el curso", "error"); setConfirm(null); return; }
+    if(error) {
+      console.error("eliminarCurso:", error);
+      showToast(`No se pudo eliminar: ${error.details || error.message}`, "error");
+      setConfirm(null); return;
+    }
     setConfirm(null); cargar();
   };
 
@@ -1314,7 +1365,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
                     <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
                     <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Se eliminarán todos los datos asociados al curso.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Solo se puede borrar un curso sin alumnos ni contenido (recordatorios, eventos, colectas…). Se borra también su configuración: horarios, Room Parents, maestros, uniformes, útiles y libros.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
                 </div>
               );
