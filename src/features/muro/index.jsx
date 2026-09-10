@@ -359,8 +359,8 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           pago/Encuestas) por un solo patrón de card con acción a la derecha. */}
       <div style={{marginBottom:18}}>
         <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:11}}>
-          <div style={{fontSize:11,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8"}}>Pendientes{pendientes.length?` · ${pendientes.length}`:""}</div>
-          {pendientes.length>0&&<span style={{fontSize:12,fontWeight:700,color:"#94A3B8"}}>Resolvelos desde acá</span>}
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8"}}>Pendientes{pendientes.length?` · ${pendientes.length}`:""}</div>
+          {pendientes.length>0&&<span style={{fontSize:12,fontWeight:600,color:"#94A3B8"}}>Resolvelos desde acá</span>}
         </div>
         {pendientes.length>0 ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -369,15 +369,15 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
                 <div style={{width:32,height:32,borderRadius:9,background:p.soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{p.icon}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <span style={{fontSize:9,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:p.color}}>{p.tipo}</span>
+                    <span style={{fontSize:9,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:p.color}}>{p.tipo}</span>
                     {p.tag&&<><span style={{width:3,height:3,borderRadius:999,background:"#CBD5E1",flexShrink:0}}/><TagHijo tag={p.tag}/></>}
                   </div>
-                  <div style={{fontSize:13.5,fontWeight:700,marginTop:2,lineHeight:1.3}}>{p.titulo}</div>
+                  <div style={{fontSize:13.5,fontWeight:600,marginTop:2,lineHeight:1.3}}>{p.titulo}</div>
                   <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{p.meta}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                  {p.chip&&<span style={{fontSize:11,fontWeight:700,color:"#64748B",background:"#F1F5F9",padding:"3px 8px",borderRadius:999,whiteSpace:"nowrap"}}>{p.chip}</span>}
-                  <button onClick={p.onAccion} style={{padding:"6px 12px",border:"none",borderRadius:8,background:p.btnBg,color:p.btnFg,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
+                  {p.chip&&<span style={{fontSize:11,fontWeight:600,color:"#64748B",background:"#F1F5F9",padding:"3px 8px",borderRadius:999,whiteSpace:"nowrap"}}>{p.chip}</span>}
+                  <button onClick={p.onAccion} style={{padding:"6px 12px",border:"none",borderRadius:8,background:p.btnBg,color:p.btnFg,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
                 </div>
               </div>
             ))}
@@ -386,7 +386,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
           <div style={{display:"flex",alignItems:"center",gap:13,padding:16,border:"1.5px dashed #E2E8F0",borderRadius:12,background:"white"}}>
             <div style={{width:38,height:38,borderRadius:999,background:"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>✓</div>
             <div>
-              <div style={{fontSize:14.5,fontWeight:800}}>Estás al día ✨</div>
+              <div style={{fontSize:14.5,fontWeight:700}}>Estás al día ✨</div>
               <div style={{fontSize:12.5,color:"#64748B",marginTop:2,lineHeight:1.45}}>No tenés pendientes. Cuando haya algo para resolver, aparece acá.</div>
             </div>
           </div>
@@ -394,7 +394,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       </div>
 
       {/* Próximos 15 días: eventos + cumpleaños unificados por proximidad. */}
-      <div style={{fontSize:11,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8",marginBottom:11}}>Próximos 15 días</div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8",marginBottom:11}}>Próximos 15 días</div>
       {agenda.length>0 ? (
         <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",overflow:"hidden"}}>
           {agenda.map((e,i)=>{
@@ -403,16 +403,16 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
             return (
               <div key={e.key} onClick={e.onPress} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:i===0?"none":"1px solid #F1F5F9",cursor:"pointer"}}>
                 <div style={{width:40,textAlign:"center",flexShrink:0}}>
-                  <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
-                  <div style={{fontSize:17,fontWeight:800}}>{d.getDate()}</div>
+                  <div style={{fontSize:9.5,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
+                  <div style={{fontSize:17,fontWeight:700}}>{d.getDate()}</div>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.titulo} {e.emoji}</div>
+                  <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.titulo} {e.emoji}</div>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2,flexWrap:"wrap"}}>
                     {e.tag?<TagHijo tag={e.tag}/>:<span style={{fontSize:12,color:"#64748B"}}>{e.meta}</span>}
                   </div>
                 </div>
-                <span style={{fontSize:11,fontWeight:700,color:c.fg,background:c.bg,padding:"3px 9px",borderRadius:999,flexShrink:0}}>{chipDias(e.dias)}</span>
+                <span style={{fontSize:11,fontWeight:600,color:c.fg,background:c.bg,padding:"3px 9px",borderRadius:999,flexShrink:0}}>{chipDias(e.dias)}</span>
               </div>
             );
           })}
