@@ -47,13 +47,13 @@ function DatosTransferencia({ aliasCbu, showToast, compact = false }) {
   return (
     <View style={[styles.transfWrap, compact && styles.transfWrapCompact]}>
       <Text style={styles.transfLabel}>DATOS PARA TRANSFERIR</Text>
-      <Pressable onPress={copiar} style={styles.transfBtn}>
-        <MaterialCommunityIcons name="content-copy" size={17} color="#FFFFFF" />
-        <View style={styles.flex1}>
-          <Text style={styles.transfBtnTop}>Copiar alias / CBU</Text>
-          <Text style={styles.transfBtnAlias} numberOfLines={1}>{aliasCbu.trim()}</Text>
-        </View>
-      </Pressable>
+      <View style={styles.transfRow}>
+        <Text style={styles.transfAlias} numberOfLines={1}>{aliasCbu.trim()}</Text>
+        <Pressable onPress={copiar} style={styles.transfBtn}>
+          <MaterialCommunityIcons name="content-copy" size={13} color={BLUE[600]} />
+          <Text style={styles.transfBtnTxt}>Copiar</Text>
+        </Pressable>
+      </View>
       <Text style={styles.transfNota}>Transferís directo a quien organiza. tribbu no maneja el dinero.</Text>
     </View>
   );
@@ -705,11 +705,12 @@ const styles = StyleSheet.create({
 
   transfWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
   transfWrapCompact: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 14, borderBottomColor: t.border },
-  transfLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 8 },
-  transfBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: BLUE[600], borderRadius: RADIUS.lg, paddingVertical: 12, paddingHorizontal: 14, minHeight: 52 },
-  transfBtnTop: { fontSize: 13.5, fontWeight: "800", color: "#FFFFFF" },
-  transfBtnAlias: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.82)", marginTop: 1 },
-  transfNota: { fontSize: 10.5, color: t.textFaint, marginTop: 6, lineHeight: 14 },
+  transfLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 6 },
+  transfRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  transfAlias: { flex: 1, fontSize: 13, fontWeight: "700", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  transfBtn: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: t.surface },
+  transfBtnTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  transfNota: { fontSize: 10.5, color: t.textFaint, marginTop: 5, lineHeight: 14 },
   hintInput: { fontSize: 11, color: t.textFaint, marginTop: 2, marginBottom: 2, lineHeight: 15 },
   progressSub: { fontSize: 11, color: t.textFaint, marginTop: 4 },
   aporteUnicoWrap: { padding: 14 },

@@ -26,16 +26,15 @@ function DatosTransferencia({ aliasCbu, showToast }) {
     catch { showToast("No se pudo copiar — copialo a mano: "+val,"error"); }
   };
   return (
-    <div style={{padding:"12px 16px",borderBottom:"1px solid #F8FAFC"}}>
-      <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,color:"#94A3B8",marginBottom:8}}>DATOS PARA TRANSFERIR</div>
-      <button onClick={copiar} style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:"#2563EB",border:"none",borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left"}}>
-        <span style={{fontSize:16}}>📋</span>
-        <span style={{flex:1,minWidth:0}}>
-          <span style={{display:"block",fontSize:13.5,fontWeight:800,color:"white"}}>Copiar alias / CBU</span>
-          <span style={{display:"block",fontSize:12,fontWeight:600,color:"rgba(255,255,255,0.82)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{val}</span>
-        </span>
-      </button>
-      <div style={{fontSize:10.5,color:"#94A3B8",marginTop:6,lineHeight:1.4}}>Transferís directo a quien organiza. tribbu no maneja el dinero.</div>
+    <div style={{padding:"10px 16px",borderBottom:"1px solid #F8FAFC"}}>
+      <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,color:"#94A3B8",marginBottom:6}}>DATOS PARA TRANSFERIR</div>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#0F172A",fontFamily:"ui-monospace,Menlo,monospace",wordBreak:"break-all",flex:1,minWidth:120}}>{val}</span>
+        <button onClick={copiar} style={{flexShrink:0,display:"inline-flex",alignItems:"center",gap:5,background:"white",border:"1px solid #CBD5E1",borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700,color:"#3B82F6"}}>
+          <span style={{fontSize:12}}>📋</span> Copiar
+        </button>
+      </div>
+      <div style={{fontSize:10,color:"#94A3B8",marginTop:5,lineHeight:1.4}}>Transferís directo a quien organiza. tribbu no maneja el dinero.</div>
     </div>
   );
 }
