@@ -217,10 +217,10 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
             const u = v.usuarios||{};
             return (
               <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#F0FDF4",borderRadius:10,marginBottom:6,border:"1px solid #BBF7D0"}}>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(u)}</div>
-                  {u.email&&<div style={{fontSize:11,color:"#94A3B8"}}>{u.email}</div>}
-                  {u.telefono&&<div style={{fontSize:11,color:"#94A3B8"}}>{u.telefono}</div>}
+                  {u.email&&<a href={`mailto:${u.email}`} style={{fontSize:11,color:"#3B82F6",fontWeight:600,display:"block",wordBreak:"break-all"}}>{u.email}</a>}
+                  {u.telefono&&<a href={`tel:${u.telefono}`} style={{fontSize:11,color:"#3B82F6",fontWeight:600,display:"block"}}>{u.telefono}</a>}
                 </div>
                 {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"4px 10px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444",fontWeight:700}}>Quitar</button>}
               </div>

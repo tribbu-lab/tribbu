@@ -100,7 +100,7 @@ const SECCION_INFO = {
 // juego de stats (de Usuarios) que se mostraba en los 12 módulos por igual.
 function ModuloStats({ items }) {
   return (
-    <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+    <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
       {items.map((s,i)=>(
         <div key={i} style={{minWidth:140,background:"white",border:"1px solid #E7ECF3",borderRadius:14,padding:"14px 18px",flex:1}}>
           <div style={{fontSize:10.5,color:"#94A3B8",fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>{s.l}</div>
@@ -121,6 +121,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const esSuper = usuario?.rol==="super";
   const esColegioAdmin = usuario?.rol==="colegio_admin";
   const miColegioId = usuario?.colegio_id ?? null;
+  // colegio "activo": el fijo del colegio_admin, o el que el super entró en
+  // "Colegios". Necesario para insertar filas con colegio_id NOT NULL (cursos).
   const [sec,setSec]           = useState(esSuper?"colegios":"usuarios");
   const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
@@ -156,6 +158,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [asignarCursoModal,setAsignarCursoModal] = useState(false);
   const isMobile = useIsMobile();
   const { showToast, Toast } = useToast();
+
+  const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
 
   // super y colegio_admin se gestionan aparte (👑 Super Admins / 🏫 Colegio →
   // Administradores) — esta lista es solo apoderado/Room Parent de este colegio.
@@ -237,7 +241,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   const cargar = async () => {
     setLoading(true);
-    const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
     const [u,c,h,m,mc,col,cols] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
       supabase.from("cursos").select("*").order("nombre"),
@@ -351,29 +354,46 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           form.pass
         );
         auth_id = newId || null;
-      } catch(e) { console.error("Error creando en Auth:", e); }
-      const { data } = await supabase.from("usuarios").insert({
+      } catch(e) {
+        console.error("Error creando en Auth:", e);
+        showToast(`No se pudo crear el acceso: ${e.message||e}`, "error");
+        return;
+      }
+      // id generado en el cliente: un colegio_admin no puede leer de vuelta el
+      // usuario recién insertado (RLS lo ve solo vía usuario_cursos/usuario_hijos,
+      // que todavía no existen) — con .select().single() el alta "no hacía nada".
+      const id = uuidLite();
+      const { error } = await supabase.from("usuarios").insert({
+        id,
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolGlobal,
         avatar, activo: form.activo, dni: sanitize(form.dni)||null,
         telefono: sanitize(form.telefono)||null, auth_id,
-      }).select().single();
-      if(data) {
-        if(cursosAdminLimpio.length) await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:data.id,curso_id:cid,rol:"room"})));
-        if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:data.id,hijo_id:hid})));
+      });
+      if(error) { showToast(`Error al crear el apoderado: ${error.message}`, "error"); return; }
+      if(cursosAdminLimpio.length) {
+        const { error: e2 } = await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:id,curso_id:cid,rol:"room"})));
+        if(e2) showToast(`Apoderado creado, pero falló asignar Room Parent: ${e2.message}`, "error");
+      }
+      if((form.hijos||[]).length) {
+        const { error: e3 } = await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:id,hijo_id:hid})));
+        if(e3) showToast(`Apoderado creado, pero falló vincular los hijos: ${e3.message}`, "error");
       }
     } else {
       const passNueva = form._passNueva && form._passNueva.trim();
       const passEsNueva = !!passNueva;
       const emailNuevo = sanitize(form.email).toLowerCase();
       // Actualizar datos del usuario (sin columna pass)
-      await supabase.from("usuarios").update({
+      const { error: errUpd } = await supabase.from("usuarios").update({
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, rol: rolGlobal, activo: form.activo,
         dni: sanitize(form.dni)||null, telefono: sanitize(form.telefono)||null,
       }).eq("id", form.id);
-      // Sincronizar email y/o clave en Supabase Auth via Edge Function
-      const emailCambio = emailNuevo !== (form._emailOriginal||"").toLowerCase();
+      if(errUpd) { showToast(`Error al guardar los cambios: ${errUpd.message}`, "error"); return; }
+      // Sincronizar email y/o clave en Supabase Auth via Edge Function.
+      // Sin _emailOriginal no se puede saber si cambió — no dispares el sync
+      // de Auth (antes eso hacía "fallar" un simple cambio de teléfono).
+      const emailCambio = !!form._emailOriginal && emailNuevo !== form._emailOriginal.toLowerCase();
       if(passEsNueva || emailCambio) {
         try {
           let authId = form.auth_id;
@@ -403,9 +423,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       await supabase.from("usuario_cursos").delete().eq("usuario_id",form.id).eq("rol","room");
       await supabase.from("usuario_hijos").delete().eq("usuario_id",form.id);
       if(cursosAdminLimpio.length) {
-        await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:form.id,curso_id:cid,rol:"room"})));
+        const { error: e2 } = await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map(cid=>({usuario_id:form.id,curso_id:cid,rol:"room"})));
+        if(e2) showToast(`Cambios guardados, pero falló asignar Room Parent: ${e2.message}`, "error");
       }
-      if((form.hijos||[]).length)       await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
+      if((form.hijos||[]).length) {
+        const { error: e3 } = await supabase.from("usuario_hijos").insert((form.hijos||[]).map(hid=>({usuario_id:form.id,hijo_id:hid})));
+        if(e3) showToast(`Cambios guardados, pero falló vincular los hijos: ${e3.message}`, "error");
+      }
     }
     setModal(null); cargar();
   };
@@ -485,8 +509,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   const guardarCurso = async () => {
     if(!form.nombre||!form.año_lectivo) return;
-    const { data, error } = await supabase.from("cursos").insert({nombre:form.nombre,avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo}).select().single();
-    if(error) { showToast("Error al guardar el curso", "error"); return; }
+    // cursos.colegio_id es NOT NULL — sin esto el insert falla siempre
+    // ("Error al guardar el curso" sin más detalle).
+    if(!activeColegioId) { showToast("Elegí un colegio primero", "error"); return; }
+    const { data, error } = await supabase.from("cursos").insert({nombre:form.nombre,avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo,colegio_id:activeColegioId}).select().single();
+    if(error) { showToast(`Error al guardar el curso: ${error.message}`, "error"); return; }
     if(form._duplicarDeId && data) await clonarConfiguracionCurso(form._duplicarDeId, data.id);
     setModal(null); cargar();
   };
@@ -613,9 +640,16 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
     if(modal==="nuevo_maestro") {
-      const { data, error } = await supabase.from("maestros").insert({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).select().single();
-      if(error) { showToast("Error al guardar el maestro", "error"); return; }
-      if(data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:data.id,curso_id:cid})));
+      // id generado en el cliente: un colegio_admin no puede leer de vuelta un
+      // maestro recién insertado (RLS lo ve solo vía maestro_cursos, que todavía
+      // no existe) — con .select().single() eso daba "Error al guardar el maestro".
+      const id = uuidLite();
+      const { error } = await supabase.from("maestros").insert({id,nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null});
+      if(error) { showToast(`Error al guardar el maestro: ${error.message}`, "error"); return; }
+      if(form.cursos?.length) {
+        const { error: e2 } = await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:id,curso_id:cid})));
+        if(e2) { showToast(`Maestro creado, pero falló asignar los cursos: ${e2.message}`, "error"); }
+      }
     } else {
       const { error } = await supabase.from("maestros").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
       if(error) { showToast("Error al actualizar el maestro", "error"); return; }
@@ -1108,12 +1142,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           </div>
         </nav>
       )}
-        <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"24px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
+        <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"18px 32px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
       {(() => {
         const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
         const eyebrow = [SECCION_PLATAFORMA,...SECCIONES].find(g=>g.items.some(i=>i.id===sec))?.grupo;
         return (
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:24,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:16,flexWrap:"wrap"}}>
             <div style={{maxWidth:640}}>
               {esSuper&&colegioId&&sec!=="colegios"&&(
                 <button onClick={()=>{ setColegioId(null); setSec("colegios"); }} style={{border:"none",background:"transparent",cursor:"pointer",fontSize:11.5,fontWeight:700,color:"#3B82F6",padding:0,marginBottom:6}}>← Volver a Colegios ({colegioNombre})</button>
@@ -2701,6 +2735,7 @@ function CodigosInvitacion({ cursos }) {
   const [rotando,    setRotando]    = useState(null); // id en curso de rotación
   const [confirmRotar, setConfirmRotar] = useState(null); // código a rotar
   const [confirmElim, setConfirmElim] = useState(null); // código a eliminar
+  const { showToast, Toast } = useToast();
   const inp = {padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
 
   const cargar = async () => {
@@ -2724,11 +2759,15 @@ function CodigosInvitacion({ cursos }) {
     if(!cursoSel) return;
     setSaving(true);
     const codigo = genCodigo();
-    await supabase.from("codigos_invitacion").insert({
-      codigo, curso_id: Number(cursoSel),
+    // cursos.id es uuid — Number(cursoSel) daba NaN y el insert fallaba siempre
+    // en silencio (por eso "Generar" no mostraba ningún código).
+    const { error } = await supabase.from("codigos_invitacion").insert({
+      codigo, curso_id: cursoSel,
       usos_max: Number(usosMax)||10, usos_actuales:0, activo:true,
     });
     setSaving(false);
+    if(error) { showToast(`No se pudo generar el código: ${error.message}`, "error"); return; }
+    showToast("Código generado", "ok");
     cargar();
   };
 
@@ -2763,10 +2802,7 @@ function CodigosInvitacion({ cursos }) {
 
   return (
     <div>
-      <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🔑 Códigos de invitación</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>
-        Generá un código para que los apoderados puedan registrarse solos en la app.
-      </div>
+      <Toast />
 
       {confirmRotar && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>

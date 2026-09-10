@@ -97,10 +97,13 @@ alter table public.uniformes alter column colegio_id set not null;
 -- usuarios (solo se completa para colegio_admin; super no tiene)
 alter table public.usuarios add column if not exists colegio_id uuid references public.colegios(id);
 
--- Nuevo rol en el check constraint de usuarios.rol.
+-- Nuevo rol en el check constraint de usuarios.rol. Superset: incluye 'room'
+-- (Room Parent, ver rol-admin-a-room.sql) y 'admin' (legacy) para no romper
+-- ni el alta de apoderados/Room Parent nuevos ni filas viejas, corra este
+-- archivo antes o después de rol-admin-a-room.sql.
 alter table public.usuarios drop constraint if exists usuarios_rol_check;
 alter table public.usuarios add constraint usuarios_rol_check
-  check (rol = any (array['padre','admin','super','colegio_admin']));
+  check (rol = any (array['padre','admin','room','super','colegio_admin']));
 
 
 -- -----------------------------------------------------------------------------
