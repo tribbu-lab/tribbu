@@ -1,11 +1,24 @@
 // Centro de notificaciones in-app (puerto RN de src/features/notificaciones).
 // La lógica del hook es idéntica a la web; el panel se reescribe con Modal + FlatList.
 
-import { useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, Modal, SectionList, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
+
+// Contexto para compartir el resultado de useNotificaciones (levantado una sola
+// vez en app/(tabs)/_layout.jsx) con las pantallas de tabs. Sin esto, la tab
+// "Avisos" (features/recordatorios) tiene su propio estado de leídos y marcar
+// uno como leído ahí no bajaba el badge de la tab ni el punto de la campana
+// hasta reabrir la app: llama a useNotificacionesCtx().recargar() tras marcar.
+const NotificacionesCtx = createContext(null);
+export function NotificacionesProvider({ value, children }) {
+  return <NotificacionesCtx.Provider value={value}>{children}</NotificacionesCtx.Provider>;
+}
+export function useNotificacionesCtx() {
+  return useContext(NotificacionesCtx);
+}
 
 export function useNotificaciones({ cursoIds, userId, active }) {
   const [notifs, setNotifs] = useState([]);
