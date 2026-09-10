@@ -1,0 +1,6 @@
+# artefactos pesados del render: se regeneran con render.py + build.sh
+frames/
+audio/
+qa/
+out/
+__pycache__/
