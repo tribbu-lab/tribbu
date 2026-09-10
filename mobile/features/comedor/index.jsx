@@ -1,8 +1,11 @@
-// Comedor (puerto RN de src/features/comedor). Vistas día / semana / mes del
-// `menu`. El admin carga el menú desde un Excel con expo-document-picker +
-// expo-file-system (base64) + la lib xlsx (misma que la web).
+// Comedor (puerto RN de src/features/comedor). Rediseño 2026-09: navegación
+// día por día como vista principal (fecha grande + flechas, hoy por defecto,
+// salta fines de semana), platos en tarjetas elevadas agrupadas por tiempo
+// (entrada / principal / postre), etiquetas rápidas (Sin TACC, etc.) y notas
+// de alérgenos por día. Vista "semana" consolidada como toggle secundario.
+// El admin carga el menú desde un Excel (expo-document-picker + xlsx).
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -16,59 +19,105 @@ import { useSession } from "../../context/Session";
 
 const t = THEMES.light;
 
-const CAMPOS = [
-  { key: "entrada", label: "Entrada", color: "#8B5CF6", emoji: "🥣" },
-  { key: "plato", label: "Plato Principal 1", color: "#3B82F6", emoji: "🍽️" },
-  { key: "plato2", label: "Plato Principal 2", color: "#0EA5E9", emoji: "🍽️" },
-  { key: "acompanamiento", label: "Plato Principal 3", color: "#6366F1", emoji: "🍽️" },
-  { key: "postre", label: "Postre 1", color: "#10B981", emoji: "🍎" },
-  { key: "postre2", label: "Postre 2", color: "#34D399", emoji: "🍊" },
+// Los 6 campos de `menu`, agrupados por momento de la comida. Cada grupo se
+// pinta como una sección con sus platos en tarjetas.
+const GRUPOS = [
+  { label: "Entrada", icon: "bowl-mix-outline", color: "#8B5CF6", campos: [{ key: "entrada" }] },
+  { label: "Plato principal", icon: "silverware-fork-knife", color: "#3B82F6", campos: [{ key: "plato" }, { key: "plato2" }, { key: "acompanamiento" }] },
+  { label: "Postre", icon: "food-apple-outline", color: "#10B981", campos: [{ key: "postre" }, { key: "postre2" }] },
 ];
+const CAMPOS_ORDEN = ["entrada", "plato", "plato2", "acompanamiento", "postre", "postre2"];
+
+// Vocabulario fijo de etiquetas rápidas (nivel día). El admin las tilda en el
+// modal; el apoderado las escanea de un vistazo. Strings que no matcheen se
+// muestran igual, en gris.
+const ETIQUETAS = [
+  { id: "Sin TACC", color: "#B45309", bg: "#FEF3C7" },
+  { id: "Sin lactosa", color: "#0369A1", bg: "#E0F2FE" },
+  { id: "Opción vegetariana", color: "#15803D", bg: "#DCFCE7" },
+  { id: "Opción vegana", color: "#166534", bg: "#DCFCE7" },
+  { id: "Sin frutos secos", color: "#9333EA", bg: "#F3E8FF" },
+];
+const etiquetaStyle = (id) => ETIQUETAS.find((e) => e.id === id) || { id, color: t.textMuted, bg: t.surfaceSunken };
 
 const iso = (d) => d.toISOString().split("T")[0];
-const pad = (n) => String(n).padStart(2, "0");
+const parseISO = (s) => new Date(s + "T00:00:00");
+const esFinde = (d) => d.getDay() === 0 || d.getDay() === 6;
+// Mueve la fecha al día hábil más cercano en la dirección dada (para no
+// aterrizar nunca en sábado/domingo, que no tienen menú).
+const snapHabil = (d, dir = 1) => {
+  const x = new Date(d);
+  while (esFinde(x)) x.setDate(x.getDate() + dir);
+  return x;
+};
 
 // puedeEditar/mostrarUpload permiten embeber este mismo componente en el
-// Menú de Super Admin (puedeEditar=true, mostrarUpload=false porque esa
-// pantalla ya trae su propio UploadMenuExcel) sin depender de isAdmin de
-// useSession(), que para una cuenta Super Admin puede no reflejar ningún
-// curso real.
+// Menú de Super Admin (puedeEditar=true, mostrarUpload=false).
 export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
   const { isAdmin } = useSession();
   const [menu, setMenu] = useState([]);
-  const [vista, setVista] = useState("semanal");
-  const [fechaSel, setFechaSel] = useState(iso(new Date()));
-  const [mes, setMes] = useState(new Date());
-  const [diaExpandido, setDiaExpandido] = useState(iso(new Date())); // fecha (string) abierta en "Por fecha", hoy por defecto
-  const [editModal, setEditModal] = useState(null); // null | {fecha, entrada, plato, plato2, acompanamiento, postre, postre2}
-  // Multi-colegio: menu.colegio_id es NOT NULL (ver supabase/multi-colegio.sql).
-  // Mobile todavía no tiene selector de colegio (queda para una próxima
-  // versión, ver specs/multi-colegio.md) — se resuelve al único/primer
-  // colegio existente, mismo criterio que la web fuera de Super Admin.
+  const [vista, setVista] = useState("dia"); // "dia" | "semana"
+  const [fechaSel, setFechaSel] = useState(iso(snapHabil(new Date())));
+  const [editModal, setEditModal] = useState(null);
+
+  // Multi-colegio: menu.colegio_id es NOT NULL. Mobile todavía no tiene
+  // selector de colegio — se resuelve al único/primer colegio existente.
   const [colegioId, setColegioId] = useState(null);
   useEffect(() => {
     supabase.from("colegios").select("id").order("creado_en").limit(1).single().then((r) => setColegioId(r.data?.id ?? null));
   }, []);
 
   const cargarMenu = useCallback(() => {
-    supabase
-      .from("menu")
-      .select("*")
-      .order("fecha")
-      .then((r) => setMenu(r.data || []));
+    supabase.from("menu").select("*").order("fecha").then((r) => setMenu(r.data || []));
   }, []);
+  useEffect(() => { cargarMenu(); }, [cargarMenu]);
 
-  useEffect(() => {
-    cargarMenu();
-  }, [cargarMenu]);
+  const menuPorFecha = useMemo(() => {
+    const map = {};
+    for (const m of menu) map[m.fecha] = m;
+    return map;
+  }, [menu]);
+
+  const hoyIso = iso(new Date());
+  const dSel = parseISO(fechaSel);
+  const menuSel = menuPorFecha[fechaSel] || null;
+
+  const navDia = (dir) => {
+    const d = parseISO(fechaSel);
+    d.setDate(d.getDate() + dir);
+    setFechaSel(iso(snapHabil(d, dir)));
+  };
+
+  // ── Semana (lunes a viernes de la semana de fechaSel) ──
+  const semanaBase = useMemo(() => {
+    const d = parseISO(fechaSel);
+    const day = d.getDay();
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return d;
+  }, [fechaSel]);
+  const diasSemana = useMemo(
+    () => Array.from({ length: 5 }, (_, i) => { const d = new Date(semanaBase); d.setDate(d.getDate() + i); return iso(d); }),
+    [semanaBase]
+  );
+  const navSemana = (dir) => { const d = parseISO(fechaSel); d.setDate(d.getDate() + dir * 7); setFechaSel(iso(d)); };
+  const semanaLabel = () => {
+    const ini = parseISO(diasSemana[0]);
+    const fin = parseISO(diasSemana[4]);
+    return `${ini.getDate()} al ${fin.getDate()} de ${MESES[fin.getMonth()]}`;
+  };
 
   const abrirEdicion = (fecha) => {
-    const existente = menu.find((m) => m.fecha === fecha);
-    setEditModal(existente ? { ...existente } : { fecha, colegio_id: colegioId, entrada: "", plato: "", plato2: "", acompanamiento: "", postre: "", postre2: "" });
+    const e = menuPorFecha[fecha];
+    setEditModal(e
+      ? { ...e, etiquetas: Array.isArray(e.etiquetas) ? e.etiquetas : [] }
+      : { fecha, colegio_id: colegioId, entrada: "", plato: "", plato2: "", acompanamiento: "", postre: "", postre2: "", etiquetas: [], notas: "" });
   };
   const guardarDia = async (form) => {
-    const { error } = await supabase.from("menu").upsert({ ...form, colegio_id: form.colegio_id || colegioId }, { onConflict: "colegio_id,fecha" });
-    if (error) { console.warn("Comedor.guardarDia:", error?.message); return; }
+    const { error } = await supabase.from("menu").upsert(
+      { ...form, colegio_id: form.colegio_id || colegioId },
+      { onConflict: "colegio_id,fecha" }
+    );
+    if (error) { console.warn("Comedor.guardarDia:", error?.message); return error; }
     setEditModal(null);
     cargarMenu();
   };
@@ -79,205 +128,116 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
     cargarMenu();
   };
 
-  const year = mes.getFullYear();
-  const month = mes.getMonth();
-
-  // Semana (lunes a viernes)
-  const getInicioSemana = (fecha) => {
-    const d = new Date(fecha + "T00:00:00");
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    return d;
-  };
-  const semanaBase = getInicioSemana(fechaSel);
-  const diasSemana = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(semanaBase);
-    d.setDate(d.getDate() + i);
-    return iso(d);
-  });
-  const navSemana = (dir) => {
-    const d = new Date(fechaSel + "T00:00:00");
-    d.setDate(d.getDate() + dir * 7);
-    setFechaSel(iso(d));
-  };
-  const semanaLabel = () => {
-    const ini = new Date(diasSemana[0] + "T00:00:00");
-    const fin = new Date(diasSemana[4] + "T00:00:00");
-    return `${ini.getDate()} al ${fin.getDate()} de ${MESES[fin.getMonth()]} ${fin.getFullYear()}`;
-  };
-
-  // "Por fecha": todos los días hábiles (lunes a viernes) del mes seleccionado
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const diasHabilesMes = Array.from({ length: daysInMonth }, (_, i) => i + 1)
-    .map((day) => {
-      const fecha = `${year}-${pad(month + 1)}-${pad(day)}`;
-      const dow = new Date(fecha + "T00:00:00").getDay();
-      return { day, fecha, dow };
-    })
-    .filter((d) => d.dow >= 1 && d.dow <= 5);
-  const hoyIso = iso(new Date());
-  const diaHoyMenu = menu.find((m) => m.fecha === hoyIso) || null;
-
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>Comedor 🍽️</Text>
-      <Text style={styles.subtitle}>Menú de {MESES[new Date().getMonth()]} · cargado por el colegio</Text>
+      <View style={styles.topRow}>
+        <View style={styles.flex1}>
+          <Text style={styles.h1}>Comedor</Text>
+          <Text style={styles.subtitle}>Menú cargado por el colegio</Text>
+        </View>
+        <Pressable
+          onPress={() => setVista((v) => (v === "dia" ? "semana" : "dia"))}
+          style={styles.toggleBtn}
+          hitSlop={8}
+        >
+          <MaterialCommunityIcons
+            name={vista === "dia" ? "calendar-week" : "calendar-today"}
+            size={15}
+            color={BLUE[600]}
+          />
+          <Text style={styles.toggleTxt}>{vista === "dia" ? "Ver semana" : "Ver día"}</Text>
+        </Pressable>
+      </View>
 
       {mostrarUpload && isAdmin ? <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId} /> : null}
 
-      <View style={styles.tabs}>
-        {[
-          { id: "semanal", l: "Esta semana" },
-          { id: "porFecha", l: "Por fecha" },
-        ].map((v) => (
-          <Pressable
-            key={v.id}
-            onPress={() => setVista(v.id)}
-            style={[styles.tab, vista === v.id && styles.tabActive]}
-          >
-            <Text style={[styles.tabTxt, vista === v.id && styles.tabTxtActive]}>{v.l}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {vista === "semanal" ? (
+      {vista === "dia" ? (
         <View>
-          <View style={styles.weekNav}>
-            <Pressable onPress={() => navSemana(-1)} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
+          {/* Cabecera con fecha grande + flechas */}
+          <View style={styles.dayNav}>
+            <Pressable onPress={() => navDia(-1)} style={styles.navBtn} hitSlop={6}>
+              <MaterialCommunityIcons name="chevron-left" size={22} color={t.textMuted} />
             </Pressable>
-            <Text style={styles.weekLabel}>{semanaLabel()}</Text>
-            <Pressable onPress={() => navSemana(1)} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
+            <View style={styles.dayNavCenter}>
+              <Text style={styles.dayNavDow}>
+                {fechaSel === hoyIso ? "HOY" : parseISO(fechaSel).toLocaleDateString("es-AR", { weekday: "long" }).toUpperCase()}
+              </Text>
+              <Text style={styles.dayNavDate}>
+                {dSel.getDate()} de {MESES[dSel.getMonth()].toLowerCase()}
+              </Text>
+            </View>
+            <Pressable onPress={() => navDia(1)} style={styles.navBtn} hitSlop={6}>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={t.textMuted} />
             </Pressable>
           </View>
-          {diaHoyMenu ? (
-            <View style={styles.hoyCard}>
-              <Text style={styles.hoyLabel}>HOY · {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric"}).toUpperCase()}</Text>
-              {CAMPOS.filter((c) => diaHoyMenu[c.key]).map((c) => (
-                <View key={c.key} style={styles.hoyPlatoRow}>
-                  <Text style={styles.hoyPlatoLabel}>{c.emoji} {c.label.toUpperCase()}</Text>
-                  <Text style={styles.hoyPlatoTxt}>{diaHoyMenu[c.key]}</Text>
-                </View>
-              ))}
-            </View>
+          {fechaSel !== hoyIso ? (
+            <Pressable onPress={() => setFechaSel(iso(snapHabil(new Date())))} style={styles.volverHoy} hitSlop={6}>
+              <Text style={styles.volverHoyTxt}>← Volver a hoy</Text>
+            </Pressable>
           ) : null}
 
-          <Text style={styles.restoLabel}>RESTO DE LA SEMANA</Text>
-          {diasSemana.filter((fecha) => fecha !== hoyIso).map((fecha) => {
-            const d = new Date(fecha + "T00:00:00");
-            const m = menu.find((x) => x.fecha === fecha);
-            const platos = m ? CAMPOS.filter((c) => m[c.key]).map((c) => m[c.key]) : [];
+          <DiaDetalle
+            m={menuSel}
+            puedeEditar={puedeEditar}
+            onEditar={() => abrirEdicion(fechaSel)}
+          />
+        </View>
+      ) : (
+        <View>
+          <View style={styles.weekNav}>
+            <Pressable onPress={() => navSemana(-1)} style={styles.navBtn} hitSlop={6}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={t.textMuted} />
+            </Pressable>
+            <Text style={styles.weekLabel}>{semanaLabel()}</Text>
+            <Pressable onPress={() => navSemana(1)} style={styles.navBtn} hitSlop={6}>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={t.textMuted} />
+            </Pressable>
+          </View>
+
+          {diasSemana.map((fecha) => {
+            const d = parseISO(fecha);
+            const m = menuPorFecha[fecha];
+            const principal = m ? [m.plato, m.plato2, m.acompanamiento].filter(Boolean) : [];
+            const extras = m ? CAMPOS_ORDEN.filter((k) => m[k]).length - (principal[0] ? 1 : 0) : 0;
+            const isHoy = fecha === hoyIso;
+            const etiquetas = Array.isArray(m?.etiquetas) ? m.etiquetas : [];
             return (
               <Pressable
                 key={fecha}
-                onPress={() => {
-                  setFechaSel(fecha);
-                  setMes(new Date(fecha + "T00:00:00"));
-                  setDiaExpandido(fecha);
-                  setVista("porFecha");
-                }}
-                style={styles.weekRow}
+                onPress={() => { setFechaSel(fecha); setVista("dia"); }}
+                style={[styles.weekRow, isHoy && styles.weekRowHoy]}
               >
                 <View style={styles.weekDate}>
-                  <Text style={styles.weekDow}>
+                  <Text style={[styles.weekDow, isHoy && styles.weekHoyTxt]}>
                     {d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "")}
                   </Text>
-                  <Text style={styles.weekDay}>{d.getDate()}</Text>
+                  <Text style={[styles.weekDay, isHoy && styles.weekHoyTxt]}>{d.getDate()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                  {platos.length ? (
+                  {m ? (
                     <>
-                      <Text style={styles.weekPrincipal} numberOfLines={1}>{platos[0]}</Text>
-                      {platos.length > 1 ? <Text style={styles.weekResto} numberOfLines={1}>{platos.slice(1).join(" · ")}</Text> : null}
+                      <Text style={styles.weekPrincipal} numberOfLines={1}>
+                        {principal[0] || m.entrada || m.postre || "Menú cargado"}
+                      </Text>
+                      <View style={styles.weekMetaRow}>
+                        {extras > 0 ? <Text style={styles.weekResto}>+{extras} opcion{extras !== 1 ? "es" : ""}</Text> : null}
+                        {etiquetas.slice(0, 3).map((e) => {
+                          const s = etiquetaStyle(e);
+                          return <View key={e} style={[styles.weekDot, { backgroundColor: s.color }]} />;
+                        })}
+                      </View>
                     </>
                   ) : (
                     <Text style={styles.sinMenu}>Sin menú</Text>
                   )}
                 </View>
+                <MaterialCommunityIcons name="chevron-right" size={18} color={t.textFaint} />
               </Pressable>
             );
           })}
           <Text style={styles.hint}>Tocá un día para ver el detalle completo</Text>
         </View>
-      ) : null}
-
-      {vista === "porFecha" ? (
-        <View>
-          <View style={styles.weekNav}>
-            <Pressable onPress={() => setMes(new Date(year, month - 1, 1))} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-left" size={18} color={t.textMuted} />
-            </Pressable>
-            <Text style={styles.weekLabel}>
-              {MESES[month]} {year}
-            </Text>
-            <Pressable onPress={() => setMes(new Date(year, month + 1, 1))} style={styles.navBtn}>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={t.textMuted} />
-            </Pressable>
-          </View>
-          {diasHabilesMes.map(({ day, fecha }) => {
-            const d = new Date(fecha + "T00:00:00");
-            const m = menu.find((x) => x.fecha === fecha);
-            const isHoy = fecha === hoyIso;
-            const abierto = diaExpandido === fecha;
-            return (
-              <View key={fecha} style={[styles.porFechaCard, isHoy && styles.weekRowHoy]}>
-                <Pressable
-                  onPress={() => setDiaExpandido((prev) => (prev === fecha ? null : fecha))}
-                  style={styles.porFechaHeader}
-                >
-                  <View style={styles.weekDate}>
-                    <Text style={[styles.weekDow, isHoy && styles.weekHoyTxt]}>
-                      {d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "")}
-                    </Text>
-                    <Text style={[styles.weekDay, isHoy && styles.weekHoyTxt]}>{day}</Text>
-                  </View>
-                  <View style={styles.flex1}>
-                    {m ? (
-                      abierto ? (
-                        <Text style={styles.sinMenu}>Menú cargado</Text>
-                      ) : (
-                        CAMPOS.filter((c) => m[c.key]).slice(0, 2).map((c) => (
-                          <Text key={c.key} style={styles.weekItem}>
-                            <Text style={{ color: c.color }}>{c.emoji} </Text>
-                            {m[c.key]}
-                          </Text>
-                        ))
-                      )
-                    ) : (
-                      <Text style={styles.sinMenu}>Sin menú</Text>
-                    )}
-                  </View>
-                  <MaterialCommunityIcons
-                    name={abierto ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color={t.textFaint}
-                  />
-                </Pressable>
-                {abierto && (m || puedeEditar) ? (
-                  <View style={styles.porFechaDetalle}>
-                    {m ? CAMPOS.filter((c) => m[c.key]).map((c) => (
-                      <View key={c.key} style={styles.porFechaPlato}>
-                        <Text style={[styles.platoLabel, { color: c.color }]}>
-                          {c.emoji} {c.label.toUpperCase()}
-                        </Text>
-                        <Text style={styles.platoTxt}>{m[c.key]}</Text>
-                      </View>
-                    )) : null}
-                    {puedeEditar ? (
-                      <Pressable onPress={() => abrirEdicion(fecha)} style={styles.editarDiaBtn}>
-                        <Text style={styles.editarDiaTxt}>{m ? "✏️ Editar día" : "+ Cargar día"}</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-          <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
-        </View>
-      ) : null}
+      )}
 
       {editModal ? (
         <MenuDiaModal dia={editModal} onClose={() => setEditModal(null)} onSave={guardarDia} onBorrar={borrarDia} />
@@ -286,10 +246,83 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
   );
 }
 
+// ── Detalle de un día: etiquetas + notas + platos en tarjetas por grupo ──
+function DiaDetalle({ m, puedeEditar, onEditar }) {
+  const etiquetas = Array.isArray(m?.etiquetas) ? m.etiquetas : [];
+  const tieneAlgo = m && CAMPOS_ORDEN.some((k) => m[k]);
+
+  if (!tieneAlgo) {
+    return (
+      <View style={styles.emptyBox}>
+        <MaterialCommunityIcons name="silverware-clean" size={28} color={t.textFaint} />
+        <Text style={styles.emptyTitle}>Sin menú para este día</Text>
+        <Text style={styles.emptySub}>Todavía no está cargado. Probá con otro día.</Text>
+        {puedeEditar ? (
+          <Pressable onPress={onEditar} style={styles.editarDiaBtn}>
+            <Text style={styles.editarDiaTxt}>+ Cargar día</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {etiquetas.length ? (
+        <View style={styles.badgeRow}>
+          {etiquetas.map((e) => {
+            const s = etiquetaStyle(e);
+            return (
+              <View key={e} style={[styles.badge, { backgroundColor: s.bg }]}>
+                <Text style={[styles.badgeTxt, { color: s.color }]}>{e}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {m.notas ? (
+        <View style={styles.notasCard}>
+          <MaterialCommunityIcons name="information-outline" size={16} color="#B45309" />
+          <Text style={styles.notasTxt}>{m.notas}</Text>
+        </View>
+      ) : null}
+
+      {GRUPOS.map((g) => {
+        const platos = g.campos.map((c) => m[c.key]).filter(Boolean);
+        if (!platos.length) return null;
+        return (
+          <View key={g.label} style={styles.grupo}>
+            <View style={styles.grupoHead}>
+              <MaterialCommunityIcons name={g.icon} size={14} color={g.color} />
+              <Text style={[styles.grupoLabel, { color: g.color }]}>{g.label.toUpperCase()}</Text>
+            </View>
+            {platos.map((p, i) => (
+              <View key={i} style={styles.platoCard}>
+                <Text style={styles.platoNombre}>{p}</Text>
+              </View>
+            ))}
+          </View>
+        );
+      })}
+
+      {puedeEditar ? (
+        <Pressable onPress={onEditar} style={styles.editarDiaBtnFull}>
+          <MaterialCommunityIcons name="pencil-outline" size={15} color={BLUE[600]} />
+          <Text style={styles.editarDiaTxt}>Editar día</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.alergiasNota}>¿Alergias o intolerancias? Consultalas en Contacto.</Text>
+      )}
+    </View>
+  );
+}
+
 function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
-  const [form, setForm] = useState(dia);
+  const [form, setForm] = useState({ ...dia, etiquetas: Array.isArray(dia.etiquetas) ? dia.etiquetas : [] });
   const [saving, setSaving] = useState(false);
-  const esNuevo = !dia.entrada && !dia.plato && !dia.plato2 && !dia.acompanamiento && !dia.postre && !dia.postre2;
+  const [err, setErr] = useState("");
+  const esNuevo = !CAMPOS_ORDEN.some((k) => dia[k]);
   const camposForm = [
     { key: "entrada", label: "Entrada" },
     { key: "plato", label: "Plato principal 1" },
@@ -298,6 +331,12 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
     { key: "postre", label: "Postre 1" },
     { key: "postre2", label: "Postre 2" },
   ];
+  const toggleEtiqueta = (id) =>
+    setForm((p) => ({
+      ...p,
+      etiquetas: p.etiquetas.includes(id) ? p.etiquetas.filter((x) => x !== id) : [...p.etiquetas, id],
+    }));
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -305,7 +344,7 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Cargar día" : "Editar día"}</Text>
             <Text style={styles.modalSub}>
-              {new Date(dia.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+              {parseISO(dia.fecha).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
             </Text>
             {camposForm.map((f) => (
               <View key={f.key}>
@@ -314,9 +353,40 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
                   value={form[f.key] || ""}
                   onChangeText={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
                   style={styles.input}
+                  placeholder="—"
+                  placeholderTextColor={t.textFaint}
                 />
               </View>
             ))}
+
+            <Text style={[styles.label, { marginTop: SPACE.md }]}>ETIQUETAS</Text>
+            <View style={styles.chipWrap}>
+              {ETIQUETAS.map((e) => {
+                const on = form.etiquetas.includes(e.id);
+                return (
+                  <Pressable
+                    key={e.id}
+                    onPress={() => toggleEtiqueta(e.id)}
+                    style={[styles.chip, on && { backgroundColor: e.bg, borderColor: e.color }]}
+                  >
+                    <Text style={[styles.chipTxt, on && { color: e.color, fontWeight: "800" }]}>{e.id}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.label, { marginTop: SPACE.md }]}>NOTAS / ALÉRGENOS</Text>
+            <TextInput
+              value={form.notas || ""}
+              onChangeText={(v) => setForm((p) => ({ ...p, notas: v }))}
+              style={[styles.input, styles.inputMulti]}
+              multiline
+              placeholder="Aclaraciones sobre alérgenos, opción sin TACC, etc."
+              placeholderTextColor={t.textFaint}
+            />
+
+            {err ? <Text style={styles.modalErr}>{err}</Text> : null}
+
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
@@ -327,7 +397,12 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
                 </Pressable>
               ) : null}
               <Pressable
-                onPress={async () => { setSaving(true); await onSave(form); setSaving(false); }}
+                onPress={async () => {
+                  setSaving(true); setErr("");
+                  const e = await onSave(form);
+                  setSaving(false);
+                  if (e) setErr(e.message || "No se pudo guardar.");
+                }}
                 disabled={saving}
                 style={styles.saveBtn}
               >
@@ -341,16 +416,12 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
   );
 }
 
-// Carga de menú en 4 estados (Parte 4 del handoff — antes era un upsert
-// directo con un alert de texto crudo si algo fallaba):
-//   idle → leyendo → error (con las columnas encontradas) | preview
-// El upsert real (onConflict:"fecha", pisa lo que ya había) solo corre al
-// confirmar el preview, nunca al leer el archivo — antes se escribía sin
-// avisar qué días se estaban reemplazando.
+// Carga de menú en 4 estados: idle → leyendo → error | preview. El upsert real
+// solo corre al confirmar el preview.
 export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
-  const [stage, setStage] = useState("idle"); // idle | leyendo | error | preview
+  const [stage, setStage] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [preview, setPreview] = useState([]); // [{fecha, row, estado}]
+  const [preview, setPreview] = useState([]);
   const [confirmando, setConfirmando] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -369,6 +440,10 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
       return iso(d);
     }
     return s;
+  };
+  const parseEtiquetas = (val) => {
+    if (!val) return [];
+    return String(val).split(/[;,/]/).map((s) => s.trim()).filter(Boolean);
   };
 
   const handlePick = async () => {
@@ -396,11 +471,10 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
       const colAcomp = keys.find((k) => k.toLowerCase().includes("acomp"));
       const colPostre1 = keys.find((k) => k.toLowerCase().includes("postre") && k.includes("1"));
       const colPostre2 = keys.find((k) => k.toLowerCase().includes("postre") && k.includes("2"));
+      const colEtiq = keys.find((k) => k.toLowerCase().includes("etiqueta") || k.toLowerCase().includes("tacc"));
+      const colNotas = keys.find((k) => k.toLowerCase().includes("nota") || k.toLowerCase().includes("aclarac") || k.toLowerCase().includes("alerg"));
       if (!colFecha) throw new Error(`No encontré columna de fecha. Renombrá esa columna a "fecha". Columnas encontradas: ${keys.join(", ")}`);
 
-      // Multi-colegio: menu.colegio_id es NOT NULL. Sin colegioId explícito se
-      // resuelve al único/primer colegio existente (mobile no tiene selector
-      // de colegio todavía, ver specs/multi-colegio.md).
       let colegioDestino = colegioIdProp;
       if (!colegioDestino) {
         const { data: col } = await supabase.from("colegios").select("id").order("creado_en").limit(1).single();
@@ -416,13 +490,12 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
           acompanamiento: colPlato3 ? r[colPlato3] || null : colAcomp ? r[colAcomp] || null : null,
           postre: colPostre1 ? r[colPostre1] || null : null,
           postre2: colPostre2 ? r[colPostre2] || null : null,
+          etiquetas: colEtiq ? parseEtiquetas(r[colEtiq]) : [],
+          notas: colNotas ? String(r[colNotas] || "").trim() || null : null,
         }))
         .filter((r) => r.fecha);
       if (inserts.length === 0) throw new Error("Columna fecha encontrada pero ningún valor válido. Revisá el formato de las fechas.");
 
-      // Preview antes de escribir: el upsert real (onConflict:"fecha") pisa
-      // sin avisar, así que primero se lee qué ya había cargado para esos
-      // mismos días.
       const { data: existentes } = await supabase.from("menu").select("fecha").eq("colegio_id", colegioDestino).in("fecha", inserts.map((r) => r.fecha));
       const existentesSet = new Set((existentes || []).map((r) => r.fecha));
       const conEstado = inserts.map((r) => {
@@ -439,7 +512,10 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
   };
 
   const confirmarCarga = async () => {
-    const aCargar = preview.filter((r) => r.estado !== "vacio").map(({ estado, ...r }) => r);
+    const aCargar = preview.filter((r) => r.estado !== "vacio").map((r) => {
+      const { estado, ...rest } = r; void estado;
+      return rest;
+    });
     if (aCargar.length === 0) { setStage("idle"); return; }
     setConfirmando(true);
     const { error } = await supabase.from("menu").upsert(aCargar, { onConflict: "colegio_id,fecha" });
@@ -476,7 +552,7 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
               return (
                 <View key={r.fecha} style={styles.previewRow}>
                   <Text style={styles.previewFecha} numberOfLines={1}>
-                    {new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    {parseISO(r.fecha).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
                   </Text>
                   <View style={[styles.previewPill, { backgroundColor: `${info.color}1A` }]}>
                     <Text style={[styles.previewPillTxt, { color: info.color }]}>{info.label}</Text>
@@ -486,11 +562,7 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
             })}
           </ScrollView>
           <View style={styles.previewActions}>
-            <Pressable
-              onPress={() => { setStage("idle"); setPreview([]); }}
-              disabled={confirmando}
-              style={[styles.previewBtn, styles.previewBtnCancelar]}
-            >
+            <Pressable onPress={() => { setStage("idle"); setPreview([]); }} disabled={confirmando} style={[styles.previewBtn, styles.previewBtnCancelar]}>
               <Text style={styles.previewBtnCancelarTxt}>Cancelar</Text>
             </Pressable>
             <Pressable onPress={confirmarCarga} disabled={confirmando} style={[styles.previewBtn, styles.previewBtnConfirmar]}>
@@ -510,14 +582,12 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null }) {
           <MaterialCommunityIcons name="tray-arrow-up" size={18} color={BLUE[600]} />
           <View>
             <Text style={styles.uploadTitle}>{stage === "leyendo" ? "Leyendo archivo..." : "Subir archivo Excel"}</Text>
-            <Text style={styles.uploadHint}>Formato: menu_tribbu.xlsx</Text>
+            <Text style={styles.uploadHint}>Columnas: fecha, plato 1-3, postre, etiquetas, notas</Text>
           </View>
         </Pressable>
       )}
 
-      {msg ? (
-        <Text style={[styles.uploadMsg, { color: T.green }]}>{msg}</Text>
-      ) : null}
+      {msg ? <Text style={[styles.uploadMsg, { color: T.green }]}>{msg}</Text> : null}
     </View>
   );
 }
@@ -526,41 +596,61 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
+  topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: SPACE.lg },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },
-  muted: { fontSize: 13, color: t.textFaint, fontWeight: "600", textAlign: "center" },
-  tabs: { flexDirection: "row", gap: 6, marginBottom: SPACE.lg },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 36, justifyContent: "center" },
-  tabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
-  tabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
-  tabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
+  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 2 },
+  toggleBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, marginTop: 2 },
+  toggleTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+
   navBtn: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
-  platoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 4 },
-  platoTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
-  alergiasNota: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
+
+  // Día
+  dayNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.sm },
+  dayNavCenter: { flex: 1, alignItems: "center" },
+  dayNavDow: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2, color: BLUE[600] },
+  dayNavDate: { fontSize: 19, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginTop: 1 },
+  volverHoy: { alignSelf: "center", paddingVertical: 4, marginBottom: SPACE.xs },
+  volverHoyTxt: { fontSize: 11.5, fontWeight: "700", color: t.textMuted },
+
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: SPACE.sm, marginBottom: SPACE.xs },
+  badge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: RADIUS.full },
+  badgeTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 0.2 },
+
+  notasCard: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", borderRadius: RADIUS.lg, padding: SPACE.md, marginTop: SPACE.sm },
+  notasTxt: { flex: 1, fontSize: 12.5, color: "#92400E", lineHeight: 18, fontWeight: "600" },
+
+  grupo: { marginTop: SPACE.lg },
+  grupoHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: SPACE.sm },
+  grupoLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  platoCard: { backgroundColor: t.surface, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, paddingVertical: 14, paddingHorizontal: SPACE.md, marginBottom: SPACE.sm },
+  platoNombre: { fontSize: 15, fontWeight: "700", color: t.textStrong, lineHeight: 21 },
+
+  emptyBox: { alignItems: "center", gap: 6, paddingVertical: 40, paddingHorizontal: SPACE.lg },
+  emptyTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginTop: 4 },
+  emptySub: { fontSize: 12.5, color: t.textFaint, textAlign: "center" },
+
+  editarDiaBtn: { alignSelf: "center", marginTop: SPACE.md, paddingVertical: 8, paddingHorizontal: 16, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  editarDiaBtnFull: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: SPACE.lg, paddingVertical: 11, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  editarDiaTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
+  alergiasNota: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: SPACE.lg },
+
+  // Semana
   weekNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg },
   weekLabel: { fontSize: 14, fontWeight: "700", color: t.textStrong, flex: 1, textAlign: "center" },
-  weekRow: { flexDirection: "row", gap: SPACE.md, backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: SPACE.md, marginBottom: SPACE.sm },
-  weekRowHoy: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  weekRow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: SPACE.md, marginBottom: SPACE.sm },
+  weekRowHoy: { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.accentSoft },
   weekDate: { width: 44, alignItems: "center" },
   weekDow: { fontSize: 10, fontWeight: "700", color: t.textFaint, textTransform: "uppercase", letterSpacing: 1 },
   weekDay: { fontSize: 17, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
   weekHoyTxt: { color: BLUE[600] },
-  weekItem: { fontSize: 12, color: t.text, lineHeight: 18 },
   weekPrincipal: { fontSize: 13.5, fontWeight: "700", color: t.textStrong },
-  weekResto: { fontSize: 11.5, color: t.textFaint, marginTop: 1 },
+  weekMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
+  weekResto: { fontSize: 11.5, color: t.textFaint },
+  weekDot: { width: 7, height: 7, borderRadius: 4 },
   sinMenu: { fontSize: 12, color: t.textFaint },
   hint: { fontSize: 11, color: t.textFaint, textAlign: "center", marginTop: 10 },
-  restoLabel: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint, marginBottom: 8, marginTop: 2 },
-  hoyCard: { backgroundColor: "#0F172A", borderRadius: RADIUS.xl, padding: SPACE.lg, marginBottom: SPACE.lg },
-  hoyLabel: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1, color: "rgba(255,255,255,0.45)", marginBottom: 12 },
-  hoyPlatoRow: { marginBottom: 10 },
-  hoyPlatoLabel: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6, color: "rgba(255,255,255,0.5)", marginBottom: 2 },
-  hoyPlatoTxt: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
-  porFechaCard: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, marginBottom: SPACE.sm, overflow: "hidden" },
-  porFechaHeader: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, minHeight: 44 },
-  porFechaDetalle: {},
-  porFechaPlato: { paddingHorizontal: SPACE.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.border },
+
+  // Upload
   uploadWrap: { marginBottom: SPACE.xl },
   uploadLabel: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 14, borderRadius: RADIUS.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.accent, backgroundColor: t.accentSoft, minHeight: 44 },
@@ -581,14 +671,18 @@ const styles = StyleSheet.create({
   previewBtnConfirmarTxt: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
   uploadMsg: { fontSize: 13, marginTop: 10, fontWeight: "600" },
 
-  editarDiaBtn: { alignSelf: "flex-start", marginTop: SPACE.sm, marginHorizontal: SPACE.md, marginBottom: SPACE.sm, paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
-  editarDiaTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  // Modal
   overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
   modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
   modalTitle: { fontSize: 16, fontWeight: "800", color: t.textStrong, letterSpacing: -0.2, marginBottom: 2 },
   modalSub: { fontSize: 12, color: t.textFaint, marginBottom: 14, textTransform: "capitalize" },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: 6, marginTop: SPACE.sm },
   input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 14, color: t.text },
+  inputMulti: { minHeight: 66, paddingTop: 10, textAlignVertical: "top" },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  chip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
+  chipTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  modalErr: { fontSize: 12.5, color: t.danger, fontWeight: "600", marginTop: 10 },
   modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
   cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
   cancelTxt: { color: t.textMuted, fontSize: 14, fontWeight: "700" },
