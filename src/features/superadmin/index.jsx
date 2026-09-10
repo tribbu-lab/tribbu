@@ -161,6 +161,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
 
+  // Evita el doble-submit: deshabilita el botón mientras corre el guardado.
+  const [guardando,setGuardando] = useState(false);
+  const conGuardando = (fn) => async (...args) => {
+    if(guardando) return;
+    setGuardando(true);
+    try { await fn(...args); } finally { setGuardando(false); }
+  };
+
   // super y colegio_admin se gestionan aparte (👑 Super Admins / 🏫 Colegio →
   // Administradores) — esta lista es solo apoderado/Room Parent de este colegio.
   const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin");
@@ -878,7 +886,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarUsuario} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_usuario"?"Crear apoderado":"Guardar cambios"}</button>
+              <button onClick={conGuardando(guardarUsuario)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_usuario"?"Crear apoderado":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -984,7 +992,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={modal==="editar_curso"?actualizarCurso:guardarCurso} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="editar_curso"?"Guardar cambios":form._duplicarDeId?"Crear duplicado":"Crear curso"}</button>
+              <button onClick={conGuardando(modal==="editar_curso"?actualizarCurso:guardarCurso)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="editar_curso"?"Guardar cambios":form._duplicarDeId?"Crear duplicado":"Crear curso"}</button>
             </div>
           </Card>
         </div>
@@ -1015,7 +1023,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarMaestro} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_maestro"?"Crear maestro":"Guardar cambios"}</button>
+              <button onClick={conGuardando(guardarMaestro)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_maestro"?"Crear maestro":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1066,7 +1074,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarAlumno} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal==="nuevo_alumno"?"Crear alumno":"Guardar cambios"}</button>
+              <button onClick={conGuardando(guardarAlumno)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_alumno"?"Crear alumno":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>

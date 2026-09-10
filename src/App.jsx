@@ -462,7 +462,9 @@ function App() {
                     regla #tribbu-sidebar de más arriba lo fuerza con !important,
                     ver la <style> antes de este div en el layout desktop) — la
                     diferencia se ve en el fondo, teñido con ROL_COLOR. */}
-                {item._tipo==="hijo"&&<span style={{fontSize:8.5,fontWeight:800,padding:"2px 6px",borderRadius:999,flexShrink:0,background:(ROL_COLOR[item.rolEfectivo]||"#94A3B8")+"3D"}}>{ROL_LABEL[item.rolEfectivo]}</span>}
+                {/* Solo se muestra si el rol lleva señal (Room Parent). Para el
+                    apoderado "a secas" no aporta nada y sumaba ruido. */}
+                {item._tipo==="hijo"&&item.rolEfectivo&&item.rolEfectivo!=="padre"&&<span style={{fontSize:8.5,fontWeight:600,padding:"2px 6px",borderRadius:999,flexShrink:0,background:(ROL_COLOR[item.rolEfectivo]||"#94A3B8")+"3D"}}>{ROL_LABEL[item.rolEfectivo]}</span>}
                 {item._tipo==="hijo"&&i===cursoIdx&&<span onClick={e=>{e.stopPropagation();setColorPickerIdx(colorPickerIdx===i?null:i);}} style={{fontSize:12,opacity:0.6,cursor:"pointer",color:"white"}}>🎨</span>}
               </button>
             </div>
