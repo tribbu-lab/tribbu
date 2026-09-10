@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
@@ -11,6 +12,7 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
+import { useToast } from "../../components/Toast";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { DateField } from "../../components/DateField";
@@ -27,11 +29,40 @@ const FORM_VACIO = {
   moneda: "$",
   responsable_id: "",
   fecha_limite: "",
+  alias_cbu: "",
 };
+
+// Bloque "datos para transferir" con botón de copiar grande (item de rediseño
+// 2026-09). El dinero va directo a quien organiza — tribbu no lo toca.
+function DatosTransferencia({ aliasCbu, showToast, compact = false }) {
+  if (!aliasCbu?.trim()) return null;
+  const copiar = async () => {
+    try {
+      await Clipboard.setStringAsync(aliasCbu.trim());
+      showToast("¡Copiado al portapapeles!");
+    } catch {
+      showToast("No se pudo copiar", "error");
+    }
+  };
+  return (
+    <View style={[styles.transfWrap, compact && styles.transfWrapCompact]}>
+      <Text style={styles.transfLabel}>DATOS PARA TRANSFERIR</Text>
+      <Pressable onPress={copiar} style={styles.transfBtn}>
+        <MaterialCommunityIcons name="content-copy" size={17} color="#FFFFFF" />
+        <View style={styles.flex1}>
+          <Text style={styles.transfBtnTop}>Copiar alias / CBU</Text>
+          <Text style={styles.transfBtnAlias} numberOfLines={1}>{aliasCbu.trim()}</Text>
+        </View>
+      </Pressable>
+      <Text style={styles.transfNota}>Transferís directo a quien organiza. tribbu no maneja el dinero.</Text>
+    </View>
+  );
+}
 
 export function Finanzas({ openColectaId = null, onClearOpen }) {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, misHijos = [], tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
+  const { showToast, toast } = useToast();
 
   const [colectas, setColectas] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
@@ -105,6 +136,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       descripcion: form.descripcion?.trim() || null,
       monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
       moneda: form.moneda || "$",
+      alias_cbu: form.alias_cbu?.trim() || null,
       responsable_id: form.responsable_id || null,
       fecha_limite: form.fecha_limite || null,
       vencimiento: form.fecha_limite || new Date().toISOString().slice(0, 10),
@@ -214,7 +246,8 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const deudaProxima = deudaPropia.reduce((min, d) => (d.dias != null && (min == null || d.dias < min) ? d.dias : min), null);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <View style={styles.screen}>
+    <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Colectas</Text>
       <Text style={styles.subtitle}>{esVistaTodos ? "Regalos y gastos compartidos de tus cursos." : "Regalos y gastos compartidos del curso."}</Text>
 
@@ -289,20 +322,31 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               </View>
             </View>
 
-            {c.monto_sugerido ? (
+            {(c.monto_sugerido || total > 0) ? (
               <View style={styles.progressWrap}>
                 <View style={styles.progressTop}>
-                  <Text style={styles.progressMontoGrande}>{fmtMonto(recaudado, c.moneda || "$")}</Text>
-                  <Text style={styles.progressMontoChico}>de {fmtMonto(esperado, c.moneda || "$")}</Text>
+                  {c.monto_sugerido ? (
+                    <View style={styles.flex1}>
+                      <Text style={styles.progressMontoGrande}>{fmtMonto(recaudado, c.moneda || "$")}</Text>
+                      <Text style={styles.progressMontoChico}>de {fmtMonto(esperado, c.moneda || "$")} · sugerido {fmtMonto(c.monto_sugerido, c.moneda || "$")}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.flex1} />
+                  )}
+                  <View style={styles.pctBadge}>
+                    <Text style={styles.pctTxt}>{pct}%</Text>
+                  </View>
                 </View>
                 <View style={styles.bar}>
                   <View style={[styles.barFill, { width: `${pct}%` }]} />
                 </View>
                 <Text style={styles.progressSub}>
-                  {pagados.length} de {total} familias ya aportaron
+                  {pagados.length} de {total} familia{total !== 1 ? "s" : ""} ya aportaron
                 </Text>
               </View>
             ) : null}
+
+            <DatosTransferencia aliasCbu={c.alias_cbu} showToast={showToast} />
 
             {!isAdmin && unSoloHijo ? (
               <View style={styles.aporteUnicoWrap}>
@@ -377,6 +421,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
                           descripcion: c.descripcion || "",
                           monto_sugerido: c.monto_sugerido ? String(c.monto_sugerido) : "",
                           moneda: c.moneda || "$",
+                          alias_cbu: c.alias_cbu || "",
                           responsable_id: c.responsable_id || "",
                           fecha_limite: c.fecha_limite || "",
                         });
@@ -420,8 +465,11 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         canToggle={(c) => isAdmin || userId === c?.responsable_id}
         onToggle={togglePago}
         onClose={() => setVistaAdmin(null)}
+        showToast={showToast}
       />
     </ScrollView>
+    {toast}
+    </View>
   );
 }
 
@@ -472,6 +520,18 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
               />
             </View>
 
+            <Text style={styles.label}>ALIAS / CBU PARA TRANSFERIR</Text>
+            <TextInput
+              value={form.alias_cbu}
+              onChangeText={(v) => setForm((p) => ({ ...p, alias_cbu: v }))}
+              placeholder="Ej: regalo.maestra.4b"
+              placeholderTextColor={t.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+            <Text style={styles.hintInput}>Lo ve cada familia con un botón para copiarlo. El dinero va directo al organizador.</Text>
+
             <Text style={styles.label}>FECHA LÍMITE</Text>
             <DateField
               value={form.fecha_limite}
@@ -516,7 +576,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
   );
 }
 
-function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose }) {
+function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, showToast }) {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
@@ -555,6 +615,7 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose })
             </Pressable>
           </View>
           <ScrollView>
+            <DatosTransferencia aliasCbu={colecta.alias_cbu} showToast={showToast} compact />
             {alumnos.map((a) => {
               const pago = getPago(colecta.id, a.id);
               const pagado = pago?.estado === "pagado";
@@ -634,11 +695,22 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" },
   meta: { fontSize: 12, color: t.textMuted },
   progressWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
-  progressTop: { flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 6 },
+  progressTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
   progressMontoGrande: { fontSize: 19, fontWeight: "900", color: t.textStrong, fontVariant: ["tabular-nums"] },
-  progressMontoChico: { fontSize: 12.5, fontWeight: "600", color: t.textFaint, fontVariant: ["tabular-nums"] },
-  bar: { height: 6, borderRadius: RADIUS.full, backgroundColor: SLATE[200], overflow: "hidden" },
+  progressMontoChico: { fontSize: 11.5, fontWeight: "600", color: t.textFaint, fontVariant: ["tabular-nums"], marginTop: 1 },
+  pctBadge: { minWidth: 52, height: 40, borderRadius: RADIUS.md, backgroundColor: t.successSoft, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  pctTxt: { fontSize: 15, fontWeight: "900", color: t.success, fontVariant: ["tabular-nums"] },
+  bar: { height: 8, borderRadius: RADIUS.full, backgroundColor: SLATE[200], overflow: "hidden" },
   barFill: { height: "100%", backgroundColor: t.success, borderRadius: RADIUS.full },
+
+  transfWrap: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border },
+  transfWrapCompact: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 14, borderBottomColor: t.border },
+  transfLabel: { ...TYPE.label, color: t.textFaint, marginBottom: 8 },
+  transfBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: BLUE[600], borderRadius: RADIUS.lg, paddingVertical: 12, paddingHorizontal: 14, minHeight: 52 },
+  transfBtnTop: { fontSize: 13.5, fontWeight: "800", color: "#FFFFFF" },
+  transfBtnAlias: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.82)", marginTop: 1 },
+  transfNota: { fontSize: 10.5, color: t.textFaint, marginTop: 6, lineHeight: 14 },
+  hintInput: { fontSize: 11, color: t.textFaint, marginTop: 2, marginBottom: 2, lineHeight: 15 },
   progressSub: { fontSize: 11, color: t.textFaint, marginTop: 4 },
   aporteUnicoWrap: { padding: 14 },
   aporteBtn: { minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
