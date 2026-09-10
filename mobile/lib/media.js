@@ -1,7 +1,8 @@
 // Helpers de medios para mobile (no existen en la web, que usa el DOM):
 // - pickAndUploadImage: elige una imagen con expo-image-picker, la sube al bucket
-//   de Supabase Storage y devuelve la URL pública. Reemplaza el <input type=file>
-//   + storage.upload(File) de la web (RN no tiene File/Blob desde el picker).
+//   de Supabase Storage y devuelve `{ url }` — el PATH para buckets privados
+//   (adjuntos/eventos, se firma al mostrar) o la URL pública para `libros`.
+//   Reemplaza el <input type=file> + storage.upload(File) de la web.
 // - pickAndUploadDocument: ídem con expo-document-picker para PDFs (adjuntos).
 // - exportRowsToExcel: arma un .xlsx con xlsx, lo escribe en cache con
 //   expo-file-system y abre la hoja de compartir nativa (la web usa writeFile,
@@ -99,8 +100,13 @@ async function uploadBase64({ uri, bucket, pathPrefix, ext, contentType }) {
   });
   if (error) throw error;
 
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  // adjuntos/eventos son buckets privados: se guarda el PATH y se firma al
+  // mostrar (mobile/lib/storageUrl.js). libros sigue público.
+  if (bucket === "libros") {
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+  return path;
 }
 
 /**

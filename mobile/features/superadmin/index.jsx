@@ -6,7 +6,7 @@
 // EmojiPicker en mobile) y Share para compartir códigos (sin dep de portapapeles).
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Image, Pressable, ScrollView, TextInput, Modal, Share, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Share, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -16,6 +16,7 @@ import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authA
 import { fmtNombre, fmtF, fmtRangoHora, sanitize, safeUrl, uuidLite } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
 import { pickAndUploadImage } from "../../lib/media";
+import { SignedImage } from "../../components/SignedImage";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { ListToolbar } from "../../components/ListToolbar";
@@ -1276,7 +1277,7 @@ function ColegioAdmin({ colegioId }) {
       <Text style={styles.subtitle}>Lo que ven las familias en la pantalla de Contacto.</Text>
 
       <View style={styles.colegioCard}>
-        {colegio.logo_url ? <Image source={{ uri: colegio.logo_url }} style={styles.colegioLogo} resizeMode="contain" /> : null}
+        {colegio.logo_url ? <SignedImage src={colegio.logo_url} bucket="adjuntos" style={styles.colegioLogo} resizeMode="contain" /> : null}
         {filas.map((f) => (
           <View key={f.l} style={styles.colegioFila}>
             <Text style={styles.colegioFilaLabel}>{f.l}</Text>
@@ -1299,7 +1300,7 @@ function ColegioAdmin({ colegioId }) {
                 <Text style={styles.label}>LOGO</Text>
                 <View style={styles.logoRow}>
                   {form.logo_url ? (
-                    <Image source={{ uri: form.logo_url }} style={styles.logoPreview} resizeMode="contain" />
+                    <SignedImage src={form.logo_url} bucket="adjuntos" style={styles.logoPreview} resizeMode="contain" />
                   ) : (
                     <View style={[styles.logoPreview, styles.logoEmpty]} />
                   )}

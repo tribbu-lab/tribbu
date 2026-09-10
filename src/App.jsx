@@ -7,6 +7,7 @@ import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from 
 import { getHijoColor, setHijoColor } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
+import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal } from "./features/auth";
@@ -515,7 +516,7 @@ function App() {
             <Wordmark size={22} letterSpacing={-1} />
             {/* Logo del colegio — chico, al lado del wordmark, nunca lo
                 reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
-            {colegioActivo?.logo_url&&<img src={colegioActivo.logo_url} alt={colegioActivo.nombre} title={colegioActivo.nombre} style={{width:22,height:22,borderRadius:6,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2}}/>}
+            {colegioActivo?.logo_url&&<SignedImg src={colegioActivo.logo_url} bucket="adjuntos" alt={colegioActivo.nombre} style={{width:22,height:22,borderRadius:6,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2}}/>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
@@ -626,7 +627,7 @@ function App() {
             <Wordmark size={26} letterSpacing={-1} />
             {/* Logo del colegio — chico, al lado del wordmark, nunca lo
                 reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
-            {colegioActivo?.logo_url&&<img src={colegioActivo.logo_url} alt={colegioActivo.nombre} title={colegioActivo.nombre} style={{width:26,height:26,borderRadius:7,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2,flexShrink:0}}/>}
+            {colegioActivo?.logo_url&&<SignedImg src={colegioActivo.logo_url} bucket="adjuntos" alt={colegioActivo.nombre} style={{width:26,height:26,borderRadius:7,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2,flexShrink:0}}/>}
           </div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
         </div>

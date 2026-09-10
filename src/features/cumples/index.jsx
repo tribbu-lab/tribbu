@@ -10,6 +10,7 @@ import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
 import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
+import { SignedImg } from "../../components/SignedImg";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar } from "../../components";
@@ -546,8 +547,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
     const path = `festejos/${cursoId}_${alumnoId}_${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("eventos").upload(path, file, { upsert: true });
     if(!error) {
-      const { data: urlData } = supabase.storage.from("eventos").getPublicUrl(path);
-      setForm(p=>({...p, imagen_url: urlData.publicUrl}));
+      setForm(p=>({...p, imagen_url: path})); // bucket privado: se guarda el path
     } else {
       console.error("Error subiendo imagen:", error);
     }
@@ -663,7 +663,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
             <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Imagen de invitación</div>
             {form.imagen_url && (
               <div style={{position:"relative",display:"inline-block",marginBottom:8}}>
-                <img src={form.imagen_url} alt="Invitación" style={{width:"100%",maxHeight:180,objectFit:"contain",borderRadius:10,border:"1.5px solid #E2E8F0"}}/>
+                <SignedImg src={form.imagen_url} bucket="eventos" alt="Invitación" style={{width:"100%",maxHeight:180,objectFit:"contain",borderRadius:10,border:"1.5px solid #E2E8F0"}}/>
                 <button onClick={()=>{ setForm(p=>({...p,imagen_url:""})); setImgFile(null); }} style={{position:"absolute",top:6,right:6,width:24,height:24,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
               </div>
             )}
@@ -833,7 +833,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUp
       {/* Zoom overlay */}
       {imgZoom&&(
         <div onClick={()=>setImgZoom(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}>
-          <img src={evento.imagen_url} alt="Invitación" style={{maxWidth:"100%",maxHeight:"90vh",objectFit:"contain",borderRadius:12}}/>
+          <SignedImg src={evento.imagen_url} bucket="eventos" alt="Invitación" style={{maxWidth:"100%",maxHeight:"90vh",objectFit:"contain",borderRadius:12}}/>
           <button onClick={()=>setImgZoom(false)} style={{position:"absolute",top:16,right:16,background:"rgba(255,255,255,0.15)",border:"none",borderRadius:"50%",width:36,height:36,cursor:"pointer",fontSize:18,color:"white"}}>✕</button>
         </div>
       )}
@@ -855,7 +855,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUp
           <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}}>
             {evento.imagen_url&&(
               <div onClick={()=>setImgZoom(true)} style={{cursor:"zoom-in",position:"relative"}}>
-                <img src={evento.imagen_url} alt="Invitación" style={{width:80,height:80,objectFit:"cover",borderRadius:12,border:"1.5px solid #E2E8F0",display:"block"}}/>
+                <SignedImg src={evento.imagen_url} bucket="eventos" alt="Invitación" style={{width:80,height:80,objectFit:"cover",borderRadius:12,border:"1.5px solid #E2E8F0",display:"block"}}/>
                 <div style={{position:"absolute",bottom:4,right:4,background:"rgba(0,0,0,0.45)",borderRadius:4,padding:"1px 4px",fontSize:9,color:"white",fontWeight:700}}>🔍</div>
               </div>
             )}

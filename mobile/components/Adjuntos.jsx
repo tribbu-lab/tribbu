@@ -7,11 +7,13 @@
 // Cada adjunto es { url, tipo: "imagen"|"pdf", nombre }.
 
 import { useState } from "react";
-import { View, Text, Pressable, Image, Modal, Linking, StyleSheet } from "react-native";
+import { View, Text, Pressable, Modal, Linking, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { sanitize, safeUrl } from "@shared/helpers";
+import { sanitize } from "@shared/helpers";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { pickAndUploadImage, pickAndUploadDocument } from "../lib/media";
+import { signStorageUrl } from "../lib/storageUrl";
+import { SignedImage } from "./SignedImage";
 
 export const MAX_ADJUNTOS = 3;
 const t = THEMES.light;
@@ -58,7 +60,7 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
           {adjuntos.map((a, i) => (
             <View key={i} style={[styles.item, a.tipo === "pdf" && styles.itemPdf]}>
               {a.tipo === "imagen" ? (
-                <Image source={{ uri: a.url }} style={styles.thumb} resizeMode="cover" />
+                <SignedImage src={a.url} bucket="adjuntos" style={styles.thumb} />
               ) : (
                 <>
                   <MaterialCommunityIcons name="file-pdf-box" size={18} color={t.danger} />
@@ -100,9 +102,9 @@ export function AdjuntosList({ adjuntos }) {
   const items = adjuntos || [];
   if (items.length === 0) return null;
 
-  const abrirPdf = (a) => {
-    const url = safeUrl(a.url);
-    if (url) Linking.openURL(url);
+  const abrirPdf = async (a) => {
+    const url = await signStorageUrl(a.url, "adjuntos");
+    if (url && /^https?:/.test(url)) Linking.openURL(url);
   };
 
   return (
@@ -111,7 +113,7 @@ export function AdjuntosList({ adjuntos }) {
         {items.map((a, i) =>
           a.tipo === "imagen" ? (
             <Pressable key={i} onPress={() => setPreview(a)}>
-              <Image source={{ uri: a.url }} style={styles.thumbLg} resizeMode="cover" />
+              <SignedImage src={a.url} bucket="adjuntos" style={styles.thumbLg} />
             </Pressable>
           ) : (
             <Pressable key={i} onPress={() => abrirPdf(a)} style={styles.pdfChip}>
@@ -124,7 +126,7 @@ export function AdjuntosList({ adjuntos }) {
 
       <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable style={styles.lightbox} onPress={() => setPreview(null)}>
-          {preview ? <Image source={{ uri: preview.url }} style={styles.lightboxImg} resizeMode="contain" /> : null}
+          {preview ? <SignedImage src={preview.url} bucket="adjuntos" style={styles.lightboxImg} resizeMode="contain" /> : null}
         </Pressable>
       </Modal>
     </>

@@ -15,7 +15,6 @@ import {
   ScrollView,
   TextInput,
   FlatList,
-  Image,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -35,6 +34,7 @@ import { SelectChip } from "../../components/SelectChip";
 import { Paginador } from "../../components/Paginador";
 import { Avatar } from "../../components/Avatar";
 import { DateField } from "../../components/DateField";
+import { SignedImage } from "../../components/SignedImage";
 import { useListControls } from "../../lib/useListControls";
 
 const t = THEMES.light;
@@ -834,7 +834,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
             <Text style={styles.label}>IMAGEN DE INVITACIÓN</Text>
             {form.imagen_url ? (
               <View style={styles.imgWrap}>
-                <Image source={{ uri: form.imagen_url }} style={styles.imgPreview} resizeMode="contain" />
+                <SignedImage src={form.imagen_url} bucket="eventos" style={styles.imgPreview} resizeMode="contain" />
                 <Pressable onPress={() => setForm((p) => ({ ...p, imagen_url: "" }))} style={styles.imgRemove}>
                   <Text style={styles.imgRemoveTxt}>✕</Text>
                 </Pressable>
@@ -1058,7 +1058,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
 
           <ScrollView keyboardShouldPersistTaps="handled">
             {evento.imagen_url ? (
-              <Image source={{ uri: evento.imagen_url }} style={styles.detalleImg} resizeMode="contain" />
+              <SignedImage src={evento.imagen_url} bucket="eventos" style={styles.detalleImg} resizeMode="contain" />
             ) : null}
 
             {misHijosInvitados.map((hid) => {

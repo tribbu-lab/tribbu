@@ -5,7 +5,7 @@
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
-import { View, Text, Image, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -14,6 +14,7 @@ import { useSession } from "../context/Session";
 import { NotificacionesPanel } from "../features/notificaciones";
 import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
+import { SignedImage } from "./SignedImage";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -67,7 +68,7 @@ export function AppHeader({ notif }) {
           {/* Logo del colegio — chico, al lado del wordmark, nunca lo
               reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
           {colegioActivo?.logo_url ? (
-            <Image source={{ uri: colegioActivo.logo_url }} accessibilityLabel={colegioActivo.nombre} style={styles.colegioLogo} />
+            <SignedImage src={colegioActivo.logo_url} bucket="adjuntos" style={styles.colegioLogo} resizeMode="contain" />
           ) : null}
         </View>
         <View style={styles.actions}>

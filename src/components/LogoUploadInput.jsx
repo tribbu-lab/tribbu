@@ -10,6 +10,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "../supabase";
 import { T } from "../lib/theme";
+import { SignedImg } from "./SignedImg";
 
 const MAX_BYTES = 3 * 1024 * 1024; // 3 MB — un logo no necesita más
 
@@ -34,10 +35,9 @@ export function LogoUploadInput({ colegioId, value, onChange }) {
     if (upError) {
       setError("Error al subir el logo: " + upError.message);
     } else {
-      // Cache-bust: el path es siempre el mismo (upsert), así que sin esto
-      // el navegador podría seguir mostrando el logo viejo desde caché.
-      const { data } = supabase.storage.from("adjuntos").getPublicUrl(path);
-      onChange(`${data.publicUrl}?t=${Date.now()}`);
+      // Bucket privado: se guarda el PATH. Cada firmado genera una URL nueva,
+      // así que el cache-bust del path fijo (upsert) es automático.
+      onChange(path);
     }
     setSubiendo(false);
   };
@@ -46,7 +46,7 @@ export function LogoUploadInput({ colegioId, value, onChange }) {
     <div>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
         <div style={{width:44,height:44,borderRadius:10,border:"1.5px solid #E2E8F0",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-          {value ? <img src={value} alt="Logo" style={{width:"100%",height:"100%",objectFit:"contain"}}/> : <span style={{fontSize:16,opacity:0.3}}>🏫</span>}
+          {value ? <SignedImg src={value} bucket="adjuntos" alt="Logo" style={{width:"100%",height:"100%",objectFit:"contain"}}/> : <span style={{fontSize:16,opacity:0.3}}>🏫</span>}
         </div>
         <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
         <button onClick={() => inputRef.current?.click()} disabled={subiendo || !colegioId}
