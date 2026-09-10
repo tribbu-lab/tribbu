@@ -331,7 +331,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                     </span>
                   )}
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:14,fontWeight:800}}>{c.titulo}</span>
+                    <span style={{fontSize:14.5,fontWeight:700}}>{c.titulo}</span>
                     {!c.activa&&<Pill label="Cerrada" color="#94A3B8" bg="#F1F5F9"/>}
                     {c.activa&&vencida&&<Pill label="Vencida" color="#EF4444" bg="#FEF2F2"/>}
                     {c.activa&&!vencida&&dias!==null&&dias<=7&&<Pill label={`${dias}d`} color="#F59E0B" bg="#FFFBEB"/>}
@@ -355,16 +355,23 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
             </div>
 
             {/* Progreso */}
-            {c.monto_sugerido&&(
-              <div style={{padding:"10px 16px",borderBottom:"1px solid #F8FAFC"}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"#64748B",marginBottom:5}}>
-                  <span>Recaudado</span>
-                  <span>{fmtM(recaudado, c.moneda||"$")} <span style={{color:"#CBD5E1"}}>/ {fmtM(esperado, c.moneda||"$")}</span></span>
+            {(c.monto_sugerido||total>0)&&(
+              <div style={{padding:"12px 16px",borderBottom:"1px solid #F8FAFC"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
+                  {c.monto_sugerido?(
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:17,fontWeight:900,color:"#0F172A",lineHeight:1.1,fontVariant:"tabular-nums"}}>{fmtM(recaudado, c.moneda||"$")}</div>
+                      <div style={{fontSize:11,fontWeight:600,color:"#94A3B8",marginTop:2}}>de {fmtM(esperado, c.moneda||"$")} · sugerido {fmtM(c.monto_sugerido, c.moneda||"$")}</div>
+                    </div>
+                  ):<div style={{flex:1}}/>}
+                  <div style={{minWidth:48,height:36,borderRadius:9,background:"#DCFCE7",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 8px"}}>
+                    <span style={{fontSize:14,fontWeight:900,color:"#15803D",fontVariant:"tabular-nums"}}>{pct}%</span>
+                  </div>
                 </div>
-                <div style={{height:6,borderRadius:10,background:"#E2E8F0",overflow:"hidden"}}>
+                <div style={{height:8,borderRadius:10,background:"#E2E8F0",overflow:"hidden"}}>
                   <div style={{height:"100%",width:pct+"%",background:"#10B981",borderRadius:10,transition:"width 0.3s"}}/>
                 </div>
-                <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>{alumnosPagados.length} de {total} alumnos pagaron</div>
+                <div style={{fontSize:10.5,color:"#94A3B8",marginTop:5}}>{alumnosPagados.length} de {total} familia{total!==1?"s":""} ya aportaron</div>
               </div>
             )}
 
