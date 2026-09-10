@@ -520,7 +520,7 @@ function App() {
             {/* Campana de notificaciones */}
             <button onClick={()=>setPanelNotifs(p=>!p)} style={{position:"relative",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16}}>
               🔔
-              {noLeidos>0&&<span style={{position:"absolute",top:0,right:0,background:"#EF4444",color:"white",borderRadius:20,fontSize:8,fontWeight:800,padding:"0 3px",minWidth:14,textAlign:"center",lineHeight:"14px",transform:"translate(4px,-4px)"}}>{noLeidos>9?"9+":noLeidos}</span>}
+              {noLeidos>0&&<span style={{position:"absolute",top:0,right:0,background:"#EF4444",color:"white",borderRadius:20,fontSize:8,fontWeight:600,padding:"0 3px",minWidth:14,textAlign:"center",lineHeight:"14px",transform:"translate(4px,-4px)"}}>{noLeidos>9?"9+":noLeidos}</span>}
             </button>
             <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>🔑</button>
             <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
@@ -586,7 +586,7 @@ function App() {
                 <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
                   <span style={{fontSize:18}}>{t.emoji}</span>
                   <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap",color:tab===t.id?"white":"rgba(255,255,255,0.45)"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
-                  {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:800,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
+                  {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:600,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
                   {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
                 </button>
               ))}
@@ -635,7 +635,7 @@ function App() {
               <span style={{fontSize:16}}>{t.emoji}</span>
               <span style={{flex:1}}>{t.label}</span>
               {t.id==="recordatorios"&&badgeCount>0&&(
-                <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:800,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>
+                <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:600,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>
               )}
             </button>
           ))}
@@ -643,7 +643,7 @@ function App() {
           <button onClick={()=>setPanelNotifs(p=>!p)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:panelNotifs?"rgba(255,255,255,0.12)":"transparent",fontSize:13,fontWeight:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10,position:"relative"}}>
             <span style={{fontSize:16}}>🔔</span>
             <span style={{flex:1}}>Notificaciones</span>
-            {noLeidos>0&&<span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:800,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{noLeidos>99?"99+":noLeidos}</span>}
+            {noLeidos>0&&<span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:600,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{noLeidos>99?"99+":noLeidos}</span>}
           </button>
         </div>
 

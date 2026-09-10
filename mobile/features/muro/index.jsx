@@ -33,7 +33,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora } from "@shared/helpers";
-import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, MIN_TOUCH } from "@shared/tokens";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { SkeletonList } from "../../components/Skeleton";
@@ -584,7 +584,7 @@ function PendienteCard({ p }) {
         <Text style={styles.ptitulo} numberOfLines={2}>{p.titulo}</Text>
         <Text style={styles.pmeta} numberOfLines={1}>{p.meta}</Text>
         <View style={styles.pact}>
-          <Pressable onPress={p.onAccion} style={[styles.pbtnPrimary, { backgroundColor: p.btnBg }]}>
+          <Pressable onPress={p.onAccion} hitSlop={8} style={styles.pbtnPrimary}>
             <Text style={[styles.pbtnPrimaryTxt, { color: p.btnFg }]}>{p.accion}</Text>
           </Pressable>
           <Pressable onPress={p.onPress} hitSlop={8} style={styles.pbtnVer}>
@@ -645,9 +645,9 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
 
   eyebrow: { ...TYPE.label, color: t.textFaint },
-  hello: { fontSize: 21, fontWeight: "800", color: t.textStrong, marginTop: 6, letterSpacing: -0.3 },
+  hello: { fontSize: 21, fontWeight: "700", color: t.textStrong, marginTop: 6, letterSpacing: -0.3 },
 
-  label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
+  label: { ...TYPE.label, fontWeight: "600", color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
 
   // lista vertical de pendientes (antes carrusel horizontal)
   pendientesList: { gap: SPACE.sm },
@@ -667,14 +667,14 @@ const styles = StyleSheet.create({
   // tag de hijo en cards de otro curso (modo unificado) — también usado en la fila de agenda
   ptagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
   ptagTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
-  ptipo: { fontSize: 9.5, fontWeight: "800", letterSpacing: 1.1, textTransform: "uppercase" },
-  ptitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong, marginTop: 3, lineHeight: 18 },
+  ptipo: { fontSize: 9.5, fontWeight: "700", letterSpacing: 1.1, textTransform: "uppercase" },
+  ptitulo: { fontSize: 14, fontWeight: "600", color: t.textStrong, marginTop: 3, lineHeight: 18 },
   pmeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
-  pact: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  pbtnPrimary: { minHeight: MIN_TOUCH, paddingHorizontal: 16, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
-  pbtnPrimaryTxt: { fontSize: 12.5, fontWeight: "800" },
-  pbtnVer: { minHeight: MIN_TOUCH, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  pbtnVerTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted },
+  pact: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 },
+  pbtnPrimary: { paddingVertical: 4, alignItems: "center", justifyContent: "center" },
+  pbtnPrimaryTxt: { fontSize: 12.5, fontWeight: "600" },
+  pbtnVer: { paddingVertical: 4, alignItems: "center", justifyContent: "center" },
+  pbtnVerTxt: { fontSize: 12.5, fontWeight: "600", color: t.textMuted },
   pmonto: { ...TYPE.money, fontSize: 13, color: t.textStrong },
 
   // error al cargar/actualizar el muro
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  alDiaTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  alDiaTitulo: { fontSize: 14, fontWeight: "600", color: t.textStrong },
   alDiaTxt: { fontSize: 12, color: t.textMuted, marginTop: 2, lineHeight: 17 },
 
   // agenda unificada
@@ -727,9 +727,9 @@ const styles = StyleSheet.create({
   arow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 13 },
   arowBorde: { borderTopWidth: 1, borderTopColor: t.border },
   fechaCol: { width: 42, alignItems: "center" },
-  fechaDow: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint },
-  fechaNum: { fontSize: 17, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
-  arowTitulo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  fechaDow: { fontSize: 10, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint },
+  fechaNum: { fontSize: 17, fontWeight: "700", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  arowTitulo: { fontSize: 14.5, fontWeight: "600", color: t.textStrong },
   arowMeta: { fontSize: 12, color: t.textMuted },
   arowMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   agendaVacia: { fontSize: 12.5, color: t.textFaint, textAlign: "center", padding: SPACE.xl },
@@ -745,8 +745,8 @@ const styles = StyleSheet.create({
   cardFooterTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
 
   // countdown chips
-  chip: { borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 10 },
-  chipTxt: { fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  chip: { borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: 9 },
+  chipTxt: { fontSize: 11.5, fontWeight: "600", fontVariant: ["tabular-nums"] },
   chip_hot: { backgroundColor: t.accent },
   chipTxt_hot: { color: t.onAccent },
   chip_soon: { backgroundColor: t.accentSoft },

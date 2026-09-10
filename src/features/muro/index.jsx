@@ -375,9 +375,9 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
                   <div style={{fontSize:13.5,fontWeight:600,marginTop:2,lineHeight:1.3}}>{p.titulo}</div>
                   <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{p.meta}</div>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                  {p.chip&&<span style={{fontSize:11,fontWeight:600,color:"#64748B",background:"#F1F5F9",padding:"3px 8px",borderRadius:999,whiteSpace:"nowrap"}}>{p.chip}</span>}
-                  <button onClick={p.onAccion} style={{padding:"6px 12px",border:"none",borderRadius:8,background:p.btnBg,color:p.btnFg,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
+                <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                  {p.chip&&<span style={{fontSize:11,fontWeight:500,color:"#94A3B8",whiteSpace:"nowrap"}}>{p.chip}</span>}
+                  <button onClick={p.onAccion} style={{padding:0,border:"none",background:"none",color:p.btnFg,fontSize:12.5,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
                 </div>
               </div>
             ))}

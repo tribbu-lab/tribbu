@@ -130,5 +130,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeTxt: { ...TYPE.pill, fontSize: 9, color: t.textInverse, lineHeight: 13 },
+  badgeTxt: { ...TYPE.pill, fontSize: 9, fontWeight: "600", color: t.textInverse, lineHeight: 13 },
 });
