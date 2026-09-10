@@ -56,6 +56,9 @@ a loguearse con la nueva.
 - [x] El "Cambiar contraseña" in-app existente queda intacto (no se tocó).
 - [x] Pedir el reseteo con un email no registrado sigue devolviendo éxito
       (verificado en QA — muestra "Revisá tu correo").
+- [x] Mobile verificado en emulador Android (APK debug): "Restablecer
+      contraseña" → mail → "Enviar link" → nueva copia; "Volver al inicio" vuelve
+      al login; sin crashes.
 
 ## Technical Notes
 
