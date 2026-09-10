@@ -671,12 +671,12 @@ function App() {
           usan grilla de dos columnas (Inicio/Colectas 1fr+340px, Comedor
           tabla) tengan lugar; cada feature sigue acotando su propio ancho
           donde corresponde (Recordatorios 900px, etc.) */}
-      <div style={{marginLeft:220,flex:1,padding:"36px 40px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
+      <div style={{marginLeft:220,flex:1,padding:"20px 40px 36px",boxSizing:"border-box",minWidth:0,color:"#0F172A"}}>
         <div style={{maxWidth:1240}}>
           {/* Búsqueda global: filtra recordatorios/eventos/colectas del
               alcance actual, resultado se muestra como panel sobre el
               módulo activo (mismo criterio que mobile/features/buscar). */}
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:busquedaGlobal.trim()?20:24}}>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:busquedaGlobal.trim()?12:14}}>
             <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 16px",border:"1px solid #E7ECF3",borderRadius:999,background:"white",width:300,boxSizing:"border-box"}}>
               <span style={{fontSize:15,color:"#94A3B8"}}>🔍</span>
               <input

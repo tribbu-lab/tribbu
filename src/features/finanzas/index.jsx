@@ -11,17 +11,43 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
+import { useToast } from "../../hooks/useToast";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
+// Bloque "datos para transferir" con botón de copiar grande + toast. El dinero
+// va directo a quien organiza — tribbu no lo toca.
+function DatosTransferencia({ aliasCbu, showToast }) {
+  if(!aliasCbu?.trim()) return null;
+  const val = aliasCbu.trim();
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(val); showToast("¡Copiado al portapapeles!","ok"); }
+    catch { showToast("No se pudo copiar — copialo a mano: "+val,"error"); }
+  };
+  return (
+    <div style={{padding:"12px 16px",borderBottom:"1px solid #F8FAFC"}}>
+      <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,color:"#94A3B8",marginBottom:8}}>DATOS PARA TRANSFERIR</div>
+      <button onClick={copiar} style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:"#2563EB",border:"none",borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left"}}>
+        <span style={{fontSize:16}}>📋</span>
+        <span style={{flex:1,minWidth:0}}>
+          <span style={{display:"block",fontSize:13.5,fontWeight:800,color:"white"}}>Copiar alias / CBU</span>
+          <span style={{display:"block",fontSize:12,fontWeight:600,color:"rgba(255,255,255,0.82)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{val}</span>
+        </span>
+      </button>
+      <div style={{fontSize:10.5,color:"#94A3B8",marginTop:6,lineHeight:1.4}}>Transferís directo a quien organiza. tribbu no maneja el dinero.</div>
+    </div>
+  );
+}
+
 export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen, isMobile=true }) {
+  const { showToast, Toast } = useToast();
   const [colectas,   setColectas]   = useState([]);
   const [alumnos,    setAlumnos]    = useState([]);
   const [usuarios,   setUsuarios]   = useState([]);
   const [pagos,      setPagos]      = useState([]); // todos los colecta_pagos del curso
   const [modal,      setModal]      = useState(null); // null | {} | {id,...}
-  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",responsable_id:"",fecha_limite:""});
+  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",responsable_id:"",fecha_limite:"",alias_cbu:""});
   const [saving,     setSaving]     = useState(false);
   const [vistaAdmin, setVistaAdmin] = useState(null); // colecta para ver detalle admin
 
@@ -75,6 +101,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       descripcion:    form.descripcion?.trim()||null,
       monto_sugerido: form.monto_sugerido ? Number(form.monto_sugerido) : null,
       moneda:         form.moneda||"$",
+      alias_cbu:      form.alias_cbu?.trim()||null,
       responsable_id: form.responsable_id ? form.responsable_id : null,
       fecha_limite:   form.fecha_limite||null,
       vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
@@ -108,7 +135,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         await sendPush({ type:"colecta", payload:{ descripcion:form.titulo||form.descripcion||"Nueva colecta", userIds } });
       }
     }
-    if(err) { console.error("colectas error:", JSON.stringify(err)); setSaving(false); return; }
+    if(err) { console.error("colectas error:", JSON.stringify(err)); showToast(`No se pudo guardar la colecta: ${err.message}`,"error"); setSaving(false); return; }
     setSaving(false); setModal(null); cargar();
   };
 
@@ -171,6 +198,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
   return (
     <div>
+      <Toast />
       <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Colectas</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{esVistaTodos?"Colectas de todos tus cursos":"Colectas del curso"}</div>
 
@@ -198,6 +226,11 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 </div>
                 <input type="number" value={form.monto_sugerido||""} onChange={e=>setForm(p=>({...p,monto_sugerido:e.target.value}))} placeholder="Ej: 2000" style={{...inp,flex:1}}/>
               </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ALIAS / CBU PARA TRANSFERIR</div>
+              <input value={form.alias_cbu||""} onChange={e=>setForm(p=>({...p,alias_cbu:e.target.value}))} placeholder="Ej: regalo.maestra.4b" style={inp}/>
+              <div style={{fontSize:10.5,color:"#94A3B8",marginTop:4,lineHeight:1.4}}>Cada familia lo ve con un botón para copiarlo. El dinero va directo al organizador.</div>
             </div>
             {[
               {l:"Fecha límite",  k:"fecha_limite",   type:"date"},
@@ -230,6 +263,11 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
               <div style={{fontSize:15,fontWeight:900}}>{vistaAdmin.titulo}</div>
               <button onClick={()=>setVistaAdmin(null)} style={{fontSize:18,background:"none",border:"none",cursor:"pointer",color:"#94A3B8"}}>✕</button>
             </div>
+            {vistaAdmin.alias_cbu?.trim()&&(
+              <div style={{marginBottom:14,border:"1px solid #F1F5F9",borderRadius:12,overflow:"hidden"}}>
+                <DatosTransferencia aliasCbu={vistaAdmin.alias_cbu} showToast={showToast}/>
+              </div>
+            )}
             {alumnos.filter(a=>a.curso_id===vistaAdmin.curso_id).map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
@@ -260,7 +298,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       {/* Botón nueva colecta (admin) */}
       {isAdmin&&(
         <div style={{marginBottom:16}}>
-          <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",responsable_id:"",fecha_limite:"",});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
+          <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",alias_cbu:"",responsable_id:"",fecha_limite:"",});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
         </div>
       )}
 
@@ -309,7 +347,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
                     {isAdmin&&<>
-                      {!tienePagos(c)&&<button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>}
+                      {!tienePagos(c)&&<button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",alias_cbu:c.alias_cbu||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>}
                       <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
                       <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
                     </>}
@@ -330,6 +368,8 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>{alumnosPagados.length} de {total} alumnos pagaron</div>
               </div>
             )}
+
+            <DatosTransferencia aliasCbu={c.alias_cbu} showToast={showToast}/>
 
             {/* Vista apoderado — mis alumnos (del curso de esta colecta) */}
             {!isAdmin&&misAlumnosCurso.length>0&&(

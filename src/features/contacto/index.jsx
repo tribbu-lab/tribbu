@@ -12,6 +12,24 @@ import { Paginador } from "../../components/Paginador";
 import { LogoUploadInput } from "../../components/LogoUploadInput";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
+import { useToast } from "../../hooks/useToast";
+
+// Mail/teléfono clicable: abre el cliente (mailto:/tel:) SI el navegador tiene
+// uno configurado, y además copia el dato al portapapeles con un toast — así
+// funciona igual en máquinas sin handler de mailto (el caso reportado).
+function ContactoLink({ tipo, value, showToast, style }) {
+  if(!value) return null;
+  const href = tipo==="mail" ? `mailto:${value}` : `tel:${value}`;
+  const onClick = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast?.(`${tipo==="mail"?"Correo":"Teléfono"} copiado: ${value}`, "ok");
+    } catch {
+      showToast?.(`${tipo==="mail"?"Correo":"Teléfono"}: ${value}`, "info");
+    }
+  };
+  return <a href={href} onClick={onClick} style={{color:"#3B82F6",fontWeight:600,textDecoration:"none",wordBreak:"break-all",cursor:"pointer",...style}}>{value}</a>;
+}
 
 
 export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
@@ -174,6 +192,7 @@ export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
 }
 
 export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
+  const { showToast, Toast } = useToast();
   const [vinculados,setVinculados] = useState([]);
   const [todos,setTodos]           = useState([]);
   const [busqueda,setBusqueda]     = useState("");
@@ -205,6 +224,7 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Toast />
       <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
           <div style={{fontSize:15,fontWeight:900}}>Apoderados de {alumno.nombre}</div>
@@ -219,8 +239,8 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
               <div key={v.usuario_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#F0FDF4",borderRadius:10,marginBottom:6,border:"1px solid #BBF7D0"}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:700}}>{fmtNombre(u)}</div>
-                  {u.email&&<a href={`mailto:${u.email}`} style={{fontSize:11,color:"#3B82F6",fontWeight:600,display:"block",wordBreak:"break-all"}}>{u.email}</a>}
-                  {u.telefono&&<a href={`tel:${u.telefono}`} style={{fontSize:11,color:"#3B82F6",fontWeight:600,display:"block"}}>{u.telefono}</a>}
+                  <ContactoLink tipo="mail" value={u.email} showToast={showToast} style={{fontSize:11,display:"block"}}/>
+                  <ContactoLink tipo="tel" value={u.telefono} showToast={showToast} style={{fontSize:11,display:"block"}}/>
                 </div>
                 {canEdit&&<button onClick={()=>desvincular(v.usuario_id)} style={{padding:"4px 10px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444",fontWeight:700}}>Quitar</button>}
               </div>
@@ -251,6 +271,7 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
 }
 
 export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
+  const { showToast, Toast } = useToast();
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});
   const [busqueda, setBusqueda] = useState("");
@@ -312,9 +333,9 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{fontSize:12.5,fontWeight:600,color:"#0F172A",lineHeight:1.3}}>{fmtNombre(a)}</div>
                   {(a.telefono||a.email)&&(
-                    <div style={{fontSize:11,color:"#64748B",marginTop:2,display:"flex",flexWrap:"wrap",columnGap:12,rowGap:1}}>
-                      {a.telefono&&<a href={`tel:${a.telefono}`} style={{color:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>{a.telefono}</a>}
-                      {a.email&&<a href={`mailto:${a.email}`} style={{color:"inherit",textDecoration:"none",wordBreak:"break-all"}}>{a.email}</a>}
+                    <div style={{fontSize:11,marginTop:2,display:"flex",flexWrap:"wrap",columnGap:12,rowGap:1}}>
+                      <ContactoLink tipo="tel" value={a.telefono} showToast={showToast} style={{fontSize:11,whiteSpace:"nowrap"}}/>
+                      <ContactoLink tipo="mail" value={a.email} showToast={showToast} style={{fontSize:11}}/>
                     </div>
                   )}
                 </div>
@@ -332,6 +353,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
 
   return (
     <div>
+      <Toast />
       <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Alumnos</div>
       <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar alumno..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"white",boxSizing:"border-box",marginBottom:12}}/>
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>{filtrados.length} alumnos</div>
