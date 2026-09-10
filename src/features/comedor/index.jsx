@@ -42,7 +42,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
 
   const abrirEdicion = (fecha) => {
     const existente = menu.find(m=>m.fecha===fecha);
-    setEditModal(existente ? {...existente} : {fecha, colegio_id:colegioId, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:""});
+    setEditModal(existente ? {...existente} : {fecha, colegio_id:colegioId, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:"", etiquetas:[], notas:""});
   };
   const guardarDia = async (form) => {
     const { error } = await supabase.from("menu").upsert({...form, colegio_id:form.colegio_id||colegioId}, { onConflict:"colegio_id,fecha" });
@@ -129,6 +129,16 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
             // etiquetados") — antes cada plato era su propia Card blanca
             // con borde de color, muy distinto del mockup.
             <div style={{background:"#0F172A",borderRadius:16,padding:"18px 20px"}}>
+              {Array.isArray(diaActual.etiquetas)&&diaActual.etiquetas.length>0&&(
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+                  {diaActual.etiquetas.map(e=>(
+                    <span key={e} style={{fontSize:11,fontWeight:700,color:"#0F172A",background:"white",borderRadius:999,padding:"3px 10px"}}>{e}</span>
+                  ))}
+                </div>
+              )}
+              {diaActual.notas&&(
+                <div style={{fontSize:12.5,color:"#FDE68A",background:"rgba(253,224,71,0.12)",border:"1px solid rgba(253,224,71,0.3)",borderRadius:10,padding:"9px 12px",marginBottom:14,lineHeight:1.4}}>ⓘ {diaActual.notas}</div>
+              )}
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 {campos.map(c=>diaActual[c.key]&&(
                   <div key={c.key} style={{display:"flex",alignItems:"center",gap:12}}>
@@ -276,9 +286,12 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
   );
 }
 
+const MENU_ETIQUETAS = ["Sin TACC","Sin lactosa","Opción vegetariana","Opción vegana","Sin frutos secos"];
+
 function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
-  const [form,setForm] = useState(dia);
+  const [form,setForm] = useState({...dia, etiquetas: Array.isArray(dia.etiquetas)?dia.etiquetas:[]});
   const [saving,setSaving] = useState(false);
+  const toggleEt = (id)=>setForm(p=>({...p, etiquetas: p.etiquetas.includes(id)?p.etiquetas.filter(x=>x!==id):[...p.etiquetas,id]}));
   const esNuevo = !dia.entrada&&!dia.plato&&!dia.plato2&&!dia.acompanamiento&&!dia.postre&&!dia.postre2;
   const camposForm = [
     {key:"entrada",       label:"Entrada"},
@@ -300,6 +313,15 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
             <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} style={inp}/>
           </div>
         ))}
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",margin:"6px 0 6px"}}>ETIQUETAS</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {MENU_ETIQUETAS.map(et=>{
+            const on=(form.etiquetas||[]).includes(et);
+            return <button key={et} type="button" onClick={()=>toggleEt(et)} style={{padding:"5px 10px",borderRadius:999,border:`1.5px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",cursor:"pointer",fontSize:11.5,fontWeight:on?700:500,color:on?"#3B82F6":"#64748B"}}>{et}</button>;
+          })}
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>NOTAS / ALÉRGENOS</div>
+        <textarea value={form.notas||""} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} rows={2} placeholder="Aclaraciones sobre alérgenos, opción sin TACC, etc." style={{...inp,resize:"vertical"}}/>
         <div style={{display:"flex",gap:8,marginTop:14}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
           {!esNuevo&&<button onClick={()=>onBorrar(dia.fecha)} style={{padding:"11px 14px",borderRadius:10,border:"none",background:"transparent",cursor:"pointer",fontSize:13,fontWeight:700,color:"#EF4444"}}>Borrar</button>}
@@ -335,6 +357,8 @@ export function UploadMenuExcel({ onDone, colegioId=null }) {
       const colAcomp   = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("acomp")) || null;
       const colPostre1 = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("postre") && k.includes("1")) || null;
       const colPostre2 = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("postre") && k.includes("2")) || null;
+      const colEtiq    = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("etiqueta") || k.toLowerCase().includes("tacc")) || null;
+      const colNotas   = Object.keys(rows[0]).find(k=>k.toLowerCase().includes("nota") || k.toLowerCase().includes("aclarac") || k.toLowerCase().includes("alerg")) || null;
       if(!colFecha) throw new Error(`No encontré columna de fecha. Columnas: ${Object.keys(rows[0]).join(", ")}`);
       const parseFecha = (val) => {
         if(!val) return null;
@@ -381,6 +405,8 @@ export function UploadMenuExcel({ onDone, colegioId=null }) {
         acompanamiento: colPlato3  ?r[colPlato3]||null  :colAcomp?r[colAcomp]||null:null,
         postre:         colPostre1 ?r[colPostre1]||null :null,
         postre2:        colPostre2 ?r[colPostre2]||null :null,
+        etiquetas:      colEtiq ? String(r[colEtiq]||"").split(/[;,/]/).map(s=>s.trim()).filter(Boolean) : [],
+        notas:          colNotas ? String(r[colNotas]||"").trim()||null : null,
       })).filter(r=>r.fecha);
       if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
       const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "colegio_id,fecha" });
