@@ -92,6 +92,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",id);
     await supabase.from("recordatorios").delete().eq("id",id);
     cargar();
+    onBadgeChange?.();
   };
 
   const marcarLeido = async (id) => {
@@ -100,6 +101,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(leidosSet.has(nid)) {
       await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",userId);
       setLeidosSet(p=>{ const n=new Set(p); n.delete(nid); return n; });
+      onBadgeChange?.();
     } else {
       await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid,usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
       setLeidosSet(p=>new Set([...p,nid]));

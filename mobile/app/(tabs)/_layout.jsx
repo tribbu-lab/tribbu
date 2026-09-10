@@ -11,7 +11,7 @@ import { useSession } from "../../context/Session";
 import { AppHeader } from "../../components/AppHeader";
 import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
-import { useNotificaciones } from "../../features/notificaciones";
+import { useNotificaciones, NotificacionesProvider } from "../../features/notificaciones";
 
 export default function TabsLayout() {
   const { usuario, cursoIds } = useSession();
@@ -28,6 +28,7 @@ export default function TabsLayout() {
   const hidden = { href: null };
 
   return (
+    <NotificacionesProvider value={notif}>
     <View style={styles.root}>
       <AppHeader notif={notif} />
       <Tabs
@@ -50,6 +51,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="admin" options={hidden} />
       </Tabs>
     </View>
+    </NotificacionesProvider>
   );
 }
 

@@ -10,7 +10,7 @@ import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
 
-import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal } from "./features/auth";
+import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal, NuevaPasswordRecovery } from "./features/auth";
 import { Muro }            from "./features/muro";
 import { Calendario }      from "./features/calendario";
 import { Cumpleanios }     from "./features/cumples";
@@ -118,6 +118,14 @@ function App() {
   const [eliminarCuenta,setEliminarCuenta]= useState(false);
   const [panelNotifs,   setPanelNotifs]   = useState(false);
   const [busquedaGlobal,setBusquedaGlobal]= useState("");
+  // Reseteo de contraseña por mail: el link cae en /app con
+  // `#access_token=…&type=recovery`. Init lazy por si el evento
+  // PASSWORD_RECOVERY llega antes de que monte el listener de abajo — así nunca
+  // parpadea el login.
+  const [recoveryMode, setRecoveryMode] = useState(
+    () => typeof window !== "undefined" &&
+      /[#&?]type=recovery(&|$)/.test(window.location.hash + window.location.search)
+  );
   const isMobile = useIsMobile();
 
   // Derivar el scope de cursos del item actual (puede estar vacío sin sesión).
@@ -279,6 +287,17 @@ function App() {
     });
   },[]);
 
+  // Reseteo de contraseña: Supabase procesa el hash del link y dispara
+  // PASSWORD_RECOVERY. Se muestra <NuevaPasswordRecovery/> por encima de todo
+  // (hay una sesión temporal, pero no queremos meter al usuario a la app sin
+  // que elija una contraseña nueva).
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if(event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
   // Deep link: escuchar evento de navegación desde notificación push
   useEffect(() => {
     const handler = (e) => {
@@ -332,6 +351,15 @@ function App() {
     setUsuario(null);
   };
 
+  // Tras crear la contraseña nueva la sesión ya es válida: limpiamos el hash de
+  // recovery y recargamos — el bootstrap de arriba levanta la sesión de
+  // localStorage y entra a la app sin re-login.
+  const handleRecoveryDone = () => {
+    try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch { /* noop */ }
+    window.location.reload();
+  };
+
+  if(recoveryMode) return <NuevaPasswordRecovery onListo={handleRecoveryDone}/>;
   if(authLoading) return <Spinner/>;
   if(!usuario) return <Login onLogin={handleLogin}/>;
 

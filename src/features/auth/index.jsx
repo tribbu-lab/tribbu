@@ -6,6 +6,7 @@ import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { WEB_APP_URL } from "../../lib/appUrl";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -57,13 +58,13 @@ export function Login({ onLogin }) {
   const enviarReset = async () => {
     if(!email.trim()) { setErr("Ingresá tu correo primero"); return; }
     setResetLd(true); setErr("");
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      // La app (con el cliente de Supabase que detecta el token de recovery
-      // en la URL) vive en /app desde que el landing pasó a ocupar la raíz
-      // del dominio — un link de reset que caiga en "/" hoy solo muestra el
-      // landing estático, sin sesión ni forma de cambiar la contraseña.
-      redirectTo: window.location.origin + "/app",
-    });
+    // El SPA vive en /app. En prod usamos el origin real (así un deploy de
+    // staging manda su propio link); en localhost caemos a la constante porque
+    // `http://localhost:5173/app` no existe sin el rewrite de vercel.json — y
+    // además Supabase la exige en su allow-list (ver src/lib/appUrl.js).
+    const esLocal = /localhost|127\.0\.0\.1/.test(window.location.origin);
+    const redirectTo = esLocal ? WEB_APP_URL : window.location.origin + "/app";
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
     setResetLd(false);
     if(error) { setErr("Error al enviar el correo: " + error.message); return; }
     setResetOk(true);
@@ -87,7 +88,7 @@ export function Login({ onLogin }) {
           <div style={{textAlign:"center",padding:"12px 0"}}>
             <div style={{fontSize:36,marginBottom:12}}>📬</div>
             <div style={{fontSize:15,fontWeight:700,color:"white",marginBottom:8}}>Revisá tu correo</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>Te enviamos un link para restablecer tu contraseña a <strong style={{color:"white"}}>{email}</strong>.</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>Te enviamos un link para restablecer tu contraseña a <strong style={{color:"white"}}>{email}</strong>. Se abre en el navegador y vence en 1 hora.</div>
             <button onClick={()=>{setVistaReset(false);setResetOk(false);}} style={{fontSize:13,color:"rgba(255,255,255,0.5)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Volver al inicio</button>
           </div>
 
@@ -371,6 +372,107 @@ export function CambiarPasswordModal({ onClose }) {
           </>
         )}
       </Card>
+    </div>
+  );
+}
+
+// Pantalla de "crear nueva contraseña" tras tocar el link del mail de reseteo.
+// La monta App.jsx cuando detecta una sesión de recovery (evento
+// PASSWORD_RECOVERY o `type=recovery` en el hash), por encima del login y de la
+// app — aunque ya exista una sesión temporal. `onListo` continúa a la app (la
+// sesión queda válida, sin re-login). Estética del login (gradiente oscuro).
+export function NuevaPasswordRecovery({ onListo }) {
+  const [nueva,    setNueva]    = useState("");
+  const [confirma, setConfirma] = useState("");
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState("");
+  const [estado,   setEstado]   = useState("form"); // form | ok | expirado
+  const [verNueva, setVerNueva] = useState(false);
+  const [verConf,  setVerConf]  = useState(false);
+
+  const inputStyle = {width:"100%",padding:"12px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"white",fontSize:14,boxSizing:"border-box",outline:"none"};
+  const btnVer = {padding:"0 12px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.6)",cursor:"pointer",fontSize:14,flexShrink:0};
+
+  const volverAlInicio = () => {
+    // Limpia el hash de recovery y recarga: sin sesión → login; con sesión
+    // válida → la app. `pathname` respeta dev (/) y prod (/app).
+    try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch { /* noop */ }
+    window.location.reload();
+  };
+
+  const guardar = async () => {
+    setErr("");
+    if(!nueva || !confirma) { setErr("Completá los dos campos"); return; }
+    if(nueva.length < 6)    { setErr("La contraseña debe tener al menos 6 caracteres"); return; }
+    if(nueva !== confirma)  { setErr("Las contraseñas no coinciden"); return; }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: nueva });
+    setSaving(false);
+    if(error) {
+      // Sin sesión de recovery (link vencido, ya usado o abierto en otro
+      // dispositivo) updateUser devuelve "Auth session missing".
+      if(/session/i.test(error.message)) { setEstado("expirado"); return; }
+      setErr("No se pudo cambiar la contraseña: " + error.message);
+      return;
+    }
+    setEstado("ok");
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0F172A 0%,#1E3A5F 50%,#0F172A 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <Wordmark size={40} letterSpacing={-2} />
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:4,letterSpacing:1,textTransform:"uppercase"}}>Comunidad escolar</div>
+      </div>
+      <div style={{width:"100%",maxWidth:360,background:"rgba(255,255,255,0.07)",borderRadius:22,padding:"28px 24px",border:"1px solid rgba(255,255,255,0.10)"}}>
+
+        {estado === "ok" ? (
+          <div style={{textAlign:"center",padding:"12px 0"}}>
+            <div style={{fontSize:36,marginBottom:12}}>✅</div>
+            <div style={{fontSize:15,fontWeight:700,color:"white",marginBottom:8}}>Contraseña actualizada</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>Ya podés usar tu nueva contraseña.</div>
+            <button onClick={onListo || volverAlInicio} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800}}>
+              Ir a la app
+            </button>
+          </div>
+
+        ) : estado === "expirado" ? (
+          <div style={{textAlign:"center",padding:"12px 0"}}>
+            <div style={{fontSize:36,marginBottom:12}}>⏳</div>
+            <div style={{fontSize:15,fontWeight:700,color:"white",marginBottom:8}}>El enlace expiró o ya se usó</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>Pedí uno nuevo desde "¿Olvidaste tu contraseña?" en el inicio.</div>
+            <button onClick={volverAlInicio} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800}}>
+              Volver al inicio
+            </button>
+          </div>
+
+        ) : (
+          <>
+            <div style={{fontSize:15,fontWeight:700,color:"white",marginBottom:4}}>Crear nueva contraseña</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",marginBottom:20}}>Elegí una contraseña para tu cuenta en tribbu.</div>
+
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:6,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Nueva contraseña</div>
+              <div style={{display:"flex",gap:6}}>
+                <input type={verNueva?"text":"password"} value={nueva} onChange={e=>setNueva(e.target.value)} style={inputStyle} placeholder="Mínimo 6 caracteres"/>
+                <button onClick={()=>setVerNueva(p=>!p)} style={btnVer} type="button">{verNueva?"🙈":"👁"}</button>
+              </div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:6,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Repetir contraseña</div>
+              <div style={{display:"flex",gap:6}}>
+                <input type={verConf?"text":"password"} value={confirma} onChange={e=>setConfirma(e.target.value)} onKeyDown={e=>e.key==="Enter"&&guardar()} style={inputStyle} placeholder="Repetí la contraseña"/>
+                <button onClick={()=>setVerConf(p=>!p)} style={btnVer} type="button">{verConf?"🙈":"👁"}</button>
+              </div>
+            </div>
+            {err && <div style={{fontSize:12,color:"#FCA5A5",marginBottom:12,textAlign:"center"}}>{err}</div>}
+            <button onClick={guardar} disabled={saving} style={{width:"100%",padding:13,borderRadius:11,border:"none",cursor:"pointer",background:saving?"rgba(255,255,255,0.1)":"linear-gradient(135deg,#3B82F6,#1D4ED8)",color:"white",fontSize:14,fontWeight:800,marginBottom:14}}>
+              {saving?"Guardando...":"Guardar contraseña"}
+            </button>
+            <button onClick={volverAlInicio} style={{width:"100%",fontSize:13,color:"rgba(255,255,255,0.4)",background:"none",border:"none",cursor:"pointer"}} type="button">← Volver al inicio</button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

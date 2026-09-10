@@ -30,6 +30,7 @@ import { SelectChip } from "../../components/SelectChip";
 import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
+import { useNotificacionesCtx } from "../notificaciones";
 
 const t = THEMES.light;
 
@@ -126,6 +127,10 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
 export function Recordatorios() {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
+  // Refresca el badge de la tab + el punto de la campana (mismo hook levantado
+  // en _layout.jsx) cuando acá cambia el estado de leídos / se borra un aviso.
+  const notifCtx = useNotificacionesCtx();
+  const recargarBadge = notifCtx?.recargar;
 
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet, setLeidosSet] = useState(new Set());
@@ -212,6 +217,7 @@ export function Recordatorios() {
     setSaving(false);
     setModal(null);
     cargar();
+    recargarBadge?.();
   };
 
   const eliminar = useCallback(
@@ -219,8 +225,9 @@ export function Recordatorios() {
       await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id", id);
       await supabase.from("recordatorios").delete().eq("id", id);
       cargar();
+      recargarBadge?.();
     },
-    [cargar]
+    [cargar, recargarBadge]
   );
 
   const marcarLeido = useCallback(
@@ -239,8 +246,9 @@ export function Recordatorios() {
           .upsert({ recordatorio_id: id, usuario_id: userId }, { onConflict: "recordatorio_id,usuario_id" });
         setLeidosSet((p) => new Set([...p, id]));
       }
+      recargarBadge?.();
     },
-    [userId, leidosSet]
+    [userId, leidosSet, recargarBadge]
   );
 
   const abrirNuevo = () => {

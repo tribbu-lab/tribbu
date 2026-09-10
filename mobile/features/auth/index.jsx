@@ -15,9 +15,9 @@ import {
   StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Linking from "expo-linking";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
+import { WEB_APP_URL } from "@shared/appUrl";
 import { Wordmark } from "../../components/Wordmark";
 
 // ── Login ─────────────────────────────────────────────────────────────────
@@ -75,8 +75,12 @@ export function Login({ onSuccess } = {}) {
     }
     setResetLd(true);
     setErr("");
+    // El reseteo se completa en la web: el link abre www.tribbu.ar/app en el
+    // navegador (que sí sabe procesar el token de recovery y tiene la pantalla
+    // para la contraseña nueva). Después el usuario vuelve a la app a entrar.
+    // Deep-link nativo (tribbu://) queda fuera de alcance por ahora.
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: Linking.createURL("/"),
+      redirectTo: WEB_APP_URL,
     });
     setResetLd(false);
     if (error) {
@@ -105,7 +109,8 @@ export function Login({ onSuccess } = {}) {
               <Text style={styles.bigEmoji}>📬</Text>
               <Text style={styles.authTitle}>Revisá tu correo</Text>
               <Text style={styles.authMuted}>
-                Te enviamos un link para restablecer tu contraseña a {email}.
+                Te enviamos un link a {email}. Se abre en el navegador y vence en 1 hora:
+                creá ahí tu contraseña nueva y volvé a la app para entrar.
               </Text>
               <Pressable
                 onPress={() => {
