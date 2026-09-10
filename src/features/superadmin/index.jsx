@@ -512,7 +512,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // cursos.colegio_id es NOT NULL — sin esto el insert falla siempre
     // ("Error al guardar el curso" sin más detalle).
     if(!activeColegioId) { showToast("Elegí un colegio primero", "error"); return; }
-    const { data, error } = await supabase.from("cursos").insert({nombre:form.nombre,avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo,colegio_id:activeColegioId}).select().single();
+    const { data, error } = await supabase.from("cursos").insert({nombre:sanitize(form.nombre),avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo,colegio_id:activeColegioId}).select().single();
     if(error) { showToast(`Error al guardar el curso: ${error.message}`, "error"); return; }
     if(form._duplicarDeId && data) await clonarConfiguracionCurso(form._duplicarDeId, data.id);
     setModal(null); cargar();
@@ -520,8 +520,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   const actualizarCurso = async () => {
     if(!form.nombre||!form.año_lectivo) return;
-    const { error } = await supabase.from("cursos").update({nombre:form.nombre,avatar:form.avatar,color:form.color,año_lectivo:form.año_lectivo}).eq("id",form.id);
-    if(error) { showToast("Error al actualizar el curso", "error"); return; }
+    const { error } = await supabase.from("cursos").update({nombre:sanitize(form.nombre),avatar:form.avatar,color:form.color,año_lectivo:form.año_lectivo}).eq("id",form.id);
+    if(error) { showToast(`Error al actualizar el curso: ${error.message}`, "error"); return; }
     setModal(null); cargar();
   };
 
@@ -674,11 +674,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     const color = form.color||colors[Math.floor(Math.random()*colors.length)];
     let error;
     if(modal==="nuevo_alumno") {
-      ({ error } = await supabase.from("hijos").insert({nombre:form.nombre,apellido:form.apellido||null,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null,dni:sanitize(form.dni)||null}));
+      ({ error } = await supabase.from("hijos").insert({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null,dni:sanitize(form.dni)||null}));
     } else {
-      ({ error } = await supabase.from("hijos").update({nombre:form.nombre,apellido:form.apellido||null,curso_id:form.curso_id,fecha_nacimiento:form.fecha_nacimiento||null,dni:sanitize(form.dni)||null}).eq("id",form.id));
+      ({ error } = await supabase.from("hijos").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,curso_id:form.curso_id,fecha_nacimiento:form.fecha_nacimiento||null,dni:sanitize(form.dni)||null}).eq("id",form.id));
     }
-    if(error) { showToast("Error al guardar el alumno", "error"); return; }
+    if(error) { showToast(`Error al guardar el alumno: ${error.message}`, "error"); return; }
     setModal(null); cargar();
   };
 

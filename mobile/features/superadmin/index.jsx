@@ -115,6 +115,7 @@ export function SuperAdmin() {
   // colegio_admin: mismo panel, acotado a su colegio por RLS. Sin sección
   // "Plataforma" (no existe en mobile) y sin el toggle de Super Admin.
   const { esColegioAdmin, usuario } = useSession();
+  const miColegioId = usuario?.colegio_id ?? null;
   const [sec, setSec] = useState(null);
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
@@ -185,10 +186,17 @@ export function SuperAdmin() {
         auth_id = newId || null;
       } catch (e) {
         console.warn("Error creando en Auth:", e);
+        Alert.alert("No se pudo crear el acceso", String(e?.message || e));
+        return;
       }
-      const { data } = await supabase
+      // id generado en el cliente: un colegio_admin no puede leer de vuelta la
+      // fila recién insertada (RLS la ve vía usuario_cursos/hijos, aún
+      // inexistentes) — con .select().single() el alta "no hacía nada".
+      const id = uuidLite();
+      const { error } = await supabase
         .from("usuarios")
         .insert({
+          id,
           nombre: sanitize(form.nombre),
           apellido: sanitize(form.apellido) || null,
           email: sanitize(form.email).toLowerCase(),
@@ -198,19 +206,18 @@ export function SuperAdmin() {
           dni: sanitize(form.dni) || null,
           telefono: sanitize(form.telefono) || null,
           auth_id,
-        })
-        .select()
-        .single();
-      if (data) {
+        });
+      if (error) { Alert.alert("Error al crear el apoderado", error.message); return; }
+      {
         if (cursosAdminLimpio.length)
-          await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map((cid) => ({ usuario_id: data.id, curso_id: cid, rol: "room" })));
+          await supabase.from("usuario_cursos").insert(cursosAdminLimpio.map((cid) => ({ usuario_id: id, curso_id: cid, rol: "room" })));
         if ((form.hijos || []).length)
-          await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: data.id, hijo_id: hid })));
+          await supabase.from("usuario_hijos").insert((form.hijos || []).map((hid) => ({ usuario_id: id, hijo_id: hid })));
       }
     } else {
       const passNueva = form._passNueva && form._passNueva.trim();
       const emailNuevo = sanitize(form.email).toLowerCase();
-      await supabase
+      const { error: errUpd } = await supabase
         .from("usuarios")
         .update({
           nombre: sanitize(form.nombre),
@@ -222,7 +229,9 @@ export function SuperAdmin() {
           telefono: sanitize(form.telefono) || null,
         })
         .eq("id", form.id);
-      const emailCambio = emailNuevo !== (form._emailOriginal || "").toLowerCase();
+      if (errUpd) { Alert.alert("Error al guardar los cambios", errUpd.message); return; }
+      // Sin _emailOriginal no se puede saber si cambió — no dispares el sync de Auth.
+      const emailCambio = !!form._emailOriginal && emailNuevo !== form._emailOriginal.toLowerCase();
       if (passNueva || emailCambio) {
         try {
           let authId = form.auth_id;
@@ -258,9 +267,22 @@ export function SuperAdmin() {
 
   const guardarCurso = async () => {
     if (!form.nombre) return;
-    if (modal === "editar_curso")
-      await supabase.from("cursos").update({ nombre: form.nombre, avatar: form.avatar, color: form.color }).eq("id", form.id);
-    else await supabase.from("cursos").insert({ nombre: form.nombre, avatar: form.avatar || "🏫", color: form.color || "#3B82F6" });
+    if (modal === "editar_curso") {
+      const { error } = await supabase.from("cursos").update({ nombre: form.nombre, avatar: form.avatar, color: form.color }).eq("id", form.id);
+      if (error) { Alert.alert("Error al guardar el curso", error.message); return; }
+    } else {
+      // cursos.colegio_id y cursos.año_lectivo son NOT NULL — sin esto el
+      // insert falla siempre ("Error al guardar el curso" sin detalle).
+      if (!miColegioId) { Alert.alert("No se pudo crear el curso", "No hay un colegio asociado a tu cuenta."); return; }
+      const { error } = await supabase.from("cursos").insert({
+        nombre: form.nombre,
+        avatar: form.avatar || "🏫",
+        color: form.color || "#3B82F6",
+        colegio_id: miColegioId,
+        año_lectivo: new Date().getFullYear(),
+      });
+      if (error) { Alert.alert("Error al guardar el curso", error.message); return; }
+    }
     setModal(null);
     cargar();
   };
@@ -270,9 +292,13 @@ export function SuperAdmin() {
     const apellido = form.apellido || "";
     const avatar = form.avatar || `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase() || form.nombre.slice(0, 2).toUpperCase();
     if (modal === "nuevo_maestro") {
-      const { data } = await supabase
+      // id en el cliente: el colegio_admin no puede leer de vuelta el maestro
+      // recién creado (RLS lo ve solo vía maestro_cursos, aún inexistente).
+      const id = uuidLite();
+      const { error } = await supabase
         .from("maestros")
         .insert({
+          id,
           nombre: sanitize(form.nombre),
           apellido: sanitize(form.apellido) || null,
           materia: sanitize(form.materia) || null,
@@ -280,12 +306,11 @@ export function SuperAdmin() {
           avatar,
           activo: form.activo !== false,
           fecha_nacimiento: form.fecha_nacimiento || null,
-        })
-        .select()
-        .single();
-      if (data && form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map((cid) => ({ maestro_id: data.id, curso_id: cid })));
+        });
+      if (error) { Alert.alert("Error al guardar el maestro", error.message); return; }
+      if (form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map((cid) => ({ maestro_id: id, curso_id: cid })));
     } else {
-      await supabase
+      const { error } = await supabase
         .from("maestros")
         .update({
           nombre: sanitize(form.nombre),
@@ -296,6 +321,7 @@ export function SuperAdmin() {
           fecha_nacimiento: form.fecha_nacimiento || null,
         })
         .eq("id", form.id);
+      if (error) { Alert.alert("Error al actualizar el maestro", error.message); return; }
       await supabase.from("maestro_cursos").delete().eq("maestro_id", form.id);
       if (form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map((cid) => ({ maestro_id: form.id, curso_id: cid })));
     }
@@ -308,28 +334,30 @@ export function SuperAdmin() {
     const apellido = form.apellido || "";
     const avatar = form.avatar || `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase() || form.nombre.slice(0, 2).toUpperCase();
     const color = form.color || COLORES[Math.floor(form.nombre.length % COLORES.length)];
+    let error;
     if (modal === "nuevo_alumno") {
-      await supabase.from("hijos").insert({
-        nombre: form.nombre,
-        apellido: form.apellido || null,
+      ({ error } = await supabase.from("hijos").insert({
+        nombre: sanitize(form.nombre),
+        apellido: sanitize(form.apellido) || null,
         curso_id: form.curso_id,
         avatar,
         color,
         fecha_nacimiento: form.fecha_nacimiento || null,
         dni: sanitize(form.dni) || null,
-      });
+      }));
     } else {
-      await supabase
+      ({ error } = await supabase
         .from("hijos")
         .update({
-          nombre: form.nombre,
-          apellido: form.apellido || null,
+          nombre: sanitize(form.nombre),
+          apellido: sanitize(form.apellido) || null,
           curso_id: form.curso_id,
           fecha_nacimiento: form.fecha_nacimiento || null,
           dni: sanitize(form.dni) || null,
         })
-        .eq("id", form.id);
+        .eq("id", form.id));
     }
+    if (error) { Alert.alert("Error al guardar el alumno", error.message); return; }
     setModal(null);
     cargar();
   };
