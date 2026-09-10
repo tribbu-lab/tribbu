@@ -1188,7 +1188,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
       monto,
       moneda,
       fecha_limite: fechaLimite || null,
-      responsable_id: responsableId ? Number(responsableId) : null,
+      responsable_id: responsableId || null, // usuarios.id es uuid — nada de Number()
     });
     setSaving(false);
   };

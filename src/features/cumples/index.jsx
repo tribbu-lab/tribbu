@@ -970,7 +970,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault=
   const guardar = async () => {
     if(!titulo.trim()) return;
     setSaving(true);
-    await onSave({maestroNombre, titulo, monto, moneda, fecha_limite: fechaLimite||null, responsable_id: responsableId ? Number(responsableId) : null});
+    await onSave({maestroNombre, titulo, monto, moneda, fecha_limite: fechaLimite||null, responsable_id: responsableId || null});
     setSaving(false);
   };
   return (

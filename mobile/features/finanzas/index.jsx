@@ -540,7 +540,11 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
             />
 
             <Text style={styles.label}>RESPONSABLE</Text>
-            <View style={styles.respList}>
+            <ScrollView
+              style={styles.respList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               <Pressable
                 onPress={() => setForm((p) => ({ ...p, responsable_id: "" }))}
                 style={[styles.respRow, !form.responsable_id && styles.respOn]}
@@ -559,7 +563,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
                   </Text>
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
 
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
