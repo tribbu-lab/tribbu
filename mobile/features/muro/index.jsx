@@ -36,6 +36,7 @@ import { fmtNombre, fmtRangoHora } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
+import { useNotificacionesCtx } from "../notificaciones";
 import { SkeletonList } from "../../components/Skeleton";
 
 const t = THEMES.light;
@@ -79,6 +80,10 @@ export function Muro() {
   const router = useRouter();
   const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
+  // Refresca el badge de la tab de Avisos + el punto de la campana (hook
+  // levantado en (tabs)/_layout.jsx) cuando desde acá se marca un aviso leído
+  // o se cambia una alerta — igual que hace la pantalla de Avisos.
+  const recargarBadge = useNotificacionesCtx()?.recargar;
   const userName = usuario?.nombre?.split(" ")[0] || "";
 
   const [datos, setDatos] = useState(null);
@@ -261,6 +266,7 @@ export function Muro() {
       .from("recordatorio_leidos")
       .upsert({ recordatorio_id: recId, usuario_id: userId }, { onConflict: "recordatorio_id,usuario_id" });
     setDatos((d) => (d ? { ...d, recordatorios: d.recordatorios.filter((r) => r.id !== recId) } : d));
+    recargarBadge?.();
   };
 
   const enviarAlerta = async (msg) => {
@@ -270,12 +276,14 @@ export function Muro() {
     await sendPush({ type: "alerta", payload: { mensaje: msg, userIds } });
     setAlertaModal(false);
     cargar();
+    recargarBadge?.();
   };
 
   const dismissAlerta = async (alertaId) => {
     if (!alertaId) return;
     await supabase.from("alertas").update({ activa: false }).eq("id", alertaId);
     cargar();
+    recargarBadge?.();
   };
 
   // Cargando: el saludo es inmediato (dato local) y la lista llega como skeleton.

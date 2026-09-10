@@ -56,7 +56,7 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate, isMobile=true }) {
+export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate, onBadgeChange, isMobile=true }) {
   misHijos = (misHijos||[]).filter(h=>h && typeof h === "string");
   cursoIds = (cursoIds&&cursoIds.length) ? cursoIds : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -176,6 +176,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       if(error) { console.error("marcarLeido error:", error); return; }
       setLeidosMuro(p=> new Set([...p, nid]));
     }
+    onBadgeChange?.();
   };
 
   const marcarPagadoMuro = async (colecta, e) => {

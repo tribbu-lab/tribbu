@@ -12,6 +12,7 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
+import { useNotificacionesCtx } from "../notificaciones";
 import { useToast } from "../../components/Toast";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -63,6 +64,9 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, misHijos = [], tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
   const { showToast, toast } = useToast();
+  // Crear/borrar una colecta agrega/quita su recordatorio "colecta_vence" —
+  // refresca el badge de Avisos + el punto de la campana (hook de _layout.jsx).
+  const recargarBadge = useNotificacionesCtx()?.recargar;
 
   const [colectas, setColectas] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
@@ -176,6 +180,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     setSaving(false);
     setModal(null);
     cargar();
+    recargarBadge?.();
   };
 
   const toggleActiva = async (c) => {
@@ -193,6 +198,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     await supabase.from("recordatorios").delete().eq("ref_id", id).eq("tipo", "colecta_vence");
     await supabase.from("colectas").delete().eq("id", id);
     cargar();
+    recargarBadge?.();
   };
 
   const getPago = (colectaId, alumnoId) =>
