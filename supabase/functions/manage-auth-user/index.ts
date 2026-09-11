@@ -168,13 +168,17 @@ serve(async (req) => {
       if (!error) {
         result = { ok: true, user_id: data.user?.id };
       } else {
+        // Etiquetar de qué intento vino el error final — "Database error
+        // checking email" (u otro) puede salir del intento original, del
+        // reintento por email, o de la recreación; sin esto es indistinguible.
+        error.message = `[intento original] ${error.message}`;
         const noExiste = /not found/i.test(error.message || "");
         if (!noExiste || !current_email) throw error;
 
         const foundId = await findAuthIdByEmail(current_email);
         if (foundId) {
           const { data: data2, error: error2 } = await adminClient.auth.admin.updateUserById(foundId, updates);
-          if (error2) throw error2;
+          if (error2) { error2.message = `[reintento por email] ${error2.message}`; throw error2; }
           result = { ok: true, user_id: data2.user?.id, auth_id_reparado: foundId };
         } else if (password) {
           const { data: data3, error: error3 } = await adminClient.auth.admin.createUser({
@@ -182,7 +186,7 @@ serve(async (req) => {
             password,
             email_confirm: true,
           });
-          if (error3) throw error3;
+          if (error3) { error3.message = `[recreación de cuenta] ${error3.message}`; throw error3; }
           result = { ok: true, user_id: data3.user?.id, auth_id_reparado: data3.user?.id };
         } else {
           throw new Error("No existe una cuenta de Auth para este usuario y no se pasó una contraseña nueva para recrearla.");
@@ -205,8 +209,14 @@ serve(async (req) => {
     });
 
   } catch (err) {
-    console.error("manage-auth-user error:", err);
-    return new Response(JSON.stringify({ error: err.message || "Error interno" }), {
+    // Loguear todo lo que traiga el error de Supabase (status/code, no solo el
+    // mensaje) — un "Database error checking email" genérico sin esto es
+    // imposible de diagnosticar a distancia. Se ve en Dashboard → Edge
+    // Functions → manage-auth-user → Logs.
+    console.error("manage-auth-user error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    const detalle = [err.status && `status ${err.status}`, err.code && `code ${err.code}`, err.name]
+      .filter(Boolean).join(" · ");
+    return new Response(JSON.stringify({ error: err.message || "Error interno", detalle: detalle || undefined }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

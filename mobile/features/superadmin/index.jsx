@@ -231,8 +231,13 @@ export function SuperAdmin() {
         })
         .eq("id", form.id);
       if (errUpd) { Alert.alert("Error al guardar los cambios", errUpd.message); return; }
-      // Sin _emailOriginal no se puede saber si cambió — no dispares el sync de Auth.
-      const emailCambio = !!form._emailOriginal && emailNuevo !== form._emailOriginal.toLowerCase();
+      // Sin _emailOriginal no se puede saber si cambió — no dispares el sync de
+      // Auth. sanitize() en ambos lados: un email guardado con espacios/
+      // mayúsculas (migración vieja) comparado "crudo" contra el nuevo (ya
+      // sanitizado) daba emailCambio=true de pura casualidad de formato,
+      // mandando un email "nuevo" a Auth y su chequeo de unicidad real en un
+      // simple cambio de contraseña.
+      const emailCambio = !!form._emailOriginal && emailNuevo !== sanitize(form._emailOriginal).toLowerCase();
       if (passNueva || emailCambio) {
         try {
           let authId = form.auth_id;

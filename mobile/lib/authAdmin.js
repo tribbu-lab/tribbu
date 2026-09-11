@@ -24,7 +24,8 @@ const callManageAuthUser = async (action, payload) => {
   });
 
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
+  // `detalle` (status/code de Supabase Auth) cuando la función lo manda.
+  if (!res.ok) throw new Error([json.error || `Error ${res.status}`, json.detalle].filter(Boolean).join(" — "));
   return json;
 };
 

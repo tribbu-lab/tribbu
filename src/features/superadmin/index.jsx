@@ -399,7 +399,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       // Sincronizar email y/o clave en Supabase Auth via Edge Function.
       // Sin _emailOriginal no se puede saber si cambió — no dispares el sync
       // de Auth (antes eso hacía "fallar" un simple cambio de teléfono).
-      const emailCambio = !!form._emailOriginal && emailNuevo !== form._emailOriginal.toLowerCase();
+      // sanitize() en ambos lados: un email guardado con espacios/mayúsculas
+      // (arrastre de la migración vieja) comparado "crudo" contra el nuevo
+      // (ya sanitizado) daba emailCambio=true de pura casualidad de formato —
+      // eso mandaba un email "nuevo" a Auth aunque el admin no tocó el campo,
+      // disparando el chequeo real de unicidad de Auth (y sus propios errores)
+      // en un simple cambio de contraseña.
+      const emailCambio = !!form._emailOriginal && emailNuevo !== sanitize(form._emailOriginal).toLowerCase();
       if(passEsNueva || emailCambio) {
         try {
           let authId = form.auth_id;
@@ -485,7 +491,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, activo: form.activo,
       }).eq("id", form.id);
-      const emailCambio = emailNuevo !== (form._emailOriginal||"").toLowerCase();
+      const emailCambio = emailNuevo !== sanitize(form._emailOriginal||"").toLowerCase();
       if(passNueva || emailCambio) {
         try {
           let authId = form.auth_id;
