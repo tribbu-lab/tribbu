@@ -246,7 +246,17 @@ export function SuperAdmin() {
             authId = found.auth_id || null;
             if (authId) await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
           }
-          if (authId) {
+          if (!authId && passNueva) {
+            // De verdad no tiene cuenta de Auth (típico: la carga por Excel la
+            // creó pero falló en silencio) — sin esto, "asignar clave para el
+            // primer acceso" no tenía forma de crear la cuenta que faltaba.
+            const { auth_id: nuevoId } = await authAdminCreate(emailNuevo, passNueva);
+            if (nuevoId) {
+              authId = nuevoId;
+              await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
+              Alert.alert("Cuenta creada", `No tenía cuenta de Auth — se creó una nueva con la contraseña para ${emailNuevo}.`);
+            }
+          } else if (authId) {
             // current_email: si el auth_id de arriba quedó apuntando a una
             // cuenta borrada/inexistente, la Edge Function reubica la cuenta
             // por email o, si de verdad no existe, la recrea con la clave
@@ -260,8 +270,12 @@ export function SuperAdmin() {
               await supabase.from("usuarios").update({ auth_id: auth_id_reparado }).eq("id", form.id);
             }
           }
+          if (!authId) {
+            Alert.alert("Atención", "No se encontró el usuario en Supabase Auth.");
+          }
         } catch (e) {
           console.warn("Error sincronizando Auth:", e);
+          Alert.alert("Error sincronizando Auth", e.message || String(e));
         }
       }
       // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
@@ -2130,6 +2144,8 @@ function UploadApoderadosExcel({ onDone }) {
         .filter(Boolean);
       if (!inserts.length) throw new Error("Sin filas válidas (columnas: nombre, apellido, email, pass, telefono, dni)");
       let ok = 0;
+      const sinAuth = []; // emails cuya cuenta de Auth falló al crearse — antes
+                           // se tragaba el error y quedaban sin forma de entrar.
       for (const u of inserts) {
         const { data: existing } = await supabase.from("usuarios").select("id").eq("email", u.email).maybeSingle();
         if (existing?.id) {
@@ -2142,12 +2158,16 @@ function UploadApoderadosExcel({ onDone }) {
             auth_id = newId || null;
           } catch (e) {
             console.warn("Auth create:", u.email, e);
+            sinAuth.push(u.email);
           }
           await supabase.from("usuarios").insert({ nombre: u.nombre, apellido: u.apellido || null, email: u.email, avatar: u.avatar, dni: u.dni || null, telefono: u.telefono || null, rol: u.rol || "padre", activo: true, auth_id });
           ok++;
         }
       }
-      setMsg(`✅ ${ok} apoderados procesados`);
+      const avisoSinAuth = sinAuth.length
+        ? ` ⚠️ ${sinAuth.length} sin cuenta de Auth: ${sinAuth.join(", ")} — asignales una clave desde Usuarios.`
+        : "";
+      setMsg(`✅ ${ok} apoderados procesados.${avisoSinAuth}`);
       onDone();
     } catch (err) {
       setMsg(`❌ ${err.message}`);

@@ -84,6 +84,26 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Reintenta una llamada a Auth cuando el error es transitorio (status 5xx,
+    // o el tipo AuthRetryableFetchError que supabase-js usa a propósito para
+    // marcar "esto puede ser pasajero"). Encontrado en producción: cambiar la
+    // contraseña de un apoderado fallaba "a veces sí, a veces no" con
+    // "Database error checking email" — exactamente el patrón intermitente
+    // que este error existe para señalizar, y antes lo tratábamos como
+    // definitivo en el primer intento en vez de reintentar.
+    async function withRetry<T>(fn: () => Promise<{ data: T; error: any }>, tries = 3): Promise<{ data: T; error: any }> {
+      let ultimo: { data: T; error: any } | null = null;
+      for (let i = 0; i < tries; i++) {
+        const res = await fn();
+        if (!res.error) return res;
+        const reintentable = res.error.status >= 500 || /retryable/i.test(res.error.name || "");
+        if (!reintentable || i === tries - 1) return res;
+        ultimo = res;
+        await new Promise((r) => setTimeout(r, 300 * (i + 1))); // 300ms, 600ms
+      }
+      return ultimo!;
+    }
+
     // Busca un auth_id por email recorriendo TODAS las páginas de Auth.
     // `listUsers()` sin {page,perPage} solo trae los primeros 50 usuarios —
     // con más de 50 cuentas en el proyecto, cualquiera "más atrás" en la
@@ -93,7 +113,7 @@ serve(async (req) => {
       const target = email.toLowerCase().trim();
       const perPage = 200;
       for (let page = 1; ; page++) {
-        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+        const { data, error } = await withRetry(() => adminClient.auth.admin.listUsers({ page, perPage }));
         if (error) throw error;
         const found = data.users.find((u) => u.email?.toLowerCase() === target);
         if (found) return found.id;
@@ -141,11 +161,11 @@ serve(async (req) => {
       // Crear usuario en Supabase Auth
       const { email, password } = payload;
       if (!email || !password) throw new Error("email y password son requeridos");
-      const { data, error } = await adminClient.auth.admin.createUser({
+      const { data, error } = await withRetry(() => adminClient.auth.admin.createUser({
         email: email.toLowerCase().trim(),
         password,
         email_confirm: true,
-      });
+      }));
       if (error) throw error;
       result = { auth_id: data.user?.id };
 
@@ -164,7 +184,7 @@ serve(async (req) => {
       if (password) { updates.password = password; }
       if (!Object.keys(updates).length) throw new Error("Nada que actualizar");
 
-      const { data, error } = await adminClient.auth.admin.updateUserById(auth_id, updates);
+      const { data, error } = await withRetry(() => adminClient.auth.admin.updateUserById(auth_id, updates));
       if (!error) {
         result = { ok: true, user_id: data.user?.id };
       } else {
@@ -184,15 +204,15 @@ serve(async (req) => {
 
         const foundId = await findAuthIdByEmail(current_email);
         if (foundId) {
-          const { data: data2, error: error2 } = await adminClient.auth.admin.updateUserById(foundId, updates);
+          const { data: data2, error: error2 } = await withRetry(() => adminClient.auth.admin.updateUserById(foundId, updates));
           if (error2) { error2.message = `[reintento por email] ${error2.message}`; throw error2; }
           result = { ok: true, user_id: data2.user?.id, auth_id_reparado: foundId };
         } else if (password) {
-          const { data: data3, error: error3 } = await adminClient.auth.admin.createUser({
+          const { data: data3, error: error3 } = await withRetry(() => adminClient.auth.admin.createUser({
             email: (email || current_email).toLowerCase().trim(),
             password,
             email_confirm: true,
-          });
+          }));
           if (error3) { error3.message = `[recreación de cuenta] ${error3.message}`; throw error3; }
           result = { ok: true, user_id: data3.user?.id, auth_id_reparado: data3.user?.id };
         } else {

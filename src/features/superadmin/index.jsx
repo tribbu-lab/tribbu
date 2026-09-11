@@ -409,14 +409,32 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       if(passEsNueva || emailCambio) {
         try {
           let authId = form.auth_id;
+          let creado = false;
           if(!authId) {
             // Buscar auth_id por email via Edge Function
             const found = await authAdminFind(form._emailOriginal||form.email);
             authId = found.auth_id || null;
             if(authId) await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
           }
+          if(!authId && passEsNueva) {
+            // De verdad no tiene cuenta de Auth (típico: la carga por Excel la
+            // creó pero falló en silencio — ver UploadApoderadosExcel) — sin
+            // esto, "asignar clave para el primer acceso" quedaba en un
+            // callejón sin salida ("No se encontró el usuario en Auth") en vez
+            // de simplemente crear la cuenta que nunca se creó.
+            try {
+              const { auth_id: nuevoId } = await authAdminCreate(emailNuevo, passNueva);
+              if(nuevoId) {
+                authId = nuevoId;
+                creado = true;
+                await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
+              }
+            } catch(eCrear) { setAuthSyncMsg({ ok:false, msg:`⚠️ No se encontró el usuario en Auth y no se pudo crear: ${eCrear.message}` }); return; }
+          }
           if(!authId) {
             setAuthSyncMsg({ ok:false, msg:`⚠️ No se encontró el usuario en Supabase Auth.` });
+          } else if(creado) {
+            setAuthSyncMsg({ ok:true, msg:`✅ No tenía cuenta de Auth — se creó una nueva con la contraseña para ${emailNuevo}.` });
           } else {
             // current_email: si el auth_id de arriba quedó apuntando a una
             // cuenta borrada/inexistente (resto de la migración bcrypt→Auth o
@@ -2688,6 +2706,9 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
 
       // Upsert por email — actualizar si existe, crear en Auth si no. NO borrar relaciones.
       let ok = 0, err2 = null;
+      const sinAuth = []; // emails cuya cuenta de Auth falló al crearse — antes
+                           // se tragaba el error y el apoderado quedaba creado
+                           // sin forma de entrar, contado igual como "ok".
       for(const u of inserts) {
         const { data: existing } = await supabase.from("usuarios").select("id,auth_id").eq("email", u.email).maybeSingle();
         if(existing?.id) {
@@ -2704,6 +2725,7 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
             auth_id = newId || null;
           } catch(authErr) {
             console.error("Error creando en Auth:", u.email, authErr);
+            sinAuth.push(u.email);
           }
           const { error: e } = await supabase.from("usuarios").insert({
             nombre: u.nombre, apellido: u.apellido||null, email: u.email,
@@ -2715,7 +2737,10 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
         }
       }
       if(err2) throw err2;
-      setMsg(`✅ ${ok} apoderados procesados correctamente`);
+      const avisoSinAuth = sinAuth.length
+        ? ` ⚠️ ${sinAuth.length} sin cuenta de Auth (no van a poder entrar hasta que les asignes una clave desde Usuarios): ${sinAuth.join(", ")}`
+        : "";
+      setMsg(`✅ ${ok} apoderados procesados correctamente.${avisoSinAuth}`);
       onDone();
     } catch(err) {
       setMsg(`❌ ${err.message}`);
