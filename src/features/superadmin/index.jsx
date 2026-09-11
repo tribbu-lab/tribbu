@@ -53,7 +53,6 @@ const SECCIONES = [
     {id:"usuarios",l:"👤 Apoderados"},
     {id:"maestros",l:"👨‍🏫 Maestros"},
     {id:"alumnos",l:"🎒 Alumnos"},
-    {id:"codigos",l:"🔑 Códigos"},
   ]},
   { grupo: "Cursos", items: [
     {id:"cursos",l:"🏫 Cursos"},
@@ -82,7 +81,6 @@ const SECCION_INFO = {
   usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores del colegio se gestionan en 🏫 Colegio, y los Super Admin de plataforma en 👑 Super Admins." },
   maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
-  codigos:        { titulo:"Códigos de invitación", descripcion:"Para que las familias se registren solas en la app, sin que un admin les cree la cuenta a mano." },
   cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
   promocion:      { titulo:"Promoción de curso", descripcion:"Pasá a los alumnos de un curso al año lectivo siguiente, revisando quién no se promueve." },
   horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Calendario." },
@@ -1559,10 +1557,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         );
       })()}
 
-      {sec==="codigos"&&(
-        <CodigosInvitacion cursos={cursosAnoActual}/>
-      )}
-
       {sec==="promocion"&&(
         <PromocionCurso cursos={cursos} anoActual={anoActual}/>
       )}
@@ -2750,188 +2744,3 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
   );
 }
 
-// ── Gestión de códigos de invitación ─────────────────────────────────────────
-// Requiere tabla en Supabase (ver instrucciones en features/auth/index.jsx)
-function CodigosInvitacion({ cursos }) {
-  const [codigos,    setCodigos]    = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [cursoSel,   setCursoSel]   = useState("");
-  const [usosMax,    setUsosMax]    = useState(10);
-  const [saving,     setSaving]     = useState(false);
-  const [copiado,    setCopiado]    = useState(null);
-  const [rotando,    setRotando]    = useState(null); // id en curso de rotación
-  const [confirmRotar, setConfirmRotar] = useState(null); // código a rotar
-  const [confirmElim, setConfirmElim] = useState(null); // código a eliminar
-  const { showToast, Toast } = useToast();
-  const inp = {padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC"};
-
-  const cargar = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from("codigos_invitacion")
-      .select("*, cursos(nombre)")
-      .order("creado_en", { ascending: false });
-    setCodigos(data||[]);
-    setLoading(false);
-  };
-
-  useEffect(()=>{ cargar(); },[]);
-
-  const genCodigo = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O/1/I para evitar confusión
-    return Array.from({length:6}, ()=>chars[Math.floor(Math.random()*chars.length)]).join("");
-  };
-
-  const crear = async () => {
-    if(!cursoSel) return;
-    setSaving(true);
-    const codigo = genCodigo();
-    // cursos.id es uuid — Number(cursoSel) daba NaN y el insert fallaba siempre
-    // en silencio (por eso "Generar" no mostraba ningún código).
-    const { error } = await supabase.from("codigos_invitacion").insert({
-      codigo, curso_id: cursoSel,
-      usos_max: Number(usosMax)||10, usos_actuales:0, activo:true,
-    });
-    setSaving(false);
-    if(error) { showToast(`No se pudo generar el código: ${error.message}`, "error"); return; }
-    showToast("Código generado", "ok");
-    cargar();
-  };
-
-  const toggleActivo = async (id, activo) => {
-    await supabase.from("codigos_invitacion").update({ activo: !activo }).eq("id", id);
-    cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("codigos_invitacion").delete().eq("id", id);
-    setConfirmElim(null);
-    cargar();
-  };
-
-  const copiar = (codigo) => {
-    navigator.clipboard?.writeText(codigo).catch(()=>{});
-    setCopiado(codigo);
-    setTimeout(()=>setCopiado(null), 2000);
-  };
-
-  // Rotar: el código actual deja de funcionar y se genera uno nuevo para la
-  // misma fila (mismo curso, mismos usos_max). Las familias que ya se
-  // registraron con el código viejo no se ven afectadas — usos_actuales no
-  // se reinicia, solo cambia el secreto para las altas que faltan.
-  const rotar = async (id) => {
-    setRotando(id);
-    await supabase.from("codigos_invitacion").update({ codigo: genCodigo() }).eq("id", id);
-    setRotando(null);
-    setConfirmRotar(null);
-    cargar();
-  };
-
-  return (
-    <div>
-      <Toast />
-
-      {confirmRotar && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,maxWidth:380,width:"100%"}}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>¿Rotar este código?</div>
-            <div style={{fontSize:13,color:"#94A3B8",marginBottom:14,lineHeight:1.5}}>
-              El código <b style={{fontFamily:"monospace",color:"#0F172A"}}>{confirmRotar.codigo}</b> deja de funcionar de inmediato y se genera uno nuevo para {confirmRotar.cursos?.nombre||"este curso"}.
-            </div>
-            <div style={{fontSize:12,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 12px",marginBottom:18,lineHeight:1.5}}>
-              Ya se registraron {confirmRotar.usos_actuales} de {confirmRotar.usos_max} familias con este código — no se ven afectadas. Solo hace falta avisarles el código nuevo a las que todavía no se registraron.
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setConfirmRotar(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
-              <button onClick={()=>rotar(confirmRotar.id)} disabled={rotando===confirmRotar.id} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>
-                {rotando===confirmRotar.id?"Rotando...":"Rotar código"}
-              </button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {confirmElim && (
-        <ConfirmDestructivoModal
-          titulo="¿Eliminar este código?"
-          detalle={`El código ${confirmElim.codigo} deja de existir. ${confirmElim.usos_actuales>0?`${confirmElim.usos_actuales} familia${confirmElim.usos_actuales!==1?"s":""} ya se registró con él y no se ve afectada, pero `:""}nadie más podrá usarlo para registrarse.`}
-          consecuencias={confirmElim.activo?["Si solo querés que deje de usarse, \"Desactivar\" es reversible — esto no."]:undefined}
-          textoConfirmar="Eliminar código"
-          onCancelar={()=>setConfirmElim(null)}
-          onConfirmar={()=>eliminar(confirmElim.id)}
-        />
-      )}
-
-      {/* Crear nuevo código */}
-      <Card style={{padding:"16px 20px",marginBottom:20}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Nuevo código</div>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div style={{flex:2,minWidth:160}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>Curso</div>
-            <select value={cursoSel} onChange={e=>setCursoSel(e.target.value)} style={{...inp,width:"100%"}}>
-              <option value="">— Seleccioná un curso —</option>
-              {cursos.map(c=><option key={c.id} value={c.id}>{c.avatar} {c.nombre}</option>)}
-            </select>
-          </div>
-          <div style={{width:100}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>Usos máx.</div>
-            <input type="number" min="1" max="200" value={usosMax} onChange={e=>setUsosMax(e.target.value)} style={{...inp,width:"100%"}}/>
-          </div>
-          <button onClick={crear} disabled={!cursoSel||saving} style={{padding:"9px 18px",borderRadius:10,border:"none",background:(!cursoSel||saving)?"#E2E8F0":"#3B82F6",color:(!cursoSel||saving)?"#94A3B8":"white",cursor:(!cursoSel||saving)?"default":"pointer",fontSize:13,fontWeight:700,flexShrink:0}}>
-            {saving?"Generando...":"+ Generar"}
-          </button>
-        </div>
-      </Card>
-
-      {/* Lista de códigos */}
-      {loading && <div style={{textAlign:"center",padding:32,color:"#94A3B8"}}>Cargando...</div>}
-      {!loading && codigos.length===0 && (
-        <div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>No hay códigos generados aún</div>
-      )}
-      {!loading && codigos.map(c=>(
-        <Card key={c.id} style={{padding:"14px 16px",marginBottom:10,opacity:c.activo?1:0.55}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            {/* Código grande y copiable */}
-            <div
-              onClick={()=>copiar(c.codigo)}
-              style={{fontFamily:"monospace",fontSize:22,fontWeight:900,letterSpacing:4,color:"white",background:"#0F172A",borderRadius:10,padding:"6px 14px",cursor:"pointer",userSelect:"all",flexShrink:0}}
-              title="Clic para copiar"
-            >
-              {c.codigo}
-            </div>
-            {copiado===c.codigo&&<span style={{fontSize:11,color:"#10B981",fontWeight:700}}>✓ Copiado</span>}
-
-            <div style={{flex:1,minWidth:120}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{c.cursos?.nombre||"—"}</div>
-              <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                {c.usos_actuales}/{c.usos_max} usos
-                {!c.activo&&<span style={{marginLeft:8,color:"#EF4444",fontWeight:700}}>Inactivo</span>}
-                {c.activo&&c.usos_actuales>=c.usos_max&&<span style={{marginLeft:8,color:"#F59E0B",fontWeight:700}}>Agotado</span>}
-              </div>
-            </div>
-
-            {/* Barra de progreso de usos */}
-            <div style={{width:80,flexShrink:0}}>
-              <div style={{height:6,borderRadius:3,background:"#F1F5F9",overflow:"hidden"}}>
-                <div style={{height:"100%",borderRadius:3,background:c.usos_actuales>=c.usos_max?"#EF4444":"#10B981",width:`${Math.min(100,(c.usos_actuales/c.usos_max)*100)}%`}}/>
-              </div>
-            </div>
-
-            <div style={{display:"flex",gap:6,flexShrink:0}}>
-              <button onClick={()=>copiar(c.codigo)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>
-                {copiado===c.codigo?"✓":"📋"} Copiar
-              </button>
-              <button onClick={()=>setConfirmRotar(c)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #FDE68A",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#B45309"}}>
-                🔄 Rotar
-              </button>
-              <button onClick={()=>toggleActivo(c.id,c.activo)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${c.activo?"#FCA5A5":"#BBF7D0"}`,background:c.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:c.activo?"#EF4444":"#10B981"}}>
-                {c.activo?"Desactivar":"Activar"}
-              </button>
-              <button onClick={()=>setConfirmElim(c)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:12,color:"#94A3B8"}}>🗑</button>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}

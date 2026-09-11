@@ -1,12 +1,13 @@
 // Super Admin (puerto RN de src/features/superadmin). Consola global de gestión:
 // usuarios (alta/edición vía Edge Function manage-auth-user), cursos, maestros,
-// alumnos, códigos de invitación, horarios, uniformes, contacto del colegio,
-// alertas por curso y carga del menú. Las cargas masivas usan expo-document-picker
-// + xlsx (mismo patrón que Comedor). Se usa TextInput para emoji/avatar (no hay
-// EmojiPicker en mobile) y Share para compartir códigos (sin dep de portapapeles).
+// alumnos, horarios, uniformes, contacto del colegio, alertas por curso y carga
+// del menú. Las cargas masivas usan expo-document-picker + xlsx (mismo patrón
+// que Comedor). Se usa TextInput para emoji/avatar (no hay EmojiPicker en mobile).
+// El módulo de Códigos de invitación se sacó (2026-09-11) junto con el registro
+// por código del login — ver CLAUDE.md.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Share, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -35,7 +36,6 @@ const SECCIONES = [
     { id: "usuarios", l: "👤 Apoderados" },
     { id: "maestros", l: "👨‍🏫 Maestros" },
     { id: "alumnos", l: "🎒 Alumnos" },
-    { id: "codigos", l: "🔑 Códigos" },
   ]},
   { grupo: "Cursos", items: [
     { id: "cursos", l: "🏫 Cursos" },
@@ -780,7 +780,6 @@ export function SuperAdmin() {
       ) : null}
 
       {sec === "colegio" ? <ColegioAdmin colegioId={usuario?.colegio_id} /> : null}
-      {sec === "codigos" ? <CodigosInvitacion cursos={cursos} /> : null}
       {sec === "horarios" ? <HorariosAdmin cursos={cursos} /> : null}
       {sec === "uniformes" ? <UniformesAdmin cursos={cursos} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
@@ -2033,102 +2032,6 @@ function UniformesAdmin({ cursos }) {
           </KeyboardAvoidingView>
         </Modal>
       ) : null}
-    </View>
-  );
-}
-
-// ── CodigosInvitacion ───────────────────────────────────────────────────────────
-function CodigosInvitacion({ cursos }) {
-  const [codigos, setCodigos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [cursoSel, setCursoSel] = useState("");
-  const [usosMax, setUsosMax] = useState("10");
-  const [saving, setSaving] = useState(false);
-
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from("codigos_invitacion").select("*, cursos(nombre)").order("creado_en", { ascending: false });
-    setCodigos(data || []);
-    setLoading(false);
-  }, []);
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
-  const genCodigo = (seed) => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let out = "";
-    let n = (seed || 1) * 2654435761;
-    for (let i = 0; i < 6; i++) {
-      n = (n * 1103515245 + 12345) & 0x7fffffff;
-      out += chars[n % chars.length];
-    }
-    return out;
-  };
-  const crear = async () => {
-    if (!cursoSel) return;
-    setSaving(true);
-    await supabase.from("codigos_invitacion").insert({
-      codigo: genCodigo(codigos.length + Number(cursoSel) + 1),
-      curso_id: Number(cursoSel),
-      usos_max: Number(usosMax) || 10,
-      usos_actuales: 0,
-      activo: true,
-    });
-    setSaving(false);
-    cargar();
-  };
-  const toggleActivo = async (id, activo) => {
-    await supabase.from("codigos_invitacion").update({ activo: !activo }).eq("id", id);
-    cargar();
-  };
-  const eliminar = async (id) => {
-    await supabase.from("codigos_invitacion").delete().eq("id", id);
-    cargar();
-  };
-
-  return (
-    <View>
-      <Text style={styles.cardTitle}>🔑 Códigos de invitación</Text>
-      <Text style={styles.subtitle}>Generá un código para que los apoderados se registren solos.</Text>
-      <View style={styles.codNuevo}>
-        <Text style={styles.label}>CURSO</Text>
-        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel] : []} onToggle={(id) => setCursoSel(String(id))} multi={false} />
-        <View style={styles.row}>
-          <View style={{ width: 110 }}>
-            <Text style={styles.label}>USOS MÁX.</Text>
-            <TextInput value={usosMax} onChangeText={setUsosMax} keyboardType="numeric" style={styles.input} />
-          </View>
-          <Pressable onPress={crear} disabled={!cursoSel || saving} style={[styles.saveBtn, { flex: 1, opacity: !cursoSel || saving ? 0.5 : 1 }]}>
-            <Text style={styles.saveTxt}>{saving ? "Generando..." : "+ Generar"}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {loading ? <Text style={styles.muted}>Cargando...</Text> : null}
-      {!loading && codigos.length === 0 ? <Text style={styles.muted}>No hay códigos generados aún</Text> : null}
-      {codigos.map((c) => (
-        <View key={c.id} style={[styles.itemCard, !c.activo && styles.itemInactivo]}>
-          <View style={styles.flex1}>
-            <Text style={styles.codBig}>{c.codigo}</Text>
-            <Text style={styles.itemMeta}>
-              {c.cursos?.nombre || "—"} · {c.usos_actuales}/{c.usos_max} usos
-              {!c.activo ? "  · Inactivo" : c.usos_actuales >= c.usos_max ? "  · Agotado" : ""}
-            </Text>
-          </View>
-          <View style={styles.itemBtns}>
-            <Pressable onPress={() => Share.share({ message: `Tu código de invitación a tribbu: ${c.codigo}` })} style={styles.iconBtn}>
-              <Text>📤</Text>
-            </Pressable>
-            <Pressable onPress={() => toggleActivo(c.id, c.activo)} style={styles.iconBtn}>
-              <Text>{c.activo ? "🚫" : "✓"}</Text>
-            </Pressable>
-            <Pressable onPress={() => eliminar(c.id)} style={styles.iconBtn}>
-              <Text>🗑</Text>
-            </Pressable>
-          </View>
-        </View>
-      ))}
     </View>
   );
 }
