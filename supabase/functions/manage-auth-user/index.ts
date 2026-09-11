@@ -168,11 +168,18 @@ serve(async (req) => {
       if (!error) {
         result = { ok: true, user_id: data.user?.id };
       } else {
-        // Etiquetar de qué intento vino el error final — "Database error
-        // checking email" (u otro) puede salir del intento original, del
-        // reintento por email, o de la recreación; sin esto es indistinguible.
+        // Solo se considera "no existe" con un 404 real (status HTTP) — un
+        // texto tipo /not found/i era frágil: un error transitorio de red
+        // (AuthRetryableFetchError, que supabase-js marca a propósito como
+        // "puede ser pasajero, reintentá") con un mensaje parecido disparaba
+        // el mismo camino y terminaba en "recrear la cuenta" — peligroso
+        // cuando la cuenta sí existe (chocaba con un 500 al crear un email
+        // duplicado, en vez de simplemente fallar para reintentar).
+        const noExiste = error.status === 404;
+        // Etiquetar de qué intento vino el error final — sin esto, cuál de
+        // los tres intentos (original / reintento por email / recreación)
+        // falló es indistinguible desde el toast.
         error.message = `[intento original] ${error.message}`;
-        const noExiste = /not found/i.test(error.message || "");
         if (!noExiste || !current_email) throw error;
 
         const foundId = await findAuthIdByEmail(current_email);
