@@ -1261,7 +1261,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#0F172A"}}>
                 <span style={{fontSize:12.5,fontWeight:700,color:"white"}}>{selUsuarios.size} apoderado{selUsuarios.size!==1?"s":""} seleccionado{selUsuarios.size!==1?"s":""}</span>
                 <div style={{flex:1}}/>
-                <button onClick={()=>showToast("El sistema de invitaciones por email todavía no está definido", "error")} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reenviar invitación</button>
                 <button onClick={()=>setAsignarCursoModal(true)} style={{minHeight:32,padding:"0 12px",border:"none",borderRadius:8,background:"rgba(255,255,255,0.14)",color:"white",fontSize:12,fontWeight:700,cursor:"pointer"}}>Asignar a curso</button>
                 <button onClick={()=>setSelUsuarios(new Set())} style={{minHeight:32,padding:"0 10px",border:"none",background:"transparent",color:"rgba(255,255,255,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
               </div>
