@@ -242,10 +242,18 @@ export function SuperAdmin() {
             if (authId) await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
           }
           if (authId) {
-            await authAdminUpdate(authId, {
+            // current_email: si el auth_id de arriba quedó apuntando a una
+            // cuenta borrada/inexistente, la Edge Function reubica la cuenta
+            // por email o, si de verdad no existe, la recrea con la clave
+            // nueva — antes esto fallaba con "User not found" sin reparo.
+            const { auth_id_reparado } = await authAdminUpdate(authId, {
               ...(emailCambio ? { email: emailNuevo } : {}),
               ...(passNueva ? { password: passNueva } : {}),
+              current_email: form._emailOriginal || form.email,
             });
+            if (auth_id_reparado && auth_id_reparado !== authId) {
+              await supabase.from("usuarios").update({ auth_id: auth_id_reparado }).eq("id", form.id);
+            }
           }
         } catch (e) {
           console.warn("Error sincronizando Auth:", e);

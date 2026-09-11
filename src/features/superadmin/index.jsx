@@ -414,11 +414,22 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           if(!authId) {
             setAuthSyncMsg({ ok:false, msg:`⚠️ No se encontró el usuario en Supabase Auth.` });
           } else {
-            await authAdminUpdate(authId, {
+            // current_email: si el auth_id de arriba quedó apuntando a una
+            // cuenta borrada/inexistente (resto de la migración bcrypt→Auth o
+            // un borrado manual en el dashboard), la Edge Function reubica la
+            // cuenta por email o, si de verdad no existe, la recrea con la
+            // clave nueva — antes esto fallaba con "User not found" sin forma
+            // de repararlo desde acá.
+            const { auth_id_reparado } = await authAdminUpdate(authId, {
               ...(emailCambio ? { email: emailNuevo } : {}),
               ...(passEsNueva ? { password: passNueva } : {}),
+              current_email: form._emailOriginal||form.email,
             });
-            setAuthSyncMsg({ ok:true, msg:`✅ ${[emailCambio?"Email":"",passEsNueva?"Clave":""].filter(Boolean).join(" y ")} actualizado en Auth para ${emailNuevo}.` });
+            if(auth_id_reparado && auth_id_reparado!==authId) {
+              await supabase.from("usuarios").update({ auth_id: auth_id_reparado }).eq("id", form.id);
+            }
+            const reparadoTxt = auth_id_reparado ? " (se reparó el vínculo con Auth, que estaba roto)" : "";
+            setAuthSyncMsg({ ok:true, msg:`✅ ${[emailCambio?"Email":"",passEsNueva?"Clave":""].filter(Boolean).join(" y ")} actualizado en Auth para ${emailNuevo}${reparadoTxt}.` });
           }
         } catch(e) { setAuthSyncMsg({ ok:false, msg:`⚠️ Error: ${e.message}` }); }
       }
@@ -485,7 +496,16 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             authId = found.auth_id || null;
             if(authId) await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
           }
-          if(authId) await authAdminUpdate(authId, { ...(emailCambio?{email:emailNuevo}:{}), ...(passNueva?{password:passNueva}:{}) });
+          if(authId) {
+            const { auth_id_reparado } = await authAdminUpdate(authId, {
+              ...(emailCambio?{email:emailNuevo}:{}),
+              ...(passNueva?{password:passNueva}:{}),
+              current_email: form._emailOriginal||form.email,
+            });
+            if(auth_id_reparado && auth_id_reparado!==authId) {
+              await supabase.from("usuarios").update({ auth_id: auth_id_reparado }).eq("id", form.id);
+            }
+          }
         } catch(e) { showToast(`⚠️ Error sincronizando Auth: ${e.message}`,"error"); }
       }
     }

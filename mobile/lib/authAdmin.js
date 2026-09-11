@@ -55,7 +55,12 @@ export const deleteMyAccount = async () => {
 export const authAdminCreate = (email, password) =>
   callManageAuthUser("create", { email, password });
 
-export const authAdminUpdate = (auth_id, { email, password } = {}) =>
-  callManageAuthUser("update", { auth_id, email, password });
+// `current_email` (el email actual, no el nuevo) es opcional: si el auth_id
+// guardado ya no existe en Auth, la Edge Function reubica la cuenta por email
+// o, si de verdad no existe, la recrea con la contraseña que se está fijando.
+// El resultado puede traer `auth_id_reparado` — hay que reescribir
+// `usuarios.auth_id` con ese valor cuando venga.
+export const authAdminUpdate = (auth_id, { email, password, current_email } = {}) =>
+  callManageAuthUser("update", { auth_id, email, password, current_email });
 
 export const authAdminFind = (email) => callManageAuthUser("find", { email });

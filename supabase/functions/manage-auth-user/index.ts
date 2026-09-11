@@ -84,6 +84,23 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Busca un auth_id por email recorriendo TODAS las páginas de Auth.
+    // `listUsers()` sin {page,perPage} solo trae los primeros 50 usuarios —
+    // con más de 50 cuentas en el proyecto, cualquiera "más atrás" en la
+    // lista no se encontraba aunque existiera (bug real, no al azar: afectaba
+    // a quien le tocara según el orden interno de Auth).
+    async function findAuthIdByEmail(email: string): Promise<string | null> {
+      const target = email.toLowerCase().trim();
+      const perPage = 200;
+      for (let page = 1; ; page++) {
+        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+        if (error) throw error;
+        const found = data.users.find((u) => u.email?.toLowerCase() === target);
+        if (found) return found.id;
+        if (data.users.length < perPage) return null; // última página
+      }
+    }
+
     // Para colegio_admin: el usuario objetivo (por auth_id o email) tiene que
     // pertenecer a su colegio_id. Si todavía no existe fila en `usuarios` para
     // ese auth_id/email, se permite — es un alta nueva, sin colegio asignado
@@ -133,25 +150,50 @@ serve(async (req) => {
       result = { auth_id: data.user?.id };
 
     } else if (action === "update") {
-      // Actualizar email y/o password de un usuario existente
-      const { auth_id, email, password } = payload;
+      // Actualizar email y/o password de un usuario existente. `current_email`
+      // (el email actual del usuario en `usuarios`, no el nuevo) es opcional y
+      // solo se usa para auto-reparar: si el auth_id guardado ya no existe en
+      // Auth (cuenta borrada a mano, resto de la migración bcrypt→Auth), antes
+      // esto fallaba con "User not found" sin forma de arreglarlo desde el
+      // panel — ahora reintenta ubicar la cuenta por email y, si de verdad no
+      // existe, la recrea con la contraseña que se está fijando.
+      const { auth_id, email, password, current_email } = payload;
       if (!auth_id) throw new Error("auth_id es requerido");
       const updates: Record<string, unknown> = {};
       if (email)    { updates.email = email.toLowerCase().trim(); updates.email_confirm = true; }
       if (password) { updates.password = password; }
       if (!Object.keys(updates).length) throw new Error("Nada que actualizar");
+
       const { data, error } = await adminClient.auth.admin.updateUserById(auth_id, updates);
-      if (error) throw error;
-      result = { ok: true, user_id: data.user?.id };
+      if (!error) {
+        result = { ok: true, user_id: data.user?.id };
+      } else {
+        const noExiste = /not found/i.test(error.message || "");
+        if (!noExiste || !current_email) throw error;
+
+        const foundId = await findAuthIdByEmail(current_email);
+        if (foundId) {
+          const { data: data2, error: error2 } = await adminClient.auth.admin.updateUserById(foundId, updates);
+          if (error2) throw error2;
+          result = { ok: true, user_id: data2.user?.id, auth_id_reparado: foundId };
+        } else if (password) {
+          const { data: data3, error: error3 } = await adminClient.auth.admin.createUser({
+            email: (email || current_email).toLowerCase().trim(),
+            password,
+            email_confirm: true,
+          });
+          if (error3) throw error3;
+          result = { ok: true, user_id: data3.user?.id, auth_id_reparado: data3.user?.id };
+        } else {
+          throw new Error("No existe una cuenta de Auth para este usuario y no se pasó una contraseña nueva para recrearla.");
+        }
+      }
 
     } else if (action === "find") {
       // Buscar usuario por email (para sincronizar auth_id)
       const { email } = payload;
       if (!email) throw new Error("email es requerido");
-      const { data, error } = await adminClient.auth.admin.listUsers();
-      if (error) throw error;
-      const found = data.users.find(u => u.email === email.toLowerCase().trim());
-      result = { auth_id: found?.id || null };
+      result = { auth_id: await findAuthIdByEmail(email) };
 
     } else {
       throw new Error(`Acción desconocida: ${action}`);

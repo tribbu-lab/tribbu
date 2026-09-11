@@ -32,9 +32,16 @@ const callManageAuthUser = async (action, payload) => {
 export const authAdminCreate = (email, password) =>
   callManageAuthUser("create", { email, password });
 
-/** Actualiza email y/o password de un usuario. Devuelve { ok: true } */
-export const authAdminUpdate = (auth_id, { email, password } = {}) =>
-  callManageAuthUser("update", { auth_id, email, password });
+/**
+ * Actualiza email y/o password de un usuario. `current_email` (el email
+ * actual del usuario, no el nuevo) es opcional: si el auth_id guardado ya no
+ * existe en Auth, la Edge Function lo usa para reubicar la cuenta por email
+ * o, si de verdad no existe, recrearla con la contraseña que se está fijando.
+ * Devuelve { ok: true, user_id, auth_id_reparado? } — si viene
+ * `auth_id_reparado`, hay que reescribir `usuarios.auth_id` con ese valor.
+ */
+export const authAdminUpdate = (auth_id, { email, password, current_email } = {}) =>
+  callManageAuthUser("update", { auth_id, email, password, current_email });
 
 /** Busca un usuario por email. Devuelve { auth_id } o { auth_id: null } */
 export const authAdminFind = (email) =>
