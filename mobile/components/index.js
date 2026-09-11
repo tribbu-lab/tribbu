@@ -14,6 +14,5 @@ export { Money } from "./Money";
 export { Spinner } from "./Spinner";
 export { Paginador } from "./Paginador";
 export { ListToolbar } from "./ListToolbar";
-export { Placeholder } from "./Placeholder";
 export { ui } from "./ui";
 export { ThemeScope, useTheme, makeThemedStyles } from "../context/Theme";

@@ -146,7 +146,6 @@ Todos en `mobile/components` (barrel `index.js`), temables salvo indicación.
 | `Money` | `value, tone, size` | `fmtM` es-AR + tabular-nums; tonos `success` (pagado) / `danger` (deuda) / `muted` |
 | `ListToolbar` + `Paginador` | API de `useListControls` | patrón canónico de toda lista buscable/filtrable |
 | `FloatingTabBar` | `state, navigation, badge` | navegación del sistema (patrón A3): píldora flotante **en overlay real** (`position:absolute`; el contenido scrollea por detrás — toda pantalla bajo las tabs reserva `TAB_BAR_SPACE` (112) como `paddingBottom` de su scroll), íconos de trazo, cápsula activa `accentSoft`, badge de Recordatorios; labels con `maxFontSizeMultiplier` 1.1 y "Recordatorios" abreviado a "Avisos" en la barra |
-| `Placeholder` | `emoji, title, note` | pantalla de feature no portada |
 
 ### Recetas
 
