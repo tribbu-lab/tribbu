@@ -1,4 +1,6 @@
-// Auth en RN: Login + "olvidé mi contraseña" + RegistroConCodigo + CambiarPasswordModal.
+// Auth en RN: Login + "olvidé mi contraseña" + CambiarPasswordModal. El
+// registro con código de invitación se sacó (2026-09-11): las cuentas de
+// apoderados ahora se dan de alta solo desde Super Admin.
 // Misma lógica de Supabase Auth que la web (src/features/auth); UI con primitivas RN.
 
 import { useState } from "react";
@@ -31,7 +33,7 @@ export function Login({ onSuccess } = {}) {
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
   const [ld, setLd] = useState(false);
-  const [vista, setVista] = useState("login"); // login | reset | registro
+  const [vista, setVista] = useState("login"); // login | reset
   const [resetOk, setResetOk] = useState(false);
   const [resetLd, setResetLd] = useState(false);
 
@@ -89,8 +91,6 @@ export function Login({ onSuccess } = {}) {
     }
     setResetOk(true);
   };
-
-  if (vista === "registro") return <RegistroConCodigo onVolver={() => setVista("login")} />;
 
   return (
     <KeyboardAvoidingView
@@ -188,166 +188,6 @@ export function Login({ onSuccess } = {}) {
               </Pressable>
               {err ? <Text style={styles.err}>{err}</Text> : null}
               <PrimaryBtn label={ld ? "Ingresando..." : "Ingresar"} onPress={go} disabled={ld} />
-              <Pressable
-                onPress={() => {
-                  setVista("registro");
-                  setErr("");
-                }}
-                style={styles.outlineBtn}
-              >
-                <Text style={styles.outlineBtnTxt}>Registrarme con código de invitación</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
-}
-
-// ── Registro con código ─────────────────────────────────────────────────────
-export function RegistroConCodigo({ onVolver }) {
-  const [paso, setPaso] = useState(1);
-  const [codigo, setCodigo] = useState("");
-  const [cursoData, setCursoData] = useState(null);
-  const [nombre, setNombre] = useState("");
-  const [apellido, setApellido] = useState("");
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [err, setErr] = useState("");
-  const [ld, setLd] = useState(false);
-
-  const verificarCodigo = async () => {
-    if (!codigo.trim()) {
-      setErr("Ingresá el código de invitación");
-      return;
-    }
-    setLd(true);
-    setErr("");
-    // Verificación server-side (RPC SECURITY DEFINER) — no expone/enumera
-    // codigos_invitacion vía la API. Ver supabase/rls-hardening.sql.
-    const { data, error } = await supabase.rpc("verificar_codigo", {
-      p_codigo: codigo.trim().toUpperCase(),
-    });
-    setLd(false);
-    if (error || !data) {
-      setErr("Código inválido. Pedile uno nuevo al Room Parent.");
-      return;
-    }
-    if (!data.valido) {
-      setErr(
-        data.motivo === "inactivo"
-          ? "Este código ya no está activo."
-          : data.motivo === "sin_usos"
-            ? "Este código llegó al límite de usos."
-            : "Código inválido. Pedile uno nuevo al Room Parent.",
-      );
-      return;
-    }
-    setCursoData({ id: data.curso_id, nombre: data.curso_nombre, codigo_id: data.codigo_id });
-    setPaso(2);
-  };
-
-  const registrar = async () => {
-    if (!nombre.trim() || !email.trim() || !pass.trim()) {
-      setErr("Completá todos los campos");
-      return;
-    }
-    if (pass.length < 6) {
-      setErr("La contraseña debe tener al menos 6 caracteres");
-      return;
-    }
-    setLd(true);
-    setErr("");
-    try {
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password: pass,
-      });
-      if (authErr) throw new Error(authErr.message);
-      const auth_id = authData.user?.id;
-
-      // Alta + vínculo al curso + consumo del código, server-side (SECURITY
-      // DEFINER, respeta RLS: no hay INSERT directo a usuarios/usuario_cursos).
-      // Requiere supabase/rls-hardening.sql desplegado.
-      const { error: rpcErr } = await supabase.rpc("crear_apoderado", {
-        p_codigo: codigo.trim().toUpperCase(),
-        p_auth_id: auth_id,
-        p_nombre: nombre.trim(),
-        p_apellido: apellido.trim() || null,
-        p_email: email.trim().toLowerCase(),
-      });
-      if (rpcErr) throw new Error(rpcErr.message || "Error al crear el usuario");
-
-      setPaso(3);
-    } catch (e) {
-      setErr(e.message || "Error al registrarse");
-    }
-    setLd(false);
-  };
-
-  return (
-    <KeyboardAvoidingView style={styles.authBg} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandWrap}>
-          <Wordmark size={40} letterSpacing={-2} />
-          <Text style={styles.brandSub}>REGISTRO DE APODERADO</Text>
-        </View>
-
-        <View style={styles.authCard}>
-          {paso === 3 ? (
-            <View style={styles.center}>
-              <Text style={styles.bigEmoji}>🎉</Text>
-              <Text style={styles.authTitle}>¡Bienvenido/a a tribbu!</Text>
-              <Text style={styles.authMuted}>
-                Tu cuenta fue creada y ya estás conectado/a al curso {cursoData?.nombre}.
-              </Text>
-              <PrimaryBtn label="Ir al inicio de sesión" onPress={onVolver} />
-            </View>
-          ) : paso === 1 ? (
-            <>
-              <Text style={styles.authTitle}>Ingresá tu código</Text>
-              <Text style={styles.authMuted}>
-                El Room Parent de tu curso te compartió un código de invitación.
-              </Text>
-              <Field label="Código de invitación">
-                <TextInput
-                  value={codigo}
-                  onChangeText={(t) => setCodigo(t.toUpperCase())}
-                  autoCapitalize="characters"
-                  maxLength={10}
-                  placeholder="Ej: ABC123"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  style={[styles.authInput, styles.codeInput]}
-                />
-              </Field>
-              {err ? <Text style={styles.err}>{err}</Text> : null}
-              <PrimaryBtn label={ld ? "Verificando..." : "Continuar"} onPress={verificarCodigo} disabled={ld} />
-              <Pressable onPress={onVolver}>
-                <Text style={styles.linkMuted}>← Volver al inicio de sesión</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.authTitle}>Creá tu cuenta</Text>
-              <Text style={styles.authMuted}>Curso: {cursoData?.nombre}</Text>
-              <Field label="Nombre">
-                <TextInput value={nombre} onChangeText={setNombre} placeholder="Tu nombre" placeholderTextColor="rgba(255,255,255,0.4)" style={styles.authInput} />
-              </Field>
-              <Field label="Apellido">
-                <TextInput value={apellido} onChangeText={setApellido} placeholder="Tu apellido" placeholderTextColor="rgba(255,255,255,0.4)" style={styles.authInput} />
-              </Field>
-              <Field label="Correo">
-                <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="correo@mail.com" placeholderTextColor="rgba(255,255,255,0.4)" style={styles.authInput} />
-              </Field>
-              <Field label="Contraseña">
-                <TextInput value={pass} onChangeText={setPass} secureTextEntry placeholder="Mínimo 6 caracteres" placeholderTextColor="rgba(255,255,255,0.4)" style={styles.authInput} />
-              </Field>
-              {err ? <Text style={styles.err}>{err}</Text> : null}
-              <PrimaryBtn label={ld ? "Registrando..." : "Crear cuenta"} onPress={registrar} disabled={ld} green />
-              <Pressable onPress={() => { setPaso(1); setErr(""); }}>
-                <Text style={styles.linkMuted}>← Cambiar código</Text>
-              </Pressable>
             </>
           )}
         </View>
@@ -434,12 +274,12 @@ function Field({ label, children }) {
   );
 }
 
-function PrimaryBtn({ label, onPress, disabled, green }) {
+function PrimaryBtn({ label, onPress, disabled }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.primaryBtn, green && styles.primaryBtnGreen, disabled && styles.primaryBtnDisabled]}
+      style={[styles.primaryBtn, disabled && styles.primaryBtnDisabled]}
     >
       {disabled ? (
         <ActivityIndicator color="white" />
@@ -486,7 +326,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 14,
   },
-  codeInput: { textAlign: "center", fontSize: 20, fontWeight: "800", letterSpacing: 4 },
   primaryBtn: {
     minHeight: 48,
     borderRadius: 11,
@@ -496,18 +335,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 14,
   },
-  primaryBtnGreen: { backgroundColor: T.green },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnTxt: { color: "white", fontSize: 14, fontWeight: "800" },
-  outlineBtn: {
-    minHeight: 44,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outlineBtnTxt: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "600" },
   link: { color: "rgba(255,255,255,0.6)", fontSize: 13, textDecorationLine: "underline", marginTop: 12 },
   linkMuted: { color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", marginTop: 4 },
   alignEnd: { alignSelf: "flex-end", marginBottom: 12 },
