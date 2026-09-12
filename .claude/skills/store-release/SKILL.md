@@ -1,6 +1,6 @@
 ---
 name: store-release
-description: Build the tribbu mobile app for iOS and Android locally with EAS (zero cloud-build quota) and submit both to the stores (App Store Connect + Play internal track). Use when the user wants to ship a new mobile release, "build y submit", or publish the app to the stores.
+description: Build the tribbu mobile app for iOS and Android locally with EAS (zero cloud-build quota), submit both to the stores (App Store Connect + Play internal track) and write the release notes for both consoles. Use when the user wants to ship a new mobile release, "build y submit", publish the app to the stores, or get the release notes / novedades for a version.
 argument-hint: "[all|ios|android] [--cloud] (default: all, local builds, iOS first)"
 ---
 
@@ -29,6 +29,22 @@ explicitly asks after a local failure).
 2. Working tree: `git status` must be clean (or only contain changes the user
    just asked to ship — confirm with them if dirty) and on `main` with the
    release commit pushed.
+2b. **Establecé el rango real del release con `git log`, no con el snapshot de
+   la sesión.** El bloque `gitStatus` del contexto puede venir desactualizado
+   (el 2026-09-11 mostraba `HEAD` en el release anterior cuando origin ya
+   estaba varios commits adelante — reporté "esta versión no trae cambios de
+   código" y era falso, había 8 commits). Sacá el tag/commit del release
+   anterior de `mobile/STORE_RELEASE.md` o de la memoria de estado de stores y
+   corré:
+
+```bash
+git log --oneline <commit-release-anterior>..HEAD
+git diff --stat <commit-release-anterior>..HEAD -- mobile/ src/lib/
+```
+
+   El segundo comando importa: sólo `mobile/` y `src/lib/` (vía el alias
+   `@shared`) viajan en el binario — commits de la landing o de `src/` web no
+   son "novedades" de la app y no van en las notas de tienda.
 3. Validation gates: `npm run lint` and `npx expo export -p ios` must pass.
 4. Toolchain (per platform being built):
    - **iOS**: `xcodebuild -version` and `which fastlane` must succeed
@@ -107,7 +123,41 @@ verificación post-build (en un `.apk` el path es `resources.arsc`, sin
 `base/`). Doc humana: sección "APK compartible" de `mobile/STORE_RELEASE.md`
 (incluye qué compartir para compilar desde otra computadora).
 
-## Phase 3 — Verify & report
+## Phase 3 — Release notes (SIEMPRE, no es opcional)
+
+Generá **siempre** `mobile/stores/release-notes-<version>.md`, aunque el usuario
+no lo pida — se necesita sí o sí para publicar en ambas consolas. Escribilo
+**mientras corren los builds** (son ~25 min de tiempo muerto), a partir del
+rango de commits de la Phase 0 (2b).
+
+El archivo lleva tres secciones:
+
+1. **Google Play → "Novedades"**, en es-419, **máximo 500 caracteres** (límite
+   duro de Play). Verificá el largo, no lo estimes:
+   `… | wc -m` sobre el bloque antes de entregarlo.
+2. **App Store Connect → "Novedades de esta versión"** (es-419, hasta 4000
+   caracteres, se puede explayar un poco más que Play).
+3. **"Qué entró realmente (interno, no publicar)"** — los commits con su hash y
+   la causa raíz de cada fix. Es lo que hace auditable el release después.
+
+Reglas de redacción de las notas públicas:
+
+- En **español rioplatense** (es-419), orientadas al apoderado: qué cambia para
+  él, nunca jerga interna (nada de RLS, `auth.users`, Edge Functions, hashes).
+- Una viñeta por cambio **observable**. Un fix invisible para el usuario se
+  resume como "mejoras de estabilidad"; no inventes novedades para llenar.
+- Las **remociones también son novedades** — si se sacó una pantalla o un botón,
+  el usuario lo va a notar y tiene que estar dicho.
+
+**Chequeo obligatorio contra las Review Notes de ASC**: si el release toca el
+login, el alta de cuentas o el onboarding, releé las Review Notes / el
+argumento de Guideline 3.2 que ya está cargado en App Store Connect y decí
+explícitamente si quedaron inválidas. Caso real (1.6.1, 2026-09-11): sacar el
+registro con código dejó al revisor con un código demo que ya no tiene dónde
+ingresarse, y volteó el argumento de 3.2 que se le había mandado a Apple. Eso
+frena el envío a review y hay que avisarlo **antes** de que el usuario mande.
+
+## Phase 4 — Verify & report
 
 1. Report the version actually shipped per platform. **`build:list` does NOT
    work for this** — local builds are never registered on the EAS servers, so
@@ -129,6 +179,9 @@ verificación post-build (en un `.apk` el path es `resources.arsc`, sin
 3. Remind the user of the manual console steps that EAS does NOT do, per
    `mobile/STORE_RELEASE.md`: attaching the processed build + submitting for
    review in ASC, and promotion beyond the internal track in Play Console.
+   Pegá en el chat los dos bloques listos para copiar de
+   `mobile/stores/release-notes-<version>.md` (Phase 3) — son parte de esos
+   pasos manuales, y levantá ahí cualquier problema con las Review Notes.
 4. Delete or leave the local artifacts as the user prefers (they're gitignored).
 
 ## Failure fallbacks
