@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora, fmtLocalDate,
          sanitize, safeUrl, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -76,8 +76,8 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   const cargar = async () => {
     if(!cursoIds.length) return;
     try {
-    const fechaHoy = new Date().toISOString().split("T")[0];
-    const fecha15  = new Date(Date.now() + 15*24*60*60*1000).toISOString().split("T")[0];
+    const fechaHoy = fmtLocalDate();
+    const fecha15  = fmtLocalDate(new Date(Date.now() + 15*24*60*60*1000));
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData,encuestasData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
@@ -99,7 +99,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       const votadas = new Set((misVotosData||[]).map(v=>v.encuesta_id));
       encuestasPend = encuestasActivas.filter(e=>!votadas.has(e.id));
     }
-    const fecha15b = new Date(Date.now() + 15*24*60*60*1000).toISOString().split("T")[0];
+    const fecha15b = fmtLocalDate(new Date(Date.now() + 15*24*60*60*1000));
     const nextBday = (fecha) => {
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const d = new Date(fecha+"T00:00:00");
@@ -121,7 +121,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
      .sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
     setLeidosMuro(new Set([...leidosIds]));
-    const hoyStr = new Date().toISOString().split("T")[0];
+    const hoyStr = fmtLocalDate();
     // Recordatorios manuales no leídos, dentro de 15 días
     const recsNoLeidos = (recordatorios.data||[]).filter(r=> {
       if(r.tipo==="regalo_cumple" || r.tipo==="colecta_vence") return false;
@@ -186,7 +186,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
     const hijosDelCursoColecta = new Set((datos?.hijosData||[]).filter(h=>h.curso_id===colecta.curso_id).map(h=>h.id));
     const hijosTarget = misHijos.filter(hid=>hijosDelCursoColecta.has(hid));
     if(!hijosTarget.length) return;
-    const fecha_pago = new Date().toISOString().slice(0,10);
+    const fecha_pago = fmtLocalDate();
     await Promise.all(hijosTarget.map(hid=>
       supabase.from("colecta_pagos").upsert(
         { colecta_id:colecta.id, alumno_id:hid, estado:"pagado", fecha_pago, pagado_por:userId },
@@ -293,7 +293,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       let next = new Date(hoyD.getFullYear(), d.getMonth(), d.getDate());
       if(next<hoyD) next.setFullYear(hoyD.getFullYear()+1);
       const dias = Math.round((next-hoyD)/86400000);
-      return { key:a.id, fecha:next.toISOString().split("T")[0], dias, emoji:"🎂",
+      return { key:a.id, fecha:fmtLocalDate(next), dias, emoji:"🎂",
         titulo:`Cumple de ${a.nombre}`, meta:a.tipo==="Alumno"?"🎒 Alumno":"👨‍🏫 Maestro", tag:tagDe(a.curso_id),
         onPress:()=>onNavigate?.("cumples") };
     }),

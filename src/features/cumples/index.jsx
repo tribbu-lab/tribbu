@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtLocalDate,
          sanitize, safeUrl, getHijoColor, setHijoColor,
          bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
 import { Card } from "../../components/Card";
@@ -168,7 +168,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
           para_usuario_id: cumple.responsable_id,
           texto: `El cumple de ${nombre} es en ${dias===0?"hoy":dias===1?"1 dia":`${dias} dias`}. Ya compraste el regalo?`,
           emoji: "🎁", urgente: dias <= 2, prioridad: dias <= 2 ? "alta" : "media",
-          fecha: next.toISOString().slice(0,10),
+          fecha: fmtLocalDate(next),
         };
       });
 
@@ -187,7 +187,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
       descripcion: `Colecta para el regalo de cumpleaños de ${maestroNombre}`,
       monto_sugerido: monto ? Number(monto) : null, moneda: moneda||"$",
       fecha_limite: fecha_limite||null,
-      vencimiento: fecha_limite||new Date().toISOString().slice(0,10),
+      vencimiento: fecha_limite||fmtLocalDate(),
       curso_id: cursoDestino, activa: true, responsable_id: responsable_id||null,
     };
     const { error } = await supabase.from("colectas").insert(payload);

@@ -14,7 +14,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
-import { fmtNombre, fmtF, fmtRangoHora, sanitize, safeUrl, uuidLite } from "@shared/helpers";
+import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
 import { pickAndUploadImage } from "../../lib/media";
 import { SignedImage } from "../../components/SignedImage";
@@ -1480,7 +1480,7 @@ const PRIO = {
 function ComunicacionesAdmin({ cursos }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto: "", fecha: new Date().toISOString().split("T")[0], hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1515,7 +1515,7 @@ function ComunicacionesAdmin({ cursos }) {
       if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-      setForm({ texto: "", fecha: new Date().toISOString().split("T")[0], hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setForm({ texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
       setCursosSel([]);
       setTimeout(() => setOk(null), 4000);
     } catch (e) {

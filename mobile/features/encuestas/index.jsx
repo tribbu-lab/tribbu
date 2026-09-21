@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize } from "@shared/helpers";
+import { sanitize, fmtLocalDate } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -40,10 +40,7 @@ export function Encuestas() {
   const [error, setError] = useState(null);
   const [votando, setVotando] = useState(null); // id de la encuesta con un voto en vuelo (evita doble-tap/carrera)
 
-  // Fecha local del dispositivo (no UTC — toISOString() corre la fecha antes
-  // de tiempo para usuarios al oeste de UTC en la noche, ej. Argentina).
-  const hoyDate = new Date();
-  const hoyStr = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth()+1).padStart(2,"0")}-${String(hoyDate.getDate()).padStart(2,"0")}`;
+  const hoyStr = fmtLocalDate();
 
   // En vista "Todos" el permiso de gestión se resuelve contra el rol en el
   // curso de cada fila, no contra el isAdmin de sesión (que en Todos es false).

@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
-import { getHijoColor, setHijoColor } from "./lib/helpers";
+import { getHijoColor, setHijoColor, fmtLocalDate } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -234,7 +234,7 @@ function App() {
       ? [...new Set(itmList.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))]
       : [itm_?._tipo==="hijo" ? itm_?.curso_id : itm_?.id].filter(Boolean);
     if(!cids_.length) return;
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = fmtLocalDate();
     supabase.from("recordatorios").select("id").in("curso_id", cids_)
       .or(`para_usuario_id.is.null,para_usuario_id.eq.${usr.id}`)
       .or(`fecha.is.null,fecha.gte.${hoy}`)

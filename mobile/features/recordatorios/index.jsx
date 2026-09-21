@@ -21,7 +21,7 @@ import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize, fmtRangoHora } from "@shared/helpers";
+import { sanitize, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -143,7 +143,7 @@ export function Recordatorios() {
   const [filtroOrigen, setFiltroOrigen] = useState("all");
   const [pagina, setPagina] = useState(1);
 
-  const hoyStr = new Date().toISOString().split("T")[0];
+  const hoyStr = fmtLocalDate();
 
   // En vista "Todos" el permiso de edición se resuelve contra el rol en el curso
   // de cada fila, no contra el isAdmin de sesión (que en Todos es false).

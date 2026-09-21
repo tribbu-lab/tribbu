@@ -32,7 +32,7 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { fmtNombre, fmtRangoHora } from "@shared/helpers";
+import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -100,8 +100,8 @@ export function Muro() {
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
     try {
-    const fechaHoy = new Date().toISOString().split("T")[0];
-    const fecha15 = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const fechaHoy = fmtLocalDate();
+    const fecha15 = fmtLocalDate(new Date(Date.now() + 15 * 24 * 60 * 60 * 1000));
     const misHijosIds = (misHijos || []).filter((h) => h && typeof h === "string");
     // Todas las lecturas por curso van por cursoIds: en vista "Todos" abarca
     // todos los cursos con hijos; en vista por hijo es solo el curso activo.

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
-import { fmtDM } from "../../lib/helpers";
+import { fmtDM, fmtLocalDate } from "../../lib/helpers";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
@@ -15,7 +15,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   const cargar = async () => {
     if(!cursoIds?.length || !userId) return;
     setCargando(true);
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = fmtLocalDate();
     const [recs, leidosData, alertas] = await Promise.all([
       supabase.from("recordatorios").select("*")
         .in("curso_id", cursoIds)

@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { fmtF, dHasta } from "@shared/helpers";
+import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
@@ -143,7 +143,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       alias_cbu: form.alias_cbu?.trim() || null,
       responsable_id: form.responsable_id || null,
       fecha_limite: form.fecha_limite || null,
-      vencimiento: form.fecha_limite || new Date().toISOString().slice(0, 10),
+      vencimiento: form.fecha_limite || fmtLocalDate(),
       // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
       // aplica al crear (acción admin, nunca disponible en vista Todos)
       curso_id: modal?.id ? modal.curso_id : cursoId,
@@ -210,7 +210,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevo = estadoActual === "pagado" ? "pendiente" : "pagado";
-    const fecha_pago = nuevo === "pagado" ? new Date().toISOString().slice(0, 10) : null;
+    const fecha_pago = nuevo === "pagado" ? fmtLocalDate() : null;
     setPagos((prev) => {
       const idx = prev.findIndex((p) => p.colecta_id === colectaId && p.alumno_id === alumnoId);
       if (idx >= 0) {

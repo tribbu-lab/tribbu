@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtLocalDate,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -19,7 +19,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=null }) {
   const [menu,setMenu]         = useState([]);
   const [vista,setVista]       = useState("diario");
-  const [fechaSel,setFechaSel] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaSel,setFechaSel] = useState(fmtLocalDate());
   const [mes,setMes]           = useState(new Date());
   // Edición día a día: solo desde el "perfil de administración" donde se
   // carga el comedor (Super Admin) — el mismo criterio que ya gatea el
@@ -171,7 +171,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
             {diasSemana.map(fecha=>{
               const d = new Date(fecha+"T00:00:00");
               const m = menu.find(x=>x.fecha===fecha);
-              const isHoy = fecha===new Date().toISOString().split("T")[0];
+              const isHoy = fecha===fmtLocalDate();
               const isSel = fecha===fechaSel;
               return (
                 <div key={fecha} onClick={()=>{ setFechaSel(fecha); setVista("diario"); }}
@@ -217,7 +217,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
               {["Lu","Ma","Mi","Ju","Vi","Sa","Do"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94A3B8",padding:"4px 0"}}>{d}</div>)}
               {cells.map((day,i)=>{
                 const tieneM=day&&tieneMenu(day);
-                const isHoy=day&&`${year}-${pad(month+1)}-${pad(day)}`===new Date().toISOString().split("T")[0];
+                const isHoy=day&&`${year}-${pad(month+1)}-${pad(day)}`===fmtLocalDate();
                 return <div key={i} onClick={()=>day&&selDia(day)} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8,background:isHoy?"#3B82F6":tieneM?"#DBEAFE":"transparent",color:isHoy?"white":day?"#0F172A":"transparent",fontSize:12,fontWeight:isHoy?800:500,cursor:day?"pointer":"default",position:"relative"}}>
                   {day}
                   {tieneM&&!isHoy&&<div style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:"50%",background:"#3B82F6"}}/>}
@@ -241,7 +241,7 @@ export function Comedor({ cursoId, isAdmin, isSuper, isMobile=true, colegioId=nu
             <button onClick={()=>setMes(new Date(year,month+1,1))} style={{background:"white",border:"1px solid #E2E8F0",borderRadius:9,width:34,height:34,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>›</button>
           </div>
           {(() => {
-            const hoyStr = new Date().toISOString().split("T")[0];
+            const hoyStr = fmtLocalDate();
             const filas = Array.from({length:daysInMonth},(_,i)=>i+1)
               .map(day=>{ const fecha=`${year}-${pad(month+1)}-${pad(day)}`; return { day, fecha, m: menu.find(x=>x.fecha===fecha) }; })
               // Admin ve el mes completo (para poder cargar días sueltos); padres solo lo ya cargado + hoy.

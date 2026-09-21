@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtLocalDate,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -103,7 +103,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       alias_cbu:      form.alias_cbu?.trim()||null,
       responsable_id: form.responsable_id ? form.responsable_id : null,
       fecha_limite:   form.fecha_limite||null,
-      vencimiento:    form.fecha_limite||new Date().toISOString().slice(0,10),
+      vencimiento:    form.fecha_limite||fmtLocalDate(),
       // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
       // aplica al crear (acción admin, nunca disponible en vista Todos)
       curso_id:       modal?.id ? modal.curso_id : cursoId,
@@ -156,7 +156,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevoEstado = estadoActual==="pagado" ? "pendiente" : "pagado";
-    const fecha_pago  = nuevoEstado==="pagado" ? new Date().toISOString().slice(0,10) : null;
+    const fecha_pago  = nuevoEstado==="pagado" ? fmtLocalDate() : null;
     // Actualización optimista — UI responde inmediatamente
     setPagos(prev => {
       const idx = prev.findIndex(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);

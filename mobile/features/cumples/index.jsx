@@ -25,7 +25,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { fmtNombre, fmtF, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
+import { fmtNombre, fmtF, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -143,7 +143,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             emoji: "🎁",
             urgente: dias <= 2,
             prioridad: dias <= 2 ? "alta" : "media",
-            fecha: next.toISOString().slice(0, 10),
+            fecha: fmtLocalDate(next),
           };
         });
       if (inserts.length) await supabase.from("recordatorios").insert(inserts);
@@ -331,7 +331,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       monto_sugerido: monto ? Number(monto) : null,
       moneda: moneda || "$",
       fecha_limite: fecha_limite || null,
-      vencimiento: fecha_limite || new Date().toISOString().slice(0, 10),
+      vencimiento: fecha_limite || fmtLocalDate(),
       curso_id: cursoDestino,
       activa: true,
       responsable_id: responsable_id || null,

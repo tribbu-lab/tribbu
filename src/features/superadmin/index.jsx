@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, dHasta, fmtNombre, fmtRangoHora,
+import { fmtM, fmtF, dHasta, fmtNombre, fmtRangoHora, fmtLocalDate,
          sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Wordmark } from "../../components/Wordmark";
@@ -2009,7 +2009,7 @@ export function AlertasAdmin({ cursos }) {
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+  const [form, setForm] = useState({ texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -2049,7 +2049,7 @@ export function ComunicacionesAdmin({ cursos }) {
       }
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}${form.enviarPush?" · con push":" · sin push"}.`);
-      setForm({ texto:"", fecha:new Date().toISOString().split("T")[0], hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+      setForm({ texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {

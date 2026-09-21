@@ -22,6 +22,15 @@ export const uuidLite = () =>
     return v.toString(16);
   });
 
+/**
+ * Fecha local en formato YYYY-MM-DD (para columnas `date` de Postgres y
+ * comparaciones de "hoy"). Nunca usar `Date.toISOString().split("T")[0]`
+ * para esto: `toISOString` convierte a UTC, y en Argentina (UTC-3) eso hace
+ * que "hoy" salte al día siguiente entre las 21:00 y las 23:59 hora local.
+ */
+export const fmtLocalDate = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 /** "$1.234" */
 export const fmtM = (m) => `$${Math.abs(m).toLocaleString("es-AR")}`;
 

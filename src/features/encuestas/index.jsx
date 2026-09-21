@@ -8,7 +8,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T } from "../../lib/theme";
-import { sanitize } from "../../lib/helpers";
+import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { Card } from "../../components/Card";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -30,10 +30,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const [votando,   setVotando]   = useState(null); // id de la encuesta con un voto en vuelo (evita doble-tap/carrera)
   const isMobile = useIsMobile();
 
-  // Fecha local del dispositivo (no UTC — toISOString() corre la fecha antes
-  // de tiempo para usuarios al oeste de UTC en la noche, ej. Argentina).
-  const hoy = new Date();
-  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}-${String(hoy.getDate()).padStart(2,"0")}`;
+  const hoyStr = fmtLocalDate();
   const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
 
   // Opciones de curso destino para el alta en vista "Todos" (mismo patrón que Recordatorios).

@@ -40,8 +40,14 @@ const ETIQUETAS = [
 ];
 const etiquetaStyle = (id) => ETIQUETAS.find((e) => e.id === id) || { id, color: t.textMuted, bg: t.surfaceSunken };
 
+// OJO: `iso` se usa también para fechas de Excel (cellDates:true construye
+// Date en UTC medianoche — ver parseFecha más abajo), así que tiene que
+// seguir siendo UTC-based. Para "hoy" hay que pasarle una fecha ya llevada a
+// medianoche LOCAL con hoyLocal() — un `new Date()` crudo (con hora real)
+// rota al día siguiente en UTC entre las 21:00 y las 23:59 hora Argentina.
 const iso = (d) => d.toISOString().split("T")[0];
 const parseISO = (s) => new Date(s + "T00:00:00");
+const hoyLocal = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const esFinde = (d) => d.getDay() === 0 || d.getDay() === 6;
 // Mueve la fecha al día hábil más cercano en la dirección dada (para no
 // aterrizar nunca en sábado/domingo, que no tienen menú).
@@ -57,7 +63,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
   const { isAdmin } = useSession();
   const [menu, setMenu] = useState([]);
   const [vista, setVista] = useState("dia"); // "dia" | "semana"
-  const [fechaSel, setFechaSel] = useState(iso(snapHabil(new Date())));
+  const [fechaSel, setFechaSel] = useState(iso(snapHabil(hoyLocal())));
   const [editModal, setEditModal] = useState(null);
 
   // Multi-colegio: menu.colegio_id es NOT NULL. Mobile todavía no tiene
@@ -78,7 +84,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
     return map;
   }, [menu]);
 
-  const hoyIso = iso(new Date());
+  const hoyIso = iso(hoyLocal());
   const dSel = parseISO(fechaSel);
   const menuSel = menuPorFecha[fechaSel] || null;
 
@@ -171,7 +177,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
             </Pressable>
           </View>
           {fechaSel !== hoyIso ? (
-            <Pressable onPress={() => setFechaSel(iso(snapHabil(new Date())))} style={styles.volverHoy} hitSlop={6}>
+            <Pressable onPress={() => setFechaSel(iso(snapHabil(hoyLocal())))} style={styles.volverHoy} hitSlop={6}>
               <Text style={styles.volverHoyTxt}>← Volver a hoy</Text>
             </Pressable>
           ) : null}

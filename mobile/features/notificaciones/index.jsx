@@ -6,6 +6,7 @@ import { View, Text, Pressable, Modal, SectionList, StyleSheet } from "react-nat
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
+import { fmtLocalDate } from "@shared/helpers";
 
 // Contexto para compartir el resultado de useNotificaciones (levantado una sola
 // vez en app/(tabs)/_layout.jsx) con las pantallas de tabs. Sin esto, la tab
@@ -28,7 +29,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   const cargar = useCallback(async () => {
     if (!cursoIds?.length || !userId) return;
     setCargando(true);
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = fmtLocalDate();
     const [recs, leidosData, alertas] = await Promise.all([
       supabase
         .from("recordatorios")
