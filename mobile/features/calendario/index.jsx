@@ -5,9 +5,9 @@
 // gestionan en Cumpleaños (no se abre su modal acá).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, Platform, StyleSheet, Alert } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { fmtNombre, safeUrl, fmtRangoFecha } from "@shared/helpers";
+import { fmtNombre, safeUrl, fmtRangoFecha, fmtLocalDate } from "@shared/helpers";
 import { MESES, T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -43,6 +43,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [mes, setMes] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
   const [cumples, setCumples] = useState([]);
+  const [recordatorios, setRecordatorios] = useState([]);
   const [horarios, setHorarios] = useState([]);
   const [diaSelec, setDiaSelec] = useState(null);
   const [modal, setModal] = useState(null); // "nuevo" | evento
@@ -60,7 +61,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
-    const [ev, al, ma, hor] = await Promise.all([
+    const hoyStr = fmtLocalDate(new Date());
+    const [ev, al, ma, hor, recs] = await Promise.all([
       supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase
@@ -68,9 +70,15 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
         .in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
+      supabase.from("recordatorios").select("*").in("curso_id", cursoIds).order("fecha", { ascending: true }),
     ]);
     setEventos(ev.data || []);
     setHorarios(hor.data || []);
+    setRecordatorios(
+      (recs.data || []).filter(
+        (r) => (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id === null || r.para_usuario_id === undefined || r.para_usuario_id === userId)
+      )
+    );
     setCumples([
       ...(al.data || [])
         .filter((a) => a.fecha_nacimiento)
@@ -91,7 +99,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),
     ]);
-  }, [cursoIds]);
+  }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
@@ -118,22 +126,44 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   }, [diaSelec]);
 
   const eliminar = async (id) => {
-    await supabase.from("eventos").delete().eq("id", id);
+    // Sin ON DELETE CASCADE hacia evento_asistencia: si el evento tiene RSVPs
+    // (confirma_asistencia) el delete de "eventos" viola la FK y falla en
+    // silencio (mismo patrón que eliminarAlumno en superadmin) — limpiar antes.
+    await supabase.from("evento_asistencia").delete().eq("evento_id", id);
+    const { error } = await supabase.from("eventos").delete().eq("id", id);
     setConfirm(null);
+    if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
     cargar();
   };
+
+  // Recordatorios con fecha (incluye Comunicaciones del colegio con grupo_id)
+  // se muestran como eventos virtuales tipo "comunicado" — con horario si lo
+  // cargaron, si no como "todo el día". Uno sin fecha es un aviso permanente
+  // sin lugar en el calendario.
+  const comunicados = recordatorios
+    .filter((r) => r.fecha)
+    .map((r) => ({
+      id: `r-${r.id}`,
+      tipo: "comunicado",
+      titulo: (r.grupo_id ? "🏫 " : "") + r.texto,
+      fecha: r.fecha,
+      hora: r.hora_inicio,
+      hora_fin: r.hora_fin,
+      curso_id: r.curso_id,
+    }));
 
   // Un evento multi-día (fecha_fin) aparece en cada día de su rango.
   const eventosDelDia = (year, month, day) => {
     const fecha = `${year}-${pad(month + 1)}-${pad(day)}`;
     const reales = eventos.filter((e) => e.fecha <= fecha && (e.fecha_fin || e.fecha) >= fecha);
+    const citas = comunicados.filter((c) => c.fecha === fecha);
     const bday = cumples
       .filter((c) => {
         const d = new Date(c.fecha_nacimiento + "T00:00:00");
         return d.getMonth() === month && d.getDate() === day;
       })
       .map((c) => ({ ...c, titulo: c.nombre, fecha }));
-    return [...reales, ...bday];
+    return [...reales, ...citas, ...bday];
   };
 
   const year = mes.getFullYear();
@@ -154,16 +184,19 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         return fin >= desde && ini <= hasta; // solapa el rango del filtro
       })
       .map((e) => ({ ...e, _fecha: new Date(e.fecha + "T00:00:00") }));
+    const citas = comunicados
+      .map((c) => ({ ...c, _fecha: new Date(c.fecha + "T00:00:00") }))
+      .filter((c) => c._fecha >= desde && c._fecha <= hasta);
     const bday = cumples
       .map((c) => {
         const d = new Date(c.fecha_nacimiento + "T00:00:00");
         let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
         if (next < desde) next = new Date(hoy.getFullYear() + 1, d.getMonth(), d.getDate());
         if (next < desde || next > hasta) return null;
-        return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0, 10), _fecha: next, tipo: "cumple" };
+        return { ...c, titulo: c.nombre, fecha: fmtLocalDate(next), _fecha: next, tipo: "cumple" };
       })
       .filter(Boolean);
-    const todos = [...reales, ...bday].sort((a, b) => a._fecha - b._fecha);
+    const todos = [...reales, ...citas, ...bday].sort((a, b) => a._fecha - b._fecha);
     return filtroTipo === "todos" ? todos : todos.filter((e) => e.tipo === filtroTipo);
   };
 
@@ -362,7 +395,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                         <Text style={styles.asistTxt}>Asistencia</Text>
                       </Pressable>
                     ) : null}
-                    {isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo" ? (
+                    {isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo" && e.tipo !== "comunicado" ? (
                       <View style={styles.editRow}>
                         <Pressable onPress={() => setModal(e)} style={styles.miniBtn}>
                           <Text style={styles.miniTxt}>✏️</Text>
@@ -458,7 +491,7 @@ function TagHijo({ tag }) {
 
 function EventoRow({ e, tag = null, isAdmin, onAsistencia, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
-  const editable = isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo";
+  const editable = isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo" && e.tipo !== "comunicado";
   return (
     <View style={styles.diaRow}>
       <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>

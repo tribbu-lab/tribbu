@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoFecha,
+import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoFecha, fmtLocalDate,
          sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
@@ -12,6 +12,7 @@ import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
+import { useToast } from "../../hooks/useToast";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
 import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
@@ -58,10 +59,11 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [recordatorios,  setRecordatorios]  = useState([]);
   const [leidosSet,      setLeidosSet]      = useState(new Set());
+  const { showToast, Toast } = useToast();
 
   const cargarRecs = async () => {
     if(!cursoIds?.length) return;
-    const hoyStr = new Date().toISOString().split("T")[0];
+    const hoyStr = fmtLocalDate(new Date());
     const [recs, leidos] = await Promise.all([
       supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true}),
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
@@ -112,20 +114,37 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   },[openFecha]);
 
   const eliminar = async (id) => {
-    await supabase.from("eventos").delete().eq("id", id);
-    setConfirm(null); cargar();
+    // Sin ON DELETE CASCADE hacia evento_asistencia: si el evento tiene RSVPs
+    // (confirma_asistencia) el delete de "eventos" viola la FK y falla en
+    // silencio (mismo patrón que eliminarAlumno en superadmin) — limpiar antes.
+    await supabase.from("evento_asistencia").delete().eq("evento_id", id);
+    const { error } = await supabase.from("eventos").delete().eq("id", id);
+    setConfirm(null);
+    if(error) { showToast(`No se pudo eliminar: ${error.message}`, "error"); return; }
+    cargar();
   };
 
-  // Devuelve todos los "eventos" (reales + cumples) para un año/mes/día dado.
+  // Recordatorios con fecha (incluye Comunicaciones del colegio con grupo_id)
+  // se muestran como eventos virtuales tipo "comunicado" — con horario si lo
+  // cargaron, si no como "todo el día". Uno sin fecha es un aviso permanente
+  // sin lugar en el calendario.
+  const comunicados = recordatorios.filter(r=>r.fecha).map(r=>({
+    id:`r-${r.id}`, tipo:"comunicado",
+    titulo:(r.grupo_id?"🏫 ":"")+r.texto,
+    fecha:r.fecha, hora:r.hora_inicio, hora_fin:r.hora_fin, curso_id:r.curso_id,
+  }));
+
+  // Devuelve todos los "eventos" (reales + cumples + comunicados) para un año/mes/día dado.
   // Un evento multi-día (fecha_fin) aparece en cada día de su rango.
   const eventosDelDia = (year, month, day) => {
     const fecha = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
     const reales = eventos.filter(e => e.fecha <= fecha && (e.fecha_fin || e.fecha) >= fecha);
+    const citas = comunicados.filter(c => c.fecha === fecha);
     const bdayHoy = cumples.filter(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
       return d.getMonth()===month && d.getDate()===day;
     });
-    return [...reales, ...bdayHoy.map(c=>({...c, titulo:c.nombre, fecha}))];
+    return [...reales, ...citas, ...bdayHoy.map(c=>({...c, titulo:c.nombre, fecha}))];
   };
 
   const year = mes.getFullYear(), month = mes.getMonth();
@@ -151,14 +170,17 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         return fin>=desde && ini<=hasta; // solapa el rango del filtro
       })
       .map(e => ({ ...e, _fecha: new Date(e.fecha+"T00:00:00") }));
+    const citasList = comunicados
+      .map(c => ({ ...c, _fecha: new Date(c.fecha+"T00:00:00") }))
+      .filter(c => c._fecha>=desde && c._fecha<=hasta);
     const bdayList = cumples.map(c => {
       const d = new Date(c.fecha_nacimiento+"T00:00:00");
       let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
       if(next < desde) next = new Date(hoy.getFullYear()+1, d.getMonth(), d.getDate());
       if(next < desde || next > hasta) return null;
-      return { ...c, titulo: c.nombre, fecha: next.toISOString().slice(0,10), _fecha: next, tipo:"cumple" };
+      return { ...c, titulo: c.nombre, fecha: fmtLocalDate(next), _fecha: next, tipo:"cumple" };
     }).filter(Boolean);
-    const todos = [...reales, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
+    const todos = [...reales, ...citasList, ...bdayList].sort((a,b)=>a._fecha-b._fecha);
     return filtroTipo==="todos" ? todos : todos.filter(e=>e.tipo===filtroTipo);
   };
 
@@ -169,6 +191,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
   return (
     <div>
+      <Toast/>
       {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
       {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} tag={tagDeCurso(eventoDetalle.curso_id)} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
@@ -261,7 +284,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                         ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
                         : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button> : null)
                       }
-                        {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&(
+                        {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&e.tipo!=="comunicado"&&(
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={()=>setModal(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                             <button onClick={()=>setConfirm(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
@@ -352,7 +375,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:enCurso||dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{diasTxt}</span>
                     {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
                     {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
-                    {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&(
+                    {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&e.tipo!=="comunicado"&&(
                       <div style={{display:"flex",gap:4}}>
                         <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                         <button onClick={()=>setConfirm(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
