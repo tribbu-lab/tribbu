@@ -1,0 +1,20 @@
+# vercel --prod solo lee .gitignore de la raíz, no los anidados (ej.
+# mobile/.gitignore) — sin esto sube mobile/node_modules, sus builds nativos
+# de Android/iOS y el APK de debug, y falla por el límite de 100MB/archivo.
+# Este deploy es solo el sitio web (Vite, ver vercel.json); mobile/ es una
+# app Expo aparte que no participa del build.
+mobile/
+
+node_modules
+dist
+dist-web
+dist-ssr
+android/
+*.apk
+*.aab
+*.cjs
+.env
+.env.local
+.env.production
+.env*.local
+tribbu_backup_*.json
