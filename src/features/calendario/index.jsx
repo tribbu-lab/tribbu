@@ -130,8 +130,9 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   // sin lugar en el calendario.
   const comunicados = recordatorios.filter(r=>r.fecha).map(r=>({
     id:`r-${r.id}`, tipo:"comunicado",
-    titulo:(r.grupo_id?"🏫 ":"")+r.texto,
-    fecha:r.fecha, hora:r.hora_inicio, hora_fin:r.hora_fin, curso_id:r.curso_id,
+    titulo:(r.grupo_id?"🏫 ":"")+(r.titulo||r.texto),
+    descripcion: r.titulo ? r.texto : null,
+    fecha:r.fecha, hora:r.hora_inicio, hora_fin:r.hora_fin, curso_id:r.curso_id, adjuntos:r.adjuntos,
   }));
 
   // Devuelve todos los "eventos" (reales + cumples + comunicados) para un año/mes/día dado.

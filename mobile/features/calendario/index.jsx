@@ -145,11 +145,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     .map((r) => ({
       id: `r-${r.id}`,
       tipo: "comunicado",
-      titulo: (r.grupo_id ? "🏫 " : "") + r.texto,
+      titulo: (r.grupo_id ? "🏫 " : "") + (r.titulo || r.texto),
+      descripcion: r.titulo ? r.texto : null,
       fecha: r.fecha,
       hora: r.hora_inicio,
       hora_fin: r.hora_fin,
       curso_id: r.curso_id,
+      adjuntos: r.adjuntos,
     }));
 
   // Un evento multi-día (fecha_fin) aparece en cada día de su rango.

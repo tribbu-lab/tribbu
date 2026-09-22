@@ -84,7 +84,8 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
     <View style={styles.row}>
       <View style={[styles.rdot, esLeido ? styles.rdotLeido : { backgroundColor: dotColor }]} />
       <View style={styles.flex1}>
-        <Text style={[styles.rowTxt, esLeido && styles.rowTxtLeido]} numberOfLines={expandido ? undefined : 3}>{r.texto}</Text>
+        {r.titulo ? <Text style={[styles.rowTitle, esLeido && styles.rowTxtLeido]}>{r.titulo}</Text> : null}
+        <Text style={[styles.rowTxt, r.titulo && styles.rowTxtConTitulo, esLeido && styles.rowTxtLeido]} numberOfLines={expandido ? undefined : 3}>{r.texto}</Text>
         {esLargo ? (
           <Pressable onPress={() => setExpandido((p) => !p)} hitSlop={6}>
             <Text style={styles.verMasTxt}>{expandido ? "Ver menos" : "Ver más"}</Text>
@@ -627,7 +628,9 @@ const styles = StyleSheet.create({
   },
   rdot: { width: 8, height: 8, borderRadius: RADIUS.full },
   rdotLeido: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: SLATE[300] },
+  rowTitle: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, lineHeight: 19, marginBottom: 1 },
   rowTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, lineHeight: 19 },
+  rowTxtConTitulo: { fontSize: 13.5, fontWeight: "500" },
   rowTxtLeido: { fontWeight: "500", color: t.textMuted },
   verMasTxt: { fontSize: 11.5, fontWeight: "700", color: BLUE[600], marginTop: 2 },
   rowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },

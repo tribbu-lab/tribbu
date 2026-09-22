@@ -151,7 +151,8 @@ function NotifRow({ item, leido, tag, onPress }) {
           <Text style={styles.notifEmoji}>{emoji}</Text>
         </View>
         <View style={styles.flex1}>
-          <Text style={[styles.notifTxt, leido && styles.notifTxtLeido]}>{item.texto}</Text>
+          {item.titulo ? <Text style={[styles.notifTxt, leido && styles.notifTxtLeido]}>{item.titulo}</Text> : null}
+          <Text style={[styles.notifTxt, item.titulo && styles.notifTxtConTitulo, leido && styles.notifTxtLeido]}>{item.texto}</Text>
           <View style={styles.notifMeta}>
             {relativo ? (
               <View style={[styles.tag, { backgroundColor: prio.bg }]}>
@@ -302,6 +303,7 @@ const styles = StyleSheet.create({
   notifIconBox: { width: 36, height: 36, borderRadius: 11, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   notifEmoji: { fontSize: 16 },
   notifTxt: { fontSize: 13.5, fontWeight: "700", color: T.text, lineHeight: 19, marginBottom: 5, paddingRight: 14 },
+  notifTxtConTitulo: { fontSize: 12.5, fontWeight: "500", marginBottom: 5 },
   notifTxtLeido: { fontWeight: "400", color: "#94A3B8" },
   notifMeta: { flexDirection: "row", gap: 6, alignItems: "center", flexWrap: "wrap" },
   tag: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6 },

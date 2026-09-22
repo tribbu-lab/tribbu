@@ -317,7 +317,8 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
               )}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:esLeido?400:600,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4,...(expandido?{}:{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"})}}>{r.texto}</div>
+              {r.titulo&&<div style={{fontSize:13,fontWeight:700,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.35,marginBottom:2}}>{r.titulo}</div>}
+              <div style={{fontSize:13,fontWeight:esLeido?400:(r.titulo?500:600),color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4,...(expandido?{}:{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"})}}>{r.texto}</div>
               {esLargo&&<button onClick={()=>toggleExpandido(r.id)} style={{border:"none",background:"none",padding:0,marginTop:2,marginBottom:2,cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>{expandido?"Ver menos":"Ver más"}</button>}
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}

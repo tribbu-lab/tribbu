@@ -191,8 +191,13 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
                     {n.emoji || (esAlerta ? "🚨" : n.tipo==="regalo_cumple" ? "🎁" : n.tipo==="colecta_vence" ? "💳" : "📌")}
                   </span>
                   <div style={{flex:1,minWidth:0}}>
+                    {n.titulo&&(
+                      <div style={{fontSize:13,fontWeight:700,color:leido?"#94A3B8":"#0F172A",lineHeight:1.4,marginBottom:2}}>
+                        {n.titulo}
+                      </div>
+                    )}
                     <div style={{
-                      fontSize:13,fontWeight:leido?400:600,
+                      fontSize:13,fontWeight:leido?400:(n.titulo?500:600),
                       color:leido?"#94A3B8":"#0F172A",
                       lineHeight:1.45,marginBottom:4,
                     }}>

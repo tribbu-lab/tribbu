@@ -2009,7 +2009,7 @@ export function AlertasAdmin({ cursos }) {
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+  const [form, setForm] = useState({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -2032,24 +2032,24 @@ export function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map(c=>c.id));
 
   const publicar = async () => {
-    if(!form.texto?.trim() || !form.fecha || cursosSel.length===0) return;
+    if(!form.titulo?.trim() || !form.texto?.trim() || !form.fecha || cursosSel.length===0) return;
     setPublicando(true);
     setError(null);
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map(curso_id=>({
-        texto: sanitize(form.texto), fecha: form.fecha, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
+        titulo: sanitize(form.titulo), texto: sanitize(form.texto), fecha: form.fecha, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
         prioridad: form.prioridad||"media", urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if(insertErr) throw insertErr;
       if(form.enviarPush) {
         const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-        if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+        if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo, userIds } });
       }
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}${form.enviarPush?" · con push":" · sin push"}.`);
-      setForm({ texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+      setForm({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {
@@ -2069,8 +2069,12 @@ export function ComunicacionesAdmin({ cursos }) {
       {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#EF4444"}}>⚠️ {error}</div>}
 
       <div style={{marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
-        <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunión general de padres el viernes 15 a las 18hs" rows={3} style={{...inp,resize:"vertical"}}/>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TÍTULO</div>
+        <input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ej: Reunión general de padres" style={inp}/>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DESCRIPCIÓN</div>
+        <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: El viernes 15 a las 18hs, en el SUM." rows={3} style={{...inp,resize:"vertical"}}/>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:140}}>
@@ -2119,7 +2123,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
 
       {!confirmando ? (
-        <button onClick={()=>setConfirmando(true)} disabled={!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
+        <button onClick={()=>setConfirmando(true)} disabled={!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
           Publicar
         </button>
       ) : (
@@ -2141,6 +2145,10 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [comunicaciones, setComunicaciones] = useState([]);
   const [abierto,        setAbierto]        = useState(false);
   const [cargando,       setCargando]       = useState(false);
+  const [editando,       setEditando]       = useState(null); // grupo_id en edición, o null
+  const [editForm,       setEditForm]       = useState({ titulo:"", texto:"", hora_inicio:"", hora_fin:"" });
+  const [guardandoEdit,  setGuardandoEdit]  = useState(false);
+  const [editError,      setEditError]      = useState(null);
 
   const cursoPorId = new Map(cursos.map(c=>[c.id,c]));
 
@@ -2148,7 +2156,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     setCargando(true);
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
       .not("grupo_id","is",null)
       .order("creado_en",{ascending:false})
       .limit(300);
@@ -2204,6 +2212,29 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
   const fmtFecha = (iso) => iso ? new Date(iso).toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
 
+  const empezarEdicion = (c) => {
+    setEditError(null);
+    setEditForm({ titulo:c.titulo||"", texto:c.texto||"", hora_inicio:c.hora_inicio||"", hora_fin:c.hora_fin||"" });
+    setEditando(c.grupo_id);
+  };
+
+  // Todas las filas de una misma comunicación comparten grupo_id — un solo
+  // update por grupo_id las actualiza a todas (mismo criterio que el insert
+  // multi-fila de ComunicacionesAdmin).
+  const guardarEdicion = async () => {
+    if(!editForm.titulo?.trim() || !editForm.texto?.trim()) return;
+    setGuardandoEdit(true);
+    setEditError(null);
+    const { error } = await supabase.from("recordatorios")
+      .update({ titulo: sanitize(editForm.titulo), texto: sanitize(editForm.texto), hora_inicio: editForm.hora_inicio||null, hora_fin: editForm.hora_fin||null })
+      .eq("grupo_id", editando);
+    setGuardandoEdit(false);
+    if(error) { setEditError(error.message || "No se pudo guardar."); return; }
+    setEditando(null);
+    cargar();
+  };
+  const inpEdit = {width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12.5,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+
   return (
     <div style={{marginTop:24}}>
       <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
@@ -2219,7 +2250,35 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
           )}
           {!cargando && comunicaciones.map(c=>(
             <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",borderLeft:`3px solid ${c.urgente?"#EF4444":"#3B82F6"}`}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#0F172A",lineHeight:1.4,marginBottom:6}}>{c.texto}</div>
+              {editando===c.grupo_id ? (
+                <div style={{marginBottom:10}}>
+                  {editError&&<div style={{fontSize:11,fontWeight:700,color:"#EF4444",marginBottom:6}}>⚠️ {editError}</div>}
+                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>TÍTULO</div>
+                  <input value={editForm.titulo} onChange={e=>setEditForm(p=>({...p,titulo:e.target.value}))} style={{...inpEdit,marginBottom:8}}/>
+                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>DESCRIPCIÓN</div>
+                  <textarea value={editForm.texto} onChange={e=>setEditForm(p=>({...p,texto:e.target.value}))} rows={3} style={{...inpEdit,resize:"vertical",marginBottom:8}}/>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>HORA INICIO (opcional)</div>
+                      <input type="time" value={editForm.hora_inicio} onChange={e=>setEditForm(p=>({...p,hora_inicio:e.target.value}))} style={inpEdit}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>HORA FIN (opcional)</div>
+                      <input type="time" value={editForm.hora_fin} onChange={e=>setEditForm(p=>({...p,hora_fin:e.target.value}))} style={inpEdit}/>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setEditando(null)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+                    <button onClick={guardarEdicion} disabled={guardandoEdit||!editForm.titulo?.trim()||!editForm.texto?.trim()} style={{flex:2,padding:8,borderRadius:8,border:"none",background:(guardandoEdit||!editForm.titulo?.trim()||!editForm.texto?.trim())?"#CBD5E1":"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>{guardandoEdit?"Guardando...":"Guardar"}</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:c.titulo?2:6}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#0F172A",lineHeight:1.4}}>{c.titulo||c.texto}</div>
+                  <button onClick={()=>empezarEdicion(c)} style={{flexShrink:0,padding:"3px 9px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Editar</button>
+                </div>
+              )}
+              {editando!==c.grupo_id&&c.titulo&&<div style={{fontSize:12,color:"#64748B",lineHeight:1.4,marginBottom:6}}>{c.texto}</div>}
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:11,color:"#94A3B8"}}>Publicado {fmtFecha(c.creado_en)}</span>
                 <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>{c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>

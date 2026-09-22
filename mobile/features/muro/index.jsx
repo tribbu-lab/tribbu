@@ -320,7 +320,7 @@ export function Muro() {
       icon: "bell-alert-outline",
       btnBg: t.accentSoft,
       btnFg: BLUE[600],
-      titulo: r.texto,
+      titulo: r.titulo || r.texto,
       meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}${r.grupo_id ? " · 🏫 Comunicación del colegio" : ""}`,
       accion: "Marcar leído",
       tag: tagDeCurso(r.curso_id),

@@ -1480,7 +1480,7 @@ const PRIO = {
 function ComunicacionesAdmin({ cursos }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1492,12 +1492,13 @@ function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map((c) => c.id));
 
   const publicar = async () => {
-    if (!form.texto?.trim() || !form.fecha || cursosSel.length === 0) return;
+    if (!form.titulo?.trim() || !form.texto?.trim() || !form.fecha || cursosSel.length === 0) return;
     setPublicando(true);
     setError(null);
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map((curso_id) => ({
+        titulo: sanitize(form.titulo),
         texto: sanitize(form.texto),
         fecha: form.fecha,
         hora_inicio: form.hora_inicio || null,
@@ -1512,10 +1513,10 @@ function ComunicacionesAdmin({ cursos }) {
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if (insertErr) throw insertErr;
       const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-      if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
+      if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.titulo, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-      setForm({ texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setForm({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
       setCursosSel([]);
       setTimeout(() => setOk(null), 4000);
     } catch (e) {
@@ -1526,7 +1527,7 @@ function ComunicacionesAdmin({ cursos }) {
     }
   };
 
-  const puedePublicar = !!form.texto?.trim() && !!form.fecha && cursosSel.length > 0 && !subiendoAdj;
+  const puedePublicar = !!form.titulo?.trim() && !!form.texto?.trim() && !!form.fecha && cursosSel.length > 0 && !subiendoAdj;
 
   return (
     <View>
@@ -1544,11 +1545,20 @@ function ComunicacionesAdmin({ cursos }) {
         </View>
       ) : null}
 
-      <Text style={styles.label}>TEXTO</Text>
+      <Text style={styles.label}>TÍTULO</Text>
+      <TextInput
+        value={form.titulo}
+        onChangeText={(v) => setForm((p) => ({ ...p, titulo: v }))}
+        placeholder="Ej: Reunión general de padres"
+        placeholderTextColor="#94A3B8"
+        style={styles.input}
+      />
+
+      <Text style={styles.label}>DESCRIPCIÓN</Text>
       <TextInput
         value={form.texto}
         onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
-        placeholder="Ej: Reunión general de padres el viernes 15 a las 18hs"
+        placeholder="Ej: El viernes 15 a las 18hs, en el SUM."
         placeholderTextColor="#94A3B8"
         multiline
         style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
@@ -1637,6 +1647,10 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [comunicaciones, setComunicaciones] = useState([]);
   const [abierto, setAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [editando, setEditando] = useState(null); // grupo_id en edición, o null
+  const [editForm, setEditForm] = useState({ titulo: "", texto: "", hora_inicio: "", hora_fin: "" });
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
 
@@ -1644,7 +1658,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     setCargando(true);
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
       .not("grupo_id", "is", null)
       .order("creado_en", { ascending: false })
       .limit(300);
@@ -1671,6 +1685,29 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const fmtFecha = (iso) =>
     iso ? new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
+  const empezarEdicion = (c) => {
+    setEditError(null);
+    setEditForm({ titulo: c.titulo || "", texto: c.texto || "", hora_inicio: c.hora_inicio || "", hora_fin: c.hora_fin || "" });
+    setEditando(c.grupo_id);
+  };
+
+  // Todas las filas de una misma comunicación comparten grupo_id — un solo
+  // update por grupo_id las actualiza a todas (mismo criterio que el insert
+  // multi-fila de ComunicacionesAdmin).
+  const guardarEdicion = async () => {
+    if (!editForm.titulo?.trim() || !editForm.texto?.trim()) return;
+    setGuardandoEdit(true);
+    setEditError(null);
+    const { error } = await supabase
+      .from("recordatorios")
+      .update({ titulo: sanitize(editForm.titulo), texto: sanitize(editForm.texto), hora_inicio: editForm.hora_inicio || null, hora_fin: editForm.hora_fin || null })
+      .eq("grupo_id", editando);
+    setGuardandoEdit(false);
+    if (error) { setEditError(error.message || "No se pudo guardar."); return; }
+    setEditando(null);
+    cargar();
+  };
+
   return (
     <View style={{ marginTop: 24 }}>
       <Pressable onPress={toggle} style={comStyles.historialToggle}>
@@ -1687,7 +1724,62 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
           {!cargando &&
             comunicaciones.map((c) => (
               <View key={c.grupo_id} style={[comStyles.historialCard, c.urgente && { borderLeftColor: "#EF4444" }]}>
-                <Text style={comStyles.historialTexto}>{c.texto}</Text>
+                {editando === c.grupo_id ? (
+                  <View style={{ marginBottom: 10 }}>
+                    {editError ? <Text style={{ fontSize: 11, fontWeight: "700", color: "#EF4444", marginBottom: 6 }}>⚠️ {editError}</Text> : null}
+                    <Text style={comStyles.editLabel}>TÍTULO</Text>
+                    <TextInput value={editForm.titulo} onChangeText={(v) => setEditForm((p) => ({ ...p, titulo: v }))} style={comStyles.editInput} />
+                    <Text style={comStyles.editLabel}>DESCRIPCIÓN</Text>
+                    <TextInput
+                      value={editForm.texto}
+                      onChangeText={(v) => setEditForm((p) => ({ ...p, texto: v }))}
+                      multiline
+                      style={[comStyles.editInput, { minHeight: 60, textAlignVertical: "top" }]}
+                    />
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={comStyles.editLabel}>HORA INICIO (OPCIONAL)</Text>
+                        <TextInput
+                          value={editForm.hora_inicio}
+                          onChangeText={(v) => setEditForm((p) => ({ ...p, hora_inicio: v }))}
+                          placeholder="18:00"
+                          placeholderTextColor="#94A3B8"
+                          style={comStyles.editInput}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={comStyles.editLabel}>HORA FIN (OPCIONAL)</Text>
+                        <TextInput
+                          value={editForm.hora_fin}
+                          onChangeText={(v) => setEditForm((p) => ({ ...p, hora_fin: v }))}
+                          placeholder="19:00"
+                          placeholderTextColor="#94A3B8"
+                          style={comStyles.editInput}
+                        />
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable onPress={() => setEditando(null)} style={styles.cancelBtn}>
+                        <Text style={styles.cancelTxt}>Cancelar</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={guardarEdicion}
+                        disabled={guardandoEdit || !editForm.titulo?.trim() || !editForm.texto?.trim()}
+                        style={[styles.saveBtn, (guardandoEdit || !editForm.titulo?.trim() || !editForm.texto?.trim()) && { opacity: 0.5 }]}
+                      >
+                        <Text style={styles.saveTxt}>{guardandoEdit ? "Guardando..." : "Guardar"}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={comStyles.historialHeaderRow}>
+                    <Text style={[comStyles.historialTexto, !c.titulo && { marginBottom: 6 }, { flex: 1 }]}>{c.titulo || c.texto}</Text>
+                    <Pressable onPress={() => empezarEdicion(c)} style={comStyles.editBtn}>
+                      <Text style={comStyles.editBtnTxt}>Editar</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {editando !== c.grupo_id && c.titulo ? <Text style={comStyles.historialDescripcion}>{c.texto}</Text> : null}
                 <View style={comStyles.historialMetaRow}>
                   <Text style={comStyles.historialMeta}>Publicado {fmtFecha(c.creado_en)}</Text>
                   <View style={comStyles.historialBadge}>
@@ -1740,7 +1832,13 @@ const comStyles = StyleSheet.create({
   historialToggleTxt: { fontSize: 13, fontWeight: "700", color: T.text },
   historialToggleArrow: { fontSize: 16, color: "#94A3B8" },
   historialCard: { padding: 14, marginBottom: 6, borderRadius: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderLeftWidth: 3, borderLeftColor: "#3B82F6" },
-  historialTexto: { fontSize: 13, fontWeight: "600", color: T.text, lineHeight: 18, marginBottom: 6 },
+  historialTexto: { fontSize: 13, fontWeight: "700", color: T.text, lineHeight: 18, marginBottom: 2 },
+  historialDescripcion: { fontSize: 12, color: "#64748B", lineHeight: 17, marginBottom: 6 },
+  historialHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
+  editBtn: { flexShrink: 0, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  editBtnTxt: { fontSize: 11, fontWeight: "700", color: "#64748B" },
+  editLabel: { fontSize: 10, fontWeight: "700", color: "#94A3B8", marginBottom: 3 },
+  editInput: { width: "100%", padding: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", fontSize: 12.5, backgroundColor: "#F8FAFC", marginBottom: 8, color: T.text },
   historialMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   historialMeta: { fontSize: 11, color: "#94A3B8" },
   historialBadge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#EFF6FF" },

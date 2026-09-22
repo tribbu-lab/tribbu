@@ -128,6 +128,7 @@ function buildCumpleVevent(tipo: "hijo" | "maestro", id: string, nombre: string,
 type Recordatorio = {
   id: string;
   curso_id: string;
+  titulo: string | null;
   texto: string;
   fecha: string;
   hora_inicio: string | null;
@@ -137,8 +138,11 @@ type Recordatorio = {
 // Solo los recordatorios con horario (hora_inicio) entran al feed como citas
 // con hora — un recordatorio sin hora es un aviso/texto, no algo agendable;
 // hora_fin queda opcional (sin fin, la cita queda como instante puntual).
+// Si tiene título (comunicaciones del colegio), el SUMMARY es el título y
+// `texto` pasa a DESCRIPTION — mismo criterio que `eventos.titulo`/`descripcion`.
 function buildRecordatorioVevent(r: Recordatorio, curso: string): string {
-  const summary = esc(curso ? `${curso} — ${r.texto}` : r.texto);
+  const nombre = r.titulo || r.texto;
+  const summary = esc(curso ? `${curso} — ${nombre}` : nombre);
   const lines = [
     "BEGIN:VEVENT",
     `UID:recordatorio-${r.id}@tribbu.app`,
@@ -146,8 +150,9 @@ function buildRecordatorioVevent(r: Recordatorio, curso: string): string {
     `SUMMARY:${summary}`,
     `DTSTART:${dateTimeUTC(r.fecha, r.hora_inicio!)}`,
     `DTEND:${dateTimeUTC(r.fecha, r.hora_fin || r.hora_inicio!)}`,
-    "END:VEVENT",
   ];
+  if (r.titulo) lines.push(`DESCRIPTION:${esc(r.texto)}`);
+  lines.push("END:VEVENT");
   return lines.map(fold).join("\r\n");
 }
 
@@ -210,7 +215,7 @@ serve(async (req) => {
       supabase.from("maestro_cursos").select("curso_id, maestros(id,nombre,apellido,fecha_nacimiento)").in("curso_id", cursoIds),
       supabase
         .from("recordatorios")
-        .select("id,curso_id,texto,fecha,hora_inicio,hora_fin,para_usuario_id")
+        .select("id,curso_id,titulo,texto,fecha,hora_inicio,hora_fin,para_usuario_id")
         .in("curso_id", cursoIds)
         .not("fecha", "is", null)
         .not("hora_inicio", "is", null)
