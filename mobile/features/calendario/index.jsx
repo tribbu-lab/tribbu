@@ -373,7 +373,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     <TagHijo tag={tagDeCurso(e.curso_id)} />
                     <Text style={styles.eventoMeta}>
                       {fmtRangoFecha(e.fecha, e.fecha_fin)}
-                      {e.hora && !e.todo_el_dia ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
+                      {e.hora ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
                     </Text>
                     {e.lugar ? (
                       <View style={styles.lugarRow}>
@@ -504,7 +504,7 @@ function EventoRow({ e, tag = null, isAdmin, onAsistencia, onEditar, onEliminar 
         <TagHijo tag={tag} />
         <Text style={styles.eventoMeta}>
           {cfg.label}
-          {e.hora && !e.todo_el_dia ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
+          {e.hora ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
           {e.lugar ? ` · 📍${e.lugar}` : ""}
         </Text>
         {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
@@ -710,7 +710,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             <Text style={styles.label}>HORA</Text>
             <View style={styles.horaRow}>
               <Pressable
-                onPress={() => setForm((p) => ({ ...p, todo_el_dia: !p.todo_el_dia }))}
+                onPress={() => setForm((p) => ({ ...p, todo_el_dia: !p.todo_el_dia, ...(p.todo_el_dia ? {} : { hora: "", hora_fin: "" }) }))}
                 style={[styles.todoDiaBtn, form.todo_el_dia && styles.todoDiaOn]}
               >
                 <Text style={[styles.todoDiaTxt, form.todo_el_dia && styles.todoDiaTxtOn]}>Todo el día</Text>

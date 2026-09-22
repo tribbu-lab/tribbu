@@ -94,7 +94,12 @@ function buildEventoVevent(e: Evento, curso: string): string {
   const summary = esc(curso ? `${curso} — ${e.titulo}` : e.titulo);
   const lines = ["BEGIN:VEVENT", `UID:evento-${e.id}@tribbu.app`, `DTSTAMP:${dtstampNow()}`, `SUMMARY:${summary}`];
 
-  if (e.todo_el_dia !== false || !e.hora) {
+  // La hora manda sobre todo_el_dia: hay eventos en producción con hora
+  // cargada pero todo_el_dia=true (quedó así al tildar "Todo el día" sin
+  // limpiar el horario ya cargado) — si hay hora, se sincroniza como cita
+  // con horario igual, en vez de perderla mostrando el evento como "todo
+  // el día".
+  if (!e.hora) {
     lines.push(`DTSTART;VALUE=DATE:${dateOnly(e.fecha)}`);
     lines.push(`DTEND;VALUE=DATE:${dateOnlyPlusOne(e.fecha_fin || e.fecha)}`);
   } else {

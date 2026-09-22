@@ -276,7 +276,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                             <TagHijo tag={tagDeCurso(e.curso_id)}/>
                           </div>
                           <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                            {cfg.label}{e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
+                            {cfg.label}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
                           </div>
                           {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
                           <AdjuntosList adjuntos={e.adjuntos}/>
@@ -363,7 +363,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     </div>
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
                       {fmtRangoFecha(e.fecha, e.fecha_fin)}
-                      {e.hora&&!e.todo_el_dia?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}
+                      {e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}
                     </div>
                     {e.lugar&&<div style={{fontSize:11,color:"#94A3B8",display:"flex",alignItems:"center",gap:4}}>
                       📍 {e.lugar}
@@ -598,7 +598,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         <div style={{marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Hora</div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button onClick={()=>setForm(p=>({...p,todo_el_dia:!p.todo_el_dia}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.todo_el_dia?"#3B82F6":"#E2E8F0"}`,background:form.todo_el_dia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.todo_el_dia?"#3B82F6":"#94A3B8"}}>Todo el día</button>
+            <button onClick={()=>setForm(p=>({...p,todo_el_dia:!p.todo_el_dia,...(p.todo_el_dia?{}:{hora:"",hora_fin:""})}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.todo_el_dia?"#3B82F6":"#E2E8F0"}`,background:form.todo_el_dia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.todo_el_dia?"#3B82F6":"#94A3B8"}}>Todo el día</button>
             {!form.todo_el_dia&&<input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))} style={{...inp,width:"auto",flex:1}}/>}
             {!form.todo_el_dia&&form.hora&&<><span style={{fontSize:12,color:"#94A3B8"}}>a</span><input type="time" value={form.hora_fin} onChange={e=>setForm(p=>({...p,hora_fin:e.target.value}))} style={{...inp,width:"auto",flex:1}}/></>}
           </div>
