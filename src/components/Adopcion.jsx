@@ -24,7 +24,7 @@ function Barra({ n, total, color }) {
   );
 }
 
-/** cursos: [{id, nombre}] — una fila por curso (sin fila si el usuario no tiene permiso). */
+/** cursos: [{id, nombre}] — una fila por curso; los que no tienen familias (o no se pueden ver) salen en 0. */
 export function AdopcionTabla({ cursos }) {
   const [filas, setFilas] = useState(null);
   const clave = cursos.map((c) => c.id).sort().join(",");
@@ -44,8 +44,13 @@ export function AdopcionTabla({ cursos }) {
   if (filas === null) return <div style={{ fontSize: 13, color: "#94A3B8" }}>Cargando…</div>;
 
   const nombre = new Map(cursos.map((c) => [c.id, c.nombre]));
-  const orden = [...filas].sort((a, b) => (nombre.get(a.curso_id) || "").localeCompare(nombre.get(b.curso_id) || "", "es"));
-  const tot = filas.reduce((a, f) => ({ familias: a.familias + f.familias, con_app: a.con_app + f.con_app, con_calendario: a.con_calendario + f.con_calendario, activas_30d: a.activas_30d + f.activas_30d }), { familias: 0, con_app: 0, con_calendario: 0, activas_30d: 0 });
+  // La RPC no devuelve fila para un curso sin familias: se muestra igual, en 0
+  // (un curso nuevo todavía sin cargar es justo lo que el colegio quiere ver).
+  const porCurso = new Map(filas.map((f) => [f.curso_id, f]));
+  const orden = cursos
+    .map((c) => porCurso.get(c.id) || { curso_id: c.id, familias: 0, con_app: 0, con_calendario: 0, activas_30d: 0 })
+    .sort((a, b) => (nombre.get(a.curso_id) || "").localeCompare(nombre.get(b.curso_id) || "", "es"));
+  const tot = orden.reduce((a, f) => ({ familias: a.familias + f.familias, con_app: a.con_app + f.con_app, con_calendario: a.con_calendario + f.con_calendario, activas_30d: a.activas_30d + f.activas_30d }), { familias: 0, con_app: 0, con_calendario: 0, activas_30d: 0 });
   const th = { fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, color: "#94A3B8", textTransform: "uppercase", textAlign: "left", padding: "0 10px 8px" };
   const td = { padding: "10px", borderTop: "1px solid #F1F5F9", verticalAlign: "middle" };
 
@@ -65,7 +70,7 @@ export function AdopcionTabla({ cursos }) {
           {orden.map((f) => (
             <tr key={f.curso_id}>
               <td style={{ ...td, fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{nombre.get(f.curso_id) || "—"}</td>
-              <td style={{ ...td, fontSize: 13, color: "#475569" }}>{f.familias}</td>
+              <td style={{ ...td, fontSize: 13, color: f.familias ? "#475569" : "#CBD5E1" }}>{f.familias || "Sin familias"}</td>
               <td style={td}><Barra n={f.con_app} total={f.familias} color="#3B82F6" /></td>
               <td style={td}><Barra n={f.con_calendario} total={f.familias} color="#8B5CF6" /></td>
               <td style={td}><Barra n={f.activas_30d} total={f.familias} color="#10B981" /></td>

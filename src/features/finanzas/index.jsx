@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -12,6 +12,7 @@ import { useToast } from "../../hooks/useToast";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { useCargar } from "../../hooks/useCargar";
 
 // Bloque "datos para transferir" con botón de copiar grande + toast. El dinero
 // va directo a quien organiza — tribbu no lo toca.
@@ -49,7 +50,7 @@ export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, 
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
     // traer ids de colectas de los cursos del scope primero
 const { data: colData } = await supabase.from("colectas").select("*").in("curso_id",cursoIds).order("vencimiento",{ascending:true}).order("id",{ascending:false});
@@ -78,15 +79,20 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
     setColectas(colData||[]);
     setAlumnos(alum.data||[]);
     setPagos(pag.data||[]);
-  };
+  }, [cursoIds, userId]);
+  useCargar(cargar);
 
-  useEffect(()=>{ cargar(); },[cursoIds?.join(",")]);
-  useEffect(()=>{
-    if(openColectaId && colectas.length) {
-      const c = colectas.find(x=>x.id===openColectaId);
-      if(c){ setVistaAdmin(c); onClearOpen?.(); }
-    }
-  },[openColectaId, colectas]);
+  // Deep-link a una colecta (Muro, push): se abre durante el render en cuanto
+  // la colecta está cargada (patrón de React para ajustar estado cuando cambia
+  // una prop); el efecto solo le avisa al padre que ya se usó.
+  const [colectaAplicada, setColectaAplicada] = useState(null);
+  const colectaDeepLink = openColectaId ? colectas.find(x=>x.id===openColectaId) : null;
+  if(colectaDeepLink && colectaAplicada!==openColectaId) {
+    setColectaAplicada(openColectaId);
+    setVistaAdmin(colectaDeepLink);
+  }
+  if(!openColectaId && colectaAplicada) setColectaAplicada(null);
+  useEffect(()=>{ if(colectaDeepLink) onClearOpen?.(); },[colectaDeepLink, onClearOpen]);
 
   const guardar = async () => {
     if(!form.titulo?.trim()) return;

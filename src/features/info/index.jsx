@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -10,6 +10,7 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { Alumnos } from "../contacto";
+import { useCargar } from "../../hooks/useCargar";
 
 // Escapa texto para interpolarlo en el HTML del PDF: los ítems/materias los
 // cargan usuarios, y la ventana de impresión comparte origen con la app.
@@ -118,7 +119,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [togglingId,setTogglingId]= useState(null);
   const [imgPreview,setImgPreview]= useState(null); // {url, nombre}
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setLibros([]); setAdquiridos(new Set()); return; }
     const [lb, adq] = await Promise.all([
       supabase.from("libros").select("*").in("curso_id", cursoIds).order("materia").order("nombre"),
@@ -126,10 +127,9 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
     ]);
     setLibros(lb.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.libro_id)));
-  };
+  }, [cursoIds, userId]);
+  useCargar(cargar);
 
-  const cursosKey = (cursoIds||[]).join(",");
-  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const toggleAdquirido = async (libroId) => {
     if(!userId) return;
@@ -327,7 +327,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [togglingId,setTogglingId]= useState(null);
   const isMobile = useIsMobile();
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setUtiles([]); setAdquiridos(new Set()); return; }
     const [ut, adq] = await Promise.all([
       supabase.from("utiles").select("*").in("curso_id", cursoIds).order("categoria").order("item"),
@@ -335,9 +335,8 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
     ]);
     setUtiles(ut.data||[]);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.util_id)));
-  };
-  const cursosKey = (cursoIds||[]).join(",");
-  useEffect(()=>{ cargar(); },[cursosKey]);
+  }, [cursoIds, userId]);
+  useCargar(cargar);
 
   const toggleAdquirido = async (id) => {
     if(!userId) return;
@@ -507,7 +506,7 @@ export function Uniformes({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNom
   const [togglingId, setTogglingId] = useState(null);
   const isMobile = useIsMobile();
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setUniformes([]); setIdsPorCurso({}); return; }
     // Get uniforme IDs linked to these cursos
     const { data: links } = await supabase.from("uniforme_cursos").select("uniforme_id, curso_id").in("curso_id",cursoIds);
@@ -523,10 +522,9 @@ export function Uniformes({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNom
     const sorted = (uni.data||[]).sort((a,b)=>a.tipo.localeCompare(b.tipo,"es"));
     setUniformes(sorted);
     setAdquiridos(new Set((adq.data||[]).map(r=>r.uniforme_item_id)));
-  };
+  }, [cursoIds, userId]);
+  useCargar(cargar);
 
-  const cursosKey = (cursoIds||[]).join(",");
-  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const toggleAdquirido = async (itemId) => {
     setTogglingId(itemId);

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -13,6 +13,7 @@ import { useToast } from "../../hooks/useToast";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
 import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
+import { useCargar } from "../../hooks/useCargar";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -57,14 +58,14 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [recordatorios,  setRecordatorios]  = useState([]);
   const { showToast, Toast } = useToast();
 
-  const cargarRecs = async () => {
+  const cargarRecs = useCallback(async () => {
     if(!cursoIds?.length) return;
     const hoyStr = fmtLocalDate(new Date());
     const recs = await supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true});
     setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId)));
-  };
+  }, [cursoIds, userId]);
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
     const [ev, al, ma, hor, col] = await Promise.all([
       supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
@@ -88,17 +89,24 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       })),
     ];
     setCumples(todos);
-  };
-  useEffect(()=>{ cargar(); cargarRecs(); },[cursoIds?.join(",")]);
+  }, [cursoIds]);
+  useCargar(cargar);
+  useCargar(cargarRecs);
 
-  useEffect(()=>{
-    if(!openFecha) return;
+  // Deep-link a una fecha (Muro, push): se aplica durante el render — el patrón
+  // de React para ajustar estado cuando cambia una prop — y el efecto solo le
+  // avisa al padre que ya se usó. fechaAplicada vuelve a null cuando el padre
+  // la limpia, así el mismo link se puede volver a abrir.
+  const [fechaAplicada, setFechaAplicada] = useState(null);
+  if(openFecha && openFecha!==fechaAplicada) {
+    setFechaAplicada(openFecha);
     const d = new Date(openFecha+"T00:00:00");
     setMes(new Date(d.getFullYear(), d.getMonth(), 1));
     setDiaSelec({year:d.getFullYear(), month:d.getMonth(), day:d.getDate()});
     setVista("mes");
-    onClearOpenFecha?.();
-  },[openFecha]);
+  }
+  if(!openFecha && fechaAplicada) setFechaAplicada(null);
+  useEffect(()=>{ if(openFecha) onClearOpenFecha?.(); },[openFecha, onClearOpenFecha]);
 
   const eliminar = async (id) => {
     // Sin ON DELETE CASCADE hacia evento_asistencia: si el evento tiene RSVPs
@@ -611,7 +619,7 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
   const [isAdmin,    setIsAdmin]    = useState(false);
   const [cargando,   setCargando]   = useState(true);
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     setCargando(true);
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const mapaAsist = {};
@@ -627,9 +635,9 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
       setIsAdmin(u?.rol==="room"||u?.rol==="super");
     }
     setCargando(false);
-  };
+  }, [evento.curso_id, evento.id, userId]);
+  useCargar(cargar);
 
-  useEffect(()=>{ cargar(); },[evento.id]);
 
   const responder = async (alumnoId, asiste) => {
     if(!userId) return;

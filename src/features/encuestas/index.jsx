@@ -5,13 +5,14 @@
 // hijo) y los resultados se ven en vivo para cualquier miembro del curso,
 // haya votado o no. Cerrar/borrar es de quien la creó, un admin del curso, o
 // Super Admin.
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T } from "../../lib/theme";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { Card } from "../../components/Card";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { useCargar } from "../../hooks/useCargar";
 import { MAX_OPCIONES, MIN_OPCIONES, estaCerrada as cerradaEl, estaEliminada, resultadoOpcion } from "../../lib/encuestas";
 
 
@@ -37,7 +38,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     ? cursoIds.map(cid => ({ curso_id: cid, tag: tagDeCurso?.(cid) })).filter(o => o.tag)
     : [];
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if (!cursoIds?.length) { setCargando(false); return; }
     setCargando(true);
     const { data: encs } = await supabase.from("encuestas").select("*").in("curso_id", cursoIds).order("creado_en", { ascending: false });
@@ -50,9 +51,9 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
     setOpciones(ops.data || []);
     setVotos(vts.data || []);
     setCargando(false);
-  };
+  }, [cursoIds]);
 
-  useEffect(() => { cargar(); }, [cursoIds]);
+  useCargar(cargar);
 
   const opcionesDe = (eid) => opciones.filter(o => o.encuesta_id === eid);
   const votosDe    = (eid) => votos.filter(v => v.encuesta_id === eid);

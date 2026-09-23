@@ -4,13 +4,14 @@
 // lo retira y un comentario. Quien la creó, el Room Parent del curso y el
 // colegio ven todas las respuestas y las exportan a Excel. La fecha límite
 // (opcional) también la hace cumplir la RLS (supabase/autorizaciones.sql).
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "../../supabase";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { estaAbierta, estadoPorAlumno, resumenRespuestas, hijosSinResponder } from "../../lib/autorizaciones";
 import { Card } from "../../components/Card";
+import { useCargar } from "../../hooks/useCargar";
 
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
 const label = { fontSize: 11, fontWeight: 700, color: "#94A3B8", marginBottom: 5 };
@@ -240,13 +241,12 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
   const [nueva, setNueva] = useState(false);
   const [cursosInfo, setCursosInfo] = useState([]);
   const hoyStr = fmtLocalDate();
-  const clave = cursoIds.join(",") + "|" + misHijos.join(",");
-
-  const cargar = async () => {
+  // cursoIds y misHijos llegan memoizados desde App.jsx.
+  const cargar = useCallback(async () => {
     if (!cursoIds.length) return;
     setDatos(await cargarDatos(cursoIds, { misHijosIds: misHijos }));
-  };
-  useEffect(() => { cargar(); }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cursoIds, misHijos]);
+  useCargar(cargar);
 
   // Cursos donde puede crear: Room Parent (en Todos, los de cursosAdmin).
   const cursosQueGestiona = esVistaTodos ? cursosAdmin : (isAdmin && cursoId ? [cursoId] : []);
@@ -322,9 +322,11 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
 export function AutorizacionesColegio({ cursos, userId }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
+  // `cursos` se recalcula en cada render del Super Admin: ids estables por clave.
   const clave = cursos.map((c) => c.id).join(",");
-  const cargar = async () => { if (cursos.length) setDatos(await cargarDatos(cursos.map((c) => c.id), { soloGestion: true })); };
-  useEffect(() => { cargar(); }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ids = useMemo(() => (clave ? clave.split(",") : []), [clave]);
+  const cargar = useCallback(async () => { if (ids.length) setDatos(await cargarDatos(ids, { soloGestion: true })); }, [ids]);
+  useCargar(cargar);
 
   const nombreCurso = new Map(cursos.map((c) => [c.id, c.nombre]));
   // Agrupar las filas multi-curso (mismo grupo_id) en una sola tarjeta.

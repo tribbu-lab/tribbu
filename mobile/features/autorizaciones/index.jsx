@@ -1,14 +1,15 @@
 // Autorizaciones (puerto RN de src/features/autorizaciones — ver
 // specs/autorizaciones.md). Cada familia responde por hijo: Autorizo / No
 // autorizo, quién lo retira y un comentario; el Room Parent crea para su curso
-// y ve / exporta las respuestas. Las del colegio (varios cursos) se crean
-// desde la web. La fecha límite también la hace cumplir la RLS.
+// y ve / exporta las respuestas. AutorizacionesColegio es la sección del Super
+// Admin (varios cursos a la vez, mismo grupo_id). La fecha límite también la
+// hace cumplir la RLS.
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { exportRowsToExcel } from "../../lib/media";
-import { sanitize, fmtLocalDate, fmtNombre } from "@shared/helpers";
+import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "@shared/helpers";
 import { estaAbierta, estadoPorAlumno, resumenRespuestas, hijosSinResponder } from "@shared/autorizaciones";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -155,7 +156,12 @@ export function Autorizaciones() {
         />
       ) : null}
       {nueva ? (
-        <NuevaSheet cursos={cursosQueGestiona} tagDeCurso={tagDeCurso} userId={userId} onClose={() => setNueva(false)} onCreada={() => { setNueva(false); cargar(); }} />
+        <NuevaSheet
+          cursos={cursosQueGestiona.map((id) => ({ id, nombre: tagDeCurso(id)?.nombre || "Este curso" }))}
+          userId={userId}
+          onClose={() => setNueva(false)}
+          onCreada={() => { setNueva(false); cargar(); }}
+        />
       ) : null}
     </View>
   );
@@ -197,7 +203,7 @@ function ResponderSheet({ a, hijo, respuesta, userId, onClose, onGuardado }) {
   );
 }
 
-function DetalleSheet({ a, alumnos, respuestas, onClose, onEliminada }) {
+function DetalleSheet({ a, ids, alumnos, respuestas, onClose, onEliminada }) {
   const filas = estadoPorAlumno(alumnos, respuestas);
   const s = resumenRespuestas(alumnos, respuestas);
   const exportar = async () => {
@@ -221,7 +227,7 @@ function DetalleSheet({ a, alumnos, respuestas, onClose, onEliminada }) {
   const eliminar = () =>
     Alert.alert("Eliminar autorización", "Se borran también todas las respuestas.", [
       { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: async () => { await supabase.from("autorizaciones").delete().eq("id", a.id); onEliminada(); } },
+      { text: "Eliminar", style: "destructive", onPress: async () => { await supabase.from("autorizaciones").delete().in("id", ids || [a.id]); onEliminada(); } },
     ]);
   return (
     <Sheet visible onClose={onClose} title={a.titulo}>
@@ -249,20 +255,33 @@ function DetalleSheet({ a, alumnos, respuestas, onClose, onEliminada }) {
   );
 }
 
-function NuevaSheet({ cursos, tagDeCurso, userId, onClose, onCreada }) {
-  const [form, setForm] = useState({ titulo: "", descripcion: "", fecha_evento: "", fecha_limite: "", curso_id: cursos[0] || null });
+// Alta en uno o varios cursos (Room Parent: su curso; colegio: varios, con el
+// mismo grupo_id como las Comunicaciones). cursos: [{ id, nombre }].
+function NuevaSheet({ cursos, multi = false, userId, onClose, onCreada }) {
+  const [form, setForm] = useState({
+    titulo: "", descripcion: "", fecha_evento: "", fecha_limite: "",
+    cursosSel: cursos.length === 1 ? [cursos[0].id] : [],
+  });
   const [guardando, setGuardando] = useState(false);
+  const toggleCurso = (id) =>
+    setForm((p) => ({
+      ...p,
+      cursosSel: multi ? (p.cursosSel.includes(id) ? p.cursosSel.filter((x) => x !== id) : [...p.cursosSel, id]) : [id],
+    }));
   const publicar = async () => {
     if (!form.titulo.trim()) { Alert.alert("Falta el título"); return; }
-    if (!form.curso_id) { Alert.alert("Elegí el curso"); return; }
+    if (!form.cursosSel.length) { Alert.alert("Elegí al menos un curso"); return; }
     if (form.fecha_limite && form.fecha_evento && form.fecha_limite > form.fecha_evento) { Alert.alert("Revisá las fechas", "La fecha límite no puede ser posterior a la salida."); return; }
     setGuardando(true);
-    const { error } = await supabase.from("autorizaciones").insert({
-      curso_id: form.curso_id, titulo: sanitize(form.titulo), descripcion: sanitize(form.descripcion) || null,
-      fecha_evento: form.fecha_evento || null, fecha_limite: form.fecha_limite || null, creado_por: userId,
-    });
+    const grupo_id = form.cursosSel.length > 1 ? uuidLite() : null;
+    const { error } = await supabase.from("autorizaciones").insert(
+      form.cursosSel.map((curso_id) => ({
+        curso_id, grupo_id, titulo: sanitize(form.titulo), descripcion: sanitize(form.descripcion) || null,
+        fecha_evento: form.fecha_evento || null, fecha_limite: form.fecha_limite || null, creado_por: userId,
+      }))
+    );
     if (error) { setGuardando(false); Alert.alert("No se pudo publicar", error.message); return; }
-    const userIds = (await getUserIdsByCurso(form.curso_id)).filter((u) => u !== userId);
+    const userIds = [...new Set((await Promise.all(form.cursosSel.map(getUserIdsByCurso))).flat())].filter((u) => u !== userId);
     await sendPush({ type: "autorizacion", payload: { titulo: form.titulo.trim(), userIds } });
     setGuardando(false);
     onCreada();
@@ -272,14 +291,13 @@ function NuevaSheet({ cursos, tagDeCurso, userId, onClose, onCreada }) {
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         {cursos.length > 1 ? (
           <>
-            <Text style={styles.label}>Curso</Text>
+            <Text style={styles.label}>{multi ? "Cursos" : "Curso"}</Text>
             <View style={styles.cursosRow}>
-              {cursos.map((cid) => {
-                const tag = tagDeCurso(cid);
-                const on = form.curso_id === cid;
+              {cursos.map((c) => {
+                const on = form.cursosSel.includes(c.id);
                 return (
-                  <Pressable key={cid} onPress={() => setForm((p) => ({ ...p, curso_id: cid }))} style={[styles.cursoBtn, on && styles.cursoBtnOn]}>
-                    <Text style={[styles.cursoTxt, on && styles.cursoTxtOn]}>{tag?.nombre || "Curso"}</Text>
+                  <Pressable key={c.id} onPress={() => toggleCurso(c.id)} style={[styles.cursoBtn, on && styles.cursoBtnOn]}>
+                    <Text style={[styles.cursoTxt, on && styles.cursoTxtOn]}>{on && multi ? "✓ " : ""}{c.nombre}</Text>
                   </Pressable>
                 );
               })}
@@ -301,7 +319,89 @@ function NuevaSheet({ cursos, tagDeCurso, userId, onClose, onCreada }) {
   );
 }
 
+/** Sección del Super Admin / Admin de Colegio: publicar en varios cursos y ver respuestas. */
+export function AutorizacionesColegio({ cursos, userId }) {
+  const [datos, setDatos] = useState(null);
+  const [nueva, setNueva] = useState(false);
+  const [detalle, setDetalle] = useState(null); // grupo abierto
+  const clave = cursos.map((c) => c.id).join(",");
+  const hoyStr = fmtLocalDate();
+
+  const cargar = useCallback(async () => {
+    const ids = clave ? clave.split(",") : [];
+    if (!ids.length) { setDatos({ autorizaciones: [], respuestas: [], alumnos: [] }); return; }
+    const { data: auts } = await supabase.from("autorizaciones").select("*").in("curso_id", ids).order("creado_en", { ascending: false });
+    const autIds = (auts || []).map((a) => a.id);
+    const [resp, alumnos] = await Promise.all([
+      autIds.length ? supabase.from("autorizacion_respuestas").select("*, usuarios(nombre,apellido)").in("autorizacion_id", autIds) : Promise.resolve({ data: [] }),
+      supabase.from("hijos").select("id,nombre,apellido,curso_id").in("curso_id", ids),
+    ]);
+    setDatos({ autorizaciones: auts || [], respuestas: resp.data || [], alumnos: alumnos.data || [] });
+  }, [clave]);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  if (!datos) return <Text style={styles.cargando}>Cargando…</Text>;
+  const nombreCurso = new Map(cursos.map((c) => [c.id, c.nombre]));
+  // Las filas multi-curso (mismo grupo_id) van en una sola tarjeta.
+  const grupos = [];
+  const porGrupo = new Map();
+  for (const a of datos.autorizaciones) {
+    const k = a.grupo_id || a.id;
+    if (!porGrupo.has(k)) { porGrupo.set(k, { ...a, filas: [] }); grupos.push(porGrupo.get(k)); }
+    porGrupo.get(k).filas.push(a);
+  }
+  const datosDe = (g) => {
+    const cursosG = new Set(g.filas.map((f) => f.curso_id));
+    const idsG = new Set(g.filas.map((f) => f.id));
+    return {
+      alumnos: datos.alumnos.filter((h) => cursosG.has(h.curso_id)),
+      respuestas: datos.respuestas.filter((r) => idsG.has(r.autorizacion_id)),
+    };
+  };
+
+  return (
+    <View>
+      <Button title="+ Nueva autorización" size="sm" onPress={() => setNueva(true)} style={styles.nuevaColegio} />
+      {!grupos.length ? <Text style={styles.cargando}>Todavía no hay autorizaciones en este colegio.</Text> : null}
+      {grupos.map((g) => {
+        const abierta = estaAbierta(g, hoyStr);
+        const { alumnos, respuestas } = datosDe(g);
+        const s = resumenRespuestas(alumnos, respuestas);
+        return (
+          <Card key={g.grupo_id || g.id} style={styles.card}>
+            <View style={styles.cardHead}>
+              <Text style={styles.titulo}>✍️ {g.titulo}</Text>
+              <View style={[styles.estado, !abierta && styles.estadoCerrada]}>
+                <Text style={[styles.estadoTxt, !abierta && styles.estadoTxtCerrada]}>{abierta ? "Abierta" : "Cerrada"}</Text>
+              </View>
+            </View>
+            <Text style={styles.meta}>{g.filas.map((f) => nombreCurso.get(f.curso_id)).filter(Boolean).join(", ")}</Text>
+            {g.fecha_evento ? <Text style={styles.meta}>📅 {fmtFecha(g.fecha_evento)}</Text> : null}
+            {g.fecha_limite ? <Text style={styles.meta}>⏰ Hasta el {fmtFecha(g.fecha_limite)}</Text> : null}
+            <Pressable onPress={() => setDetalle(g)} style={styles.resumenBtn} hitSlop={4}>
+              <Text style={styles.resumenTxt}>✅ {s.autorizados} · ❌ {s.noAutorizados} · ⏳ {s.sinResponder} sin responder — ver respuestas</Text>
+            </Pressable>
+          </Card>
+        );
+      })}
+      {detalle ? (
+        <DetalleSheet
+          a={detalle}
+          ids={detalle.filas.map((f) => f.id)}
+          {...datosDe(detalle)}
+          onClose={() => setDetalle(null)}
+          onEliminada={() => { setDetalle(null); cargar(); }}
+        />
+      ) : null}
+      {nueva ? (
+        <NuevaSheet cursos={cursos} multi userId={userId} onClose={() => setNueva(false)} onCreada={() => { setNueva(false); cargar(); }} />
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  nuevaColegio: { alignSelf: "flex-start", marginBottom: SPACE.md },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   cargando: { textAlign: "center", color: t.textFaint, padding: 40 },

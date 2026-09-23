@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -14,6 +14,7 @@ import { Paginador } from "../../components/Paginador";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { useCargar } from "../../hooks/useCargar";
 
 export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange }) {
   const [recordatorios, setRecordatorios] = useState([]);
@@ -45,7 +46,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     ? cursoIds.map(cid=>({curso_id:cid, tag:tagDeCurso?.(cid)})).filter(o=>o.tag)
     : [];
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
     const [recs, leidos, al] = await Promise.all([
       supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("creado_en",{ascending:false}),
@@ -57,10 +58,9 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     setRecordatorios(recs.data||[]);
     setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
     setAlerta((al.data||[])[0]||null);
-  };
+  }, [cursoId, cursoIds, userId]);
+  useCargar(cargar, active); // también al volver a la pestaña
 
-  useEffect(()=>{ cargar(); },[cursoIds]);
-  useEffect(()=>{ if(active) cargar(); },[active]);
 
   const esPropio = (r) => r.creado_por === userId;
   // En vista "Todos" el permiso se resuelve contra el rol en el curso de la fila.

@@ -6,14 +6,18 @@ import { useState, useEffect } from "react";
 import { signStorageUrl } from "../lib/storageUrl";
 
 export function useSignedUrl(stored, bucket) {
-  const [url, setUrl] = useState("");
+  // La URL firmada se guarda junto con la clave (bucket + path) que la originó:
+  // si cambia `stored`, la URL vieja deja de corresponder y no se muestra
+  // mientras se firma la nueva.
+  const clave = stored ? `${bucket}:${stored}` : null;
+  const [firmada, setFirmada] = useState({ clave: null, url: "" });
   useEffect(() => {
+    if (!stored) return;
     let vivo = true;
-    if (!stored) { setUrl(""); return; }
-    signStorageUrl(stored, bucket).then((u) => { if (vivo) setUrl(u || ""); });
+    signStorageUrl(stored, bucket).then((u) => { if (vivo) setFirmada({ clave: `${bucket}:${stored}`, url: u || "" }); });
     return () => { vivo = false; };
   }, [stored, bucket]);
-  return url;
+  return firmada.clave === clave ? firmada.url : "";
 }
 
 export function SignedImg({ src, bucket, style, alt = "", onClick }) {

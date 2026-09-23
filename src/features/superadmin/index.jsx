@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -26,6 +26,7 @@ import * as XLSX from "xlsx";
 import { Comedor } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 import { CambiarPasswordModal } from "../auth";
+import { useCargar } from "../../hooks/useCargar";
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
 // wrappean se vuelven enormes e inmanejables. Único lugar para este patrón
@@ -246,11 +247,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   // colegio_admin: fijo a su propio colegio. super: el que haya elegido en
   // "Colegios" (null hasta que elija uno — no hay nada más que mostrar).
-  useEffect(()=>{ if(esColegioAdmin) setColegioId(miColegioId); },[esColegioAdmin, miColegioId]);
+  if(esColegioAdmin && colegioId!==miColegioId) setColegioId(miColegioId); // ajuste durante el render
 
-  useEffect(()=>{ cargar(); },[colegioId]);
 
-  async function cargar() {
+  const cargar = useCallback(async () => {
     setLoading(true);
     const [u,c,h,m,mc,col,cols] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
@@ -298,7 +298,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       setAlumnos([]);
     }
     setLoading(false);
-  };
+  }, [activeColegioId, esSuper]);;
+  useCargar(cargar);
 
   // Alta de un colegio nuevo — solo super (ver specs/multi-colegio.md).
   // Crea la fila en colegios y, si se cargaron los datos del primer admin,
@@ -2212,7 +2213,14 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   };
 
   // Recargar cuando se publica una nueva comunicación (ok pasa de null a un mensaje).
-  useEffect(()=>{ if(recargarVer && abierto) cargar(); },[recargarVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Solo reacciona a recargarVer (a propósito no a cargar/abierto). Diferido,
+  // como useCargar, para no hacer setState dentro del efecto.
+  useEffect(()=>{
+    if(!recargarVer || !abierto) return;
+    let vigente = true;
+    Promise.resolve().then(()=>{ if(vigente) cargar(); });
+    return ()=>{ vigente = false; };
+  },[recargarVer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmtFecha = (iso) => iso ? new Date(iso).toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
 
@@ -2467,16 +2475,16 @@ export function UniformesAdmin({ cursos }) {
   const EMOJIS_UNI = ["👕","👖","👟","🧥","🎽","🧢","👗","🩳"];
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const [uni, lnk] = await Promise.all([
       supabase.from("uniformes").select("*, uniforme_items(id,item)").order("tipo"),
       supabase.from("uniforme_cursos").select("uniforme_id,curso_id"),
     ]);
     setUniformes(uni.data||[]);
     setLinks(lnk.data||[]);
-  };
+  }, []);
+  useCargar(cargar);
 
-  useEffect(()=>{ cargar(); },[]);
 
   const toggleCurso = async (uniformeId, cursoId) => {
     const exists = links.some(l=>l.uniforme_id===uniformeId&&l.curso_id===cursoId);

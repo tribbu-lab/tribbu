@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
@@ -16,9 +16,10 @@ import { ListToolbar } from "../../components";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import * as XLSX from "xlsx";
+import { useCargar } from "../../hooks/useCargar";
 
 export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
-  const misHijosUniq = [...new Set(misHijos)];
+  const misHijosUniq = useMemo(()=>[...new Set(misHijos)],[misHijos]);
   const isMobile = useIsMobile();
   // "Tu festejo" (banner verde): una vez cerrado por el usuario no vuelve a
   // aparecer para ESE festejo — cerrarBannerFestejo persiste en localStorage
@@ -36,7 +37,56 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
   const [monedaRegalo,setMonedaRegalo] = useState("$");
   const [apoderados, setApoderados] = useState([]);
 
-  const cargar = async () => {
+  const verificarRecordatoriosRegalo = useCallback(async (cumpleMapActual, listaActual) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+    // Calcular qué cumpleaños caen en los próximos 7 días y tienen responsable
+    const pendientes = listaActual
+      .map(item => {
+        const cumple = cumpleMapActual[item.id];
+        if(!cumple?.responsable_id) return null;
+        const d = new Date(item.fecha_nacimiento+"T00:00:00");
+        let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+        if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
+        const dias = Math.round((next - hoy) / (1000*60*60*24));
+        if(dias > 7 || dias < 0) return null;
+        return { item, cumple, dias, next };
+      })
+      .filter(Boolean);
+
+    if(!pendientes.length) return;
+
+    // Una sola query para ver qué recordatorios ya existen
+    const refIds = pendientes.map(p => p.cumple.id);
+    const { data: yaExisten } = await supabase.from("recordatorios")
+      .select("ref_id, para_usuario_id")
+      .in("curso_id", cursoIds)
+      .eq("tipo", "regalo_cumple")
+      .in("ref_id", refIds);
+
+    const existeSet = new Set((yaExisten||[]).map(r => `${r.ref_id}_${r.para_usuario_id}`));
+
+    // Insertar solo los que no existen — en un solo llamado batch
+    const inserts = pendientes
+      .filter(p => !existeSet.has(`${p.cumple.id}_${p.cumple.responsable_id}`))
+      .map(({ item, cumple, dias, next }) => {
+        const nombre = item.nombre.split(" ")[0];
+        return {
+          // El recordatorio pertenece al curso del cumple (en vista Todos no hay curso de sesión).
+          curso_id: cumple.curso_id, tipo: "regalo_cumple", ref_id: cumple.id,
+          para_usuario_id: cumple.responsable_id,
+          texto: `El cumple de ${nombre} es en ${dias===0?"hoy":dias===1?"1 dia":`${dias} dias`}. Ya compraste el regalo?`,
+          emoji: "🎁", urgente: dias <= 2, prioridad: dias <= 2 ? "alta" : "media",
+          fecha: fmtLocalDate(next),
+        };
+      });
+
+    if(inserts.length) {
+      await supabase.from("recordatorios").insert(inserts);
+    }
+  }, [cursoIds]);
+
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
     const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds).order("nombre"),
@@ -124,58 +174,10 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
     }
     setCumpleMap(map);
     await verificarRecordatoriosRegalo(map, unified);
-  };
+  }, [cursoIds, hijoActivo, misHijos, userId, verificarRecordatoriosRegalo]);
+  useCargar(cargar);
 
-  const verificarRecordatoriosRegalo = async (cumpleMapActual, listaActual) => {
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
 
-    // Calcular qué cumpleaños caen en los próximos 7 días y tienen responsable
-    const pendientes = listaActual
-      .map(item => {
-        const cumple = cumpleMapActual[item.id];
-        if(!cumple?.responsable_id) return null;
-        const d = new Date(item.fecha_nacimiento+"T00:00:00");
-        let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
-        if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
-        const dias = Math.round((next - hoy) / (1000*60*60*24));
-        if(dias > 7 || dias < 0) return null;
-        return { item, cumple, dias, next };
-      })
-      .filter(Boolean);
-
-    if(!pendientes.length) return;
-
-    // Una sola query para ver qué recordatorios ya existen
-    const refIds = pendientes.map(p => p.cumple.id);
-    const { data: yaExisten } = await supabase.from("recordatorios")
-      .select("ref_id, para_usuario_id")
-      .in("curso_id", cursoIds)
-      .eq("tipo", "regalo_cumple")
-      .in("ref_id", refIds);
-
-    const existeSet = new Set((yaExisten||[]).map(r => `${r.ref_id}_${r.para_usuario_id}`));
-
-    // Insertar solo los que no existen — en un solo llamado batch
-    const inserts = pendientes
-      .filter(p => !existeSet.has(`${p.cumple.id}_${p.cumple.responsable_id}`))
-      .map(({ item, cumple, dias, next }) => {
-        const nombre = item.nombre.split(" ")[0];
-        return {
-          // El recordatorio pertenece al curso del cumple (en vista Todos no hay curso de sesión).
-          curso_id: cumple.curso_id, tipo: "regalo_cumple", ref_id: cumple.id,
-          para_usuario_id: cumple.responsable_id,
-          texto: `El cumple de ${nombre} es en ${dias===0?"hoy":dias===1?"1 dia":`${dias} dias`}. Ya compraste el regalo?`,
-          emoji: "🎁", urgente: dias <= 2, prioridad: dias <= 2 ? "alta" : "media",
-          fecha: fmtLocalDate(next),
-        };
-      });
-
-    if(inserts.length) {
-      await supabase.from("recordatorios").insert(inserts);
-    }
-  };
-
-  useEffect(()=>{ cargar(); },[cursoIds]);
 
   const crearColectaRegalo = async ({maestroNombre, titulo, monto, moneda, fecha_limite, responsable_id}) => {
     // Curso del maestro homenajeado (nunca el de sesión, que es null en vista Todos).
@@ -530,7 +532,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
       supabase.from("evento_asistencia").select("alumno_invitado_id").eq("evento_id", festejoExistente.id)
         .then(r=>setInvitados((r.data||[]).map(x=>x.alumno_invitado_id).filter(Boolean).filter(id=>id!==alumnoId)));
     }
-  },[]);
+  },[cursoId, festejoExistente?.id, alumnoId]);
 
   const toggleAlumno = (id) => setInvitados(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
   const invitarTodos = () => setAlumnos(al => { setInvitados(al.filter(a=>a.id!==alumnoId).map(a=>a.id)); return al; });
@@ -759,9 +761,8 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
   const [adultos,     setAdultos]     = useState({});
   const [imgZoom,    setImgZoom]    = useState(false);
 
-  useEffect(()=>{ cargarDatos(); },[evento.id]);
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const rows = asist||[];
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];
@@ -781,7 +782,8 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
       }
     });
     setComentarios(coms); setHermanos(herm); setAdultos(adul);
-  };
+  }, [evento.id, misHijos]);;
+  useCargar(cargarDatos);
 
   const responder = async (alumnoId, asiste) => {
     setAsistencia(prev => prev.map(r => r.alumno_invitado_id===alumnoId ? {...r, asiste} : r));

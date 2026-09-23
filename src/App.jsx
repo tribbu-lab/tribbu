@@ -158,6 +158,9 @@ function App() {
     if(_esVistaTodos) return [...new Set(items.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))];
     return _cursoId ? [_cursoId] : [];
   },[items, _esVistaTodos, _cursoId]);
+  // Ids de mis hijos, memoizado: las pantallas lo usan como dependencia de su
+  // carga (useCallback) — un array nuevo en cada render las recargaría en loop.
+  const misHijosActivos = useMemo(()=>items.filter(i=>i._tipo==="hijo").map(i=>i.id),[items]);
 
   // Color de un item: el personalizado si guardó uno (cambiarColorHijo), si
   // no null — un solo lugar para esta regla, antes copiada suelta 5 veces
@@ -493,7 +496,6 @@ function App() {
     if(!cursoIds.length) return <Spinner/>;
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
-    const misHijosActivos = items.filter(i=>i._tipo==="hijo").map(i=>i.id);
     // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
     // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
     switch(tab === "admin" && !isAdmin ? "muro" : tab) {

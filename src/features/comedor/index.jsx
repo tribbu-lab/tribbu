@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
@@ -9,10 +9,11 @@ import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
+import { useCargar } from "../../hooks/useCargar";
 
 
 
-export function Comedor({ cursoId, isSuper, isMobile=true, colegioId=null }) {
+export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
   const [menu,setMenu]         = useState([]);
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(fmtLocalDate());
@@ -28,13 +29,13 @@ export function Comedor({ cursoId, isSuper, isMobile=true, colegioId=null }) {
   // devuelve la SELECT a los colegios donde el usuario es miembro — acá
   // filtramos también client-side para no mezclar fechas de dos colegios si
   // alguna vez el usuario fuera miembro de más de uno.
-  const cargarMenu = () => {
+  const cargarMenu = useCallback(() => {
     const q = colegioId
       ? supabase.from("menu").select("*").eq("colegio_id",colegioId).order("fecha")
       : supabase.from("menu").select("*").order("fecha");
     q.then(r=>setMenu(r.data||[]));
-  };
-  useEffect(()=>{ cargarMenu(); },[cursoId, colegioId]);
+  }, [colegioId]);
+  useCargar(cargarMenu);
 
   const abrirEdicion = (fecha) => {
     const existente = menu.find(m=>m.fecha===fecha);

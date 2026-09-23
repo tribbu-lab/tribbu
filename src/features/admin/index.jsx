@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -12,6 +12,7 @@ import { Paginador } from "../../components/Paginador";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { useCargar } from "../../hooks/useCargar";
 
 export function AdminPanel({ cursoId, cursoNombre }) {
   const [tab, setTab]   = useState("general");
@@ -38,7 +39,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     return Math.round((next - hoy) / (1000*60*60*24));
   };
 
-  const cargarRegalos = async () => {
+  const cargarRegalos = useCallback(async () => {
     const { data: al } = await supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color").eq("curso_id",cursoId).order("nombre");
     const conCumple = (al||[]).filter(a=>a.fecha_nacimiento).sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
     setAlumnosRegalo(conCumple);
@@ -54,7 +55,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     const map = {};
     (cu||[]).forEach(c=>{ if(c.alumno_id) map[c.alumno_id] = {...c, _responsable_hijo: uidToHijo[c.responsable_id]||null}; });
     setCumpleMap(map);
-  };
+  }, [cursoId]);
 
   const asignarRegalo = async (alumnoId, responsableHijoId) => {
     setGuardandoRegaloId(alumnoId);
@@ -77,7 +78,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     cargarRegalos();
   };
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const [c, hor, mae, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id",cursoId).single(),
       supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
@@ -104,9 +105,9 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     }
     setFamilias(hijosCurso.map(h=>({...h, apoderados: apodPorHijo.get(h.id)||[]})));
     cargarRegalos();
-  };
+  }, [cargarRegalos, cursoId]);
+  useCargar(cargar);
 
-  useEffect(()=>{ cargar(); },[cursoId]);
 
   const familiasSinRegistrar = familias.filter(f=>f.apoderados.length===0);
 

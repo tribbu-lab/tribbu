@@ -1,7 +1,6 @@
 # Red mínima contra roturas (no hay test suite): en cada push/PR a main
 # compila la web, y en mobile corre lint + el bundle de Metro.
-# El lint bloquea por errores; los avisos (warnings) se muestran sin bloquear
-# (ver el comentario de react-hooks/set-state-in-effect en eslint.config.js).
+# El lint web no admite errores ni advertencias (--max-warnings 0).
 name: CI
 
 on:
@@ -28,7 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm run lint
+      - run: npm run lint -- --max-warnings 0
 
   mobile:
     runs-on: ubuntu-latest

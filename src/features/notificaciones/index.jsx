@@ -1,7 +1,8 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
+import { useCargar } from "../../hooks/useCargar";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
@@ -12,7 +13,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   const [leidos,   setLeidos]   = useState(new Set());
   const [cargando, setCargando] = useState(false);
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length || !userId) return;
     setCargando(true);
     const hoy = fmtLocalDate();
@@ -49,10 +50,9 @@ export function useNotificaciones({ cursoIds, userId, active }) {
 
     setNotifs([...alertasNotifs, ...recsNotifs]);
     setCargando(false);
-  };
+  }, [cursoIds, userId]);
+  useCargar(cargar, active); // también al abrir el panel
 
-  useEffect(() => { cargar(); }, [cursoIds, userId]);
-  useEffect(() => { if(active) cargar(); }, [active]);
 
   const marcarLeido = async (id) => {
     if(typeof id === "string" && id.startsWith("alerta-")) return; // alertas no se marcan

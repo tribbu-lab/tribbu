@@ -28,6 +28,8 @@ import { useListControls } from "../../lib/useListControls";
 import { useSession } from "../../context/Session";
 import { UploadMenuExcel, Comedor } from "../comedor";
 import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
+import { AdopcionLista } from "../../components/Adopcion";
+import { AutorizacionesColegio } from "../autorizaciones";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
@@ -47,6 +49,8 @@ const SECCIONES = [
   { grupo: "Comunidad", items: [
     { id: "alertas", l: "🚨 Alertas" },
     { id: "comunicaciones", l: "📢 Comunicaciones" },
+    { id: "autorizaciones", l: "✍️ Autorizaciones" },
+    { id: "adopcion", l: "📈 Adopción" },
   ]},
   { grupo: "Colegio", items: [
     { id: "colegio", l: "🏫 Colegio" },
@@ -128,6 +132,7 @@ export function SuperAdmin() {
   const [elegirColegio, setElegirColegio] = useState(false);
   const activeColegioId = esColegioAdmin ? miColegioId : colegioSel;
   const [sec, setSec] = useState(null);
+  const [anoActual, setAnoActual] = useState(null); // colegios.año_lectivo_actual del colegio activo
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
   // no toma props de recarga externa.
@@ -157,13 +162,15 @@ export function SuperAdmin() {
     // super sin colegio resuelto todavía: no hay nada que mostrar.
     if (!activeColegioId) return;
     setLoading(true);
-    const [u, c, h, m, mc] = await Promise.all([
+    const [u, c, h, m, mc, col] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
       supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
+      supabase.from("colegios").select("año_lectivo_actual").eq("id", activeColegioId).maybeSingle(),
     ]);
+    setAnoActual(col.data?.año_lectivo_actual ?? null);
     // RLS ya acota todo para colegio_admin; para super este filtro es el que
     // separa un colegio de otro (ver el comentario de arriba).
     const cursosDelColegio = (c.data || []).filter((x) => x.colegio_id === activeColegioId);
@@ -588,6 +595,9 @@ export function SuperAdmin() {
 
   if (loading) return <Spinner />;
 
+  // Autorizaciones y Adopción: solo los cursos del año lectivo vigente (como la web).
+  const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
+
   const stats = [
     { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
@@ -868,6 +878,8 @@ export function SuperAdmin() {
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
+      {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
+      {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>

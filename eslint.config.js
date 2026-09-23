@@ -24,12 +24,6 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
-      // Toda la app carga datos con `useEffect(()=>{ cargar() },[...])`, y
-      // `cargar` a veces hace un setState antes del primer await. Funciona;
-      // pasarlo a useCallback en ~20 pantallas es un refactor aparte (sin
-      // tests, riesgo de recargas en loop). Queda como aviso, igual que
-      // exhaustive-deps — el CI bloquea solo por errores.
-      'react-hooks/set-state-in-effect': 'warn',
       // Hooks exportados junto al componente que los usa.
       'react-refresh/only-export-components': ['error', { allowConstantExport: true, allowExportNames: ['useSignedUrl', 'useNotificaciones'] }],
     },

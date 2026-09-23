@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -11,6 +11,7 @@ import { Paginador } from "../../components/Paginador";
 import { LogoUploadInput } from "../../components/LogoUploadInput";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useToast } from "../../hooks/useToast";
+import { useCargar } from "../../hooks/useCargar";
 
 // Mail del apoderado: intenta abrir el cliente de correo (mailto:) y SIEMPRE
 // copia la casilla al portapapeles con un toast — así hace algo visible
@@ -52,7 +53,7 @@ export function Contacto({ isSuperAdmin=false, colegioId=null }) {
   // uno solo en la base. Cuando exista más de uno, cada pantalla que use
   // este componente deberá empezar a pasar el colegioId real (vía "Mi
   // acceso"), ver specs/multi-colegio.md.
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const colQuery = colegioId
       ? supabase.from("colegios").select("*").eq("id",colegioId).single()
       : supabase.from("colegios").select("*").order("creado_en").limit(1).single();
@@ -64,9 +65,9 @@ export function Contacto({ isSuperAdmin=false, colegioId=null }) {
     ]);
     setColegio(col.data||{});
     setContactos(con.data||[]);
-  };
+  }, [colegioId]);
+  useCargar(cargar);
 
-  useEffect(()=>{ cargar(); },[colegioId]);
 
   const guardarColegio = async () => {
     setSaving(true);
@@ -206,9 +207,8 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   const [todos,setTodos]           = useState([]);
   const [busqueda,setBusqueda]     = useState("");
 
-  useEffect(()=>{ cargar(); },[alumno.id]);
 
-  async function cargar() {
+  const cargar = useCallback(async () => {
     const [v,t] = await Promise.all([
       supabase.from("usuario_hijos").select("*, usuarios(id,nombre,apellido,email,telefono)").eq("hijo_id",alumno.id),
       supabase.from("usuarios").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
@@ -216,7 +216,8 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
     const aptos = (t.data||[]).filter(u => u.rol !== "super");
     setVinculados(v.data||[]);
     setTodos(aptos);
-  };
+  }, [alumno.id]);;
+  useCargar(cargar);
 
   const vincular = async (userId) => {
     await supabase.from("usuario_hijos").insert({usuario_id:userId, hijo_id:alumno.id});
@@ -285,7 +286,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso }) {
   const [busqueda, setBusqueda] = useState("");
   const isMobile = useIsMobile();
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setHijos([]); setApodMap({}); return; }
     const { data: hijosData } = await supabase
       .from("hijos").select("*").in("curso_id",cursoIds).order("apellido").order("nombre");
@@ -303,10 +304,9 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso }) {
       });
       setApodMap(m);
     }
-  };
+  }, [cursoIds]);
+  useCargar(cargar);
 
-  const cursosKey = (cursoIds||[]).join(",");
-  useEffect(()=>{ cargar(); },[cursosKey]);
 
   const filtrados = hijos.filter(h=>fmtNombre(h).toLowerCase().includes(busqueda.toLowerCase()));
   // Listado de alumnos: "Apellido, Nombre" (orden de planilla escolar),
