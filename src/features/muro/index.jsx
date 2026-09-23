@@ -27,6 +27,7 @@ const TIPO_CONFIG = {
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -91,51 +92,35 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
     ]);
-    // Encuestas activas (sin cerrar) donde el usuario todavía no votó.
+    // Encuestas abiertas (ni cerradas ni eliminadas) donde el usuario todavía no votó.
     let encuestasPend = [];
-    const encuestasActivas = (encuestasData.data||[]).filter(e=>!e.cerrada_manual && (!e.fecha_cierre || e.fecha_cierre>=fechaHoy));
+    const encuestasActivas = encuestasAbiertas(encuestasData.data||[], fechaHoy);
     if(userId && encuestasActivas.length) {
       const { data: misVotosData } = await supabase.from("encuesta_votos").select("encuesta_id").eq("usuario_id",userId).in("encuesta_id",encuestasActivas.map(e=>e.id));
       const votadas = new Set((misVotosData||[]).map(v=>v.encuesta_id));
       encuestasPend = encuestasActivas.filter(e=>!votadas.has(e.id));
     }
-    const fecha15b = fmtLocalDate(new Date(Date.now() + 15*24*60*60*1000));
-    const nextBday = (fecha) => {
-      const hoy = new Date(); hoy.setHours(0,0,0,0);
-      const d = new Date(fecha+"T00:00:00");
-      let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
-      if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
-      return Math.round((next - hoy) / (1000*60*60*24));
-    };
-    // Build unified birthday list sorted by next occurrence — solo próximos 15 días
+    // Cumpleaños (alumnos + maestros) de los próximos 15 días, del más cercano al más lejano.
     const bdayList = [
       ...(hijosData.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({
         id:`a-${a.id}`, nombre:fmtNombre(a), tipo:"Alumno",
         fecha_nacimiento:a.fecha_nacimiento, color:a.color||"#3B82F6", curso_id:a.curso_id,
+        dias:calcProximoCumple(a.fecha_nacimiento).dias,
       })),
       ...(maestrosData.data||[]).filter(m=>m.fecha_nacimiento).map(m=>({
         id:`m-${m.id}`, nombre:fmtNombre(m), tipo:"Maestro",
         fecha_nacimiento:m.fecha_nacimiento, color:"#8B5CF6", curso_id:m.maestro_cursos?.[0]?.curso_id,
+        dias:calcProximoCumple(m.fecha_nacimiento).dias,
       })),
-    ].filter(a=>nextBday(a.fecha_nacimiento)<=15)
-     .sort((a,b)=>nextBday(a.fecha_nacimiento)-nextBday(b.fecha_nacimiento));
+    ].filter(a=>a.dias<=15)
+     .sort((a,b)=>a.dias-b.dias);
     const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
     setLeidosMuro(new Set([...leidosIds]));
-    const hoyStr = fmtLocalDate();
-    // Recordatorios manuales no leídos, dentro de 15 días
-    const recsNoLeidos = (recordatorios.data||[]).filter(r=> {
-      if(r.tipo==="regalo_cumple" || r.tipo==="colecta_vence") return false;
-      if(leidosIds.has(r.id)) return false;
-      // Mostrar si es para todo el curso (para_usuario_id null) o para este usuario
-      if(r.para_usuario_id && r.para_usuario_id !== userId) return false;
-      if(r.fecha && r.fecha < hoyStr) return false;
-      if(r.fecha && r.fecha > fecha15b) return false;
-      return true;
-    }).sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
+    const recsNoLeidos = recordatoriosPendientes(recordatorios.data||[], leidosIds, userId, fechaHoy, fecha15);
     // Colectas pendientes: cada colecta se evalúa contra MIS hijos de SU curso
     // (en vista Todos hay colectas de varios cursos; un hijo de otro curso no
     // cuenta como "impago"). Mismo patrón que mobile/features/muro.
-    const misHijosIds = (typeof misHijos !== "undefined" ? misHijos : []).filter(h=>h && typeof h === "string");
+    const misHijosIds = misHijos;
     const misHijosPorCurso = new Map();
     for(const h of (hijosData.data||[])){
       if(!misHijosIds.includes(h.id)) continue;
@@ -144,19 +129,16 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       misHijosPorCurso.set(h.curso_id, arr);
     }
     let colectasPend = [];
-    const colectasActivas = (cuotas.data||[]).filter(c=>c.activa&&(!c.vencimiento||c.vencimiento<=fecha15b));
-    if(misHijosIds.length && colectasActivas.length) {
-      const { data: pagosData } = await supabase.from("colecta_pagos").select("*").in("colecta_id",colectasActivas.map(c=>c.id)).in("alumno_id",misHijosIds);
-      const pagados = new Set((pagosData||[]).filter(p=>p.estado==="pagado").map(p=>`${p.colecta_id}-${p.alumno_id}`));
-      colectasPend = colectasActivas.filter(c=>(misHijosPorCurso.get(c.curso_id)||[]).some(hid=>!pagados.has(`${c.id}-${hid}`)));
+    const activas = colectasActivas(cuotas.data||[], fecha15);
+    if(misHijosIds.length && activas.length) {
+      const { data: pagosData } = await supabase.from("colecta_pagos").select("*").in("colecta_id",activas.map(c=>c.id)).in("alumno_id",misHijosIds);
+      colectasPend = colectasPendientes(activas, pagosData||[], misHijosPorCurso);
     }
     // Una alerta activa por curso (la más reciente), hasta 3
-    const alertasPorCurso = [];
-    const cursosConAlerta = new Set();
-    for(const a of (alertasRes.data||[])){
-      if(!cursosConAlerta.has(a.curso_id)){ cursosConAlerta.add(a.curso_id); alertasPorCurso.push(a); }
-    }
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones:(invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), hijosData:hijosData.data||[] });
+    const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
+    // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
+    const invitaciones = festejosPendientes((invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), fechaHoy);
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
@@ -262,12 +244,12 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       onAccion:(e)=>{e.stopPropagation();onNavigate?.("finanzas",{openColecta:c.id});}, onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
       tag:tagDe(c.curso_id), chip: c.monto_sugerido?`${c.moneda||"$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}`:null,
     })),
-    ...(datos.invitaciones||[]).map(inv=>({
-      key:`i-${inv.id}`, tipo:"Invitación", color:"#047857", soft:"#F0FDF4", borde:"#A7F3D0",
-      icon:"🎉", titulo:inv.evento.titulo, meta:"Falta confirmar asistencia",
+    ...(datos.invitaciones||[]).map(ev=>({
+      key:`i-${ev.id}`, tipo:"Invitación", color:"#047857", soft:"#F0FDF4", borde:"#A7F3D0",
+      icon:"🎉", titulo:ev.titulo, meta:"Falta confirmar asistencia",
       accion:"Responder", btnBg:"#0F172A", btnFg:"white",
-      onAccion:(e)=>{e.stopPropagation();setFestejoDetalle(inv.evento);}, onPress:()=>setFestejoDetalle(inv.evento),
-      tag:tagDe(inv.evento.curso_id), chip:fmtDiaMesCorto(inv.evento.fecha),
+      onAccion:(e)=>{e.stopPropagation();setFestejoDetalle(ev);}, onPress:()=>setFestejoDetalle(ev),
+      tag:tagDe(ev.curso_id), chip:fmtDiaMesCorto(ev.fecha),
     })),
     ...(datos.encuestasPend||[]).map(e=>({
       key:`enc-${e.id}`, tipo:"Encuesta", color:"#1D4ED8", soft:"#EFF6FF", borde:"#BFDBFE",
@@ -288,12 +270,8 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         onPress:()=>onNavigate?.("clases",{openFecha:e.fecha}) };
     }),
     ...(datos.bdayList||[]).map(a=>{
-      const hoyD = new Date(); hoyD.setHours(0,0,0,0);
-      const d = new Date(a.fecha_nacimiento+"T00:00:00");
-      let next = new Date(hoyD.getFullYear(), d.getMonth(), d.getDate());
-      if(next<hoyD) next.setFullYear(hoyD.getFullYear()+1);
-      const dias = Math.round((next-hoyD)/86400000);
-      return { key:a.id, fecha:fmtLocalDate(next), dias, emoji:"🎂",
+      const { dias, fecha } = calcProximoCumple(a.fecha_nacimiento);
+      return { key:a.id, fecha, dias, emoji:"🎂",
         titulo:`Cumple de ${a.nombre}`, meta:a.tipo==="Alumno"?"🎒 Alumno":"👨‍🏫 Maestro", tag:tagDe(a.curso_id),
         onPress:()=>onNavigate?.("cumples") };
     }),

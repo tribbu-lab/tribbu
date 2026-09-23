@@ -12,9 +12,8 @@ import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { Card } from "../../components/Card";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { MAX_OPCIONES, MIN_OPCIONES, estaCerrada as cerradaEl, estaEliminada, resultadoOpcion } from "../../lib/encuestas";
 
-const MAX_OPCIONES = 6;
-const MIN_OPCIONES = 2;
 
 export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin }) {
   const [encuestas, setEncuestas] = useState([]);
@@ -58,8 +57,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const opcionesDe = (eid) => opciones.filter(o => o.encuesta_id === eid);
   const votosDe    = (eid) => votos.filter(v => v.encuesta_id === eid);
   const miVoto     = (eid) => votos.find(v => v.encuesta_id === eid && v.usuario_id === userId)?.opcion_id || null;
-  const estaCerrada   = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
-  const estaEliminada = (e) => !!e.eliminada_en;
+  const estaCerrada   = (e) => cerradaEl(e, hoyStr);
   const puedeGestionar = (e) => e.creado_por === userId || (esVistaTodos ? cursosAdmin.includes(e.curso_id) : isAdmin);
   // Editar las opciones solo tiene sentido mientras nadie votó todavía —
   // después de eso borrar/reemplazar opciones dejaría votos huérfanos.
@@ -327,11 +325,8 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {ops.map(o => {
-                    const votantes = vts.filter(v => v.opcion_id === o.id);
-                    const cuenta = votantes.length;
-                    const pct = total ? Math.round((cuenta / total) * 100) : 0;
+                    const { cuenta, pct, nombres } = resultadoOpcion(vts, o.id);
                     const esMiVoto = mio === o.id;
-                    const nombres = votantes.map(v => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
                     const votandoEsta = votando === e.id;
                     return (
                       <div key={o.id}>

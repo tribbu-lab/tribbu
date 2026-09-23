@@ -18,10 +18,9 @@ import { Button } from "../../components/Button";
 import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
+import { MAX_OPCIONES, MIN_OPCIONES, estaCerrada as cerradaEl, estaEliminada, resultadoOpcion, opcionGanadora } from "@shared/encuestas";
 
 const t = THEMES.light;
-const MAX_OPCIONES = 6;
-const MIN_OPCIONES = 2;
 const FORM_VACIO = { pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: null };
 
 export function Encuestas() {
@@ -77,8 +76,7 @@ export function Encuestas() {
   const opcionesDe = (eid) => opciones.filter((o) => o.encuesta_id === eid);
   const votosDe = (eid) => votos.filter((v) => v.encuesta_id === eid);
   const miVoto = (eid) => votos.find((v) => v.encuesta_id === eid && v.usuario_id === userId)?.opcion_id || null;
-  const estaCerrada   = (e) => e.cerrada_manual || (e.fecha_cierre && e.fecha_cierre < hoyStr);
-  const estaEliminada = (e) => !!e.eliminada_en;
+  const estaCerrada   = (e) => cerradaEl(e, hoyStr);
   const puedeGestionar = (e) => e.creado_por === userId || (esVistaTodos ? cursosAdmin.has(e.curso_id) : isAdmin);
   // Editar las opciones solo tiene sentido mientras nadie votó todavía —
   // después de eso borrar/reemplazar opciones dejaría votos huérfanos.
@@ -331,9 +329,7 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puede
   const total = votos.length;
   // Pie contextual (Parte 4 del handoff): reemplaza tener que inferir el
   // estado mirando la fecha y si ya voté.
-  const ganadora = cerrada && opciones.length
-    ? opciones.reduce((max, o) => (votos.filter((v) => v.opcion_id === o.id).length > votos.filter((v) => v.opcion_id === max.id).length ? o : max), opciones[0])
-    : null;
+  const ganadora = cerrada ? opcionGanadora(opciones, votos) : null;
   const pie = cerrada
     ? (ganadora && total > 0 ? `Cerrada · ganó "${ganadora.texto}"` : "Cerrada")
     : miVoto
@@ -367,11 +363,8 @@ function EncuestaCard({ e, opciones, votos, miVoto, cerrada, votando, tag, puede
 
       <View style={{ gap: SPACE.xs }}>
         {opciones.map((o) => {
-          const votantes = votos.filter((v) => v.opcion_id === o.id);
-          const cuenta = votantes.length;
-          const pct = total ? Math.round((cuenta / total) * 100) : 0;
+          const { cuenta, pct, nombres } = resultadoOpcion(votos, o.id);
           const esMiVoto = miVoto === o.id;
-          const nombres = votantes.map((v) => v.usuarios?.nombre?.split(" ")[0] || "Apoderado").join(", ");
           return (
             <View key={o.id}>
               <Pressable onPress={() => !cerrada && !votando && onVotar(o.id)} disabled={cerrada || votando} style={[styles.opcion, esMiVoto && styles.opcionOn, votando && styles.opcionVotando]}>

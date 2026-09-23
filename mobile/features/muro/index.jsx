@@ -33,6 +33,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
+import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -139,17 +140,6 @@ export function Muro() {
       supabase.from("encuestas").select("*").in("curso_id", cursosScope),
     ]);
 
-    // Próxima ocurrencia de un cumpleaños: días restantes + fecha concreta.
-    const nextBday = (fecha) => {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const d = new Date(fecha + "T00:00:00");
-      let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
-      if (next < hoy) next.setFullYear(hoy.getFullYear() + 1);
-      const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
-      return { dias: Math.round((next - hoy) / 86400000), fecha: iso };
-    };
-
     const bdayList = [
       ...(hijosData.data || []).filter((a) => a.fecha_nacimiento).map((a) => ({
         id: `a-${a.id}`,
@@ -157,7 +147,7 @@ export function Muro() {
         nombre: fmtNombre(a),
         tipo: "Alumno",
         curso_id: a.curso_id,
-        ...nextBday(a.fecha_nacimiento),
+        ...proximoCumple(a.fecha_nacimiento),
       })),
       ...(maestrosData.data || []).filter((m) => m.fecha_nacimiento).map((m) => ({
         id: `m-${m.id}`,
@@ -165,7 +155,7 @@ export function Muro() {
         nombre: fmtNombre(m),
         tipo: "Maestro",
         curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
-        ...nextBday(m.fecha_nacimiento),
+        ...proximoCumple(m.fecha_nacimiento),
       })),
     ]
       .filter((a) => a.dias <= 15)
@@ -173,16 +163,7 @@ export function Muro() {
 
     const leidosIds = new Set((leidosData.data || []).map((l) => l.recordatorio_id));
 
-    const recsNoLeidos = (recordatorios.data || [])
-      .filter((r) => {
-        if (r.tipo === "regalo_cumple" || r.tipo === "colecta_vence") return false;
-        if (leidosIds.has(r.id)) return false;
-        if (r.para_usuario_id && r.para_usuario_id !== userId) return false;
-        if (r.fecha && r.fecha < fechaHoy) return false;
-        if (r.fecha && r.fecha > fecha15) return false;
-        return true;
-      })
-      .sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || ""));
+    const recsNoLeidos = recordatoriosPendientes(recordatorios.data || [], leidosIds, userId, fechaHoy, fecha15);
 
     // Mis hijos agrupados por curso: cada colecta se evalúa contra los hijos de
     // SU curso (en modo unificado hay colectas de varios cursos en cuotas).
@@ -194,32 +175,22 @@ export function Muro() {
       misHijosPorCurso.set(it.curso_id, arr);
     }
     let colectasPend = [];
-    const colectasActivas = (cuotas.data || []).filter((c) => c.activa && (!c.vencimiento || c.vencimiento <= fecha15));
-    if (misHijosIds.length && colectasActivas.length) {
+    const activas = colectasActivas(cuotas.data || [], fecha15);
+    if (misHijosIds.length && activas.length) {
       const { data: pagosData } = await supabase
         .from("colecta_pagos")
         .select("*")
-        .in("colecta_id", colectasActivas.map((c) => c.id))
+        .in("colecta_id", activas.map((c) => c.id))
         .in("alumno_id", misHijosIds);
-      const pagados = new Set((pagosData || []).filter((p) => p.estado === "pagado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
-      colectasPend = colectasActivas.filter((c) =>
-        (misHijosPorCurso.get(c.curso_id) || []).some((hid) => !pagados.has(`${c.id}-${hid}`))
-      );
+      colectasPend = colectasPendientes(activas, pagosData || [], misHijosPorCurso);
     }
 
     // Invitaciones a festejos futuros sin responder (una card por festejo).
-    const invitaciones = [];
-    const vistos = new Set();
-    for (const inv of invitacionesData.data || []) {
-      const ev = inv.evento;
-      if (!ev || !ev.fecha || ev.fecha < fechaHoy || vistos.has(ev.id)) continue;
-      vistos.add(ev.id);
-      invitaciones.push(ev);
-    }
+    const invitaciones = festejosPendientes(invitacionesData.data || [], fechaHoy);
 
-    // Encuestas activas (sin cerrar) donde el usuario todavía no votó.
+    // Encuestas abiertas (ni cerradas ni eliminadas) donde el usuario todavía no votó.
     let encuestasPend = [];
-    const encuestasActivas = (encuestasData.data || []).filter((e) => !e.cerrada_manual && (!e.fecha_cierre || e.fecha_cierre >= fechaHoy));
+    const encuestasActivas = encuestasAbiertas(encuestasData.data || [], fechaHoy);
     if (userId && encuestasActivas.length) {
       const { data: misVotosData } = await supabase
         .from("encuesta_votos")
@@ -231,7 +202,7 @@ export function Muro() {
     }
 
     setDatos({
-      alertas: alerta.data || [],
+      alertas: alertasUnaPorCurso(alerta.data || []),
       menu: menu.data || null,
       menuProx: menuProx.data?.[0] || null,
       recordatorios: recsNoLeidos,
