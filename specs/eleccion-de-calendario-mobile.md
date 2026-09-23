@@ -36,7 +36,7 @@ usuario a salir de la app**:
 | destino | iOS | Android |
 |---|---|---|
 | Calendario del dispositivo | `webcal://` → Apple Calendar se suscribe a un "Tribbu" nativo que el servidor actualiza solo | `expo-calendar` crea un calendario **"Tribbu" LOCAL** y lo re-sincroniza al abrir la app (motor `mobile/lib/calendarSync.js`); "Desconectar" lo borra entero |
-| Google Calendar | **Suscripción guiada, idéntica en ambas** (revisión 2026-08-28): "Copiar enlace" / "Enviármelo por mail" + 4 pasos para agregarlo una vez desde `calendar.google.com` en una computadora + "Ya lo agregué" | ídem |
+| Google Calendar | **Suscripción guiada, idéntica en ambas** (revisión 2026-08-28): "Copiar enlace" / "Enviármelo por mail" + 4 pasos para agregarlo una vez desde `calendar.google.com` en una computadora + un 5º paso en el celular (activar "Sincronizar" en la app de Google Calendar) + "Ya lo agregué" | ídem |
 
 - El Android/dispositivo tiene un límite que **el copy dice**: no llega a
   calendar.google.com y la app de Google Calendar no lo muestra. Sirve para
@@ -91,7 +91,7 @@ usuario real y en emulador contra una cuenta Google real:
       → botón " Abrir Apple Calendar" = `Linking.openURL(webcal://…)` (flujo
       preexistente, sin cambios de mecanismo; marca `metodo="webcal"`).
       **Google Calendar** → el mismo panel de suscripción guiada que Android
-      (aviso, Copiar enlace / Enviármelo por mail, 4 pasos, "Ya lo agregué" →
+      (aviso, Copiar enlace / Enviármelo por mail, 5 pasos, "Ya lo agregué" →
       `metodo="suscripcion"`). El atajo in-app anterior
       (`WebBrowser.openBrowserAsync(render?cid=…)`, `metodo="gcal"`) se quitó
       el 2026-08-28 para que la experiencia sea idéntica en ambas plataformas;
@@ -119,9 +119,15 @@ usuario real y en emulador contra una cuenta Google real:
       de Google Calendar no se muestra.
 - [x] **Google**: aviso ("Google no permite suscribirse desde el celular…"),
       "Copiar enlace" + "Enviármelo por mail" (`mailto:` con pasos + enlace +
-      advertencia de que es personal), 4 pasos numerados siempre visibles, y
+      advertencia de que es personal), 5 pasos numerados siempre visibles, y
       "Ya lo agregué" → `metodo="suscripcion"` → "✓ Calendario sincronizado".
       Copiar/mandar solo deja `metodo="copia"` ("🔗 Enlace copiado…").
+      **5º paso (2026-09-23)**: la app de Google Calendar en Android trae el
+      calendario suscrito con "Sincronizar" **apagado** — figura en
+      Configuración pero no en el menú lateral (visto en un Android real: el
+      usuario lo veía en calendar.google.com y "no aparecía" en la app). El
+      paso lo indica en `PASOS`, en el mail de `enviarPorMail` y en un hint
+      del modal web (`BotonAgregarCalendarioWeb.jsx`).
 - [x] Cumpleaños se insertan como **un evento de día completo por año**
       (`ANOS_RECURRENCIA = 3`, UID `<uid>::<año>`), no como recurrente —
       fix del crash nativo (ver Technical Notes). Eventos con hora sí pueden

@@ -16,7 +16,7 @@
 // │                          │                      │ al abrir la app         │
 // ├──────────────────────────┼──────────────────────┼─────────────────────────┤
 // │ Google Calendar          │ suscripción guiada, idéntica en ambas: enlace  │
-// │                          │ (copiar / mail) + 4 pasos en una computadora + │
+// │                          │ (copiar / mail) + 5 pasos (4 compu + 1 cel)  + │
 // │                          │ "Ya lo agregué"                                │
 // └──────────────────────────┴────────────────────────────────────────────────┘
 //
@@ -79,6 +79,10 @@ const PASOS = [
   'A la izquierda, al lado de "Otros calendarios", tocá el +.',
   'Elegí "Desde URL".',
   "Pegá el enlace y confirmá.",
+  // En Android la app de Google Calendar trae los calendarios suscritos "Desde
+  // URL" con "Sincronizar" apagado: figuran en Configuración pero no en el menú
+  // lateral, y el usuario cree que no funcionó (visto en un Android real, 2026-09-23).
+  'En la app de Google Calendar del celular: Configuración → Tribbu → activá "Sincronizar". Si no aparece, esperá unos minutos.',
 ];
 
 // Las dos opciones del selector. La descripción es por plataforma porque el
@@ -213,6 +217,8 @@ export default function BotonAgregarCalendario({ userId }) {
       'en una computadora, tocá el + al lado de "Otros calendarios", elegí "Desde URL" ' +
       "y pegá este enlace:\n\n" +
       feedUrl +
+      "\n\nDespués, en la app de Google Calendar del celular: Configuración → Tribbu → " +
+      'activá "Sincronizar" (si no aparece, esperá unos minutos).' +
       "\n\nNo compartas este enlace: es personal y da acceso a tu calendario.";
     Linking.openURL(`mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`).catch((e) =>
       console.warn("No se pudo abrir el cliente de mail:", e?.message)

@@ -171,6 +171,10 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
             <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.4, marginBottom: 16 }}>
               Los eventos de la escuela aparecerán en tu calendario y se actualizan solos. Google puede tardar unas horas en reflejar los cambios.
             </div>
+            {/* La app de Google Calendar (Android) trae los calendarios suscritos con "Sincronizar" apagado. */}
+            <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.4, marginBottom: 16 }}>
+              ¿No lo ves en la app de Google Calendar del celular? Entrá a Configuración → Tribbu y activá "Sincronizar".
+            </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
               <button
