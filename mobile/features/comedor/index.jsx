@@ -59,23 +59,29 @@ const snapHabil = (d, dir = 1) => {
 
 // puedeEditar/mostrarUpload permiten embeber este mismo componente en el
 // Menú de Super Admin (puedeEditar=true, mostrarUpload=false).
-export function Comedor({ puedeEditar = false, mostrarUpload = true } = {}) {
+export function Comedor({ puedeEditar = false, mostrarUpload = true, colegioId: colegioIdProp = null } = {}) {
   const { isAdmin } = useSession();
   const [menu, setMenu] = useState([]);
   const [vista, setVista] = useState("dia"); // "dia" | "semana"
   const [fechaSel, setFechaSel] = useState(iso(snapHabil(hoyLocal())));
   const [editModal, setEditModal] = useState(null);
 
-  // Multi-colegio: menu.colegio_id es NOT NULL. Mobile todavía no tiene
-  // selector de colegio — se resuelve al único/primer colegio existente.
-  const [colegioId, setColegioId] = useState(null);
+  // Multi-colegio: menu.colegio_id es NOT NULL. El Super Admin pasa el colegio
+  // que eligió en su selector (y el menú se filtra a ese colegio: super ve
+  // todos por RLS). Sin prop (apoderados), RLS ya acota al colegio del
+  // usuario y las escrituras caen al único/primer colegio, como antes.
+  const [colegioFallback, setColegioFallback] = useState(null);
   useEffect(() => {
-    supabase.from("colegios").select("id").order("creado_en").limit(1).single().then((r) => setColegioId(r.data?.id ?? null));
-  }, []);
+    if (colegioIdProp) return;
+    supabase.from("colegios").select("id").order("creado_en").limit(1).single().then((r) => setColegioFallback(r.data?.id ?? null));
+  }, [colegioIdProp]);
+  const colegioId = colegioIdProp || colegioFallback;
 
   const cargarMenu = useCallback(() => {
-    supabase.from("menu").select("*").order("fecha").then((r) => setMenu(r.data || []));
-  }, []);
+    let q = supabase.from("menu").select("*").order("fecha");
+    if (colegioIdProp) q = q.eq("colegio_id", colegioIdProp);
+    q.then((r) => setMenu(r.data || []));
+  }, [colegioIdProp]);
   useEffect(() => { cargarMenu(); }, [cargarMenu]);
 
   const menuPorFecha = useMemo(() => {

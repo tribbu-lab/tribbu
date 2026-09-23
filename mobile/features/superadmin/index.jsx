@@ -115,8 +115,16 @@ const leerExcel = async () => {
 export function SuperAdmin() {
   // colegio_admin: mismo panel, acotado a su colegio por RLS. Sin sección
   // "Plataforma" (no existe en mobile) y sin el toggle de Super Admin.
+  // super: RLS no lo acota (ve todos los colegios), así que elige uno en el
+  // selector de arriba y todo el panel se filtra en el cliente a ese colegio
+  // — misma lógica que cargar() en la web. Antes mezclaba los datos de todos
+  // los colegios y no podía crear cursos (usaba su colegio_id, que es null).
   const { esColegioAdmin, usuario } = useSession();
   const miColegioId = usuario?.colegio_id ?? null;
+  const [colegios, setColegios] = useState([]);
+  const [colegioSel, setColegioSel] = useState(null);
+  const [elegirColegio, setElegirColegio] = useState(false);
+  const activeColegioId = esColegioAdmin ? miColegioId : colegioSel;
   const [sec, setSec] = useState(null);
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
@@ -133,7 +141,19 @@ export function SuperAdmin() {
   const [confirm, setConfirm] = useState(null);
   const [verApod, setVerApod] = useState(null);
 
+  // super: lista de colegios para el selector; arranca en el primero creado.
+  useEffect(() => {
+    if (esColegioAdmin) return;
+    supabase.from("colegios").select("id,nombre").order("creado_en").then(({ data }) => {
+      setColegios(data || []);
+      setColegioSel((prev) => prev ?? data?.[0]?.id ?? null);
+      if (!data?.length) setLoading(false); // sin colegios cargar() nunca corre
+    });
+  }, [esColegioAdmin]);
+
   const cargar = useCallback(async () => {
+    // super sin colegio resuelto todavía: no hay nada que mostrar.
+    if (!activeColegioId) return;
     setLoading(true);
     const [u, c, h, m, mc] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
@@ -142,25 +162,42 @@ export function SuperAdmin() {
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
     ]);
+    // RLS ya acota todo para colegio_admin; para super este filtro es el que
+    // separa un colegio de otro (ver el comentario de arriba).
+    const cursosDelColegio = (c.data || []).filter((x) => x.colegio_id === activeColegioId);
+    const cursoIdsSet = new Set(cursosDelColegio.map((x) => x.id));
+    const hijosDelColegio = (h.data || []).filter((x) => cursoIdsSet.has(x.curso_id));
+    const hijoIdsSet = new Set(hijosDelColegio.map((x) => x.id));
+    const usuariosDelColegio = (u.data || []).filter(
+      (x) =>
+        x.colegio_id === activeColegioId ||
+        x.usuario_cursos.some((r) => cursoIdsSet.has(r.curso_id)) ||
+        x.usuario_hijos.some((r) => hijoIdsSet.has(r.hijo_id))
+    );
+    const mcData = (mc.data || []).filter((r) => cursoIdsSet.has(r.curso_id));
+    const maestroIdsSet = new Set(mcData.map((r) => r.maestro_id));
     setUsuarios(
-      (u.data || []).map((x) => ({
+      usuariosDelColegio.map((x) => ({
         ...x,
         hijos: x.usuario_hijos.map((r) => r.hijo_id),
         cursos: x.usuario_cursos.map((r) => r.curso_id),
         cursosAdmin: x.usuario_cursos.filter((r) => r.rol === "room").map((r) => r.curso_id),
       }))
     );
-    setCursos(c.data || []);
-    setHijos(h.data || []);
-    const mcData = mc.data || [];
-    setMaestros((m.data || []).map((x) => ({ ...x, cursos: mcData.filter((r) => r.maestro_id === x.id).map((r) => r.curso_id) })));
+    setCursos(cursosDelColegio);
+    setHijos(hijosDelColegio);
+    setMaestros(
+      (m.data || [])
+        .filter((x) => maestroIdsSet.has(x.id))
+        .map((x) => ({ ...x, cursos: mcData.filter((r) => r.maestro_id === x.id).map((r) => r.curso_id) }))
+    );
     const al = await supabase
       .from("hijos")
       .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))")
       .order("nombre");
-    setAlumnos(al.data || []);
+    setAlumnos((al.data || []).filter((x) => cursoIdsSet.has(x.curso_id)));
     setLoading(false);
-  }, []);
+  }, [activeColegioId]);
 
   useEffect(() => {
     cargar();
@@ -301,12 +338,12 @@ export function SuperAdmin() {
     } else {
       // cursos.colegio_id y cursos.año_lectivo son NOT NULL — sin esto el
       // insert falla siempre ("Error al guardar el curso" sin detalle).
-      if (!miColegioId) { Alert.alert("No se pudo crear el curso", "No hay un colegio asociado a tu cuenta."); return; }
+      if (!activeColegioId) { Alert.alert("No se pudo crear el curso", "No hay un colegio seleccionado."); return; }
       const { error } = await supabase.from("cursos").insert({
         nombre: form.nombre,
         avatar: form.avatar || "🏫",
         color: form.color || "#3B82F6",
-        colegio_id: miColegioId,
+        colegio_id: activeColegioId,
         año_lectivo: new Date().getFullYear(),
       });
       if (error) { Alert.alert("Error al guardar el curso", error.message); return; }
@@ -556,8 +593,23 @@ export function SuperAdmin() {
         />
       </View>
       <Text style={styles.subtitle}>
-        {esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión global de usuarios, roles y cursos"}
+        {esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión de usuarios, roles y cursos por colegio"}
       </Text>
+
+      {!esColegioAdmin ? (
+        <Pressable
+          onPress={() => (colegios.length > 1 ? setElegirColegio(true) : null)}
+          style={styles.colegioSelector}
+          accessibilityRole="button"
+          accessibilityLabel="Cambiar de colegio"
+        >
+          <Text style={styles.colegioSelectorLbl}>COLEGIO</Text>
+          <Text style={styles.colegioSelectorTxt} numberOfLines={1}>
+            🏫 {colegios.find((c) => c.id === colegioSel)?.nombre || "Sin colegios"}
+            {colegios.length > 1 ? "  ▾" : ""}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.statsRow}>
         {stats.map((s) => (
@@ -798,21 +850,50 @@ export function SuperAdmin() {
         </View>
       ) : null}
 
-      {sec === "colegio" ? <ColegioAdmin colegioId={usuario?.colegio_id} /> : null}
+      {sec === "colegio" ? <ColegioAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
       {sec === "horarios" ? <HorariosAdmin cursos={cursos} /> : null}
-      {sec === "uniformes" ? <UniformesAdmin cursos={cursos} /> : null}
+      {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>
           <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
-          <UploadMenuExcel onDone={() => setMenuRefreshKey((k) => k + 1)} />
-          <Comedor key={menuRefreshKey} puedeEditar mostrarUpload={false} />
+          <UploadMenuExcel colegioId={activeColegioId} onDone={() => setMenuRefreshKey((k) => k + 1)} />
+          <Comedor key={`${activeColegioId}-${menuRefreshKey}`} colegioId={activeColegioId} puedeEditar mostrarUpload={false} />
         </View>
       ) : null}
         </View>
       )}
+
+      {/* ── Selector de colegio (solo super) ── */}
+      <Modal visible={elegirColegio} transparent animationType="fade" onRequestClose={() => setElegirColegio(false)}>
+        <Pressable style={styles.colegioOverlay} onPress={() => setElegirColegio(false)}>
+          <View style={styles.colegioSheet}>
+            <Text style={styles.cardTitle}>Elegí un colegio</Text>
+            <ScrollView style={styles.colegioLista}>
+              {colegios.map((c) => {
+                const activo = c.id === colegioSel;
+                return (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => {
+                      setColegioSel(c.id);
+                      setSec(null);
+                      setElegirColegio(false);
+                    }}
+                    style={[styles.colegioOpcion, activo && styles.colegioOpcionActiva]}
+                  >
+                    <Text style={[styles.colegioOpcionTxt, activo && styles.colegioOpcionTxtActiva]}>
+                      {activo ? "✓ " : ""}{c.nombre}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* ── Modales CRUD ── */}
       {modal === "nuevo_usuario" || modal?.edit ? (
@@ -2003,7 +2084,7 @@ function HorariosAdmin({ cursos }) {
 }
 
 // ── UniformesAdmin ──────────────────────────────────────────────────────────────
-function UniformesAdmin({ cursos }) {
+function UniformesAdmin({ cursos, colegioId }) {
   const [uniformes, setUniformes] = useState([]);
   const [links, setLinks] = useState([]);
   const [modal, setModal] = useState(null);
@@ -2013,12 +2094,12 @@ function UniformesAdmin({ cursos }) {
 
   const cargar = useCallback(async () => {
     const [uni, lnk] = await Promise.all([
-      supabase.from("uniformes").select("*, uniforme_items(id,item)").order("tipo"),
+      supabase.from("uniformes").select("*, uniforme_items(id,item)").eq("colegio_id", colegioId).order("tipo"),
       supabase.from("uniforme_cursos").select("uniforme_id,curso_id"),
     ]);
     setUniformes(uni.data || []);
     setLinks(lnk.data || []);
-  }, []);
+  }, [colegioId]);
   useEffect(() => {
     cargar();
   }, [cargar]);
@@ -2036,11 +2117,15 @@ function UniformesAdmin({ cursos }) {
   const guardar = async () => {
     if (!modal) return;
     setSaving(true);
-    if (modal.mode === "newU" && form.tipo.trim()) await supabase.from("uniformes").insert({ tipo: form.tipo.trim(), emoji: form.emoji || "👕" });
-    else if (modal.mode === "editU") await supabase.from("uniformes").update({ tipo: form.tipo.trim(), emoji: form.emoji || "👕" }).eq("id", modal.u.id);
-    else if (modal.mode === "newItem" && form.item.trim()) await supabase.from("uniforme_items").insert({ uniforme_id: modal.u.id, item: form.item.trim() });
-    else if (modal.mode === "editItem" && form.item.trim()) await supabase.from("uniforme_items").update({ item: form.item.trim() }).eq("id", modal.it.id);
+    // uniformes.colegio_id es NOT NULL (multi-colegio): sin él, el alta
+    // fallaba en silencio y la categoría nueva nunca aparecía.
+    let error = null;
+    if (modal.mode === "newU" && form.tipo.trim()) ({ error } = await supabase.from("uniformes").insert({ tipo: form.tipo.trim(), emoji: form.emoji || "👕", colegio_id: colegioId }));
+    else if (modal.mode === "editU") ({ error } = await supabase.from("uniformes").update({ tipo: form.tipo.trim(), emoji: form.emoji || "👕" }).eq("id", modal.u.id));
+    else if (modal.mode === "newItem" && form.item.trim()) ({ error } = await supabase.from("uniforme_items").insert({ uniforme_id: modal.u.id, item: form.item.trim() }));
+    else if (modal.mode === "editItem" && form.item.trim()) ({ error } = await supabase.from("uniforme_items").update({ item: form.item.trim() }).eq("id", modal.it.id));
     setSaving(false);
+    if (error) { Alert.alert("No se pudo guardar", error.message); return; }
     setModal(null);
     cargar();
   };
@@ -2284,6 +2369,16 @@ function UploadApoderadosExcel({ onDone }) {
 }
 
 const styles = StyleSheet.create({
+  colegioSelector: { marginTop: 10, marginBottom: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  colegioSelectorLbl: { fontSize: 10, fontWeight: "800", color: "#94A3B8", letterSpacing: 0.8 },
+  colegioSelectorTxt: { fontSize: 15, fontWeight: "700", color: "#0F172A", marginTop: 2 },
+  colegioOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "center", padding: 24 },
+  colegioSheet: { backgroundColor: "white", borderRadius: 16, padding: 16, maxHeight: "70%" },
+  colegioLista: { marginTop: 8 },
+  colegioOpcion: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10 },
+  colegioOpcionActiva: { backgroundColor: "#EFF6FF" },
+  colegioOpcionTxt: { fontSize: 14, color: "#0F172A" },
+  colegioOpcionTxtActiva: { fontWeight: "700", color: "#2563EB" },
   screen: { flex: 1, backgroundColor: T.bg },
   content: { padding: 16, paddingBottom: 40 },
   flex1: { flex: 1 },
