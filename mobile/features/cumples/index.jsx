@@ -26,6 +26,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, fmtF, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
+import { ajustarEdades, edadesParaGuardar, fmtEdadesHermanos } from "@shared/festejos";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -894,6 +895,8 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
   const [guardando, setGuardando] = useState(false);
   const [comentarios, setComentarios] = useState({});
   const [hermanos, setHermanos] = useState({});
+  const [edades, setEdades] = useState({}); // {hijoId: ["3","6"]} — una por hermano
+  const [errorEdades, setErrorEdades] = useState({}); // {hijoId: mensaje}
   const [adultos, setAdultos] = useState({});
   const [exportMsg, setExportMsg] = useState("");
 
@@ -910,49 +913,56 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
-    const coms = {}, herm = {}, adul = {};
+    const coms = {}, herm = {}, adul = {}, eds = {};
     rows.forEach((r) => {
       if (misHijos.includes(r.alumno_invitado_id)) {
         coms[r.alumno_invitado_id] = r.comentario || "";
         herm[r.alumno_invitado_id] = Number(r.hermanos) || 0;
         adul[r.alumno_invitado_id] = Number(r.adultos) || 0;
+        eds[r.alumno_invitado_id] = ajustarEdades(r.hermanos_edades || [], herm[r.alumno_invitado_id]);
       }
     });
     setComentarios(coms);
     setHermanos(herm);
     setAdultos(adul);
+    setEdades(eds);
   }, [evento.id, misHijos]);
 
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
 
+  // Hermanos/adultos/comentario de un hijo, listos para guardar — o null si
+  // alguna edad es inválida (la edad es opcional, pero si se carga tiene que ser válida).
+  const extrasDe = (alumnoId) => {
+    const v = edadesParaGuardar(hermanos[alumnoId] ?? 0, edades[alumnoId]);
+    setErrorEdades((p) => ({ ...p, [alumnoId]: v.ok ? null : v.error }));
+    if (!v.ok) return null;
+    return {
+      comentario: comentarios[alumnoId] || null,
+      hermanos: hermanos[alumnoId] ?? 0,
+      hermanos_edades: v.edades,
+      adultos: adultos[alumnoId] ?? 0,
+    };
+  };
+
   const responder = async (alumnoId, asiste) => {
     setAsistencia((prev) => prev.map((r) => (r.alumno_invitado_id === alumnoId ? { ...r, asiste } : r)));
+    // Si alguna edad es inválida, se guarda la respuesta igual y los extras quedan para "Guardar".
+    const extras = extrasDe(alumnoId);
     await supabase
       .from("evento_asistencia")
-      .update({
-        asiste,
-        comentario: comentarios[alumnoId] || null,
-        hermanos: hermanos[alumnoId] ?? 0,
-        adultos: adultos[alumnoId] ?? 0,
-      })
+      .update({ asiste, ...(extras || {}) })
       .eq("evento_id", evento.id)
       .eq("alumno_invitado_id", alumnoId);
     onUpdate?.();
   };
 
   const guardarExtras = async (alumnoId) => {
+    const extras = extrasDe(alumnoId);
+    if (!extras) return;
     setGuardando(true);
-    await supabase
-      .from("evento_asistencia")
-      .update({
-        comentario: comentarios[alumnoId] || null,
-        hermanos: hermanos[alumnoId] ?? 0,
-        adultos: adultos[alumnoId] ?? 0,
-      })
-      .eq("evento_id", evento.id)
-      .eq("alumno_invitado_id", alumnoId);
+    await supabase.from("evento_asistencia").update(extras).eq("evento_id", evento.id).eq("alumno_invitado_id", alumnoId);
     await cargarDatos();
     setGuardando(false);
     onClose();
@@ -961,6 +971,8 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
   const setNumero = (setter, alumnoId, val) => {
     const n = Math.max(0, parseInt(val, 10) || 0);
     setter((p) => ({ ...p, [alumnoId]: n }));
+    // Hermanos: tantos casilleros de edad como hermanos.
+    if (setter === setHermanos) setEdades((p) => ({ ...p, [alumnoId]: ajustarEdades(p[alumnoId], n) }));
   };
 
   const dedupAsistencia = (rows) => {
@@ -990,6 +1002,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
           Alumno: al ? `${al.nombre} ${al.apellido || ""}`.trim() : "--",
           Asistencia: ESTADO_LABEL[a.asiste] || "Pendiente",
           Hermanos: Number(a.hermanos) || 0,
+          "Edades hermanos": fmtEdadesHermanos(a.hermanos_edades),
           Adultos: Number(a.adultos) || 0,
           Comentario: a.comentario || "",
         };
@@ -1097,6 +1110,33 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
                       </View>
                     ))}
                   </View>
+                  {hVal > 0 ? (
+                    <View style={styles.edadesWrap}>
+                      <Text style={styles.contLabel}>{hVal === 1 ? "Edad del hermano" : "Edad de cada hermano"} (años, opcional)</Text>
+                      <View style={styles.edadesRow}>
+                        {ajustarEdades(edades[hid], hVal).map((e, i) => (
+                          <TextInput
+                            key={i}
+                            value={e}
+                            onChangeText={(v) => {
+                              setEdades((p) => {
+                                const l = ajustarEdades(p[hid], hVal);
+                                l[i] = v.replace(/[^0-9]/g, "");
+                                return { ...p, [hid]: l };
+                              });
+                              setErrorEdades((p) => ({ ...p, [hid]: null }));
+                            }}
+                            placeholder={hVal > 1 ? `#${i + 1}` : "Edad"}
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="number-pad"
+                            maxLength={2}
+                            style={[styles.edadInput, errorEdades[hid] ? styles.edadInputError : null]}
+                          />
+                        ))}
+                      </View>
+                      {errorEdades[hid] ? <Text style={styles.edadError}>{errorEdades[hid]}</Text> : null}
+                    </View>
+                  ) : null}
                   <Text style={styles.contLabel}>Comentario</Text>
                   <TextInput
                     value={comentarios[hid] || ""}
@@ -1150,7 +1190,9 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
                         <Text style={styles.resumenNombre}>{al ? `${al.nombre} ${al.apellido}` : "--"}</Text>
                         <View style={styles.resumenExtras}>
                           {(Number(a.hermanos) || 0) > 0 ? (
-                            <Text style={[styles.resumenExtra, { color: "#8B5CF6" }]}>{a.hermanos} herm.</Text>
+                            <Text style={[styles.resumenExtra, { color: "#8B5CF6" }]}>
+                              {a.hermanos} herm.{a.hermanos_edades?.length ? ` (${fmtEdadesHermanos(a.hermanos_edades)})` : ""}
+                            </Text>
                           ) : null}
                           {(Number(a.adultos) || 0) > 0 ? (
                             <Text style={[styles.resumenExtra, { color: "#F59E0B" }]}>{a.adultos} adultos</Text>
@@ -1261,6 +1303,11 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
 
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown por urgencia.
 const styles = StyleSheet.create({
+  edadesWrap: { marginBottom: 10 },
+  edadesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  edadInput: { width: 56, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 7, textAlign: "center", fontSize: 14, color: "#0F172A", backgroundColor: "white" },
+  edadInputError: { borderColor: "#EF4444" },
+  edadError: { fontSize: 11.5, color: "#EF4444", marginTop: 4 },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },

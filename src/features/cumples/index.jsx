@@ -5,6 +5,7 @@ import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtF, fmtNombre, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
+import { ajustarEdades, edadesParaGuardar, fmtEdadesHermanos, EDAD_MAX_HERMANO } from "../../lib/festejos";
 import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
@@ -722,6 +723,7 @@ function exportarExcel({ evento, asistenciaDedup, alumnos }) {
       "Alumno":    al ? `${al.nombre} ${al.apellido}` : "--",
       "Asistencia": ESTADO[a.asiste] || "Pendiente",
       "Hermanos":  Number(a.hermanos) || 0,
+      "Edades hermanos": fmtEdadesHermanos(a.hermanos_edades),
       "Adultos":   Number(a.adultos)  || 0,
       "Comentario": a.comentario || "",
     };
@@ -738,6 +740,7 @@ function exportarExcel({ evento, asistenciaDedup, alumnos }) {
     "Alumno": "TOTAL CONFIRMADOS",
     "Asistencia": confirmados.length,
     "Hermanos": confirmados.reduce((s,a) => s + (Number(a.hermanos)||0), 0),
+    "Edades hermanos": "",
     "Adultos":  confirmados.reduce((s,a) => s + (Number(a.adultos)||0),  0),
     "Comentario": "",
   });
@@ -758,6 +761,8 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
   const [guardando,  setGuardando]  = useState(false);
   const [comentarios, setComentarios] = useState({});
   const [hermanos,    setHermanos]    = useState({});
+  const [edades,      setEdades]      = useState({}); // {hijoId: ["3","6"]} — una por hermano
+  const [errorEdades, setErrorEdades] = useState({}); // {hijoId: mensaje}
   const [adultos,     setAdultos]     = useState({});
   const [imgZoom,    setImgZoom]    = useState(false);
 
@@ -773,30 +778,44 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
     }
     setAlumnos(alumnosMap);
     setAsistencia(rows);
-    const coms={}, herm={}, adul={};
+    const coms={}, herm={}, adul={}, eds={};
     rows.forEach(r=>{
       if(misHijos.includes(r.alumno_invitado_id)){
         coms[r.alumno_invitado_id]  = r.comentario||"";
         herm[r.alumno_invitado_id]  = r.hermanos!=null ? Number(r.hermanos)||0 : 0;
         adul[r.alumno_invitado_id]  = r.adultos!=null  ? Number(r.adultos)||0  : 0;
+        eds[r.alumno_invitado_id]   = ajustarEdades(r.hermanos_edades||[], herm[r.alumno_invitado_id]);
       }
     });
-    setComentarios(coms); setHermanos(herm); setAdultos(adul);
+    setComentarios(coms); setHermanos(herm); setAdultos(adul); setEdades(eds);
   }, [evento.id, misHijos]);;
   useCargar(cargarDatos);
 
+  // Hermanos/adultos/comentario de un hijo, listos para guardar — o el error si
+  // alguna edad es inválida (la edad es opcional, pero si se carga tiene que ser válida).
+  const extrasDe = (alumnoId) => {
+    const v = edadesParaGuardar(hermanos[alumnoId]??0, edades[alumnoId]);
+    setErrorEdades(p=>({...p,[alumnoId]: v.ok ? null : v.error}));
+    if(!v.ok) return null;
+    return { comentario:comentarios[alumnoId]||null, hermanos:hermanos[alumnoId]??0, hermanos_edades:v.edades, adultos:adultos[alumnoId]??0 };
+  };
+
   const responder = async (alumnoId, asiste) => {
     setAsistencia(prev => prev.map(r => r.alumno_invitado_id===alumnoId ? {...r, asiste} : r));
+    // Si alguna edad es inválida, se guarda la respuesta igual y los extras quedan para "Guardar".
+    const extras = extrasDe(alumnoId);
     await supabase.from("evento_asistencia")
-      .update({ asiste, comentario:comentarios[alumnoId]||null, hermanos:hermanos[alumnoId]??0, adultos:adultos[alumnoId]??0 })
+      .update({ asiste, ...(extras||{}) })
       .eq("evento_id", evento.id).eq("alumno_invitado_id", alumnoId);
     onUpdate?.();
   };
 
   const guardarExtras = async (alumnoId) => {
+    const extras = extrasDe(alumnoId);
+    if(!extras) return;
     setGuardando(true);
     await supabase.from("evento_asistencia")
-      .update({ comentario:comentarios[alumnoId]||null, hermanos:hermanos[alumnoId]??0, adultos:adultos[alumnoId]??0 })
+      .update(extras)
       .eq("evento_id", evento.id).eq("alumno_invitado_id", alumnoId);
     await cargarDatos();
     setGuardando(false);
@@ -806,6 +825,8 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
   const setNumero = (setter, alumnoId, val) => {
     const n = Math.max(0, parseInt(val)||0);
     setter(p=>({...p,[alumnoId]:n}));
+    // Hermanos: tantos casilleros de edad como hermanos.
+    if(setter===setHermanos) setEdades(p=>({...p,[alumnoId]:ajustarEdades(p[alumnoId],n)}));
   };
 
   const dedupAsistencia = (rows) => {
@@ -897,6 +918,19 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
                   </div>
                 </div>
               </div>
+              {hVal>0&&(
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:6}}>{hVal===1?"Edad del hermano":"Edad de cada hermano"} (años, opcional)</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {ajustarEdades(edades[hid],hVal).map((e,i)=>(
+                      <input key={i} type="number" min="0" max={EDAD_MAX_HERMANO} value={e} placeholder={hVal>1?`#${i+1}`:"Edad"}
+                        onChange={ev=>{ const v=ev.target.value; setEdades(p=>{ const l=ajustarEdades(p[hid],hVal); l[i]=v; return {...p,[hid]:l}; }); setErrorEdades(p=>({...p,[hid]:null})); }}
+                        style={{...inpNum,width:58,borderColor:errorEdades[hid]?"#EF4444":undefined}}/>
+                    ))}
+                  </div>
+                  {errorEdades[hid]&&<div style={{fontSize:11.5,color:"#EF4444",marginTop:5}}>{errorEdades[hid]}</div>}
+                </div>
+              )}
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>Comentario</div>
                 <input value={comentarios[hid]||""} onChange={e=>setComentarios(p=>({...p,[hid]:e.target.value}))} placeholder="Alergias, restricciones, etc." style={inp}/>
@@ -941,7 +975,7 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
                   <div key={i} style={{padding:"8px 10px",background:bg,borderRadius:10,marginBottom:5}}>
                     <div style={{fontSize:13,fontWeight:600}}>{al?`${al.nombre} ${al.apellido}`:"--"}</div>
                     <div style={{display:"flex",gap:10,marginTop:3,flexWrap:"wrap"}}>
-                      {(Number(a.hermanos)||0)>0&&<span style={{fontSize:11,color:"#8B5CF6",fontWeight:600}}>{Number(a.hermanos)} herm.</span>}
+                      {(Number(a.hermanos)||0)>0&&<span style={{fontSize:11,color:"#8B5CF6",fontWeight:600}}>{Number(a.hermanos)} herm.{a.hermanos_edades?.length?` (${fmtEdadesHermanos(a.hermanos_edades)})`:""}</span>}
                       {(Number(a.adultos)||0)>0&&<span style={{fontSize:11,color:"#F59E0B",fontWeight:600}}>{Number(a.adultos)} adultos</span>}
                       {a.comentario&&<span style={{fontSize:11,color:"#94A3B8"}}>{a.comentario}</span>}
                     </div>
