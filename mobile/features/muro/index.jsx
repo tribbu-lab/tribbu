@@ -34,6 +34,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
+import { filtroAlcance, encontradosDeLaSemana } from "@shared/perdidos";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -202,6 +203,21 @@ export function Muro() {
       encuestasPend = encuestasActivas.filter((e) => !votadas.has(e.id));
     }
 
+    // Perdidos y encontrados: cuántos objetos aparecieron esta semana en mis cursos / colegio.
+    let encontradosSemana = 0;
+    {
+      const { data: cc } = await supabase.from("cursos").select("colegio_id").in("id", cursosScope);
+      const colegios = [...new Set((cc || []).map((c) => c.colegio_id))];
+      const { data: objs } = await supabase
+        .from("objetos_perdidos")
+        .select("id,tipo,estado,vence_en,creado_en,publicado_por")
+        .or(filtroAlcance(cursosScope, colegios))
+        .eq("tipo", "encontrado")
+        .eq("estado", "abierto")
+        .gte("creado_en", new Date(Date.now() - 7 * 86400000).toISOString());
+      encontradosSemana = encontradosDeLaSemana(objs || [], userId);
+    }
+
     // Autorizaciones abiertas con algún hijo mío sin responder.
     let autorizacionesPend = [];
     if (misHijosIds.length) {
@@ -230,6 +246,7 @@ export function Muro() {
       invitaciones,
       encuestasPend,
       autorizacionesPend,
+      encontradosSemana,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
     setError(false);
@@ -484,6 +501,19 @@ export function Muro() {
         </View>
       )}
 
+      {datos.encontradosSemana > 0 ? (
+        <Pressable onPress={() => router.push("/(tabs)/perdidos")} style={styles.perdidosCard}>
+          <Text style={styles.perdidosEmoji}>🧦</Text>
+          <Text style={styles.perdidosTxt}>
+            <Text style={styles.perdidosNum}>
+              {datos.encontradosSemana} {datos.encontradosSemana === 1 ? "objeto encontrado" : "objetos encontrados"}
+            </Text>{" "}
+            esta semana · ¿es de tu hijo?
+          </Text>
+          <Text style={styles.perdidosVer}>Ver</Text>
+        </Pressable>
+      ) : null}
+
       {/* ── Próximos 15 días ── */}
       <Text style={styles.label}>Próximos 15 días</Text>
       <View style={styles.card}>
@@ -656,6 +686,11 @@ function AlertaModal({ visible, onClose, onEnviar }) {
 
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown protagonista.
 const styles = StyleSheet.create({
+  perdidosCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, marginTop: SPACE.md, borderRadius: 14, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  perdidosEmoji: { fontSize: 20 },
+  perdidosTxt: { flex: 1, fontSize: 13, color: t.text },
+  perdidosNum: { fontWeight: "800" },
+  perdidosVer: { fontSize: 12.5, fontWeight: "700", color: t.accent },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },

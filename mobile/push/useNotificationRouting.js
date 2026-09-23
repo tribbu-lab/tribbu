@@ -14,6 +14,7 @@ export const TAB_MAP = {
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
   autorizacion: "/(tabs)/autorizaciones",
+  perdido: "/(tabs)/perdidos",
   resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
 };
 

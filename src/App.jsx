@@ -23,6 +23,7 @@ import { AdminPanel }      from "./features/admin";
 import { SuperAdmin }      from "./features/superadmin";
 import { Encuestas }       from "./features/encuestas";
 import { Autorizaciones }  from "./features/autorizaciones";
+import { Perdidos }        from "./features/perdidos";
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 import { BusquedaGlobal }  from "./features/buscar";
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
@@ -40,7 +41,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","contacto","admin"]);
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","contacto","admin"]);
 const tabDeUrl = () => {
   try {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -56,6 +57,7 @@ const TAB_MAP = {
   festejo:      "cumples",
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
+  perdido:      "perdidos",
   resumen:      "muro", // resumen semanal (avisos-automaticos)
 };
 
@@ -477,6 +479,7 @@ function App() {
     {id:"recordatorios", label:"Avisos", emoji:"📌"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"autorizaciones",label:"Autorizaciones",emoji:"✍️"},
+    {id:"perdidos",      label:"Perdidos",      emoji:"🧦"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
@@ -506,6 +509,7 @@ function App() {
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
+      case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
       case "autorizaciones": return <Autorizaciones cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;

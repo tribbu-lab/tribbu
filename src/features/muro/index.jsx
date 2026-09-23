@@ -25,6 +25,7 @@ const TIPO_CONFIG = {
 
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
+import { filtroAlcance, encontradosDeLaSemana } from "../../lib/perdidos";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
@@ -88,6 +89,16 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
     ]);
+    // Perdidos y encontrados: cuántos objetos aparecieron esta semana en mis cursos / colegio.
+    let encontradosSemana = 0;
+    {
+      const { data: cc } = await supabase.from("cursos").select("colegio_id").in("id",cursoIds);
+      const colegios = [...new Set((cc||[]).map(c=>c.colegio_id))];
+      const { data: objs } = await supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
+        .or(filtroAlcance(cursoIds, colegios)).eq("tipo","encontrado").eq("estado","abierto")
+        .gte("creado_en", new Date(Date.now()-7*86400000).toISOString());
+      encontradosSemana = encontradosDeLaSemana(objs||[], userId);
+    }
     // Autorizaciones abiertas con algún hijo mío sin responder.
     let autorizacionesPend = [];
     if(misHijos.length) {
@@ -144,7 +155,7 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
     const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
     // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
     const invitaciones = festejosPendientes((invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), fechaHoy);
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, autorizacionesPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, autorizacionesPend, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
@@ -359,6 +370,14 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
           </div>
         )}
       </div>
+
+      {datos.encontradosSemana>0&&(
+        <button onClick={()=>onNavigate?.("perdidos")} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"11px 14px",marginBottom:18,borderRadius:14,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",textAlign:"left"}}>
+          <span style={{fontSize:20}}>🧦</span>
+          <span style={{flex:1,fontSize:13,color:"#0F172A"}}><b>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana en tu curso · ¿es de tu hijo?</span>
+          <span style={{fontSize:12,fontWeight:700,color:"#3B82F6"}}>Ver</span>
+        </button>
+      )}
 
       {/* Próximos 15 días: eventos + cumpleaños unificados por proximidad. */}
       <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8",marginBottom:11}}>Próximos 15 días</div>

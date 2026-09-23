@@ -15,7 +15,9 @@
 //       hijo de ese curso sin responder.
 //   ?modo=semanal  (domingos, 18:00 Argentina)
 //     - Resumen de la semana por familia: eventos, colectas por vencer y
-//       cumpleaños de los próximos 7 días. Si no hay nada, no se manda.
+//       cumpleaños de los próximos 7 días, y objetos encontrados publicados en
+//       la última semana (Perdidos y encontrados) en sus cursos / colegio. Si
+//       no hay nada, no se manda.
 //
 // Cada aviso queda anotado en avisos_automaticos_log (clave única), así que
 // si el cron corre dos veces el mismo día no se repite nada. Cada familia
@@ -263,12 +265,17 @@ async function semanal(sb: SupabaseClient) {
   const hasta = masDias(hoy, 7); // domingo
   const [ctx, prefs] = await Promise.all([cargarContexto(sb), cargarPreferencias(sb)]);
 
-  const [{ data: eventos }, { data: colectas }, { data: hijos }, { data: maestros }] = await Promise.all([
+  const hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const [{ data: eventos }, { data: colectas }, { data: hijos }, { data: maestros }, { data: encontrados }, { data: cursosCol }] = await Promise.all([
     sb.from("eventos").select("id,titulo,tipo,fecha,hora,curso_id,alumno_id,creado_por").gte("fecha", desde).lte("fecha", hasta),
     sb.from("colectas").select("id,titulo,curso_id,vencimiento,activa").eq("activa", true).gte("vencimiento", desde).lte("vencimiento", hasta),
     sb.from("hijos").select("id,curso_id,fecha_nacimiento").not("fecha_nacimiento", "is", null),
     sb.from("maestro_cursos").select("curso_id, maestros(id,fecha_nacimiento)"),
+    sb.from("objetos_perdidos").select("id,curso_id,colegio_id,alcance,publicado_por")
+      .eq("tipo", "encontrado").eq("estado", "abierto").gt("vence_en", new Date().toISOString()).gte("creado_en", hace7),
+    sb.from("cursos").select("id,colegio_id"),
   ]);
+  const colegioDe = new Map((cursosCol || []).map((c) => [c.id, c.colegio_id]));
   const ev = (eventos || []).filter((e) => e.tipo !== "cumple");
   const destEv = await destinatariosDeEventos(ctx, ev);
   const impagos = await impagosDeColectas(ctx, colectas || []);
@@ -299,10 +306,14 @@ async function semanal(sb: SupabaseClient) {
     const nColectas = (colectas || []).filter((c) => impagos.get(c.id)?.has(u)).length;
     const cumples = new Set<string>();
     for (const c of cursos) (cumplesPorCurso.get(c) || new Set()).forEach((x) => cumples.add(x));
+    const colegiosU = new Set([...cursos].map((c) => colegioDe.get(c)));
+    const nEncontrados = (encontrados || []).filter((o) =>
+      o.publicado_por !== u && (o.alcance === "curso" ? cursos.has(o.curso_id) : colegiosU.has(o.colegio_id))).length;
     const partes = [
       nEventos ? `${nEventos} ${nEventos === 1 ? "evento" : "eventos"}` : null,
       nColectas ? `${nColectas} ${nColectas === 1 ? "colecta por pagar" : "colectas por pagar"}` : null,
       cumples.size ? `${cumples.size} ${cumples.size === 1 ? "cumple" : "cumples"}` : null,
+      nEncontrados ? `${nEncontrados} ${nEncontrados === 1 ? "objeto encontrado" : "objetos encontrados"}` : null,
     ].filter(Boolean);
     if (!partes.length || !quiere(prefs, u, "resumen_semanal")) continue;
     if (!(await primeraVez(sb, `semanal:${semana}:${u}`))) continue;

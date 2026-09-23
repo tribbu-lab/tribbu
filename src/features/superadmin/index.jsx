@@ -15,6 +15,7 @@ import { LecturasModal } from "../../components/Lecturas";
 import { unirLecturasPorFamilia } from "../../lib/lecturas";
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
+import { PerdidosColegio } from "../perdidos";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal } from "../../components";
 import { EmojiPicker } from "../shared";
@@ -68,6 +69,7 @@ const SECCIONES = [
     {id:"alertas",l:"🚨 Alertas"},
     {id:"comunicaciones",l:"📢 Comunicaciones"},
     {id:"autorizaciones",l:"✍️ Autorizaciones"},
+    {id:"perdidos",l:"🧦 Perdidos y encontrados"},
     {id:"adopcion",l:"📈 Adopción"},
   ]},
   { grupo: "Colegio", items: [
@@ -93,6 +95,7 @@ const SECCION_INFO = {
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
+  perdidos:       { titulo:"Perdidos y encontrados", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
@@ -1594,6 +1597,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="comunicaciones"&&(
         <ComunicacionesAdmin cursos={cursosAnoActual}/>
+      )}
+      {sec==="perdidos"&&(
+        <PerdidosColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
       )}
       {sec==="autorizaciones"&&(
         <AutorizacionesColegio cursos={cursosAnoActual} userId={usuario?.id}/>
