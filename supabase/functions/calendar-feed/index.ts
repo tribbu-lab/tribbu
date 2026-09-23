@@ -8,8 +8,8 @@
 // aviso/texto, no algo agendable, así que no entra acá (queda solo en el tab
 // de Recordatorios). Cada VEVENT lleva el nombre del curso en el SUMMARY para
 // que un apoderado con hijos en más de un curso pueda diferenciarlos.
-// Los festejos son eventos con tipo="festejo", así que entran con el resto
-// de los eventos del curso (igual que en el calendario de la app).
+// Los festejos son eventos con tipo="festejo": entran solo los que le tocan
+// al usuario (invitado, familia del cumpleañero o creador — ver leToca).
 //
 // Cada lectura queda registrada en usuario_calendar_tokens (leido_en /
 // leido_por, y google_leido_en si el User-Agent es el importador de Google
@@ -242,9 +242,25 @@ serve(async (req) => {
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${usuario.id}`),
     ]);
 
+    // Festejos: solo los que le tocan (mismo criterio que la RLS eventos_select
+    // de supabase/festejos-solo-invitados.sql — acá leemos con service role,
+    // así que hay que aplicarlo a mano): invitado (por hijo o directo), familia
+    // del cumpleañero, o quien lo creó.
+    const festejoIds = ((eventos || []) as (Evento & { tipo?: string })[]).filter((e) => e.tipo === "festejo").map((e) => e.id);
+    const invitadoA = new Set<string>();
+    if (festejoIds.length) {
+      const filtroInvitado = hijoIds.length
+        ? `usuario_id.eq.${usuario.id},alumno_invitado_id.in.(${hijoIds.join(",")})`
+        : `usuario_id.eq.${usuario.id}`;
+      const { data: inv } = await supabase.from("evento_asistencia").select("evento_id").in("evento_id", festejoIds).or(filtroInvitado);
+      for (const r of inv || []) invitadoA.add(r.evento_id);
+    }
+    const leToca = (e: Evento & { tipo?: string; creado_por?: string | null; alumno_id?: string | null }) =>
+      e.tipo !== "festejo" || e.creado_por === usuario.id || (!!e.alumno_id && hijoIds.includes(e.alumno_id)) || invitadoA.has(e.id);
+
     const vevents: string[] = [];
 
-    for (const e of (eventos || []) as Evento[]) {
+    for (const e of ((eventos || []) as Evento[]).filter(leToca)) {
       vevents.push(buildEventoVevent(e, nombrePorCurso.get(e.curso_id) || ""));
     }
     for (const r of (recordatorios || []) as Recordatorio[]) {
