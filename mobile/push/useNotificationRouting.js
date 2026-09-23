@@ -13,6 +13,7 @@ export const TAB_MAP = {
   alerta: "/(tabs)/muro",
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
+  resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
 };
 
 // Además del tab, arma los params de deep-link específicos por tipo (mismo

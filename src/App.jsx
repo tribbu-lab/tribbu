@@ -53,6 +53,7 @@ const TAB_MAP = {
   alerta:       "muro",
   festejo:      "cumples",
   encuesta:     "encuestas",
+  resumen:      "muro", // resumen semanal (avisos-automaticos)
 };
 
 // Inicializar OneSignal via import dinámico con reintentos
