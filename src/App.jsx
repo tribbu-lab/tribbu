@@ -33,6 +33,19 @@ let _OS = null;
 window._tribbuPendingTab = null;
 window._tribbuUserId = null;
 
+// La pestaña activa vive también en la URL (`/app?tab=clases`): se puede
+// compartir/guardar el link a una sección, y el botón "atrás" del navegador
+// vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
+// el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
+// "muro" es la home y no lleva parámetro.
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","contacto","admin"]);
+const tabDeUrl = () => {
+  try {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return TABS_VALIDOS.has(t) ? t : null;
+  } catch { return null; }
+};
+
 const TAB_MAP = {
   recordatorio: "recordatorios",
   evento:       "clases",
@@ -104,7 +117,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 function App() {
   const [usuario,       setUsuario]       = useState(null);
   const [authLoading,   setAuthLoading]   = useState(true);
-  const [tab,           setTab]           = useState("muro");
+  const [tab,           setTab]           = useState(() => tabDeUrl() || "muro");
   const [openColecta,   setOpenColecta]   = useState(null);
   const [openFecha,     setOpenFecha]     = useState(null);
   const [cursoIdx,      setCursoIdx]      = useState(0);
@@ -298,6 +311,25 @@ function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  // Pestaña → URL. Tras un "atrás" la URL ya coincide con la pestaña que
+  // restaura popstate, así que no se vuelve a apilar (no hace falta flag).
+  useEffect(() => {
+    if(!usuario) return;
+    if((tabDeUrl() || "muro") === tab) return;
+    try {
+      const url = new URL(window.location.href);
+      if(tab === "muro") url.searchParams.delete("tab"); else url.searchParams.set("tab", tab);
+      window.history.pushState({ tab }, "", url.pathname + url.search + url.hash);
+    } catch { /* noop */ }
+  }, [tab, usuario]);
+
+  // URL → pestaña ("atrás"/"adelante" del navegador).
+  useEffect(() => {
+    const onPop = () => setTab(tabDeUrl() || "muro");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // Deep link: escuchar evento de navegación desde notificación push
   useEffect(() => {
     const handler = (e) => {
@@ -329,7 +361,8 @@ function App() {
     setUsuario(u);
     // Si hay un tab pendiente de una notificación, navegar ahí en lugar del muro
     const pendingTab = window._tribbuPendingTab;
-    setTab(pendingTab || "muro");
+    // Un link a una sección abierto sin sesión: después del login, ir ahí.
+    setTab(pendingTab || tabDeUrl() || "muro");
     if(pendingTab) window._tribbuPendingTab = null;
     setCursoIdx(0);
     setItems([]);
@@ -455,7 +488,9 @@ function App() {
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     const misHijosActivos = items.filter(i=>i._tipo==="hijo").map(i=>i.id);
-    switch(tab) {
+    // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
+    // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
+    switch(tab === "admin" && !isAdmin ? "muro" : tab) {
       case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
