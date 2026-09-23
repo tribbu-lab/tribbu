@@ -69,7 +69,7 @@ const SECCIONES = [
     {id:"alertas",l:"🚨 Alertas"},
     {id:"comunicaciones",l:"📢 Comunicaciones"},
     {id:"autorizaciones",l:"✍️ Autorizaciones"},
-    {id:"perdidos",l:"🧦 Perdidos y encontrados"},
+    {id:"perdidos",l:"🧦 Lost&Found"},
     {id:"adopcion",l:"📈 Adopción"},
   ]},
   { grupo: "Colegio", items: [
@@ -95,7 +95,7 @@ const SECCION_INFO = {
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
-  perdidos:       { titulo:"Perdidos y encontrados", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
+  perdidos:       { titulo:"Lost&Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },

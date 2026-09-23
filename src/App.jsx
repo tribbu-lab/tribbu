@@ -479,7 +479,7 @@ function App() {
     {id:"recordatorios", label:"Avisos", emoji:"📌"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"autorizaciones",label:"Autorizaciones",emoji:"✍️"},
-    {id:"perdidos",      label:"Perdidos",      emoji:"🧦"},
+    {id:"perdidos",      label:"Lost&Found",    emoji:"🧦"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},

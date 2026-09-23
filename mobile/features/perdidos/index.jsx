@@ -174,7 +174,7 @@ export function Perdidos() {
           <View>
             <View style={styles.header}>
               <View style={styles.flex1}>
-                <Text style={styles.h1}>Perdidos y encontrados</Text>
+                <Text style={styles.h1}>Lost&amp;Found</Text>
                 <Text style={styles.sub}>Lo que se perdió y lo que apareció</Text>
               </View>
               {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setNuevo(true)} /> : null}
