@@ -43,3 +43,6 @@ mobile/.expo
 android/
 _temp/
 edge-functions/
+
+# Backups completos (backup_tribbu.cjs): datos + archivos de Storage
+tribbu_backup_*/
