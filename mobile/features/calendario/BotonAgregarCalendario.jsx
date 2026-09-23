@@ -17,7 +17,8 @@
 // ├──────────────────────────┼──────────────────────┼─────────────────────────┤
 // │ Google Calendar          │ suscripción guiada, idéntica en ambas: enlace  │
 // │                          │ (copiar / mail) + 5 pasos (4 compu + 1 cel)  + │
-// │                          │ "Ya lo agregué"                                │
+// │                          │ "Ya lo agregué" + confirmación real: el feed   │
+// │                          │ registra cuándo lo leyó Google                 │
 // └──────────────────────────┴────────────────────────────────────────────────┘
 //
 // Por qué cada celda es así:
@@ -63,6 +64,7 @@ import * as Clipboard from "expo-clipboard";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
+import { fmtHace } from "@shared/helpers";
 import { supabase } from "../../lib/supabase";
 import { Sheet } from "../../components/Sheet";
 import { prepararConexion, sincronizar, sincronizarSiConectado, desconectar } from "../../lib/calendarSync";
@@ -129,8 +131,13 @@ export default function BotonAgregarCalendario({ userId }) {
   // anterior en Android que resultó ser un falso positivo → "copia") y "1"
   // (previo a guardar el método → "copia"). No reutilizar esos valores.
   const [metodo, setMetodo] = useState(null);
+  // Última vez que Google Calendar leyó el feed (lo anota calendar-feed por
+  // User-Agent — supabase/calendar-feed-lecturas.sql). Es la única prueba
+  // real de que la suscripción de Google quedó andando: "Ya lo agregué" solo
+  // dice que el usuario cree haberla terminado.
+  const [googleLeidoEn, setGoogleLeidoEn] = useState(null);
   const conectadoDispositivo = esAndroid && metodo === "device";
-  const sincronizado = ["webcal", "gcal", "device", "suscripcion"].includes(metodo);
+  const sincronizado = !!googleLeidoEn || ["webcal", "gcal", "device", "suscripcion"].includes(metodo);
   const soloCopiado = ["copia", "google", "1"].includes(metodo);
 
   useEffect(() => {
@@ -155,11 +162,12 @@ export default function BotonAgregarCalendario({ userId }) {
         return;
       }
       try {
-        const { data, error } = await supabase.from("usuario_calendar_tokens").select("token").eq("usuario_id", userId).maybeSingle();
+        const { data, error } = await supabase.from("usuario_calendar_tokens").select("token, google_leido_en").eq("usuario_id", userId).maybeSingle();
         if (!activo) return;
         if (error) throw error;
         if (data?.token) {
           setToken(data.token);
+          setGoogleLeidoEn(data.google_leido_en || null);
         } else {
           const { data: nuevoToken, error: rpcErr } = await supabase.rpc("regenerar_calendar_token");
           if (!activo) return;
@@ -275,6 +283,8 @@ export default function BotonAgregarCalendario({ userId }) {
       const { data: nuevoToken, error } = await supabase.rpc("regenerar_calendar_token");
       if (error) throw error;
       setToken(nuevoToken);
+      // El enlace viejo deja de andar: la suscripción de Google hay que rehacerla.
+      setGoogleLeidoEn(null);
     } catch (e) {
       console.warn("No se pudo regenerar el enlace de calendario:", e?.message);
     } finally {
@@ -325,6 +335,19 @@ export default function BotonAgregarCalendario({ userId }) {
       );
     }
     if (destino === "google") {
+      if (googleLeidoEn) {
+        return (
+          <>
+            <View style={[styles.aviso, styles.avisoOk]}>
+              <Text style={styles.avisoTxt}>
+                ✓ Google Calendar ya está leyendo tu calendario (última vez {fmtHace(googleLeidoEn)}). Si no lo ves en la
+                app del celular: Configuración → Tribbu → activá “Sincronizar”.
+              </Text>
+            </View>
+            <View style={styles.row}>{botonCopiar()}</View>
+          </>
+        );
+      }
       return (
         <>
           <View style={styles.aviso}>
@@ -352,7 +375,11 @@ export default function BotonAgregarCalendario({ userId }) {
               <Text style={styles.btnGhostTxt}>Ya lo agregué</Text>
             </Pressable>
           )}
-          <Text style={styles.hintSmall}>Google puede tardar unas horas en mostrar los eventos por primera vez.</Text>
+          <Text style={styles.hintSmall}>
+            {metodo === "suscripcion" || metodo === "gcal"
+              ? "Google todavía no leyó tu calendario. La primera vez puede tardar unas horas; si mañana sigue igual, revisá que el paso 4 se haya completado en calendar.google.com."
+              : "Google puede tardar unas horas en mostrar los eventos por primera vez."}
+          </Text>
         </>
       );
     }
@@ -361,7 +388,13 @@ export default function BotonAgregarCalendario({ userId }) {
 
   return (
     <View style={styles.wrap}>
-      <Pressable onPress={() => setAbierto(true)} style={[styles.trigger, metodo && styles.triggerHecho]}>
+      <Pressable
+        onPress={() => {
+          // Si Google ya lo está leyendo, abrir directo en ese panel.
+          if (googleLeidoEn && !destino) setDestino("google");
+          setAbierto(true);
+        }}
+        style={[styles.trigger, metodo && styles.triggerHecho]}>
         <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>{labelTrigger}</Text>
       </Pressable>
 
@@ -482,6 +515,7 @@ const styles = StyleSheet.create({
   btnGhost: { alignSelf: "flex-start", borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 16, minHeight: 40, justifyContent: "center", marginTop: SPACE.md },
   btnGhostTxt: { color: t.textMuted, fontSize: 13, fontWeight: "700" },
   aviso: { backgroundColor: t.surfaceAlt || "#F1F5F9", borderRadius: RADIUS.md, padding: SPACE.sm, marginTop: SPACE.md },
+  avisoOk: { backgroundColor: t.successSoft, borderWidth: 1, borderColor: t.successBorder },
   avisoTxt: { fontSize: 12, color: t.text, lineHeight: 17 },
   pasos: { gap: 8, marginTop: SPACE.sm },
   paso: { flexDirection: "row", alignItems: "flex-start", gap: 8 },

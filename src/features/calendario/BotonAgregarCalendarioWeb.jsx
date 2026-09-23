@@ -22,6 +22,7 @@
 import { useEffect, useState } from "react";
 import { T } from "../../lib/theme";
 import { getRuntimeConfig } from "../../lib/runtimeConfig";
+import { fmtHace } from "../../lib/helpers";
 
 const claveSincronizado = (userId) => `calsync_${userId}`;
 
@@ -39,7 +40,11 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
   const [metodo, setMetodo] = useState(() => {
     try { return userId ? localStorage.getItem(claveSincronizado(userId)) : null; } catch { return null; }
   });
-  const sincronizado = metodo === "google";
+  // Última vez que Google Calendar leyó el feed (lo anota calendar-feed por
+  // User-Agent — supabase/calendar-feed-lecturas.sql): la prueba real de que
+  // la suscripción quedó andando, a diferencia de haber tocado el botón.
+  const [googleLeidoEn, setGoogleLeidoEn] = useState(null);
+  const sincronizado = !!googleLeidoEn || metodo === "google";
   const soloCopiado = metodo === "copia" || metodo === "1"; // "1" = legacy, previo a este fix
 
   const marcarSincronizado = (m) => {
@@ -57,13 +62,14 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
       try {
         const { data, error } = await supabase
           .from("usuario_calendar_tokens")
-          .select("token")
+          .select("token, google_leido_en")
           .eq("usuario_id", userId)
           .maybeSingle();
         if (!activo) return;
         if (error) throw error;
         if (data?.token) {
           setToken(data.token);
+          setGoogleLeidoEn(data.google_leido_en || null);
         } else {
           // Primera vez: se crea solo, sin pedirle nada al usuario.
           const { data: nuevoToken, error: rpcErr } = await supabase.rpc("regenerar_calendar_token");
@@ -123,6 +129,7 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
       const { data: nuevoToken, error } = await supabase.rpc("regenerar_calendar_token");
       if (error) throw error;
       setToken(nuevoToken);
+      setGoogleLeidoEn(null); // el enlace viejo deja de andar: hay que volver a suscribirse
     } catch (e) {
       console.warn("No se pudo regenerar el enlace de calendario:", e?.message);
     } finally {
@@ -171,6 +178,15 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
             <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.4, marginBottom: 16 }}>
               Los eventos de la escuela aparecerán en tu calendario y se actualizan solos. Google puede tardar unas horas en reflejar los cambios.
             </div>
+            {googleLeidoEn ? (
+              <div style={{ fontSize: 12, color: "#065F46", background: "#F0FDF4", border: "1px solid #A7F3D0", borderRadius: 10, padding: "8px 10px", lineHeight: 1.4, marginBottom: 12 }}>
+                ✓ Google Calendar ya está leyendo tu calendario (última vez {fmtHace(googleLeidoEn)}).
+              </div>
+            ) : metodo === "google" ? (
+              <div style={{ fontSize: 12, color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "8px 10px", lineHeight: 1.4, marginBottom: 12 }}>
+                Google todavía no leyó tu calendario. La primera vez puede tardar unas horas; si mañana sigue igual, volvé a tocar "Agregar a Google Calendar" y confirmá en la pantalla de Google.
+              </div>
+            ) : null}
             {/* La app de Google Calendar (Android) trae los calendarios suscritos con "Sincronizar" apagado. */}
             <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.4, marginBottom: 16 }}>
               ¿No lo ves en la app de Google Calendar del celular? Entrá a Configuración → Tribbu y activá "Sincronizar".

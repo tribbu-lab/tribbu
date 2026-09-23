@@ -8,7 +8,13 @@
 // aviso/texto, no algo agendable, así que no entra acá (queda solo en el tab
 // de Recordatorios). Cada VEVENT lleva el nombre del curso en el SUMMARY para
 // que un apoderado con hijos en más de un curso pueda diferenciarlos.
-// (Festejos todavía no está cubierto por este feed — pendiente.)
+// Los festejos son eventos con tipo="festejo", así que entran con el resto
+// de los eventos del curso (igual que en el calendario de la app).
+//
+// Cada lectura queda registrada en usuario_calendar_tokens (leido_en /
+// leido_por, y google_leido_en si el User-Agent es el importador de Google
+// Calendar — ver supabase/calendar-feed-lecturas.sql): así la app puede
+// confirmar que la suscripción de Google realmente quedó andando.
 //
 // Gateado únicamente por `?token=` (usuario_calendar_tokens.token, generado vía
 // la RPC regenerar_calendar_token — ver supabase/calendar-token-hardening.sql,
@@ -194,6 +200,15 @@ serve(async (req) => {
       .maybeSingle();
     if (!tokenRow) return new Response("Not found", { status: 404 });
     const usuario = { id: tokenRow.usuario_id };
+
+    // Registrar la lectura. Si falla no se corta el feed: servir el
+    // calendario importa más que el registro.
+    const userAgent = req.headers.get("user-agent") || "";
+    const ahora = new Date().toISOString();
+    const lectura: Record<string, string> = { leido_en: ahora, leido_por: userAgent.slice(0, 300) };
+    if (/Google-Calendar-Importer/i.test(userAgent)) lectura.google_leido_en = ahora;
+    const { error: errLectura } = await supabase.from("usuario_calendar_tokens").update(lectura).eq("usuario_id", usuario.id);
+    if (errLectura) console.warn("calendar-feed: no se pudo registrar la lectura:", errLectura.message);
 
     // Cursos vía hijos (dos pasos, sin depender de nombres de FK para el join anidado).
     const { data: uh } = await supabase.from("usuario_hijos").select("hijo_id").eq("usuario_id", usuario.id);

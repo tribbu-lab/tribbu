@@ -73,6 +73,17 @@ export const fmtRangoHora = (horaInicio, horaFin) => {
   return fin ? `${ini} – ${fin}` : ini;
 };
 
+/** Timestamp ISO pasado → "hace unos minutos" / "hace 3 horas" / "hace 2 días" */
+export const fmtHace = (iso) => {
+  if (!iso) return null;
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 60) return "hace unos minutos";
+  const horas = Math.round(min / 60);
+  if (horas < 24) return `hace ${horas} ${horas === 1 ? "hora" : "horas"}`;
+  const dias = Math.round(horas / 24);
+  return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
+};
+
 /** Días que faltan hasta una fecha (negativo = ya pasó) */
 export const dHasta = (s) => {
   const hoy = new Date();
