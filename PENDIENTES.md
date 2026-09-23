@@ -3,6 +3,22 @@
 Lista viva de lo que queda por hacer (última actualización: 2026-09-23).
 Tachá o borrá cada ítem cuando se resuelva.
 
+## ⚠️ Urgente
+
+- [ ] **Invalidar la service-role key vieja de Supabase.** Está en commits viejos
+      del repo (que es **público** en GitHub) y el 2026-09-23 se verificó que
+      **todavía funciona** (lee datos saltándose la RLS). Borrar el historial de
+      git no alcanza (ya está expuesta y puede haber copias): hay que rotarla en
+      Supabase.
+      Pasos (Supabase Dashboard → Project Settings → JWT Keys / API):
+      rotar el JWT secret legacy (invalida la anon y la service-role viejas y
+      desloguea a todos una vez) **o** pasar a las API keys nuevas y
+      deshabilitar las legacy. Después: actualizar `VITE_SUPABASE_ANON_KEY` en
+      Vercel y en `.env` / `mobile/.env` locales (el build de tiendas usa la
+      `sb_publishable_…` de `eas.json`, no se ve afectado).
+      Con la clave ya invalidada, limpiar el historial de git deja de ser
+      necesario.
+
 ## Para hacer a mano (no requiere código)
 
 - [ ] **Release a las tiendas 1.7.0.** Todo lo del 2026-09-23 está en la web pero
