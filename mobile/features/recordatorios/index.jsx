@@ -31,6 +31,8 @@ import { SelectChip } from "../../components/SelectChip";
 import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
+import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
+import { useLecturas } from "../../lib/useLecturas";
 import { useNotificacionesCtx } from "../notificaciones";
 
 // "18", "18:5", "1830", "18:30" → "18:30" · vacío → null · inválido → false.
@@ -73,7 +75,7 @@ const ORIGENES = [
   { value: "normal", label: "Apoderados" },
 ];
 
-const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, onLeido, onEditar, onEliminar }) {
+const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
   const [expandido, setExpandido] = useState(false);
   const esLargo = (r.texto || "").length > 150;
   const prio = PRIO[r.prioridad || "media"];
@@ -110,6 +112,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
           </View>
         ) : null}
         <AdjuntosList adjuntos={r.adjuntos} />
+        <ChipLecturas filas={lecturas} onPress={() => onVerLecturas(r)} />
       </View>
       <View style={styles.rowActions}>
         {esLeido ? (
@@ -147,6 +150,7 @@ export function Recordatorios() {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
+  const [verLecturas, setVerLecturas] = useState(null); // aviso con "¿quién lo leyó?" abierto
   const [form, setForm] = useState({ titulo: "", texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [], curso_id: null });
   const [saving, setSaving] = useState(false);
   const [filtroRango, setFiltroRango] = useState("all");
@@ -337,9 +341,18 @@ export function Recordatorios() {
   const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAG));
   const pagina_ = Math.min(pagina, totalPags);
   const visible = filtrados.slice((pagina_ - 1) * POR_PAG, pagina_ * POR_PAG);
+  // Confirmación de lectura: la RPC solo devuelve los avisos que este usuario
+  // puede auditar (propios, de su curso como Room Parent, o como colegio).
+  const lecturas = useLecturas(visible.map((r) => r.id));
 
   return (
     <View style={styles.screen}>
+      <LecturasSheet
+        visible={!!verLecturas}
+        titulo={verLecturas?.titulo || verLecturas?.texto}
+        filas={verLecturas ? lecturas[verLecturas.id] : null}
+        onClose={() => setVerLecturas(null)}
+      />
       <FlatList
         contentContainerStyle={styles.content}
         data={visible}
@@ -354,9 +367,11 @@ export function Recordatorios() {
               item.tipo !== "colecta_vence"
             }
             tag={tagDeCurso(item.curso_id)}
+            lecturas={lecturas[item.id]}
             onLeido={marcarLeido}
             onEditar={abrirEditar}
             onEliminar={eliminar}
+            onVerLecturas={setVerLecturas}
           />
         )}
         ListHeaderComponent={

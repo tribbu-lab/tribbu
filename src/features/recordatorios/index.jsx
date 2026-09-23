@@ -7,6 +7,8 @@ import { fmtRangoHora, fmtLocalDate, sanitize } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
+import { ChipLecturas, LecturasModal } from "../../components/Lecturas";
+import { useLecturas } from "../../hooks/useLecturas";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 
@@ -17,6 +19,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
+  const [verLecturas,   setVerLecturas]   = useState(null); // aviso cuyo "¿quién lo leyó?" está abierto
   const [form,          setForm]          = useState({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:null});
   const [saving,        setSaving]        = useState(false);
   const [subiendoAdj,   setSubiendoAdj]   = useState(false);
@@ -166,9 +169,13 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
   const pagina_ = Math.min(pagina,totalPags);
   const visible = filtrados.slice((pagina_-1)*POR_PAG, pagina_*POR_PAG);
+  // Confirmación de lectura: la RPC solo devuelve los avisos que este usuario
+  // puede auditar (propios, de su curso como Room Parent, o como colegio).
+  const lecturas = useLecturas(visible.map(r=>r.id));
 
   return (
     <div style={{maxWidth:900}}>
+      {verLecturas&&lecturas[verLecturas.id]&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={lecturas[verLecturas.id]} onClose={()=>setVerLecturas(null)}/>}
       <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Avisos</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos del curso</div>
 
@@ -349,6 +356,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
                   : <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
                 }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
+                <ChipLecturas filas={lecturas[r.id]} onClick={()=>setVerLecturas(r)}/>
               </div>
               <AdjuntosList adjuntos={r.adjuntos}/>
             </div>

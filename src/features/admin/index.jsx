@@ -5,6 +5,7 @@ import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtNombre } from "../../lib/helpers";
 import { Card } from "../../components/Card";
+import { AdopcionTabla } from "../../components/Adopcion";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
@@ -154,6 +155,13 @@ export function AdminPanel({ cursoId, cursoNombre }) {
         ))}
       </div>
 
+      {tab==="general"&&(
+        <Card style={{padding:20,marginBottom:14}}>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Adopción de la app</div>
+          <div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>Cuántas familias del curso reciben las notificaciones y usan tribbu.</div>
+          <AdopcionTabla cursos={[{id:cursoId,nombre:cursoNombre||"Este curso"}]}/>
+        </Card>
+      )}
       {tab==="general"&&(
         <Card style={{padding:20}}>
           <div style={{fontSize:14,fontWeight:800,marginBottom:14}}>Configuracion de regalos</div>

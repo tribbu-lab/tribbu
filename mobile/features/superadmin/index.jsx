@@ -27,6 +27,8 @@ import { AdjuntosInput } from "../../components/Adjuntos";
 import { useListControls } from "../../lib/useListControls";
 import { useSession } from "../../context/Session";
 import { UploadMenuExcel, Comedor } from "../comedor";
+import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
+import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
 // para que el mismo mental model funcione en las dos plataformas. "Colegio" y
@@ -1767,6 +1769,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [editForm, setEditForm] = useState({ titulo: "", texto: "", hora_inicio: "", hora_fin: "" });
   const [guardandoEdit, setGuardandoEdit] = useState(false);
   const [editError, setEditError] = useState(null);
+  const [verLecturas, setVerLecturas] = useState(null); // comunicación con "¿quién la leyó?" abierto
 
   const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
 
@@ -1783,10 +1786,24 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     const grupos = new Map();
     for (const r of data || []) {
       const g = grupos.get(r.grupo_id);
-      if (g) g.cursoIds.push(r.curso_id);
-      else grupos.set(r.grupo_id, { ...r, cursoIds: [r.curso_id] });
+      if (g) { g.cursoIds.push(r.curso_id); g.ids.push(r.id); }
+      else grupos.set(r.grupo_id, { ...r, cursoIds: [r.curso_id], ids: [r.id] });
     }
-    setComunicaciones([...grupos.values()].sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || "")));
+    // Confirmación de lectura por comunicación (misma RPC y criterio que la web).
+    const allIds = (data || []).map((r) => r.id);
+    const { data: lecturasRows } = allIds.length
+      ? await supabase.rpc("lecturas_de_recordatorios", { p_ids: allIds })
+      : { data: [] };
+    const filasPorRec = new Map();
+    for (const l of lecturasRows || []) {
+      if (!filasPorRec.has(l.recordatorio_id)) filasPorRec.set(l.recordatorio_id, []);
+      filasPorRec.get(l.recordatorio_id).push(l);
+    }
+    const lista = [...grupos.values()].map((g) => ({
+      ...g,
+      lecturas: unirLecturasPorFamilia(g.ids.flatMap((id) => filasPorRec.get(id) || [])),
+    }));
+    setComunicaciones(lista.sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || "")));
     setCargando(false);
   };
 
@@ -1826,6 +1843,12 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
   return (
     <View style={{ marginTop: 24 }}>
+      <LecturasSheet
+        visible={!!verLecturas}
+        titulo={verLecturas?.titulo || verLecturas?.texto}
+        filas={verLecturas?.lecturas}
+        onClose={() => setVerLecturas(null)}
+      />
       <Pressable onPress={toggle} style={comStyles.historialToggle}>
         <Text style={comStyles.historialToggleTxt}>📋 Historial de comunicaciones</Text>
         <Text style={comStyles.historialToggleArrow}>{abierto ? "▴" : "▾"}</Text>
@@ -1896,6 +1919,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                   </View>
                 )}
                 {editando !== c.grupo_id && c.titulo ? <Text style={comStyles.historialDescripcion}>{c.texto}</Text> : null}
+                <ChipLecturas filas={c.lecturas} onPress={() => setVerLecturas(c)} />
                 <View style={comStyles.historialMetaRow}>
                   <Text style={comStyles.historialMeta}>Publicado {fmtFecha(c.creado_en)}</Text>
                   <View style={comStyles.historialBadge}>

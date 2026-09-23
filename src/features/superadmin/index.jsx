@@ -11,6 +11,9 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { LecturasModal } from "../../components/Lecturas";
+import { unirLecturasPorFamilia } from "../../lib/lecturas";
+import { AdopcionTabla } from "../../components/Adopcion";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal } from "../../components";
 import { EmojiPicker } from "../shared";
@@ -62,6 +65,7 @@ const SECCIONES = [
   { grupo: "Comunidad", items: [
     {id:"alertas",l:"🚨 Alertas"},
     {id:"comunicaciones",l:"📢 Comunicaciones"},
+    {id:"adopcion",l:"📈 Adopción"},
   ]},
   { grupo: "Colegio", items: [
     {id:"colegio",l:"🏫 Colegio"},
@@ -86,6 +90,7 @@ const SECCION_INFO = {
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
+  adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
   colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
@@ -1586,6 +1591,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="comunicaciones"&&(
         <ComunicacionesAdmin cursos={cursosAnoActual}/>
       )}
+      {sec==="adopcion"&&(
+        <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>
+      )}
       {sec==="horarios"&&(
         <HorariosAdmin cursos={cursosAnoActual}/>
       )}
@@ -2145,6 +2153,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [editForm,       setEditForm]       = useState({ titulo:"", texto:"", hora_inicio:"", hora_fin:"" });
   const [guardandoEdit,  setGuardandoEdit]  = useState(false);
   const [editError,      setEditError]      = useState(null);
+  const [verLecturas,    setVerLecturas]    = useState(null); // comunicación con "¿quién la leyó?" abierto
 
   const cursoPorId = new Map(cursos.map(c=>[c.id,c]));
 
@@ -2166,33 +2175,26 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     }
     const lista = [...grupos.values()].sort((a,b)=> (b.creado_en||"").localeCompare(a.creado_en||""));
 
-    // % de lectura por comunicación: destinatarios = unión de usuarios de los
-    // cursos alcanzados; leídos = usuarios distintos con fila en
-    // recordatorio_leidos para alguna de las filas del grupo.
-    const cursoUsersCache = new Map();
-    const usersDeCurso = async (cid) => {
-      if(!cursoUsersCache.has(cid)) cursoUsersCache.set(cid, getUserIdsByCurso(cid));
-      return cursoUsersCache.get(cid);
-    };
+    // Lectura por comunicación, con la misma RPC que el "¿quién lo leyó?" de
+    // Recordatorios (lecturas_de_recordatorios: destinatarios = familias con
+    // hijos en el curso). Una familia con hijos en dos de los cursos alcanzados
+    // cuenta una vez: leída si leyó cualquiera de sus filas.
     const allIds = (data||[]).map(r=>r.id);
-    const { data: leidosRows } = allIds.length
-      ? await supabase.from("recordatorio_leidos").select("recordatorio_id,usuario_id").in("recordatorio_id", allIds)
+    const { data: lecturasRows } = allIds.length
+      ? await supabase.rpc("lecturas_de_recordatorios", { p_ids: allIds })
       : { data: [] };
-    const leidosPorRec = new Map();
-    for(const l of (leidosRows||[])) {
-      if(!leidosPorRec.has(l.recordatorio_id)) leidosPorRec.set(l.recordatorio_id, new Set());
-      leidosPorRec.get(l.recordatorio_id).add(l.usuario_id);
+    const filasPorRec = new Map();
+    for(const l of (lecturasRows||[])) {
+      if(!filasPorRec.has(l.recordatorio_id)) filasPorRec.set(l.recordatorio_id, []);
+      filasPorRec.get(l.recordatorio_id).push(l);
     }
 
-    const conLectura = await Promise.all(lista.map(async (g)=>{
-      const destinatarios = new Set();
-      for(const cid of g.cursoIds) (await usersDeCurso(cid)).forEach(uid=>destinatarios.add(uid));
-      const leidos = new Set();
-      for(const id of g.ids) (leidosPorRec.get(id)||new Set()).forEach(uid=>leidos.add(uid));
-      const total = destinatarios.size;
-      const totalLeidos = [...leidos].filter(uid=>destinatarios.has(uid)).length;
-      return { ...g, totalDestinatarios: total, totalLeidos, pctLeido: total ? Math.round((totalLeidos/total)*100) : null };
-    }));
+    const conLectura = lista.map((g)=>{
+      const lecturas = unirLecturasPorFamilia(g.ids.flatMap(id=>filasPorRec.get(id)||[]));
+      const total = lecturas.length;
+      const totalLeidos = lecturas.filter(l=>l.leido_en).length;
+      return { ...g, lecturas, totalDestinatarios: total, totalLeidos, pctLeido: total ? Math.round((totalLeidos/total)*100) : null };
+    });
 
     setComunicaciones(conLectura);
     setCargando(false);
@@ -2233,6 +2235,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
   return (
     <div style={{marginTop:24}}>
+      {verLecturas&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={verLecturas.lecturas} onClose={()=>setVerLecturas(null)}/>}
       <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
         <span>📋 Historial de comunicaciones</span>
         <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
@@ -2287,9 +2290,9 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                 </div>
               )}
               {c.pctLeido!==null&&(
-                <div style={{marginTop:8}}>
+                <div onClick={()=>setVerLecturas(c)} title="Ver quién la leyó" style={{marginTop:8,cursor:"pointer"}}>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"#94A3B8",fontWeight:700,marginBottom:3}}>
-                    <span>Leído por {c.totalLeidos} de {c.totalDestinatarios}</span>
+                    <span>👁 Leído por {c.totalLeidos} de {c.totalDestinatarios} · ver quién</span>
                     <span>{c.pctLeido}%</span>
                   </div>
                   <div style={{height:5,borderRadius:3,background:"#F1F5F9",overflow:"hidden"}}>
