@@ -7,7 +7,7 @@
 // por código del login — ver CLAUDE.md.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, StyleSheet, BackHandler } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -202,6 +202,17 @@ export function SuperAdmin() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // "Atrás" de Android con un módulo abierto vuelve a la grilla del panel, en
+  // vez de sacar de la app (y perder el colegio elegido al volver a abrirla).
+  useEffect(() => {
+    if (sec === null) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setSec(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [sec]);
 
   // ── Guardar usuario (crear vía Edge Function / actualizar + sync Auth) ──────────
   const guardarUsuario = async () => {
@@ -576,7 +587,7 @@ export function SuperAdmin() {
   if (loading) return <Spinner />;
 
   const stats = [
-    { n: usuarios.length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
+    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
     { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos", c: "#94A3B8", bg: "#F8FAFC" },
     { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },
