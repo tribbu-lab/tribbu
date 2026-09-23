@@ -419,7 +419,7 @@ export default function BotonAgregarCalendario({ userId }) {
               <Text onPress={copiarUrl} style={styles.linkInline}>
                 {copiado ? "¡Copiado!" : "Copiá el enlace"}
               </Text>{" "}
-              y pegalo en su opción de "agregar calendario desde una URL" o "suscribirse".
+              y pegalo en su opción de “agregar calendario desde una URL” o “suscribirse”.
             </Text>
           </>
         )}

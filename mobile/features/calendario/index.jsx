@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, Platform, StyleSheet, Alert } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, safeUrl, fmtRangoFecha, fmtLocalDate } from "@shared/helpers";
-import { MESES, T } from "@shared/theme";
+import { MESES } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";

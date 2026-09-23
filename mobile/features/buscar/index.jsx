@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { useSession } from "../../context/Session";
-import { THEMES, TYPE, SPACE, RADIUS, BLUE } from "@shared/tokens";
+import { THEMES, SPACE, RADIUS, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 
 const t = THEMES.light;
@@ -166,7 +166,7 @@ export function Buscar() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <MaterialCommunityIcons name="magnify-close" size={40} color={t.borderStrong} />
-              <Text style={styles.emptyTxt}>Sin resultados para "{query.trim()}"</Text>
+              <Text style={styles.emptyTxt}>Sin resultados para “{query.trim()}”</Text>
               <Pressable onPress={() => setQuery("")} style={styles.limpiarBtn}>
                 <Text style={styles.limpiarTxt}>Limpiar búsqueda</Text>
               </Pressable>

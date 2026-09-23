@@ -1,0 +1,53 @@
+# Red mínima contra roturas (no hay test suite): en cada push/PR a main
+# compila la web, y en mobile corre lint + el bundle de Metro.
+# El lint web no bloquea todavía: arrastra ~200 errores viejos (variables sin
+# usar, reglas nuevas de react-hooks). Cuando quede en cero, sacar el
+# continue-on-error para que también bloquee.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Valores de mentira: el build solo necesita que existan, no se conecta a nada.
+env:
+  VITE_SUPABASE_URL: https://example.supabase.co
+  VITE_SUPABASE_ANON_KEY: ci-placeholder
+  EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Lint web (informativo)
+        run: npm run lint
+        continue-on-error: true
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      # mobile importa ../src/lib vía @shared, que no tiene deps propias,
+      # así que alcanza con instalar mobile/.
+      - run: npm ci
+      - run: npx eslint .
+      - name: Bundle de Metro (iOS)
+        run: npx expo export -p ios --output-dir /tmp/expo-export

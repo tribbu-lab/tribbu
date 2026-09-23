@@ -13,6 +13,70 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { Alumnos } from "../contacto";
 
+// Escapa texto para interpolarlo en el HTML del PDF: los ítems/materias los
+// cargan usuarios, y la ventana de impresión comparte origen con la app.
+const escHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// Exporta una lista (útiles/libros/uniformes) a PDF vía la impresión del
+// navegador. Se había perdido al separar App.jsx en features (jun 2026) —
+// los botones "Exportar" llamaban a una función inexistente.
+function exportarPDF(rows, nombreArchivo, { titulo, curso, columnas, grupos } = {}) {
+  const cols  = columnas || (rows.length ? Object.keys(rows[0]) : []);
+  const fecha = new Date().toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"});
+  const meta  = [curso ? "Curso: <b>"+escHtml(curso)+"</b>" : null, "Exportado: "+fecha].filter(Boolean).join("&nbsp;&nbsp;|&nbsp;&nbsp;");
+  const fila  = (row, ri) =>
+    `<tr style="background:${ri%2===0?"#ffffff":"#F8FAFC"};">${cols.map(c=>`<td style="padding:7px 12px;border-bottom:1px solid #F1F5F9;font-size:12px;color:#0F172A;">${escHtml(row[c])}</td>`).join("")}</tr>`;
+
+  let bodyHtml = "";
+  if(grupos) {
+    Object.entries(grupos).sort(([a],[b])=>{
+      if(a==="Notas") return -1; if(b==="Notas") return 1;
+      if(a==="Sin categoría"||a==="Sin materia") return 1;
+      if(b==="Sin categoría"||b==="Sin materia") return -1;
+      return a.localeCompare(b,"es");
+    }).forEach(([grupo, items])=>{
+      bodyHtml += `<tr><td colspan="${cols.length}" style="background:#0F172A;color:#fff;font-weight:700;font-size:11px;padding:7px 12px;letter-spacing:0.8px;text-transform:uppercase;">${escHtml(grupo)}</td></tr>`;
+      bodyHtml += items.map(fila).join("");
+    });
+  } else {
+    bodyHtml = rows.map(fila).join("");
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>${escHtml(titulo||nombreArchivo)}</title>
+<style>
+  @page { margin: 18mm 15mm; size: A4; }
+  * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { margin: 0; padding: 0; background: #fff; }
+  .header { padding: 0 0 16px 0; border-bottom: 3px solid #3B82F6; margin-bottom: 18px; }
+  .brand { font-size: 26px; font-weight: 900; color: #3B82F6; letter-spacing:-0.5px; }
+  .doc-title { font-size: 16px; font-weight: 700; color: #0F172A; margin-top: 4px; }
+  .meta { font-size: 10px; color: #94A3B8; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: #3B82F6; color: #fff; font-size: 11px; font-weight: 700; padding: 9px 12px; text-align: left; letter-spacing: 0.3px; }
+  tbody tr:last-child td { border-bottom: none; }
+  .footer { margin-top: 24px; font-size: 9px; color: #CBD5E1; text-align: center; border-top: 1px solid #E2E8F0; padding-top: 8px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head><body>
+<div class="header">
+  <div class="brand">tribbu.</div>
+  <div class="doc-title">${escHtml(titulo)}</div>
+  <div class="meta">${meta}</div>
+</div>
+<table>
+  <thead><tr>${cols.map(c=>`<th>${escHtml(c)}</th>`).join("")}</tr></thead>
+  <tbody>${bodyHtml}</tbody>
+</table>
+<div class="footer">tribbu. &nbsp;·&nbsp; ${fecha}</div>
+</body></html>`;
+
+  const win = window.open("","_blank","width=900,height=700");
+  if(!win) { alert("Permití las ventanas emergentes para exportar el PDF."); return; }
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
+}
 
 // Encabezado de sección por curso (solo vista "Todos"): dot + nombre del hijo.
 function CursoHeader({ tag }) {
