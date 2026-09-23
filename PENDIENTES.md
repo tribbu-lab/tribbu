@@ -34,8 +34,10 @@ Tachá o borrá cada ítem cuando se resuelva.
 ## Probar
 
 - [ ] **En el celular (APK nuevo o release)**: Más → Notificaciones (apagar y
-      prender un aviso) y la edad de los hermanos al responder un cumpleaños.
-      Lint y bundle OK; en web se probó de punta a punta, en el celular no.
+      prender un aviso), la edad de los hermanos al responder un cumpleaños, y
+      **Perdidos y encontrados** (publicar con foto de la galería, "¡Es mío!",
+      contacto, tarjeta del Muro). Lint y bundle OK; en web se probó de punta a
+      punta, en el celular no.
 - [ ] **En un iPhone**: la app en general y la sincronización de calendario
       (Apple Calendar y Google) — nunca se probó en un equipo real.
 - [ ] **Primer aviso automático real**: resumen semanal domingo 27/09 18:00 y
