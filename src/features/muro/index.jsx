@@ -24,6 +24,7 @@ const TIPO_CONFIG = {
 };
 
 
+import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
@@ -87,6 +88,16 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
     ]);
+    // Autorizaciones abiertas con algún hijo mío sin responder.
+    let autorizacionesPend = [];
+    if(misHijos.length) {
+      const { data: auts } = await supabase.from("autorizaciones").select("id,titulo,curso_id,fecha_limite,fecha_evento").in("curso_id",cursoIds);
+      if((auts||[]).length) {
+        const { data: resp } = await supabase.from("autorizacion_respuestas").select("autorizacion_id,hijo_id").in("autorizacion_id",auts.map(a=>a.id)).in("hijo_id",misHijos);
+        const misHijosObj = (hijosData.data||[]).filter(h=>misHijos.includes(h.id));
+        autorizacionesPend = autorizacionesPendientes(auts, misHijosObj, resp||[], fechaHoy);
+      }
+    }
     // Encuestas abiertas (ni cerradas ni eliminadas) donde el usuario todavía no votó.
     let encuestasPend = [];
     const encuestasActivas = encuestasAbiertas(encuestasData.data||[], fechaHoy);
@@ -133,7 +144,7 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
     const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
     // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
     const invitaciones = festejosPendientes((invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), fechaHoy);
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, autorizacionesPend, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
@@ -220,6 +231,13 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       accion:"Responder", btnBg:"#0F172A", btnFg:"white",
       onAccion:(e)=>{e.stopPropagation();setFestejoDetalle(ev);}, onPress:()=>setFestejoDetalle(ev),
       tag:tagDe(ev.curso_id), chip:fmtDiaMesCorto(ev.fecha),
+    })),
+    ...(datos.autorizacionesPend||[]).map(a=>({
+      key:`aut-${a.id}`, tipo:"Autorización", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
+      icon:"✍️", titulo:a.titulo, meta:a.fecha_limite?`Responder hasta el ${fmtDiaMesCorto(a.fecha_limite)}`:"Falta tu respuesta",
+      accion:"Responder", btnBg:"#FFFBEB", btnFg:"#B45309",
+      onAccion:(e2)=>{e2.stopPropagation();onNavigate?.("autorizaciones");}, onPress:()=>onNavigate?.("autorizaciones"),
+      tag:tagDe(a.curso_id), chip:a.fecha_evento?fmtDiaMesCorto(a.fecha_evento):null,
     })),
     ...(datos.encuestasPend||[]).map(e=>({
       key:`enc-${e.id}`, tipo:"Encuesta", color:"#1D4ED8", soft:"#EFF6FF", borde:"#BFDBFE",

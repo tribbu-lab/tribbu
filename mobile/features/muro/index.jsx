@@ -33,6 +33,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
+import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -201,6 +202,24 @@ export function Muro() {
       encuestasPend = encuestasActivas.filter((e) => !votadas.has(e.id));
     }
 
+    // Autorizaciones abiertas con algún hijo mío sin responder.
+    let autorizacionesPend = [];
+    if (misHijosIds.length) {
+      const { data: auts } = await supabase
+        .from("autorizaciones")
+        .select("id,titulo,curso_id,fecha_limite,fecha_evento")
+        .in("curso_id", cursosScope);
+      if ((auts || []).length) {
+        const { data: resp } = await supabase
+          .from("autorizacion_respuestas")
+          .select("autorizacion_id,hijo_id")
+          .in("autorizacion_id", auts.map((a) => a.id))
+          .in("hijo_id", misHijosIds);
+        const misHijosObj = (hijosData.data || []).filter((h) => misHijosIds.includes(h.id));
+        autorizacionesPend = autorizacionesPendientes(auts, misHijosObj, resp || [], fechaHoy);
+      }
+    }
+
     setDatos({
       alertas: alertasUnaPorCurso(alerta.data || []),
       menu: menu.data || null,
@@ -210,6 +229,7 @@ export function Muro() {
       colectasPend,
       invitaciones,
       encuestasPend,
+      autorizacionesPend,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
     setError(false);
@@ -334,6 +354,23 @@ export function Muro() {
       onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       onPress: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
       derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
+    })),
+    ...(datos.autorizacionesPend || []).map((a) => ({
+      key: `aut-${a.id}`,
+      tipo: "Autorización",
+      dot: t.warning,
+      soft: t.warningSoft,
+      borde: t.warningBorder,
+      icon: "file-sign",
+      btnBg: t.warningSoft,
+      btnFg: t.warning,
+      titulo: a.titulo,
+      meta: a.fecha_limite ? `Responder hasta el ${fmtDiaMesCorto(a.fecha_limite)}` : "Falta tu respuesta",
+      accion: "Responder",
+      tag: tagDeCurso(a.curso_id),
+      onAccion: () => router.push("/(tabs)/autorizaciones"),
+      onPress: () => router.push("/(tabs)/autorizaciones"),
+      derecha: a.fecha_evento ? { fecha: fmtDiaMesCorto(a.fecha_evento) } : null,
     })),
     ...datos.encuestasPend.map((e) => ({
       key: `enc-${e.id}`,

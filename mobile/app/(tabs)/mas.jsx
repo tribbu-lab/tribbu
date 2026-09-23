@@ -24,6 +24,7 @@ const BASE = [
   { id: "buscar", label: "Buscar", emoji: "🔍" },
   { id: "comedor", label: "Comedor", emoji: "🍽️" },
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
+  { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
   { id: "finanzas", label: "Colectas", emoji: "💳" },
   { id: "info", label: "Info Útil", emoji: "📋" },
   { id: "contacto", label: "Contacto", emoji: "📞" },

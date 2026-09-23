@@ -13,6 +13,7 @@ export const TAB_MAP = {
   alerta: "/(tabs)/muro",
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
+  autorizacion: "/(tabs)/autorizaciones",
   resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
 };
 
