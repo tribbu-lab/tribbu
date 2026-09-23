@@ -23,6 +23,7 @@ import { AdminPanel }      from "./features/admin";
 import { SuperAdmin }      from "./features/superadmin";
 import { Encuestas }       from "./features/encuestas";
 import { Autorizaciones }  from "./features/autorizaciones";
+import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 import { BusquedaGlobal }  from "./features/buscar";
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
 
@@ -131,6 +132,7 @@ function App() {
   const [badgeCount,    setBadgeCount]    = useState(0);
   const [menuMas,       setMenuMas]       = useState(false);
   const [cambiarPass,   setCambiarPass]   = useState(false);
+  const [prefsAvisos,   setPrefsAvisos]   = useState(false); // modal "🔔 Notificaciones" (avisos automáticos)
   const [eliminarCuenta,setEliminarCuenta]= useState(false);
   const [panelNotifs,   setPanelNotifs]   = useState(false);
   const [busquedaGlobal,setBusquedaGlobal]= useState("");
@@ -571,6 +573,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
       {renderColorPicker()}
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+      {prefsAvisos&&<PreferenciasAvisosModal userId={usuario.id} onClose={()=>setPrefsAvisos(false)}/>}
       {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
         <NotificacionesPanel
@@ -651,6 +654,10 @@ function App() {
                     <span style={{fontSize:10,fontWeight:tab===t.id?700:400,color:"white"}}>{t.label}</span>
                   </button>
                 ))}
+                <button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <span style={{fontSize:20}}>🔔</span>
+                  <span style={{fontSize:10,fontWeight:400,color:"white"}}>Notificaciones</span>
+                </button>
                 <button onClick={()=>setEliminarCuenta(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(239,68,68,0.15)",cursor:"pointer",color:"#FCA5A5",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>🗑️</span>
                   <span style={{fontSize:10,fontWeight:400,color:"#FCA5A5"}}>Eliminar cuenta</span>
@@ -683,6 +690,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
       {renderColorPicker()}
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+      {prefsAvisos&&<PreferenciasAvisosModal userId={usuario.id} onClose={()=>setPrefsAvisos(false)}/>}
       {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
         <NotificacionesPanel
@@ -739,6 +747,7 @@ function App() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>
           </div>
 
+          <button onClick={()=>setPrefsAvisos(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔔 Notificaciones</button>
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>&larr; Cerrar sesion</button>
           <button onClick={()=>setEliminarCuenta(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(239,68,68,0.1)",color:"#FCA5A5",fontSize:12,fontWeight:600,textAlign:"left"}}>🗑️ Eliminar mi cuenta</button>

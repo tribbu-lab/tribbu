@@ -11,28 +11,31 @@
 //       a quien ya respondió que no va.
 //     - Colectas que vencen pasado mañana: solo a las familias con algún hijo
 //       de ese curso que todavía no la pagó.
+//     - Autorizaciones cuya fecha límite es mañana: a las familias con algún
+//       hijo de ese curso sin responder.
 //   ?modo=semanal  (domingos, 18:00 Argentina)
 //     - Resumen de la semana por familia: eventos, colectas por vencer y
 //       cumpleaños de los próximos 7 días. Si no hay nada, no se manda.
 //
 // Cada aviso queda anotado en avisos_automaticos_log (clave única), así que
-// si el cron corre dos veces el mismo día no se repite nada.
+// si el cron corre dos veces el mismo día no se repite nada. Cada familia
+// puede apagar cada tipo en preferencias_avisos (sin fila = todos activos).
 //
 // Sin JWT (lo llama pg_cron vía pg_net): el control de acceso es el header
 // x-cron-secret contra el secret CRON_SECRET de la función, que también vive
 // en el Vault de la base (el cron lo lee de ahí).
 //   supabase secrets set CRON_SECRET=...
 //   supabase functions deploy avisos-automaticos --no-verify-jwt
-// Manda directo a la Expo Push API con los push_tokens (service role), como
-// send-push. Fechas en hora de Argentina (UTC-3 fijo, sin horario de verano).
+// El envío a Expo (y la poda de tokens muertos) es el módulo compartido
+// _shared/expoPush.ts, el mismo que usa send-push. Fechas en hora de Argentina (UTC-3 fijo, sin horario de verano).
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { enviarPush } from "../_shared/expoPush.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
-const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -158,36 +161,19 @@ type Mensaje = { usuario: string; title: string; body: string; data: Record<stri
 
 async function enviar(sb: SupabaseClient, mensajes: Mensaje[]) {
   if (!mensajes.length || DRY) return 0;
-  const { data: tokens } = await sb.from("push_tokens").select("usuario_id,token").in("usuario_id", [...new Set(mensajes.map((m) => m.usuario))]);
-  const tokensDe = new Map<string, string[]>();
-  for (const t of tokens || []) {
-    if (!t.token?.startsWith("ExponentPushToken")) continue;
-    if (!tokensDe.has(t.usuario_id)) tokensDe.set(t.usuario_id, []);
-    tokensDe.get(t.usuario_id)!.push(t.token);
-  }
-  const salida = mensajes.flatMap((m) =>
-    (tokensDe.get(m.usuario) || []).map((to) => ({ to, sound: "default", title: m.title, body: m.body, data: m.data, channelId: "default" })),
-  );
-  const muertos: string[] = [];
-  for (let i = 0; i < salida.length; i += 100) {
-    const lote = salida.slice(i, i + 100);
-    try {
-      const res = await fetch(EXPO_PUSH_URL, {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(lote),
-      });
-      const tickets = (await res.json())?.data || [];
-      tickets.forEach((tk: any, j: number) => {
-        if (tk?.status === "error" && tk?.details?.error === "DeviceNotRegistered") muertos.push(lote[j].to);
-      });
-    } catch (e) {
-      console.error("avisos-automaticos: Expo push falló", e);
-    }
-  }
-  if (muertos.length) await sb.from("push_tokens").delete().in("token", muertos);
-  return salida.length;
+  return (await enviarPush(sb, mensajes)).sent;
 }
+
+// ── Preferencias ─────────────────────────────────────────────────────────────
+type TipoAviso = "evento_manana" | "colecta_por_vencer" | "autorizacion_pendiente" | "resumen_semanal";
+type Prefs = Map<string, Record<TipoAviso, boolean>>;
+
+async function cargarPreferencias(sb: SupabaseClient): Promise<Prefs> {
+  const { data } = await sb.from("preferencias_avisos").select("*");
+  return new Map((data || []).map((p) => [p.usuario_id, p]));
+}
+// Sin fila (nunca tocó la configuración) = quiere todo.
+const quiere = (prefs: Prefs, usuario: string, tipo: TipoAviso) => prefs.get(usuario)?.[tipo] !== false;
 
 // En modo prueba: textos distintos con cuántas familias recibirían cada uno.
 const muestra = (ms: Mensaje[]) => {
@@ -201,7 +187,7 @@ async function diario(sb: SupabaseClient) {
   const hoy = HOY_SIMULADO || isoDe(hoyAR());
   const manana = masDias(hoy, 1);
   const pasado = masDias(hoy, 2);
-  const ctx = await cargarContexto(sb);
+  const [ctx, prefs] = await Promise.all([cargarContexto(sb), cargarPreferencias(sb)]);
   const mensajes: Mensaje[] = [];
 
   // Eventos de mañana (incluye los de varios días que arrancan mañana).
@@ -217,6 +203,7 @@ async function diario(sb: SupabaseClient) {
     porUsuario.get(u)!.push(e);
   }
   for (const [u, lista] of porUsuario) {
+    if (!quiere(prefs, u, "evento_manana")) continue;
     if (!(await primeraVez(sb, `eventos:${manana}:${u}`))) continue;
     const orden = lista.sort((a, b) => (a.hora || "99").localeCompare(b.hora || "99"));
     const body = orden.length === 1
@@ -235,6 +222,7 @@ async function diario(sb: SupabaseClient) {
   const impagos = await impagosDeColectas(ctx, colectas || []);
   for (const c of colectas || []) {
     for (const u of impagos.get(c.id) || []) {
+      if (!quiere(prefs, u, "colecta_por_vencer")) continue;
       if (!(await primeraVez(sb, `colecta:${c.id}:${u}`))) continue;
       mensajes.push({
         usuario: u,
@@ -244,6 +232,28 @@ async function diario(sb: SupabaseClient) {
       });
     }
   }
+
+  // Autorizaciones que cierran mañana, a las familias con algún hijo del curso
+  // sin responder (una push por autorización y familia).
+  const { data: auts } = await sb.from("autorizaciones").select("id,titulo,curso_id,fecha_limite").eq("fecha_limite", manana);
+  if ((auts || []).length) {
+    const { data: resp } = await sb.from("autorizacion_respuestas").select("autorizacion_id,hijo_id").in("autorizacion_id", auts!.map((a) => a.id));
+    const respondido = new Set((resp || []).map((x) => `${x.autorizacion_id}-${x.hijo_id}`));
+    for (const a of auts!) {
+      for (const [u, hijos] of ctx.hijosDeUsuario) {
+        if (!ctx.familiasPorCurso.get(a.curso_id)?.has(u)) continue; // inactivos fuera
+        const faltan = hijos.filter((h) => ctx.cursoDeHijo.get(h) === a.curso_id && !respondido.has(`${a.id}-${h}`));
+        if (!faltan.length || !quiere(prefs, u, "autorizacion_pendiente")) continue;
+        if (!(await primeraVez(sb, `autorizacion:${a.id}:${u}`))) continue;
+        mensajes.push({
+          usuario: u,
+          title: "✍️ Falta tu respuesta",
+          body: `"${a.titulo?.trim()}" se puede responder hasta mañana.`,
+          data: { type: "autorizacion" },
+        });
+      }
+    }
+  }
   return { enviados: await enviar(sb, mensajes), avisos: mensajes.length, ...(DRY ? { muestra: muestra(mensajes) } : {}) };
 }
 
@@ -251,7 +261,7 @@ async function semanal(sb: SupabaseClient) {
   const hoy = HOY_SIMULADO || isoDe(hoyAR());
   const desde = masDias(hoy, 1); // lunes
   const hasta = masDias(hoy, 7); // domingo
-  const ctx = await cargarContexto(sb);
+  const [ctx, prefs] = await Promise.all([cargarContexto(sb), cargarPreferencias(sb)]);
 
   const [{ data: eventos }, { data: colectas }, { data: hijos }, { data: maestros }] = await Promise.all([
     sb.from("eventos").select("id,titulo,tipo,fecha,hora,curso_id,alumno_id,creado_por").gte("fecha", desde).lte("fecha", hasta),
@@ -294,7 +304,7 @@ async function semanal(sb: SupabaseClient) {
       nColectas ? `${nColectas} ${nColectas === 1 ? "colecta por pagar" : "colectas por pagar"}` : null,
       cumples.size ? `${cumples.size} ${cumples.size === 1 ? "cumple" : "cumples"}` : null,
     ].filter(Boolean);
-    if (!partes.length) continue;
+    if (!partes.length || !quiere(prefs, u, "resumen_semanal")) continue;
     if (!(await primeraVez(sb, `semanal:${semana}:${u}`))) continue;
     mensajes.push({ usuario: u, title: "🗓️ Tu semana en tribbu", body: `Esta semana: ${partes.join(" · ")}.`, data: { type: "resumen" } });
   }

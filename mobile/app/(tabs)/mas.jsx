@@ -17,6 +17,8 @@ import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
 import { deleteMyAccount } from "../../lib/authAdmin";
 import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
+import { supabase } from "../../lib/supabase";
+import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/avisos";
 
 const t = THEMES.light;
 
@@ -39,6 +41,35 @@ export default function MasScreen() {
   const [cambiarPass, setCambiarPass] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [bioEnabled, setBioEnabledState] = useState(false);
+  // Avisos automáticos que quiere recibir (preferencias_avisos; sin fila = todos).
+  const [prefsAvisos, setPrefsAvisos] = useState(null);
+
+  useEffect(() => {
+    if (!usuario?.id) return;
+    let vivo = true;
+    supabase
+      .from("preferencias_avisos")
+      .select("*")
+      .eq("usuario_id", usuario.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (vivo) setPrefsAvisos(preferenciasEfectivas(data));
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [usuario?.id]);
+
+  const cambiarAviso = async (k) => {
+    const antes = prefsAvisos;
+    const nuevo = { ...prefsAvisos, [k]: !prefsAvisos[k] };
+    setPrefsAvisos(nuevo); // optimista
+    const { error } = await supabase.from("preferencias_avisos").upsert(filaPreferencias(usuario.id, nuevo), { onConflict: "usuario_id" });
+    if (error) {
+      setPrefsAvisos(antes);
+      Alert.alert("No se pudo guardar", "Probá de nuevo en unos minutos.");
+    }
+  };
   const opciones = isAdmin ? [...BASE, ...ADMIN] : BASE;
 
   useEffect(() => {
@@ -122,6 +153,25 @@ export default function MasScreen() {
         ))}
       </View>
 
+      <Text style={styles.label}>Notificaciones</Text>
+      <View style={styles.card}>
+        {TIPOS_AVISO.map((tipo, i) => (
+          <View key={tipo.k} style={[styles.crow, i > 0 && styles.crowBorde]}>
+            <View style={styles.flex1}>
+              <Text style={styles.crowTitulo}>{tipo.titulo}</Text>
+              <Text style={styles.crowMeta}>{tipo.desc}</Text>
+            </View>
+            <Switch
+              value={prefsAvisos ? prefsAvisos[tipo.k] : true}
+              disabled={!prefsAvisos}
+              onValueChange={() => cambiarAviso(tipo.k)}
+              trackColor={{ true: t.accent }}
+            />
+          </View>
+        ))}
+      </View>
+      <Text style={styles.nota}>Son avisos automáticos. Los avisos y alertas que publica el curso te llegan siempre.</Text>
+
       <Text style={styles.label}>Cuenta</Text>
       <View style={styles.card}>
         <Pressable onPress={() => setCambiarPass(true)} style={styles.crow}>
@@ -193,4 +243,5 @@ const styles = StyleSheet.create({
   crowBorde: { borderTopWidth: 1, borderTopColor: t.border },
   crowTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   crowMeta: { fontSize: 12, color: t.textMuted, marginTop: 1 },
+  nota: { fontSize: 11.5, color: t.textFaint, marginTop: SPACE.sm, lineHeight: 16 },
 });
