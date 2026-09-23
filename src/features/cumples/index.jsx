@@ -1,12 +1,10 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtLocalDate,
-         sanitize, safeUrl, getHijoColor, setHijoColor,
-         bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
+import { fmtF, fmtNombre, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
@@ -119,7 +117,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
           (uhResp||[]).forEach(r=>{ if(alumnoById[r.hijo_id]) uidToHijo[r.usuario_id]=alumnoById[r.hijo_id]; });
           Object.values(map).forEach(c=>{ if(c.responsable_id && uidToHijo[c.responsable_id]) c._responsable_hijo = uidToHijo[c.responsable_id]; });
         }
-      } catch(e) {
+      } catch {
         // Si RLS bloquea, usar nombre del responsable (usuario) directamente
         console.log("No se pudo resolver hijo del responsable, usando nombre de usuario");
       }
@@ -521,7 +519,6 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
   const [alumnos,    setAlumnos]    = useState([]);
   const [invitados,  setInvitados]  = useState([]);
   const [guardando,  setGuardando]  = useState(false);
-  const [imgFile,    setImgFile]    = useState(null);
   const [imgUploading, setImgUploading] = useState(false);
 
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
@@ -541,7 +538,6 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
   const handleImgChange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
-    setImgFile(file);
     setImgUploading(true);
     const ext = file.name.split(".").pop();
     const path = `festejos/${cursoId}_${alumnoId}_${Date.now()}.${ext}`;
@@ -664,7 +660,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
             {form.imagen_url && (
               <div style={{position:"relative",display:"inline-block",marginBottom:8}}>
                 <SignedImg src={form.imagen_url} bucket="eventos" alt="Invitación" style={{width:"100%",maxHeight:180,objectFit:"contain",borderRadius:10,border:"1.5px solid #E2E8F0"}}/>
-                <button onClick={()=>{ setForm(p=>({...p,imagen_url:""})); setImgFile(null); }} style={{position:"absolute",top:6,right:6,width:24,height:24,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
+                <button onClick={()=>{ setForm(p=>({...p,imagen_url:""})); }} style={{position:"absolute",top:6,right:6,width:24,height:24,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
               </div>
             )}
             <label style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,border:"2px dashed #E2E8F0",background:"#F8FAFC",cursor:"pointer"}}>
@@ -754,7 +750,7 @@ function exportarExcel({ evento, asistenciaDedup, alumnos }) {
   XLSX.writeFile(wb, `${titulo} - asistencia.xlsx`);
 }
 
-export function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUpdate }) {
+export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) {
   const [asistencia, setAsistencia] = useState([]);
   const [alumnos,    setAlumnos]    = useState({});
   const [guardando,  setGuardando]  = useState(false);
@@ -765,7 +761,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos=[], onClose, onUp
 
   useEffect(()=>{ cargarDatos(); },[evento.id]);
 
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     const { data: asist } = await supabase.from("evento_asistencia").select("*").eq("evento_id", evento.id);
     const rows = asist||[];
     const aids = [...new Set(rows.map(r=>r.alumno_invitado_id).filter(Boolean))];

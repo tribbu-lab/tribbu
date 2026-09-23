@@ -1,16 +1,13 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtLocalDate,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { fmtF, dHasta, fmtLocalDate } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
-import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 import { useToast } from "../../hooks/useToast";
 
 

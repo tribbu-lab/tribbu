@@ -1,17 +1,14 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoFecha, fmtLocalDate,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { fmtNombre, fmtRangoFecha, fmtLocalDate, safeUrl } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Paginador } from "../../components/Paginador";
-import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 import { useToast } from "../../hooks/useToast";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
@@ -58,23 +55,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [festejoDetalle, setFestejoDetalle] = useState(null);
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [recordatorios,  setRecordatorios]  = useState([]);
-  const [leidosSet,      setLeidosSet]      = useState(new Set());
   const { showToast, Toast } = useToast();
 
   const cargarRecs = async () => {
     if(!cursoIds?.length) return;
     const hoyStr = fmtLocalDate(new Date());
-    const [recs, leidos] = await Promise.all([
-      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
-    ]);
+    const recs = await supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true});
     setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId)));
-    setLeidosSet(new Set((leidos.data||[]).map(l=>l.recordatorio_id)));
-  };
-
-  const marcarLeido = async (recId) => {
-    await supabase.from("recordatorio_leidos").upsert({recordatorio_id:recId, usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
-    setLeidosSet(p=> new Set([...p, recId]));
   };
 
   const cargar = async () => {
@@ -185,9 +172,6 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
     return filtroTipo==="todos" ? todos : todos.filter(e=>e.tipo===filtroTipo);
   };
 
-  const bgs = ["#EFF6FF","#F0FDF4","#FFF7ED","#F5F3FF","#FEFCE8"];
-  const cols = ["#3B82F6","#10B981","#F59E0B","#8B5CF6","#EAB308"];
-  const diaSelecFecha = diaSelec ? `${diaSelec.year}-${String(diaSelec.month+1).padStart(2,"0")}-${String(diaSelec.day).padStart(2,"0")}` : null;
   const evDiaSelec = diaSelec ? eventosDelDia(diaSelec.year, diaSelec.month, diaSelec.day) : [];
 
   return (
@@ -445,7 +429,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     </tr>
                   </thead>
                   <tbody>
-                    {allSlots.map((slot,si)=>{
+                    {allSlots.map((slot)=>{
                       // find max hora_fin for this slot to show range
                       const slotClases = hs.filter(h=>h.hora_inicio===slot);
                       const maxFin = slotClases.map(h=>h.hora_fin).sort().pop();

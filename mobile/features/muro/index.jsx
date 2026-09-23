@@ -10,7 +10,7 @@
 //      En la vista "Todos" del header, todo el muro (pendientes, agenda, alertas)
 //      abarca los cursos de todos los hijos, con tag de hijo por fila/card.
 //   2. Próximos 15 días: agenda unificada (eventos + cumpleaños por proximidad)
-//      con countdown por urgencia (≤3 lleno · ≤7 teñido · resto neutro).
+//      con countdown por urgencia (<3 días lleno · ≤7 teñido · resto neutro, nivelUrgencia en @shared/muro).
 //   3. Comedor: menú de hoy o el próximo día con servicio.
 // El admin conserva la alerta del curso (banner + publicar). Deep-links:
 // colecta → Finanzas (openColecta), evento → Calendario (openFecha), resto → tab.
@@ -33,7 +33,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
-import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso } from "@shared/muro";
+import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -65,11 +65,11 @@ const diasHasta = (fechaStr) => {
   return Math.round((new Date(fechaStr + "T00:00:00") - hoy) / 86400000);
 };
 
-// Countdown con urgencia (firma de la dirección A): ≤3 lleno, ≤7 teñido, resto neutro.
+// Countdown con urgencia (firma de la dirección A): <3 días lleno, ≤7 teñido, resto neutro.
 function DiasChip({ dias, prefijo = false }) {
   const label =
     dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : prefijo ? `en ${dias} días` : `${dias} días`;
-  const nivel = dias <= 3 ? "hot" : dias <= 7 ? "soon" : "later";
+  const nivel = nivelUrgencia(dias);
   return (
     <View style={[styles.chip, styles[`chip_${nivel}`]]}>
       <Text style={[styles.chipTxt, styles[`chipTxt_${nivel}`]]}>{label}</Text>

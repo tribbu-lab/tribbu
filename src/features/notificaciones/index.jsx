@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
-import { fmtDM, fmtLocalDate } from "../../lib/helpers";
+import { fmtLocalDate } from "../../lib/helpers";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.

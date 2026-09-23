@@ -106,7 +106,7 @@ if (isNative) {
       StatusBar.setStyle({ style: Style.Dark });
       StatusBar.setBackgroundColor({ color: "#0F172A" });
       StatusBar.setOverlaysWebView({ overlay: false });
-    } catch(e) {}
+    } catch { /* StatusBar no disponible (web) */ }
   }).catch(() => {});
 }
 // Enviar push notification via Edge Function
@@ -292,7 +292,7 @@ function App() {
           // Vincular dispositivo con OneSignal
           window._tribbuUserId = data.id;
           if(isNative && _OS) {
-            try { _OS.login(data.id); } catch(e) {}
+            try { _OS.login(data.id); } catch { /* OneSignal todavía no está listo */ }
           }
         }
       }
@@ -351,7 +351,7 @@ function App() {
       if(!el || el.tagName !== "INPUT") return;
       if(el.type !== "date" && el.type !== "time" && el.type !== "month" && el.type !== "datetime-local") return;
       if(typeof el.showPicker !== "function") return;
-      try { el.showPicker(); } catch(_) {}
+      try { el.showPicker(); } catch { /* showPicker no soportado */ }
     };
     document.addEventListener("click", abrirPicker);
     return () => document.removeEventListener("click", abrirPicker);
@@ -452,7 +452,7 @@ function App() {
     const item = items[idx];
     if(!item) return;
     if(color===null) {
-      try { localStorage.removeItem(`hcolor_${usuario?.id}_${item.id}`); } catch{}
+      try { localStorage.removeItem(`hcolor_${usuario?.id}_${item.id}`); } catch { /* storage bloqueado */ }
       setHijoColorsMap(p=>{ const n={...p}; delete n[`${usuario?.id}_${item.id}`]; return n; });
     } else {
       setHijoColor(usuario?.id, item.id, color);
@@ -509,7 +509,9 @@ function App() {
 
 
   // Sidebar items compartido entre mobile y desktop
-  const SidebarItems = () => (
+  // Funciones que devuelven JSX, no componentes: definidas acá adentro como
+  // componentes ({renderSidebarItems()}) React las desmontaba y remontaba en cada render.
+  const renderSidebarItems = () => (
     <>
       {items.length>0&&(
         <div style={{padding:"0 12px 12px"}}>
@@ -542,7 +544,7 @@ function App() {
   );
 
   // Color picker overlay (compartido)
-  const ColorPicker = () => {
+  const renderColorPicker = () => {
     if(!pickerItem) return null;
     const pickerActiveColor = getHijoColorCustom(pickerItem);
     return (
@@ -562,7 +564,7 @@ function App() {
 
   if(isMobile) return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
-      <ColorPicker/>
+      {renderColorPicker()}
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
@@ -674,7 +676,7 @@ function App() {
   // Desktop layout
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex"}}>
-      <ColorPicker/>
+      {renderColorPicker()}
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
       {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
       {panelNotifs&&(
@@ -723,7 +725,7 @@ function App() {
             cambia la vista desde cualquier pantalla con un click. Va al pie,
             justo arriba del usuario. */}
         <div style={{paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-          <SidebarItems/>
+          {renderSidebarItems()}
         </div>
 
         <div style={{padding:"0 12px 16px"}}>

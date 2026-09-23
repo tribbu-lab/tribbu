@@ -1,16 +1,14 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { safeUrl } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 import { Alumnos } from "../contacto";
 
 // Escapa texto para interpolarlo en el HTML del PDF: los ítems/materias los
@@ -153,7 +151,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
     if(form._file) {
       const ext = form._file.name.split(".").pop().toLowerCase();
       const path = `${cursoId}/${Date.now()}.${ext}`;
-      const { data: upData, error: upError } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true, contentType: form._file.type});
+      const { error: upError } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true, contentType: form._file.type});
       if(upError) {
         alert("Error al subir imagen: " + upError.message);
       } else {
@@ -502,7 +500,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   );
 }
 
-export function Uniformes({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin, userId, cursoNombre="" }) {
+export function Uniformes({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre="" }) {
   const [uniformes,  setUniformes]  = useState([]);
   const [idsPorCurso,setIdsPorCurso]= useState({}); // curso_id → [uniforme_id] (para agrupar en "Todos")
   const [adquiridos, setAdquiridos] = useState(new Set());

@@ -1,23 +1,19 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { fmtNombre } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
-import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 
 export function AdminPanel({ cursoId, cursoNombre }) {
   const [tab, setTab]   = useState("general");
-  const [curso, setCurso] = useState(null);
   const [form, setForm]   = useState({monto_regalo:"",moneda_regalo:"$"});
   const [saving, setSaving] = useState(false);
   const [horarios,setHorarios] = useState([]);
@@ -88,7 +84,6 @@ export function AdminPanel({ cursoId, cursoNombre }) {
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
       supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","room"),
     ]);
-    setCurso(c.data);
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
     setHorarios(hor.data||[]);
     setMaestros(mae.data||[]);

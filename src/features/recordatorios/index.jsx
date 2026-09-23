@@ -1,17 +1,14 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora, fmtLocalDate,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+import { fmtRangoHora, fmtLocalDate, sanitize } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
-import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -369,7 +366,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   );
 }
 
-function HistorialComunicados({ cursoIds=[], tagDeCurso=null, isAdmin }) {
+function HistorialComunicados({ cursoIds=[], tagDeCurso=null }) {
   const [alertas,    setAlertas]    = useState([]);
   const [busqueda,   setBusqueda]   = useState("");
   const [abierto,    setAbierto]    = useState(false);

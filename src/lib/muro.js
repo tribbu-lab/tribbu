@@ -77,3 +77,10 @@ export const alertasUnaPorCurso = (alertas) => {
   const cursos = new Set();
   return alertas.filter((a) => (cursos.has(a.curso_id) ? false : cursos.add(a.curso_id)));
 };
+
+/**
+ * Urgencia del chip "faltan N días" en la agenda: "hot" (lleno) si faltan
+ * menos de 3 días (hoy, mañana, pasado), "soon" (teñido) hasta 7, "later"
+ * (neutro) el resto. Una sola regla para web y mobile.
+ */
+export const nivelUrgencia = (dias) => (dias < 3 ? "hot" : dias <= 7 ? "soon" : "later");

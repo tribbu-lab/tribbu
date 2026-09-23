@@ -1,21 +1,16 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { supabase } from "../../supabase";
 import { deleteMyAccount } from "../../lib/authAdmin";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
 import { WEB_APP_URL } from "../../lib/appUrl";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Wordmark } from "../../components/Wordmark";
 import { Paginador } from "../../components/Paginador";
-import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 
-import bcrypt from "bcryptjs"; // TODO: eliminar cuando se borre columna pass de DB
 
 export function Login({ onLogin }) {
   const [email,setEmail]           = useState("");

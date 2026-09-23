@@ -1,15 +1,13 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre, fmtRangoHora, fmtLocalDate,
-         sanitize, safeUrl, setHijoColor } from "../../lib/helpers";
+import { fmtNombre, fmtRangoHora, fmtLocalDate } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
-import { useListControls } from "../../hooks/useListControls";
 import { FestejoDetalleModal } from "../cumples";
 import { EventoAsistenciaModal } from "../calendario";
 
@@ -26,8 +24,7 @@ const TIPO_CONFIG = {
 };
 
 
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso } from "../../lib/muro";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -57,16 +54,14 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos=[], onNavigate, onBadgeChange, isMobile=true }) {
-  misHijos = (misHijos||[]).filter(h=>h && typeof h === "string");
-  cursoIds = (cursoIds&&cursoIds.length) ? cursoIds : (cursoId ? [cursoId] : []);
+export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
+  const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
+  const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
   const [datos,setDatos] = useState(null);
-  const [modal,setModal] = useState(false);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [eventoDetalle,  setEventoDetalle]  = useState(null);
   const [leidosMuro,setLeidosMuro] = useState(new Set());
-  const [hijosNombres,setHijosNombres] = useState([]);
   const [error,setError] = useState(false);
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
@@ -74,7 +69,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ cargar(); },[cursosKey]);
 
-  const cargar = async () => {
+  async function cargar() {
     if(!cursoIds.length) return;
     try {
     const fechaHoy = fmtLocalDate();
@@ -159,31 +154,6 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
       setLeidosMuro(p=> new Set([...p, nid]));
     }
     onBadgeChange?.();
-  };
-
-  const marcarPagadoMuro = async (colecta, e) => {
-    e.stopPropagation();
-    if(!userId || !misHijos.length) return;
-    // Solo los hijos que pertenecen al curso de esta colecta (clave en vista Todos)
-    const hijosDelCursoColecta = new Set((datos?.hijosData||[]).filter(h=>h.curso_id===colecta.curso_id).map(h=>h.id));
-    const hijosTarget = misHijos.filter(hid=>hijosDelCursoColecta.has(hid));
-    if(!hijosTarget.length) return;
-    const fecha_pago = fmtLocalDate();
-    await Promise.all(hijosTarget.map(hid=>
-      supabase.from("colecta_pagos").upsert(
-        { colecta_id:colecta.id, alumno_id:hid, estado:"pagado", fecha_pago, pagado_por:userId },
-        { onConflict:"colecta_id,alumno_id" }
-      )
-    ));
-    setDatos(d=> d ? {...d, colectasPend: (d.colectasPend||[]).filter(c=>c.id!==colecta.id)} : d);
-  };
-
-  const enviarAlerta = async (msg) => {
-    await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
-    await supabase.from("alertas").insert({curso_id:cursoId,mensaje:msg,hora:"Ahora",activa:true});
-    const userIds = await getUserIdsByCurso(cursoId);
-    await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
-    cargar();
   };
 
   const dismissAlerta = async (alerta) => {
@@ -378,7 +348,7 @@ export function Muro({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso, cursoN
         <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",overflow:"hidden"}}>
           {agenda.map((e,i)=>{
             const d = new Date(e.fecha+"T00:00:00");
-            const c = e.dias<=1 ? {bg:"#3B82F6",fg:"white"} : e.dias<=7 ? {bg:"#EFF6FF",fg:"#1D4ED8"} : {bg:"#F1F5F9",fg:"#64748B"};
+            const c = {hot:{bg:"#3B82F6",fg:"white"}, soon:{bg:"#EFF6FF",fg:"#1D4ED8"}, later:{bg:"#F1F5F9",fg:"#64748B"}}[nivelUrgencia(e.dias)];
             return (
               <div key={e.key} onClick={e.onPress} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:i===0?"none":"1px solid #F1F5F9",cursor:"pointer"}}>
                 <div style={{width:40,textAlign:"center",flexShrink:0}}>

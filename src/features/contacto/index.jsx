@@ -1,17 +1,15 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor, colorColegio } from "../../lib/helpers";
+import { fmtNombre, sanitize, safeUrl, colorColegio } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { LogoUploadInput } from "../../components/LogoUploadInput";
 import { useIsMobile } from "../../hooks/useIsMobile";
-import { useListControls } from "../../hooks/useListControls";
 import { useToast } from "../../hooks/useToast";
 
 // Mail del apoderado: intenta abrir el cliente de correo (mailto:) y SIEMPRE
@@ -37,7 +35,7 @@ function ContactoDatos({ email, telefono, showToast, style }) {
 }
 
 
-export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
+export function Contacto({ isSuperAdmin=false, colegioId=null }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
   const [editColegio,setEditColegio]= useState(false);
@@ -210,7 +208,7 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
 
   useEffect(()=>{ cargar(); },[alumno.id]);
 
-  const cargar = async () => {
+  async function cargar() {
     const [v,t] = await Promise.all([
       supabase.from("usuario_hijos").select("*, usuarios(id,nombre,apellido,email,telefono)").eq("hijo_id",alumno.id),
       supabase.from("usuarios").select("id,nombre,apellido,email,telefono,rol").eq("activo",true).order("nombre"),
@@ -280,7 +278,7 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   );
 }
 
-export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, isAdmin }) {
+export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso }) {
   const { showToast, Toast } = useToast();
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});

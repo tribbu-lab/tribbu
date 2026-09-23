@@ -1,10 +1,9 @@
 // @ts-nocheck
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtM, fmtF, dHasta, fmtNombre, fmtRangoHora, fmtLocalDate,
-         sanitize, safeUrl, getHijoColor, setHijoColor, uuidLite } from "../../lib/helpers";
+import { fmtF, fmtNombre, fmtRangoHora, fmtLocalDate, sanitize, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Wordmark } from "../../components/Wordmark";
 import { Pill } from "../../components/Pill";
@@ -112,6 +111,11 @@ function ModuloStats({ items }) {
   );
 }
 
+// Color de avatar para un alumno nuevo sin color elegido (fuera del componente:
+// Math.random no puede correr durante el render).
+const COLORES_AVATAR = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
+const colorAvatarAlAzar = () => COLORES_AVATAR[Math.floor(Math.random()*COLORES_AVATAR.length)];
+
 export function SuperAdmin({ usuario, onCerrarSesion }) {
   // Multi-colegio: super es plataforma (sin colegio_id, ve/gestiona todos);
   // colegio_admin queda acotado al suyo por RLS en cada query de abajo —
@@ -147,7 +151,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [confirm,setConfirm]   = useState(null);
   const [maestros,setMaestros] = useState([]);
   const [alumnos,setAlumnos]   = useState([]);
-  const [cursoFiltro,setCursoFiltro] = useState(null);
   const [verApodSA,setVerApodSA]     = useState(null);
   const [authSyncMsg,setAuthSyncMsg] = useState(null);
   const [anoActual,setAnoActual]     = useState(new Date().getFullYear());
@@ -220,12 +223,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     ],
     pageSize:12,
   });
-  // Populate curso filter options dynamically
-  ctrlAlumnos.filterOptions = [{
-    key:"curso", label:"Curso",
-    options: cursos.map(c=>({value:String(c.id), label:c.nombre})),
-    match:(a,v)=>a.curso_id===v
-  }];
 
   const ctrlMaestros = useListControls(maestros, {
     searchFn: (m,q)=> fmtNombre(m).toLowerCase().includes(q)||(m.materia||"").toLowerCase().includes(q),
@@ -245,7 +242,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   useEffect(()=>{ cargar(); },[colegioId]);
 
-  const cargar = async () => {
+  async function cargar() {
     setLoading(true);
     const [u,c,h,m,mc,col,cols] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
@@ -720,8 +717,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     if(!form.nombre||!form.curso_id) return;
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
-    const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
-    const color = form.color||colors[Math.floor(Math.random()*colors.length)];
+    const color = form.color||colorAvatarAlAzar();
     let error;
     if(modal==="nuevo_alumno") {
       ({ error } = await supabase.from("hijos").insert({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,curso_id:form.curso_id,avatar,color,fecha_nacimiento:form.fecha_nacimiento||null,dni:sanitize(form.dni)||null}));
