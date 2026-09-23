@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -31,6 +32,16 @@ import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
 import { useNotificacionesCtx } from "../notificaciones";
+
+// "18", "18:5", "1830", "18:30" → "18:30" · vacío → null · inválido → false.
+const normalizarHora = (v) => {
+  const m = String(v).trim().match(/^(\d{1,2})(?::?(\d{1,2}))?$/);
+  if (!m) return false;
+  const h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  if (h > 23 || min > 59) return false;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+};
 
 const t = THEMES.light;
 
@@ -136,7 +147,7 @@ export function Recordatorios() {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ texto: "", fecha: "", prioridad: "media", urgente: false, adjuntos: [], curso_id: null });
+  const [form, setForm] = useState({ titulo: "", texto: "", fecha: "", hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [], curso_id: null });
   const [saving, setSaving] = useState(false);
   const [filtroRango, setFiltroRango] = useState("all");
   const [filtroPrio, setFiltroPrio] = useState("all");
@@ -194,10 +205,26 @@ export function Recordatorios() {
     // En vista "Todos" el alta exige un curso destino elegido en el modal.
     const cursoDestino = cursoId || form.curso_id;
     if (!modal?.id && !cursoDestino) return;
+    // Horario solo con fecha y fin solo con inicio — mismo modelo que
+    // "Comunicación del colegio". Con fecha y hora_inicio el aviso también
+    // entra al calendario sincronizado (feed ICS).
+    const hora_inicio = form.fecha && form.hora_inicio?.trim() ? normalizarHora(form.hora_inicio) : null;
+    const hora_fin = hora_inicio && form.hora_fin?.trim() ? normalizarHora(form.hora_fin) : null;
+    if (hora_inicio === false || hora_fin === false) {
+      Alert.alert("Hora inválida", "Usá el formato 18:00.");
+      return;
+    }
+    if (hora_fin && hora_fin < hora_inicio) {
+      Alert.alert("Hora inválida", "La hora de fin no puede ser anterior a la de inicio.");
+      return;
+    }
     setSaving(true);
     const payload = {
+      titulo: sanitize(form.titulo) || null,
       texto: sanitize(form.texto),
       fecha: form.fecha || null,
+      hora_inicio,
+      hora_fin,
       prioridad: form.prioridad || "media",
       urgente: form.urgente || false,
       adjuntos: form.adjuntos || [],
@@ -212,7 +239,7 @@ export function Recordatorios() {
       await supabase.from("recordatorios").insert({ ...payload, creado_por: userId });
       if (isAdmin) {
         const userIds = await getUserIdsByCurso(cursoDestino);
-        await sendPush({ type: "recordatorio", payload: { titulo: form.texto, userIds } });
+        await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || form.texto, userIds } });
       }
     }
     setSaving(false);
@@ -254,8 +281,11 @@ export function Recordatorios() {
 
   const abrirNuevo = () => {
     setForm({
+      titulo: "",
       texto: "",
       fecha: "",
+      hora_inicio: "",
+      hora_fin: "",
       prioridad: "media",
       urgente: false,
       adjuntos: [],
@@ -266,8 +296,11 @@ export function Recordatorios() {
   };
   const abrirEditar = useCallback((r) => {
     setForm({
+      titulo: r.titulo || "",
       texto: r.texto || "",
       fecha: r.fecha || "",
+      hora_inicio: r.hora_inicio?.slice(0, 5) || "",
+      hora_fin: r.hora_fin?.slice(0, 5) || "",
       prioridad: r.prioridad || "media",
       urgente: r.urgente || false,
       adjuntos: r.adjuntos || [],
@@ -450,11 +483,20 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
                 </>
               ) : null}
 
-              <Text style={styles.modalLabel}>Texto</Text>
+              <Text style={styles.modalLabel}>Título (opcional)</Text>
+              <TextInput
+                value={form.titulo}
+                onChangeText={(v) => setForm((p) => ({ ...p, titulo: v }))}
+                placeholder="Ej: Reunión de padres"
+                placeholderTextColor={t.placeholder}
+                style={styles.modalInput}
+              />
+
+              <Text style={styles.modalLabel}>{form.titulo?.trim() ? "Descripción" : "Texto"}</Text>
               <TextInput
                 value={form.texto}
                 onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
-                placeholder="Ej: Reunión de padres el viernes"
+                placeholder={form.titulo?.trim() ? "Ej: En el SUM, traer la autorización firmada." : "Ej: Reunión de padres el viernes"}
                 placeholderTextColor={t.placeholder}
                 multiline
                 style={[styles.modalInput, styles.modalTextarea]}
@@ -467,6 +509,39 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
                 clearable
                 style={styles.modalInput}
               />
+
+              {form.fecha ? (
+                <>
+                  <View style={styles.horaRow}>
+                    <View style={styles.horaCol}>
+                      <Text style={styles.modalLabel}>Hora inicio</Text>
+                      <TextInput
+                        value={form.hora_inicio}
+                        onChangeText={(v) => setForm((p) => ({ ...p, hora_inicio: v }))}
+                        placeholder="18:00"
+                        placeholderTextColor={t.placeholder}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                        style={styles.modalInput}
+                      />
+                    </View>
+                    <View style={styles.horaCol}>
+                      <Text style={styles.modalLabel}>Hora fin</Text>
+                      <TextInput
+                        value={form.hora_fin}
+                        onChangeText={(v) => setForm((p) => ({ ...p, hora_fin: v }))}
+                        placeholder="19:30"
+                        placeholderTextColor={t.placeholder}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                        editable={!!form.hora_inicio}
+                        style={[styles.modalInput, !form.hora_inicio && styles.inputOff]}
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.horaHint}>Con hora de inicio, el aviso también aparece en el calendario sincronizado.</Text>
+                </>
+              ) : null}
 
               <Text style={styles.modalLabel}>Prioridad</Text>
               <View style={styles.prioRow}>
@@ -589,6 +664,10 @@ function HistorialComunicados({ cursoIds, tagDeCurso }) {
 
 // Estilos A3: sin sombras, borde hairline, radio 16, dot de estado como ancla.
 const styles = StyleSheet.create({
+  horaRow: { flexDirection: "row", gap: 10 },
+  horaCol: { flex: 1 },
+  inputOff: { opacity: 0.5 },
+  horaHint: { fontSize: 11, color: "#94A3B8", marginTop: 4 },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   headerWrap: { marginBottom: SPACE.xs },

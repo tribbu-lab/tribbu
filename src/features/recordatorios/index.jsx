@@ -17,7 +17,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
-  const [form,          setForm]          = useState({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:null});
+  const [form,          setForm]          = useState({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:null});
   const [saving,        setSaving]        = useState(false);
   const [subiendoAdj,   setSubiendoAdj]   = useState(false);
   const [alerta,        setAlerta]        = useState(null);
@@ -68,8 +68,14 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     // En vista "Todos" el alta exige un curso destino elegido en el modal.
     const cursoDestino = cursoId || form.curso_id;
     if(!modal?.id && !cursoDestino) return;
+    // Horario solo con fecha (una hora sin día no se puede agendar) y fin solo
+    // con inicio — mismo modelo que "Comunicación del colegio". Con fecha y
+    // hora_inicio el aviso también entra al calendario sincronizado (feed ICS).
+    const hora_inicio = form.fecha && form.hora_inicio ? form.hora_inicio : null;
+    const hora_fin = hora_inicio && form.hora_fin ? form.hora_fin : null;
+    if(hora_fin && hora_fin < hora_inicio) { alert("La hora de fin no puede ser anterior a la de inicio."); return; }
     setSaving(true);
-    const payload = { texto:sanitize(form.texto), fecha:form.fecha||null, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
+    const payload = { titulo:sanitize(form.titulo)||null, texto:sanitize(form.texto), fecha:form.fecha||null, hora_inicio, hora_fin, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
     if(modal?.id) {
       // Al editar no se pisa curso_id: en vista "Todos" la fila puede ser de
       // otro curso y el payload la movería.
@@ -79,7 +85,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
       await supabase.from("recordatorios").insert({...payload, creado_por:userId});
       if(isAdmin) {
         const userIds = await getUserIdsByCurso(cursoDestino);
-        await sendPush({ type:"recordatorio", payload:{ titulo:form.texto, userIds } });
+        await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||form.texto, userIds } });
       }
     }
     setSaving(false); setModal(null); cargar();
@@ -215,13 +221,28 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
               </div>
             )}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TEXTO</div>
-              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: Reunion de padres el viernes" rows={3} style={{...inp,resize:"vertical"}}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TÍTULO (opcional)</div>
+              <input value={form.titulo||""} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ej: Reunión de padres" style={inp}/>
             </div>
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
-              <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{form.titulo?.trim() ? "DESCRIPCIÓN" : "TEXTO"}</div>
+              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder={form.titulo?.trim() ? "Ej: En el SUM, traer la autorización firmada." : "Ej: Reunion de padres el viernes"} rows={3} style={{...inp,resize:"vertical"}}/>
             </div>
+            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <div style={{flex:"1 1 140px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
+                <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
+              </div>
+              <div style={{flex:"1 1 90px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO</div>
+                <input type="time" value={form.hora_inicio||""} disabled={!form.fecha} onChange={e=>setForm(p=>({...p,hora_inicio:e.target.value}))} style={{...inp,opacity:form.fecha?1:0.5}}/>
+              </div>
+              <div style={{flex:"1 1 90px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN</div>
+                <input type="time" value={form.hora_fin||""} disabled={!form.fecha||!form.hora_inicio} onChange={e=>setForm(p=>({...p,hora_fin:e.target.value}))} style={{...inp,opacity:form.fecha&&form.hora_inicio?1:0.5}}/>
+              </div>
+            </div>
+            <div style={{fontSize:11,color:"#94A3B8",marginTop:-4,marginBottom:10}}>Con fecha y hora de inicio, el aviso también aparece en el calendario sincronizado de las familias.</div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
               <div style={{display:"flex",gap:6}}>
@@ -275,7 +296,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
           {filtrados.some(r=>!leidosSet.has(r.id))&&(
             <button onClick={marcarTodoLeido} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Marcar todo leído</button>
           )}
-          <button onClick={()=>{setModal({});setForm({texto:"",fecha:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+          <button onClick={()=>{setModal({});setForm({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
         </div>
       </div>
       {filtroRango==="personalizado"&&(
@@ -341,7 +362,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
                 <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"Leido":"Leido"}</button>
               )}
               {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&r.tipo!=="colecta_vence"&&<div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{setModal(r);setForm({texto:r.texto||"",fecha:r.fecha||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
+                <button onClick={()=>{setModal(r);setForm({titulo:r.titulo||"",texto:r.texto||"",fecha:r.fecha||"",hora_inicio:r.hora_inicio?.slice(0,5)||"",hora_fin:r.hora_fin?.slice(0,5)||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
                 <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
               </div>}
               {isAdmin&&(r.tipo==="regalo_cumple"||r.tipo==="colecta_vence")&&<div style={{display:"flex",gap:4}}>
