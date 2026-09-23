@@ -4,7 +4,7 @@ import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtM, fmtF, fmtDM, dHasta, fmtNombre,
-         sanitize, safeUrl, getHijoColor, setHijoColor } from "../../lib/helpers";
+         sanitize, safeUrl, getHijoColor, setHijoColor, colorColegio } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -74,6 +74,7 @@ export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
     setSaving(true);
     const {id, ...colegioData} = colegioForm;
     if(colegioData.año_lectivo_actual!=null) colegioData.año_lectivo_actual = Number(colegioData.año_lectivo_actual)||null;
+    colegioData.color_primario = colorColegio(colegioData.color_primario);
     await supabase.from("colegios").update(colegioData).eq("id",id||colegio?.id);
     setSaving(false); setEditColegio(false); cargar();
   };
@@ -118,7 +119,12 @@ export function Contacto({ cursoId, isSuperAdmin=false, colegioId=null }) {
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>COLOR PRIMARIO</div>
-              <input value={colegioForm.color_primario||""} onChange={e=>setColegioForm(p=>({...p,color_primario:e.target.value}))} placeholder="#3B82F6" style={inp}/>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="color" value={colorColegio(colegioForm.color_primario)||"#3B82F6"} onChange={e=>setColegioForm(p=>({...p,color_primario:e.target.value}))} style={{width:44,height:36,padding:2,border:"1.5px solid #E2E8F0",borderRadius:8,background:"white",cursor:"pointer"}}/>
+                <span style={{fontSize:12,color:"#64748B",flex:1}}>{colorColegio(colegioForm.color_primario)||"Sin color (usa el azul de tribbu)"}</span>
+                {colorColegio(colegioForm.color_primario)&&<button type="button" onClick={()=>setColegioForm(p=>({...p,color_primario:null}))} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,color:"#64748B"}}>Quitar</button>}
+              </div>
+              <div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Se usa como acento en la app de las familias (punto del logo tribbu y pestaña activa), salvo que elijan su propio color.</div>
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:4}}>AÑO LECTIVO ACTUAL</div>

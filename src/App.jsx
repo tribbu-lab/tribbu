@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
-import { getHijoColor, setHijoColor, fmtLocalDate } from "./lib/helpers";
+import { getHijoColor, setHijoColor, fmtLocalDate, colorColegio } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -211,7 +211,7 @@ function App() {
       // el picker de abajo usa itemActual, que en Todos es null.
       const colegioIds = [...new Set(items.map(h=>h.cursos?.colegio_id).filter(Boolean))];
       if(colegioIds.length) {
-        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url").in("id",colegioIds);
+        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url,color_primario").in("id",colegioIds);
         setColegiosPorId(Object.fromEntries((cols||[]).map(c=>[c.id,c])));
       } else {
         setColegiosPorId({});
@@ -410,7 +410,10 @@ function App() {
   // vista" — se sigue usando en hijoDotColor/tagDeCurso para diferenciar hijos
   // en listas, pero no debe teñir el header entero).
   const headerBg  = hijoColor || "#0F172A";
-  const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || "#3B82F6";
+  // Color de marca del colegio activo: reemplaza al azul por defecto (punto del
+  // wordmark, indicador de pestaña) pero nunca a un color que eligió el usuario.
+  const acentoColegio = colorColegio(colegioActivo?.color_primario);
+  const hijoDotColor = hijoColor || (esPadre && itemActual?.color) || acentoColegio || "#3B82F6";
 
   const cambiarColorHijo = (idx, color) => {
     const item = items[idx];
@@ -541,7 +544,7 @@ function App() {
         {/* Barra superior: logo + usuario */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Wordmark size={22} letterSpacing={-1} />
+            <Wordmark size={22} letterSpacing={-1} dotColor={acentoColegio||undefined} />
             {/* Logo del colegio — chico, al lado del wordmark, nunca lo
                 reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
             {colegioActivo?.logo_url&&<SignedImg src={colegioActivo.logo_url} bucket="adjuntos" alt={colegioActivo.nombre} style={{width:22,height:22,borderRadius:6,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2}}/>}
@@ -652,12 +655,15 @@ function App() {
       <div id="tribbu-sidebar" style={{width:220,background:headerBg,position:"fixed",top:0,left:0,bottom:0,display:"flex",flexDirection:"column",zIndex:100,overflowY:"auto",transition:"background 0.3s"}}>
         <div style={{padding:"24px 20px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-            <Wordmark size={26} letterSpacing={-1} />
+            <Wordmark size={26} letterSpacing={-1} dotColor={acentoColegio||undefined} />
             {/* Logo del colegio — chico, al lado del wordmark, nunca lo
                 reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
             {colegioActivo?.logo_url&&<SignedImg src={colegioActivo.logo_url} bucket="adjuntos" alt={colegioActivo.nombre} style={{width:26,height:26,borderRadius:7,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2,flexShrink:0}}/>}
           </div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1}}>Comunidad escolar</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,display:"flex",alignItems:"center",gap:6,overflow:"hidden"}}>
+            {acentoColegio&&<span style={{width:6,height:6,borderRadius:"50%",background:acentoColegio,flexShrink:0}}/>}
+            <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{colegioActivo?.nombre||"Comunidad escolar"}</span>
+          </div>
         </div>
 
         <div style={{padding:"0 12px",flex:1,paddingTop:8}}>

@@ -14,7 +14,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
-import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite } from "@shared/helpers";
+import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite, colorColegio } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
 import { pickAndUploadImage } from "../../lib/media";
 import { SignedImage } from "../../components/SignedImage";
@@ -1263,6 +1263,10 @@ function ApoderadosModal({ alumno, onClose }) {
 // tabla singleton `colegio` (deprecada). RLS `colegios_update` ya permite
 // es_colegio_admin_de(id). El logo va por pickAndUploadImage (bucket adjuntos,
 // mismo criterio que LogoUploadInput de la web).
+// Paleta para el color de marca del colegio (en mobile no hay selector de
+// color libre; desde la web se puede elegir cualquiera).
+const COLORES_COLEGIO = ["#1D4ED8", "#0F766E", "#15803D", "#B91C1C", "#9D174D", "#6D28D9", "#C2410C", "#0F172A"];
+
 function ColegioAdmin({ colegioId }) {
   const [colegio, setColegio] = useState(null);
   const [colId, setColId] = useState(colegioId || null);
@@ -1307,6 +1311,7 @@ function ColegioAdmin({ colegioId }) {
       horario_secretaria: colegio?.horario_secretaria || "",
       sitio_web: colegio?.sitio_web || "",
       logo_url: colegio?.logo_url || "",
+      color_primario: colorColegio(colegio?.color_primario),
     });
     setModal(true);
   };
@@ -1342,6 +1347,7 @@ function ColegioAdmin({ colegioId }) {
         horario_secretaria: sanitize(form.horario_secretaria) || null,
         sitio_web: safeUrl(form.sitio_web) || null,
         logo_url: form.logo_url || null,
+        color_primario: colorColegio(form.color_primario),
       })
       .eq("id", colId);
     setGuardando(false);
@@ -1420,6 +1426,24 @@ function ColegioAdmin({ colegioId }) {
                     </Pressable>
                   ) : null}
                 </View>
+
+                <Text style={styles.label}>COLOR DEL COLEGIO</Text>
+                <View style={styles.colorRow}>
+                  {COLORES_COLEGIO.map((c) => (
+                    <Pressable
+                      key={c}
+                      onPress={() => setForm((p) => ({ ...p, color_primario: c }))}
+                      accessibilityLabel={`Color ${c}`}
+                      style={[styles.colorSwatch, { backgroundColor: c }, form.color_primario === c && styles.colorSwatchActivo]}
+                    />
+                  ))}
+                  <Pressable onPress={() => setForm((p) => ({ ...p, color_primario: null }))} style={styles.logoBtn}>
+                    <Text style={styles.logoBtnTxt}>{form.color_primario ? "Quitar" : "Sin color"}</Text>
+                  </Pressable>
+                </View>
+                {form.color_primario && !COLORES_COLEGIO.includes(form.color_primario) ? (
+                  <Text style={styles.muted}>Color actual: {form.color_primario} (elegido desde la web)</Text>
+                ) : null}
 
                 {campos.map((f) => (
                   <View key={f.k}>
@@ -2369,6 +2393,9 @@ function UploadApoderadosExcel({ onDone }) {
 }
 
 const styles = StyleSheet.create({
+  colorRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 12 },
+  colorSwatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "transparent" },
+  colorSwatchActivo: { borderColor: "#0F172A", transform: [{ scale: 1.1 }] },
   colegioSelector: { marginTop: 10, marginBottom: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
   colegioSelectorLbl: { fontSize: 10, fontWeight: "800", color: "#94A3B8", letterSpacing: 0.8 },
   colegioSelectorTxt: { fontSize: 15, fontWeight: "700", color: "#0F172A", marginTop: 2 },

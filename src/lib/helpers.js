@@ -73,6 +73,12 @@ export const fmtRangoHora = (horaInicio, horaFin) => {
   return fin ? `${ini} – ${fin}` : ini;
 };
 
+/**
+ * Color de marca del colegio (colegios.color_primario) solo si es un hex
+ * "#RRGGBB" válido — viene de un input libre, y se usa directo en estilos.
+ */
+export const colorColegio = (c) => (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c.trim()) ? c.trim() : null);
+
 /** Timestamp ISO pasado → "hace unos minutos" / "hace 3 horas" / "hace 2 días" */
 export const fmtHace = (iso) => {
   if (!iso) return null;

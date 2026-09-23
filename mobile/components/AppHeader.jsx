@@ -15,6 +15,7 @@ import { NotificacionesPanel } from "../features/notificaciones";
 import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
+import { colorColegio } from "@shared/helpers";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -64,7 +65,8 @@ export function AppHeader({ notif }) {
     <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
         <View style={styles.brandRow}>
-          <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={dk.accent} letterSpacing={-1} />
+          {/* Punto del wordmark en el color de marca del colegio (si tiene uno válido). */}
+          <Wordmark size={TYPE.h1.fontSize} color={dk.textStrong} dotColor={colorColegio(colegioActivo?.color_primario) || dk.accent} letterSpacing={-1} />
           {/* Logo del colegio — chico, al lado del wordmark, nunca lo
               reemplaza. Ausente en Todos/sin logo cargado (colegioActivo). */}
           {colegioActivo?.logo_url ? (

@@ -100,7 +100,7 @@ export function SessionProvider({ children }) {
       // un query chico, solo los colegios realmente en juego.
       const colegioIds = [...new Set(next.map((h) => h.cursos?.colegio_id).filter(Boolean))];
       if (colegioIds.length) {
-        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url").in("id", colegioIds);
+        const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url,color_primario").in("id", colegioIds);
         if (!cancel) setColegiosPorId(Object.fromEntries((cols || []).map((c) => [c.id, c])));
       } else if (!cancel) {
         setColegiosPorId({});
