@@ -34,10 +34,9 @@ Tachá o borrá cada ítem cuando se resuelva.
 ## Probar
 
 - [ ] **En el celular (APK nuevo o release)**: Más → Notificaciones (apagar y
-      prender un aviso), la edad de los hermanos al responder un cumpleaños, y
-      **Perdidos y encontrados** (publicar con foto de la galería, "¡Es mío!",
-      contacto, tarjeta del Muro). Lint y bundle OK; en web se probó de punta a
-      punta, en el celular no.
+      prender un aviso) y la edad de los hermanos al responder un cumpleaños.
+      Lint y bundle OK; en web se probó de punta a punta, en el celular no.
+      (Perdidos y encontrados ya se probó en el emulador Android el 2026-09-23.)
 - [ ] **En un iPhone**: la app en general y la sincronización de calendario
       (Apple Calendar y Google) — nunca se probó en un equipo real.
 - [ ] **Primer aviso automático real**: resumen semanal domingo 27/09 18:00 y
@@ -49,6 +48,10 @@ Room Parent y colegio, web y mobile), confirmación de lectura, adopción,
 preferencias de avisos en modo prueba, aviso de autorización sin responder,
 edad de los hermanos (web, con Excel), y las ~20 pantallas web tras el
 refactor de carga (sin errores ni recargas en loop).
+
+- [ ] **Fotos huérfanas en Storage**: no hay política DELETE en `storage.objects`,
+      así que borrar un recordatorio/evento/perdido deja su archivo en el bucket.
+      Agregar una policy de borrado (dueño o quien gestiona) o limpieza periódica.
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 

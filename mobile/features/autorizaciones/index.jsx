@@ -5,7 +5,8 @@
 // Admin (varios cursos a la vez, mismo grupo_id). La fecha límite también la
 // hace cumplir la RLS.
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, RefreshControl, StyleSheet } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { exportRowsToExcel } from "../../lib/media";
@@ -50,7 +51,14 @@ export function Autorizaciones() {
     ]);
     setDatos({ autorizaciones: auts || [], respuestas: resp.data || [], alumnos: alumnos.data || [] });
   }, [cursoIds]);
-  useEffect(() => { cargar(); }, [cargar]);
+  // Expo Router deja la pantalla montada: recargar al volver a ella (como
+  // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
+  const [refrescando, setRefrescando] = useState(false);
+  const refrescar = async () => {
+    setRefrescando(true);
+    try { await cargar(); } finally { setRefrescando(false); }
+  };
 
   const gestiona = (a) => a.creado_por === userId || cursosQueGestiona.includes(a.curso_id);
 
@@ -130,6 +138,7 @@ export function Autorizaciones() {
         keyExtractor={(a) => a.id}
         renderItem={renderItem}
         contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.flex1}>

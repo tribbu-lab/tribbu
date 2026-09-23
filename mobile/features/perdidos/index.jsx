@@ -4,8 +4,9 @@
 // los 30 días o al marcarse resuelto, y al publicar no se manda push. "¡Es mío!" /
 // "Lo tengo yo" avisa a quien publicó y comparte los contactos. Lo que publica
 // el colegio (su caja de objetos perdidos) se carga desde el Super Admin web.
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, StyleSheet } from "react-native";
+import { useState, useCallback, useMemo } from "react";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, StyleSheet } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
@@ -63,7 +64,14 @@ export function Perdidos() {
     for (const a of avisos || []) avisosDe[a.objeto_id] = (avisosDe[a.objeto_id] || 0) + 1;
     setDatos({ objetos, misAvisos, avisosDe, colegioDe: new Map((cursos || []).map((c) => [c.id, c.colegio_id])) });
   }, [cursoIds, userId]);
-  useEffect(() => { cargar(); }, [cargar]);
+  // Expo Router deja la pantalla montada: recargar al volver a ella (como
+  // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
+  const [refrescando, setRefrescando] = useState(false);
+  const refrescar = async () => {
+    setRefrescando(true);
+    try { await cargar(); } finally { setRefrescando(false); }
+  };
 
   const vigentes = useMemo(() => (datos?.objetos || []).filter((o) => estaVigente(o)), [datos]);
   const gestiona = (o) => o.publicado_por === userId || (!!o.curso_id && cursosAdmin.includes(o.curso_id));
@@ -161,6 +169,7 @@ export function Perdidos() {
         keyExtractor={(o) => o.id}
         renderItem={renderItem}
         contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
         ListHeaderComponent={
           <View>
             <View style={styles.header}>
