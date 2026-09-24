@@ -304,6 +304,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     e={e}
                     tag={tagDeCurso(e.curso_id)}
                     isAdmin={isAdmin}
+                    userId={userId}
                     onAsistencia={() => setEventoDetalle(e)}
                     onEditar={() => setModal(e)}
                     onEliminar={() => setConfirm(e)}
@@ -397,7 +398,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                         <Text style={styles.asistTxt}>Asistencia</Text>
                       </Pressable>
                     ) : null}
-                    {isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo" && e.tipo !== "comunicado" ? (
+                    {(isAdmin || (userId && e.creado_por === userId)) && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo" ? (
                       <View style={styles.editRow}>
                         <Pressable onPress={() => setModal(e)} style={styles.miniBtn}>
                           <Text style={styles.miniTxt}>✏️</Text>
@@ -491,9 +492,10 @@ function TagHijo({ tag }) {
   );
 }
 
-function EventoRow({ e, tag = null, isAdmin, onAsistencia, onEditar, onEliminar }) {
+function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
-  const editable = isAdmin && e.id && !String(e.id).startsWith("c-") && e.tipo !== "festejo" && e.tipo !== "comunicado";
+  // Quien lo creó siempre puede editarlo/borrarlo, sea cual sea su rol.
+  const editable = (isAdmin || (userId && e.creado_por === userId)) && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo";
   return (
     <View style={styles.diaRow}>
       <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
@@ -614,15 +616,15 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     // cursoId de sesión (el modal solo se abre con isAdmin, nunca en vista Todos).
     const cursoEvento = evento?.curso_id ?? cursoId;
     // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
-    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento, creado_por: userId };
+    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento };
     let eventoId = evento?.id;
     if (esNuevo) {
-      const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
+      const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
       eventoId = ev?.id;
       const userIds = await getUserIdsByCurso(cursoEvento);
       await sendPush({ type: "evento", payload: { titulo: form.titulo, fecha: form.fecha || "", userIds } });
     } else {
-      await supabase.from("eventos").update(payload).eq("id", evento.id);
+      await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
     }
     if (form.confirma_asistencia && eventoId) {
       const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);

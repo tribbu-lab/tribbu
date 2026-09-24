@@ -277,7 +277,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                         ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
                         : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button> : null)
                       }
-                        {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&e.tipo!=="comunicado"&&(
+                        {(isAdmin||(userId&&e.creado_por===userId))&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={()=>setModal(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                             <button onClick={()=>setConfirm(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
@@ -368,7 +368,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:enCurso||dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{diasTxt}</span>
                     {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
                     {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
-                    {isAdmin&&e.id&&!e.id?.toString().startsWith("c-")&&e.tipo!=="festejo"&&e.tipo!=="comunicado"&&(
+                    {(isAdmin||(userId&&e.creado_por===userId))&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                       <div style={{display:"flex",gap:4}}>
                         <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                         <button onClick={()=>setConfirm(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
@@ -536,15 +536,15 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const guardar = async () => {
     if(!form.titulo || !form.fecha || fechaFinInvalida) return;
     // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
-    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento, creado_por: userId };
+    const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento };
     let eventoId = evento?.id;
     if(esNuevo) {
-      const { data: ev } = await supabase.from("eventos").insert(payload).select().single();
+      const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
       eventoId = ev?.id;
       const userIds = await getUserIdsByCurso(cursoEvento);
       await sendPush({ type:"evento", payload:{ titulo:form.titulo, fecha:form.fecha||"", userIds } });
     } else {
-      await supabase.from("eventos").update(payload).eq("id", evento.id);
+      await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
     }
     // Si confirma_asistencia: crear filas pendientes para todos los apoderados del curso
     if(form.confirma_asistencia && eventoId) {
