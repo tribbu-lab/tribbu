@@ -18,6 +18,14 @@ export const DIAS_VIGENCIA = 30;
 /** Abierta y sin vencer. */
 export const estaVigente = (o, ahora = new Date()) => o.estado === "abierto" && new Date(o.vence_en) > ahora;
 
+/**
+ * Se sigue listando: los 30 días completos aunque ya se haya resuelto (así
+ * las familias ven que apareció). Resueltas al final, abiertas primero.
+ */
+export const estaVisible = (o, ahora = new Date()) => new Date(o.vence_en) > ahora;
+export const ordenarVisibles = (objetos) =>
+  [...objetos].sort((a, b) => (a.estado === "resuelto") - (b.estado === "resuelto") || new Date(b.creado_en) - new Date(a.creado_en));
+
 // Categorías tan específicas que coincidir en la categoría ya alcanza para
 // sugerir (una lonchera es una lonchera); en ropa/útiles/otro hace falta
 // además alguna palabra en común ("campera", "azul", un nombre...).

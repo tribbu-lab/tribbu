@@ -2,14 +2,15 @@
 // publican lo que buscan ("Perdí") y lo que encontraron ("Encontré"); el
 // colegio publica su caja de objetos perdidos desde el Super Admin. Cada
 // publicación se ve en su curso (o en todo el colegio si así se eligió), vence a
-// los 30 días o al marcarse "Resuelto", y al publicar no se manda push. Quien
+// los 30 días (lo marcado "Resuelto" sigue listado, atenuado, hasta entonces), y
+// al publicar no se manda push. Quien
 // reconoce algo avisa ("¡Es mío!" / "Lo tengo yo") y recién ahí se comparten
 // los contactos (RPCs contacto_objeto_perdido / avisos_objeto_perdido).
 import { useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
-import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
+import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
 import { Card } from "../../components/Card";
 import { SignedImg } from "../../components/SignedImg";
 import { useCargar } from "../../hooks/useCargar";
@@ -34,7 +35,6 @@ async function cargarDatos(cursoIds, userId) {
     .from("objetos_perdidos")
     .select("*")
     .or(filtro)
-    .eq("estado", "abierto")
     .gt("vence_en", new Date().toISOString())
     .order("creado_en", { ascending: false });
   const objetos = objs || [];
@@ -52,8 +52,9 @@ async function cargarDatos(cursoIds, userId) {
 function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugerencias, onAvisar, onVerContacto, onVerAvisos, onResuelto, onBorrar, onVerSugerencia }) {
   const cat = categoria(o.categoria);
   const propio = o.publicado_por === userId;
+  const resuelta = o.estado === "resuelto";
   return (
-    <Card style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
+    <Card style={{ padding: 0, overflow: "hidden", marginBottom: 12, opacity: resuelta ? 0.7 : 1 }}>
       <div style={{ display: "flex", gap: 12, padding: 14 }}>
         {o.foto
           ? <SignedImg src={o.foto} bucket="adjuntos" alt={o.titulo} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 12, flexShrink: 0, background: "#F1F5F9" }} />
@@ -61,6 +62,7 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 3 }}>
             <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 8, background: o.tipo === "perdido" ? "#FEF3C7" : "#DCFCE7", color: o.tipo === "perdido" ? "#92400E" : "#166534" }}>{o.tipo === "perdido" ? "BUSCAN" : "ENCONTRADO"}</span>
+            {resuelta && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 8, background: "#E2E8F0", color: "#334155" }}>✓ RESUELTO</span>}
             <span style={{ fontSize: 10.5, color: "#64748B" }}>{cat.e} {cat.l}</span>
             {o.es_colegio && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#EEF2FF", color: "#6366F1" }}>🏫 Colegio</span>}
             {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#64748B" }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} />{tag.nombre}</span>}
@@ -83,13 +85,13 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
           ))}
         </div>
       )}
-      {!propio && !yaAvise && reclamado && (
+      {!propio && !yaAvise && reclamado && !resuelta && (
         <div style={{ padding: "0 14px 8px", fontSize: 12, color: "#64748B" }}>
           {o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}
         </div>
       )}
       <div style={{ display: "flex", gap: 8, padding: "10px 14px", borderTop: "1px solid #F1F5F9", flexWrap: "wrap", alignItems: "center" }}>
-        {!propio && !yaAvise && (
+        {!propio && !yaAvise && !resuelta && (
           <button onClick={() => onAvisar(o)} style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>
             {o.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"}
           </button>
@@ -101,7 +103,7 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
           <button onClick={() => onVerAvisos(o)} style={{ padding: "7px 14px", borderRadius: 10, border: "1px solid #BBF7D0", background: "#F0FDF4", color: "#047857", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>🙋 {nAvisos} {nAvisos === 1 ? "aviso" : "avisos"}</button>
         )}
         <div style={{ flex: 1 }} />
-        {gestiona && <button onClick={() => onResuelto(o)} style={{ border: "none", background: "none", color: "#10B981", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>✓ Resuelto</button>}
+        {gestiona && !resuelta && <button onClick={() => onResuelto(o)} style={{ border: "none", background: "none", color: "#10B981", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>✓ Resuelto</button>}
         {gestiona && <button onClick={() => onBorrar(o)} style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Borrar</button>}
       </div>
     </Card>
@@ -228,7 +230,7 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, candidatos, onClos
           {form.alcance === "colegio" && !comoColegio && <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 4 }}>Usalo si se perdió en un lugar común (patio, micro, gimnasio).</div>}
         </div>
       )}
-      <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve 30 días o hasta que lo marques resuelto. No se manda notificación a nadie al publicar.</div>
+      <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve 30 días (si lo marcás resuelto, sigue en la lista como resuelto). No se manda notificación a nadie al publicar.</div>
       {error && <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 8 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, color: "#94A3B8" }}>Cancelar</button>
@@ -291,9 +293,10 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   };
 
   const vigentes = useMemo(() => (datos?.objetos || []).filter((o) => estaVigente(o)), [datos]);
+  const visibles = useMemo(() => ordenarVisibles((datos?.objetos || []).filter((o) => estaVisible(o))), [datos]);
   if (!datos) return <div style={{ padding: 30, textAlign: "center", color: "#94A3B8" }}>Cargando…</div>;
-  const lista = vigentes.filter((o) => o.tipo === tab && (cat === "todas" || o.categoria === cat));
-  const cuenta = (t) => vigentes.filter((o) => o.tipo === t).length;
+  const lista = visibles.filter((o) => o.tipo === tab && (cat === "todas" || o.categoria === cat));
+  const cuenta = (t) => visibles.filter((o) => o.tipo === t).length;
 
   return (
     <div>
@@ -337,7 +340,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
         <Card style={{ padding: 28, textAlign: "center" }}>
           <div style={{ fontSize: 28 }}>🧦</div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>{tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"}</div>
-          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Las publicaciones duran 30 días o hasta que se marcan resueltas.</div>
+          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Las publicaciones se ven 30 días, también las resueltas.</div>
         </Card>
       )}
       {lista.map((o) => (
@@ -350,7 +353,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
             nAvisos={datos.avisosDe[o.id] || 0}
             tag={tagDeCurso?.(o.curso_id)}
             reclamado={datos.reclamados.has(o.id)}
-            sugerencias={o.publicado_por === userId ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : null}
+            sugerencias={o.publicado_por === userId && o.estado === "abierto" ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : null}
             onAvisar={(x) => { setAvisando(x); setMensaje(""); }}
             onVerContacto={verContacto}
             onVerAvisos={verAvisos}

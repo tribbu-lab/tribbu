@@ -1,7 +1,8 @@
 // Perdidos y encontrados (puerto RN de src/features/perdidos — ver
 // specs/perdidos-y-encontrados.md). Las familias publican lo que buscan y lo que
 // encontraron; se ve en el curso (o en todo el colegio si así se eligió), vence a
-// los 30 días o al marcarse resuelto, y al publicar no se manda push. "¡Es mío!" /
+// los 30 días (lo resuelto sigue listado, atenuado, hasta entonces), y al publicar
+// no se manda push. "¡Es mío!" /
 // "Lo tengo yo" avisa a quien publicó y comparte los contactos. Lo que publica
 // el colegio (su caja de objetos perdidos) se carga desde el Super Admin web.
 import { useState, useCallback, useMemo } from "react";
@@ -11,7 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
-import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance, cargarReclamados } from "@shared/perdidos";
+import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "@shared/perdidos";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -53,7 +54,6 @@ export function Perdidos() {
       .from("objetos_perdidos")
       .select("*")
       .or(filtroAlcance(cursoIds, colegios))
-      .eq("estado", "abierto")
       .gt("vence_en", new Date().toISOString())
       .order("creado_en", { ascending: false });
     const objetos = objs || [];
@@ -75,6 +75,7 @@ export function Perdidos() {
   };
 
   const vigentes = useMemo(() => (datos?.objetos || []).filter((o) => estaVigente(o)), [datos]);
+  const visibles = useMemo(() => ordenarVisibles((datos?.objetos || []).filter((o) => estaVisible(o))), [datos]);
   const gestiona = (o) => o.publicado_por === userId || (!!o.curso_id && cursosAdmin.includes(o.curso_id));
 
   const verContacto = async (o) => {
@@ -99,19 +100,20 @@ export function Perdidos() {
     ]);
 
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;
-  const lista = vigentes.filter((o) => o.tipo === tab && (cat === "todas" || o.categoria === cat));
-  const cuenta = (tipo) => vigentes.filter((o) => o.tipo === tipo).length;
+  const lista = visibles.filter((o) => o.tipo === tab && (cat === "todas" || o.categoria === cat));
+  const cuenta = (tipo) => visibles.filter((o) => o.tipo === tipo).length;
 
   const renderItem = ({ item: o }) => {
     const c = categoria(o.categoria);
     const propio = o.publicado_por === userId;
     const yaAvise = datos.misAvisos.has(o.id);
     const nAvisos = datos.avisosDe[o.id] || 0;
+    const resuelta = o.estado === "resuelto";
     const reclamado = datos.reclamados.has(o.id);
-    const sugerencias = propio ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : [];
+    const sugerencias = propio && !resuelta ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : [];
     const tag = tagDeCurso(o.curso_id);
     return (
-      <Card style={styles.card}>
+      <Card style={[styles.card, resuelta && styles.cardResuelta]}>
         <View style={styles.cardTop}>
           {o.foto ? (
             <SignedImage src={o.foto} bucket="adjuntos" style={styles.foto} resizeMode="cover" />
@@ -121,6 +123,7 @@ export function Perdidos() {
           <View style={styles.flex1}>
             <View style={styles.badges}>
               <Text style={[styles.badge, o.tipo === "perdido" ? styles.badgeBuscan : styles.badgeEncontrado]}>{o.tipo === "perdido" ? "BUSCAN" : "ENCONTRADO"}</Text>
+              {resuelta ? <Text style={[styles.badge, styles.badgeResuelto]}>✓ RESUELTO</Text> : null}
               <Text style={styles.cat}>{c.e} {c.l}</Text>
               {o.es_colegio ? <Text style={styles.colegio}>🏫 Colegio</Text> : null}
             </View>
@@ -136,11 +139,11 @@ export function Perdidos() {
             <Text style={styles.sugerenciaTxt}>🔎 ¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}? {sugerencias.map((s) => s.objeto.titulo).join(", ")}</Text>
           </Pressable>
         ) : null}
-        {!propio && !yaAvise && reclamado ? (
+        {!propio && !yaAvise && reclamado && !resuelta ? (
           <Text style={styles.reclamado}>{o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}</Text>
         ) : null}
         <View style={styles.acciones}>
-          {!propio && !yaAvise ? (
+          {!propio && !yaAvise && !resuelta ? (
             <Pressable onPress={() => setAvisando(o)} style={styles.btnPri}>
               <Text style={styles.btnPriTxt}>{o.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"}</Text>
             </Pressable>
@@ -158,7 +161,7 @@ export function Perdidos() {
           <View style={styles.flex1} />
           {gestiona(o) ? (
             <>
-              <Pressable onPress={() => resuelto(o)} hitSlop={6}><Text style={styles.linkOk}>✓ Resuelto</Text></Pressable>
+              {!resuelta ? <Pressable onPress={() => resuelto(o)} hitSlop={6}><Text style={styles.linkOk}>✓ Resuelto</Text></Pressable> : null}
               <Pressable onPress={() => borrar(o)} hitSlop={6}><Text style={styles.linkDanger}>Borrar</Text></Pressable>
             </>
           ) : null}
@@ -201,7 +204,7 @@ export function Perdidos() {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState emoji="🧦" title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones duran 30 días o hasta que se marcan resueltas." />
+          <EmptyState emoji="🧦" title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones se ven 30 días, también las resueltas." />
         }
       />
       {nuevo ? (
@@ -352,7 +355,7 @@ function NuevoSheet({ cursos, colegioDe, userId, candidatos, onClose, onCreado }
         {cursos.length > 1 ? (
           <View style={styles.wrap}>{cursos.map((c) => chip(form.curso_id === c.id, c.nombre, () => set("curso_id", c.id), c.id))}</View>
         ) : null}
-        <Text style={styles.hint}>Se ve 30 días o hasta que lo marques resuelto. No se manda notificación a nadie al publicar.</Text>
+        <Text style={styles.hint}>Se ve 30 días (si lo marcás resuelto, sigue en la lista como resuelto). No se manda notificación a nadie al publicar.</Text>
         <Button title={guardando ? "Publicando…" : "Publicar"} onPress={publicar} disabled={guardando || subiendo} style={styles.mtMd} />
       </ScrollView>
     </Sheet>
@@ -387,6 +390,8 @@ const styles = StyleSheet.create({
   badge: { fontSize: 10, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
   badgeBuscan: { backgroundColor: "#FEF3C7", color: "#92400E" },
   badgeEncontrado: { backgroundColor: "#DCFCE7", color: "#166534" },
+  badgeResuelto: { backgroundColor: "#E2E8F0", color: "#334155" },
+  cardResuelta: { opacity: 0.7 },
   cat: { fontSize: 11, color: t.textMuted },
   colegio: { fontSize: 10, fontWeight: "700", color: "#6366F1" },
   titulo: { fontSize: 15, fontWeight: "800", color: t.text },
