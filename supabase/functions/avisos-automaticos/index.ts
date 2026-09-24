@@ -276,6 +276,10 @@ async function semanal(sb: SupabaseClient) {
     sb.from("cursos").select("id,colegio_id"),
   ]);
   const colegioDe = new Map((cursosCol || []).map((c) => [c.id, c.colegio_id]));
+  // Encontrados que alguien ya reclamó ("¡Es mío!") no van al resumen: el dueño ya apareció.
+  const idsEnc = (encontrados || []).map((o) => o.id);
+  const { data: reclamos } = idsEnc.length ? await sb.from("objeto_perdido_avisos").select("objeto_id").in("objeto_id", idsEnc) : { data: [] };
+  const reclamados = new Set((reclamos || []).map((r) => r.objeto_id));
   const ev = (eventos || []).filter((e) => e.tipo !== "cumple");
   const destEv = await destinatariosDeEventos(ctx, ev);
   const impagos = await impagosDeColectas(ctx, colectas || []);
@@ -308,7 +312,7 @@ async function semanal(sb: SupabaseClient) {
     for (const c of cursos) (cumplesPorCurso.get(c) || new Set()).forEach((x) => cumples.add(x));
     const colegiosU = new Set([...cursos].map((c) => colegioDe.get(c)));
     const nEncontrados = (encontrados || []).filter((o) =>
-      o.publicado_por !== u && (o.alcance === "curso" ? cursos.has(o.curso_id) : colegiosU.has(o.colegio_id))).length;
+      o.publicado_por !== u && !reclamados.has(o.id) && (o.alcance === "curso" ? cursos.has(o.curso_id) : colegiosU.has(o.colegio_id))).length;
     const partes = [
       nEventos ? `${nEventos} ${nEventos === 1 ? "evento" : "eventos"}` : null,
       nColectas ? `${nColectas} ${nColectas === 1 ? "colecta por pagar" : "colectas por pagar"}` : null,

@@ -34,7 +34,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
-import { filtroAlcance, encontradosDeLaSemana } from "@shared/perdidos";
+import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "@shared/perdidos";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -215,7 +215,8 @@ export function Muro() {
         .eq("tipo", "encontrado")
         .eq("estado", "abierto")
         .gte("creado_en", new Date(Date.now() - 7 * 86400000).toISOString());
-      encontradosSemana = encontradosDeLaSemana(objs || [], userId);
+      const reclamados = await cargarReclamados(supabase, (objs || []).map((o) => o.id));
+      encontradosSemana = encontradosDeLaSemana(objs || [], userId, { reclamados });
     }
 
     // Autorizaciones abiertas con algún hijo mío sin responder.

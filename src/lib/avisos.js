@@ -3,7 +3,7 @@
 // Edge Function avisos-automaticos). Compartido web/mobile (@shared/avisos).
 
 export const TIPOS_AVISO = [
-  { k: "evento_manana", titulo: "Eventos de mañana", desc: "A las 19 h, lo que tenés al día siguiente." },
+  { k: "evento_manana", titulo: "Eventos de mañana", desc: "A las 19 hs, lo que tenés al día siguiente." },
   { k: "colecta_por_vencer", titulo: "Colectas por vencer", desc: "Dos días antes, si todavía no pagaste." },
   { k: "autorizacion_pendiente", titulo: "Autorizaciones sin responder", desc: "El día antes de la fecha límite." },
   { k: "resumen_semanal", titulo: "Resumen de la semana", desc: "Los domingos: eventos, colectas y cumples." },

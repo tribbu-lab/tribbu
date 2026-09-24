@@ -9,7 +9,7 @@ import { useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
-import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance } from "../../lib/perdidos";
+import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
 import { Card } from "../../components/Card";
 import { SignedImg } from "../../components/SignedImg";
 import { useCargar } from "../../hooks/useCargar";
@@ -26,7 +26,7 @@ const hace = (iso) => {
 // Publicaciones vigentes de estos cursos (o de alcance colegio en sus colegios) +
 // qué avisé yo y cuántos avisos tienen las mías.
 async function cargarDatos(cursoIds, userId) {
-  if (!cursoIds.length) return { objetos: [], misAvisos: new Set(), avisosDe: {} };
+  if (!cursoIds.length) return { objetos: [], misAvisos: new Set(), avisosDe: {}, reclamados: new Set() };
   const { data: cursos } = await supabase.from("cursos").select("id,colegio_id").in("id", cursoIds);
   const colegios = [...new Set((cursos || []).map((c) => c.colegio_id))];
   const filtro = filtroAlcance(cursoIds, colegios);
@@ -45,10 +45,11 @@ async function cargarDatos(cursoIds, userId) {
   const misAvisos = new Set((avisos || []).filter((a) => a.usuario_id === userId).map((a) => a.objeto_id));
   const avisosDe = {};
   for (const a of avisos || []) avisosDe[a.objeto_id] = (avisosDe[a.objeto_id] || 0) + 1;
-  return { objetos, misAvisos, avisosDe };
+  const reclamados = await cargarReclamados(supabase, ids);
+  return { objetos, misAvisos, avisosDe, reclamados };
 }
 
-function Tarjeta({ o, userId, gestiona, yaAvise, nAvisos, tag, sugerencias, onAvisar, onVerContacto, onVerAvisos, onResuelto, onBorrar, onVerSugerencia }) {
+function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugerencias, onAvisar, onVerContacto, onVerAvisos, onResuelto, onBorrar, onVerSugerencia }) {
   const cat = categoria(o.categoria);
   const propio = o.publicado_por === userId;
   return (
@@ -80,6 +81,11 @@ function Tarjeta({ o, userId, gestiona, yaAvise, nAvisos, tag, sugerencias, onAv
               {s.objeto.titulo}{i < sugerencias.length - 1 ? ", " : ""}
             </button>
           ))}
+        </div>
+      )}
+      {!propio && !yaAvise && reclamado && (
+        <div style={{ padding: "0 14px 8px", fontSize: 12, color: "#64748B" }}>
+          {o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}
         </div>
       )}
       <div style={{ display: "flex", gap: 8, padding: "10px 14px", borderTop: "1px solid #F1F5F9", flexWrap: "wrap", alignItems: "center" }}>
@@ -343,7 +349,8 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
             yaAvise={datos.misAvisos.has(o.id)}
             nAvisos={datos.avisosDe[o.id] || 0}
             tag={tagDeCurso?.(o.curso_id)}
-            sugerencias={o.publicado_por === userId ? coincidencias(o, vigentes) : null}
+            reclamado={datos.reclamados.has(o.id)}
+            sugerencias={o.publicado_por === userId ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : null}
             onAvisar={(x) => { setAvisando(x); setMensaje(""); }}
             onVerContacto={verContacto}
             onVerAvisos={verAvisos}

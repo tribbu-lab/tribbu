@@ -72,7 +72,19 @@ export const coincidencias = (objeto, candidatos, { max = 3, ahora = new Date() 
 export const filtroAlcance = (cursoIds, colegioIds) =>
   [`curso_id.in.(${cursoIds.join(",")})`, ...(colegioIds.length ? [`and(alcance.eq.colegio,colegio_id.in.(${colegioIds.join(",")}))`] : [])].join(",");
 
-/** Encontrados de la última semana que no publicó el usuario (tarjeta del Muro). */
-export const encontradosDeLaSemana = (objetos, userId, ahora = new Date()) =>
+/**
+ * Encontrados de la última semana que no publicó el usuario y que nadie
+ * reclamó todavía (tarjeta del Muro). `reclamados` = Set de ids con algún
+ * "¡Es mío!" (RPC objetos_reclamados): si el dueño ya apareció, no tiene
+ * sentido seguir preguntando "¿es de tu hijo?".
+ */
+export const encontradosDeLaSemana = (objetos, userId, { reclamados = new Set(), ahora = new Date() } = {}) =>
   objetos.filter((o) => o.tipo === "encontrado" && estaVigente(o, ahora) && o.publicado_por !== userId
-    && ahora - new Date(o.creado_en) <= 7 * 86400000).length;
+    && !reclamados.has(o.id) && ahora - new Date(o.creado_en) <= 7 * 86400000).length;
+
+/** Ids (Set) de los objetos que ya tienen algún aviso, sin revelar de quién. */
+export async function cargarReclamados(supabase, ids) {
+  if (!ids.length) return new Set();
+  const { data } = await supabase.rpc("objetos_reclamados", { p_ids: ids });
+  return new Set(data || []);
+}

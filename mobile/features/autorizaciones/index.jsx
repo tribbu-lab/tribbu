@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   btnSecTxt: { color: t.accent, fontSize: 12.5, fontWeight: "700" },
   resumenBtn: { marginTop: SPACE.md, paddingTop: SPACE.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E2E8F0" },
   resumenTxt: { fontSize: 12, fontWeight: "700", color: t.accent },
-  sheetScroll: { maxHeight: 460 },
+  sheetScroll: { flexShrink: 1 },
   opcionesRow: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.md },
   opcion: { flex: 1, paddingVertical: 11, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: "#E2E8F0", alignItems: "center" },
   opcionSi: { borderColor: "#047857", backgroundColor: "#F0FDF4" },

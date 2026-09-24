@@ -25,7 +25,7 @@ const TIPO_CONFIG = {
 
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
-import { filtroAlcance, encontradosDeLaSemana } from "../../lib/perdidos";
+import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
@@ -97,7 +97,8 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       const { data: objs } = await supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
         .or(filtroAlcance(cursoIds, colegios)).eq("tipo","encontrado").eq("estado","abierto")
         .gte("creado_en", new Date(Date.now()-7*86400000).toISOString());
-      encontradosSemana = encontradosDeLaSemana(objs||[], userId);
+      const reclamados = await cargarReclamados(supabase, (objs||[]).map(o=>o.id));
+      encontradosSemana = encontradosDeLaSemana(objs||[], userId, { reclamados });
     }
     // Autorizaciones abiertas con algún hijo mío sin responder.
     let autorizacionesPend = [];

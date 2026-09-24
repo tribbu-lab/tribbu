@@ -11,7 +11,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
-import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance } from "@shared/perdidos";
+import { CATEGORIAS, categoria, estaVigente, coincidencias, filtroAlcance, cargarReclamados } from "@shared/perdidos";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -62,7 +62,8 @@ export function Perdidos() {
     const misAvisos = new Set((avisos || []).filter((a) => a.usuario_id === userId).map((a) => a.objeto_id));
     const avisosDe = {};
     for (const a of avisos || []) avisosDe[a.objeto_id] = (avisosDe[a.objeto_id] || 0) + 1;
-    setDatos({ objetos, misAvisos, avisosDe, colegioDe: new Map((cursos || []).map((c) => [c.id, c.colegio_id])) });
+    const reclamados = await cargarReclamados(supabase, ids);
+    setDatos({ objetos, misAvisos, avisosDe, reclamados, colegioDe: new Map((cursos || []).map((c) => [c.id, c.colegio_id])) });
   }, [cursoIds, userId]);
   // Expo Router deja la pantalla montada: recargar al volver a ella (como
   // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
@@ -106,7 +107,8 @@ export function Perdidos() {
     const propio = o.publicado_por === userId;
     const yaAvise = datos.misAvisos.has(o.id);
     const nAvisos = datos.avisosDe[o.id] || 0;
-    const sugerencias = propio ? coincidencias(o, vigentes) : [];
+    const reclamado = datos.reclamados.has(o.id);
+    const sugerencias = propio ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : [];
     const tag = tagDeCurso(o.curso_id);
     return (
       <Card style={styles.card}>
@@ -133,6 +135,9 @@ export function Perdidos() {
           <Pressable onPress={() => setTab(sugerencias[0].objeto.tipo)} style={styles.sugerencia}>
             <Text style={styles.sugerenciaTxt}>🔎 ¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}? {sugerencias.map((s) => s.objeto.titulo).join(", ")}</Text>
           </Pressable>
+        ) : null}
+        {!propio && !yaAvise && reclamado ? (
+          <Text style={styles.reclamado}>{o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}</Text>
         ) : null}
         <View style={styles.acciones}>
           {!propio && !yaAvise ? (
@@ -398,7 +403,8 @@ const styles = StyleSheet.create({
   btnOkTxt: { color: "#047857", fontSize: 12.5, fontWeight: "700" },
   linkOk: { color: "#10B981", fontSize: 12.5, fontWeight: "700" },
   linkDanger: { color: t.danger, fontSize: 12.5, fontWeight: "700" },
-  sheetScroll: { maxHeight: 520 },
+  sheetScroll: { flexShrink: 1 },
+  reclamado: { fontSize: 12.5, color: t.textMuted, marginTop: SPACE.sm },
   label: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 4, marginTop: SPACE.sm },
   input: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: RADIUS.md, padding: 10, fontSize: 14, color: t.text, backgroundColor: "#F8FAFC" },
   textarea: { minHeight: 64, textAlignVertical: "top" },
