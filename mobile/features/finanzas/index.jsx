@@ -3,7 +3,7 @@
 // apoderado marca pagado para sus hijos. Deep-link: openColectaId abre el detalle.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
@@ -482,7 +482,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, onClose, onGuardar }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{editing ? "Editar colecta" : "Nueva colecta"}</Text>

@@ -6,7 +6,7 @@
 // El admin carga el menú desde un Excel (expo-document-picker + xlsx).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -351,7 +351,7 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Cargar día" : "Editar día"}</Text>

@@ -23,7 +23,6 @@ import {
   ScrollView,
   Modal,
   KeyboardAvoidingView,
-  Platform,
   TextInput,
   StyleSheet,
   RefreshControl,
@@ -657,7 +656,7 @@ function AlertaModal({ visible, onClose, onEnviar }) {
   const [msg, setMsg] = useState("");
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Publicar alerta</Text>

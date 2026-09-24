@@ -13,7 +13,7 @@
 // (tabla `alertas` + push) que ya usa `mobile/features/muro/index.jsx`.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
@@ -373,7 +373,7 @@ export function AdminPanel() {
       ) : null}
 
       <Modal visible={alertaSheet} transparent animationType="fade" onRequestClose={() => setAlertaSheet(false)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={styles.overlay} behavior="padding">
           <View style={styles.modalCard}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>Publicar alerta</Text>
@@ -401,7 +401,7 @@ export function AdminPanel() {
 
       {horForm !== null ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>

@@ -12,7 +12,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   ScrollView,
-  Platform,
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
@@ -95,7 +94,7 @@ export function Login({ onSuccess } = {}) {
   return (
     <KeyboardAvoidingView
       style={styles.authBg}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
     >
       <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
         <View style={styles.brandWrap}>
@@ -229,7 +228,7 @@ export function CambiarPasswordModal({ visible, onClose }) {
     <Modal visible={visible} animationType="fade" transparent onRequestClose={cerrar}>
       <KeyboardAvoidingView
         style={[styles.modalOverlay, { paddingTop: insets.top }]}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">

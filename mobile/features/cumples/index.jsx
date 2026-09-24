@@ -17,7 +17,6 @@ import {
   FlatList,
   Modal,
   KeyboardAvoidingView,
-  Platform,
   Linking,
   StyleSheet,
 } from "react-native";
@@ -778,7 +777,7 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>🎉 {festejoExistente ? "Editar festejo" : "Nuevo festejo"}</Text>
@@ -1039,7 +1038,7 @@ export function FestejoDetalleModal({ evento, userId, misHijos = [], onClose, on
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <View style={styles.pagosHeader}>
             <View style={styles.flex1}>
@@ -1237,7 +1236,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>🎁 Colecta regalo</Text>

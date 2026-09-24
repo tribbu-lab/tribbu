@@ -14,7 +14,6 @@ import {
   Modal,
   ScrollView,
   KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Alert,
 } from "react-native";
@@ -470,7 +469,7 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
   // no lo desenfoca — sin esto el teclado tapaba Guardar sin forma de cerrarlo.
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.flex1} behavior="padding">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <ScrollView keyboardShouldPersistTaps="handled">

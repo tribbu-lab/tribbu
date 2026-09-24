@@ -7,7 +7,7 @@
 // por código del login — ver CLAUDE.md.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, StyleSheet, BackHandler } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -992,7 +992,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo apoderado" : "Editar apoderado"}</Text>
@@ -1135,7 +1135,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo curso" : "Editar curso"}</Text>
@@ -1167,7 +1167,7 @@ function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
 function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo maestro" : "Editar maestro"}</Text>
@@ -1222,7 +1222,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
 function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo alumno" : "Editar alumno"}</Text>
@@ -1433,7 +1433,7 @@ function ColegioAdmin({ colegioId }) {
 
       {modal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setModal(false)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>Editar datos del colegio</Text>
@@ -1569,7 +1569,7 @@ function AlertasAdmin({ cursos }) {
 
       {modal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setModal(false)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>🚨 Enviar alerta</Text>
@@ -2099,7 +2099,7 @@ function HorariosAdmin({ cursos }) {
 
       {horForm !== null ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>
@@ -2272,7 +2272,7 @@ function UniformesAdmin({ cursos, colegioId }) {
 
       {modal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setModal(null)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>{modalTitle}{modal.u ? ` — ${modal.u.tipo}` : ""}</Text>
