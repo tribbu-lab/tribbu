@@ -9,6 +9,7 @@ import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Paginador } from "../../components/Paginador";
+import { ConfirmDestructivoModal } from "../../components/ConfirmDestructivoModal";
 import { useToast } from "../../hooks/useToast";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
@@ -277,7 +278,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                         ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
                         : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button> : null)
                       }
-                        {(isAdmin||(userId&&e.creado_por===userId))&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
+                        {userId&&e.creado_por===userId&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={()=>setModal(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                             <button onClick={()=>setConfirm(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
@@ -368,7 +369,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:enCurso||dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{diasTxt}</span>
                     {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
                     {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
-                    {(isAdmin||(userId&&e.creado_por===userId))&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
+                    {userId&&e.creado_por===userId&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                       <div style={{display:"flex",gap:4}}>
                         <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                         <button onClick={()=>setConfirm(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
@@ -727,6 +728,148 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
           </>
         )}
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Sección "📅 Eventos" del panel del colegio (Super Admin / Admin de Colegio):
+ * todos los eventos de los cursos del año, con quién los creó, para corregir o
+ * borrar lo que haga falta. Mismos permisos que la RLS (puede_editar_evento):
+ * super edita/borra cualquier evento; el colegio, solo los que creó el colegio
+ * (creador colegio_admin o super). Los festejos solo se borran acá — se editan
+ * desde Cumpleaños.
+ */
+export function EventosColegio({ cursos = [], userId, esSuper = false }) {
+  const { showToast, Toast } = useToast();
+  const [eventos, setEventos] = useState(null);
+  const [autores, setAutores] = useState({});
+  const [cursoSel, setCursoSel] = useState("");
+  const [tipoSel, setTipoSel] = useState("");
+  const [periodo, setPeriodo] = useState("proximos");
+  const [busqueda, setBusqueda] = useState("");
+  const [editando, setEditando] = useState(null); // evento | "nuevo"
+  const [borrando, setBorrando] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+
+  const ids = cursos.map(c => c.id).join(",");
+  const cargar = useCallback(async () => {
+    const cursoIds = ids ? ids.split(",") : [];
+    if (!cursoIds.length) { setEventos([]); return; }
+    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha");
+    if (error) { showToast(`No se pudieron cargar los eventos: ${error.message}`, "error"); return; }
+    const lista = data || [];
+    const creadores = [...new Set(lista.map(e => e.creado_por).filter(Boolean))];
+    const { data: us } = creadores.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", creadores) : { data: [] };
+    setAutores(Object.fromEntries((us || []).map(u => [u.id, u])));
+    setEventos(lista);
+  }, [ids, showToast]);
+  useCargar(cargar);
+
+  const nombreCurso = (id) => cursos.find(c => c.id === id)?.nombre || "—";
+  const autor = (id) => {
+    const u = autores[id];
+    if (!u) return "—";
+    const n = fmtNombre(u);
+    return u.rol === "super" || u.rol === "colegio_admin" ? `${n} (colegio)` : n;
+  };
+  const puede = (e) => esSuper || ["super", "colegio_admin"].includes(autores[e.creado_por]?.rol);
+
+  const hoy = fmtLocalDate(new Date());
+  const q = busqueda.trim().toLowerCase();
+  const lista = (eventos || [])
+    .filter(e => !cursoSel || e.curso_id === cursoSel)
+    .filter(e => !tipoSel || e.tipo === tipoSel)
+    .filter(e => periodo === "proximos" ? (e.fecha_fin || e.fecha) >= hoy : (e.fecha_fin || e.fecha) < hoy)
+    .filter(e => !q || `${e.titulo} ${e.descripcion || ""} ${e.lugar || ""}`.toLowerCase().includes(q));
+  if (periodo === "pasados") lista.reverse();
+
+  const borrar = async () => {
+    setConfirmando(true);
+    const { error } = await supabase.from("eventos").delete().eq("id", borrando.id);
+    setConfirmando(false);
+    if (error) { showToast(`No se pudo eliminar: ${error.message}`, "error"); return; }
+    showToast("Evento eliminado");
+    setBorrando(null);
+    cargar();
+  };
+
+  const sel = { padding: "8px 10px", borderRadius: 10, border: "1px solid #E2E8F0", fontSize: 13, background: "white", color: "#0F172A" };
+  const chip = (activo) => ({ padding: "7px 12px", borderRadius: 20, border: activo ? "1.5px solid #3B82F6" : "1px solid #E2E8F0", background: activo ? "#EFF6FF" : "white", color: activo ? "#1D4ED8" : "#64748B", cursor: "pointer", fontSize: 12.5, fontWeight: 700 });
+
+  return (
+    <div>
+      <Toast />
+      {editando && (
+        <EventoModal
+          evento={editando === "nuevo" ? null : editando}
+          cursoId={editando === "nuevo" ? cursoSel : editando.curso_id}
+          userId={userId}
+          onClose={() => setEditando(null)}
+          onSave={() => { setEditando(null); showToast("Evento guardado"); cargar(); }}
+        />
+      )}
+      {borrando && (
+        <ConfirmDestructivoModal
+          titulo="¿Eliminar este evento?"
+          detalle={`"${borrando.titulo}" · ${nombreCurso(borrando.curso_id)} · ${fmtRangoFecha(borrando.fecha, borrando.fecha_fin)}`}
+          consecuencias={["Desaparece del calendario de las familias del curso", ...(borrando.confirma_asistencia || borrando.tipo === "festejo" ? ["Se borran también las confirmaciones de asistencia"] : [])]}
+          confirmando={confirmando}
+          onCancelar={() => setBorrando(null)}
+          onConfirmar={borrar}
+        />
+      )}
+
+      <Card style={{ padding: 14, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={cursoSel} onChange={e => setCursoSel(e.target.value)} style={sel} aria-label="Curso">
+            <option value="">Todos los cursos</option>
+            {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} style={sel} aria-label="Tipo">
+            <option value="">Todos los tipos</option>
+            {Object.entries(TIPO_CONFIG).filter(([k]) => k !== "cumple").map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
+          </select>
+          <button onClick={() => setPeriodo("proximos")} style={chip(periodo === "proximos")}>Próximos</button>
+          <button onClick={() => setPeriodo("pasados")} style={chip(periodo === "pasados")}>Pasados</button>
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar…" style={{ ...sel, flex: 1, minWidth: 140 }} aria-label="Buscar evento" />
+          <button
+            onClick={() => cursoSel ? setEditando("nuevo") : showToast("Elegí un curso para crear el evento", "error")}
+            title={cursoSel ? "" : "Elegí un curso primero"}
+            style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: cursoSel ? "#3B82F6" : "#93C5FD", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+          >+ Nuevo evento</button>
+        </div>
+      </Card>
+
+      {eventos === null ? <Spinner /> : lista.length === 0 ? (
+        <Card style={{ padding: 30, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
+          {periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}{cursoSel ? " en este curso" : ""}.
+        </Card>
+      ) : (
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          {lista.map((e, i) => {
+            const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
+            return (
+              <div key={e.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderTop: i ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>{cfg.emoji}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{e.titulo}</div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label].filter(Boolean).join(" · ")}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 1 }}>Creado por {autor(e.creado_por)}</div>
+                </div>
+                {puede(e) ? <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  {e.tipo !== "festejo" && (
+                    <button onClick={() => setEditando(e)} aria-label="Editar evento" style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 12 }}>✏️</button>
+                  )}
+                  <button onClick={() => setBorrando(e)} aria-label="Eliminar evento" style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FEF2F2", cursor: "pointer", fontSize: 12, color: "#EF4444" }}>🗑</button>
+                </div> : null}
+              </div>
+            );
+          })}
+        </Card>
+      )}
     </div>
   );
 }

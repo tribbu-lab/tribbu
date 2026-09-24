@@ -398,7 +398,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                         <Text style={styles.asistTxt}>Asistencia</Text>
                       </Pressable>
                     ) : null}
-                    {(isAdmin || (userId && e.creado_por === userId)) && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo" ? (
+                    {userId && e.creado_por === userId && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo" ? (
                       <View style={styles.editRow}>
                         <Pressable onPress={() => setModal(e)} style={styles.miniBtn}>
                           <Text style={styles.miniTxt}>✏️</Text>
@@ -494,8 +494,9 @@ function TagHijo({ tag }) {
 
 function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
-  // Quien lo creó siempre puede editarlo/borrarlo, sea cual sea su rol.
-  const editable = (isAdmin || (userId && e.creado_por === userId)) && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo";
+  // Solo quien lo creó lo edita/borra (Room Parent incluida), igual que la
+  // RLS (puede_editar_evento). El colegio lo hace desde su panel.
+  const editable = userId && e.creado_por === userId && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo";
   return (
     <View style={styles.diaRow}>
       <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
