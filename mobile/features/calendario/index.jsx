@@ -1040,3 +1040,168 @@ const styles = StyleSheet.create({
   resumenRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, paddingHorizontal: 10, borderRadius: RADIUS.md, marginBottom: 4 },
   resumenNombre: { fontSize: 13, fontWeight: "600", color: t.text },
 });
+
+/**
+ * Módulo "📅 Eventos" del panel del colegio (puerto de EventosColegio web):
+ * los eventos de los cursos del año con quién los creó. Mismos permisos que la
+ * RLS (puede_editar_evento): super edita/borra cualquiera; el colegio, solo lo
+ * que creó el colegio. Festejos solo se borran (se editan en Cumpleaños).
+ * Crear un evento notifica al curso, igual que en el Calendario.
+ */
+export function EventosColegio({ cursos = [], userId, esSuper = false }) {
+  const [eventos, setEventos] = useState(null);
+  const [autores, setAutores] = useState({});
+  const [cursoSel, setCursoSel] = useState("");
+  const [periodo, setPeriodo] = useState("proximos");
+  const [busqueda, setBusqueda] = useState("");
+  const [editando, setEditando] = useState(null); // evento | "nuevo"
+
+  const ids = cursos.map((c) => c.id).join(",");
+  const cargar = useCallback(async () => {
+    const cursoIds = ids ? ids.split(",") : [];
+    if (!cursoIds.length) { setEventos([]); return; }
+    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha");
+    if (error) { Alert.alert("No se pudieron cargar los eventos", error.message); return; }
+    const lista = data || [];
+    const creadores = [...new Set(lista.map((e) => e.creado_por).filter(Boolean))];
+    const { data: us } = creadores.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", creadores) : { data: [] };
+    setAutores(Object.fromEntries((us || []).map((u) => [u.id, u])));
+    setEventos(lista);
+  }, [ids]);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const nombreCurso = (id) => cursos.find((c) => c.id === id)?.nombre || "—";
+  const autor = (id) => {
+    const u = autores[id];
+    if (!u) return "—";
+    const n = fmtNombre(u);
+    return u.rol === "super" || u.rol === "colegio_admin" ? `${n} (colegio)` : n;
+  };
+  const puede = (e) => esSuper || ["super", "colegio_admin"].includes(autores[e.creado_por]?.rol);
+
+  const hoy = fmtLocalDate(new Date());
+  const q = busqueda.trim().toLowerCase();
+  const lista = (eventos || [])
+    .filter((e) => !cursoSel || e.curso_id === cursoSel)
+    .filter((e) => (periodo === "proximos" ? (e.fecha_fin || e.fecha) >= hoy : (e.fecha_fin || e.fecha) < hoy))
+    .filter((e) => !q || `${e.titulo} ${e.descripcion || ""} ${e.lugar || ""}`.toLowerCase().includes(q));
+  if (periodo === "pasados") lista.reverse();
+
+  const borrar = (e) =>
+    Alert.alert(
+      "¿Eliminar este evento?",
+      `"${e.titulo}" · ${nombreCurso(e.curso_id)} · ${fmtRangoFecha(e.fecha, e.fecha_fin)}\n\nDesaparece del calendario de las familias del curso${e.confirma_asistencia || e.tipo === "festejo" ? " y se borran sus confirmaciones de asistencia" : ""}.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase.from("eventos").delete().eq("id", e.id);
+            if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
+            cargar();
+          },
+        },
+      ]
+    );
+
+  const nuevo = () => {
+    if (!cursoSel) { Alert.alert("Elegí un curso", "Tocá un curso arriba para crear el evento ahí."); return; }
+    setEditando("nuevo");
+  };
+
+  return (
+    <View>
+      {editando ? (
+        <EventoModal
+          evento={editando === "nuevo" ? null : editando}
+          cursoId={editando === "nuevo" ? cursoSel : editando.curso_id}
+          userId={userId}
+          onClose={() => setEditando(null)}
+          onSave={() => { setEditando(null); cargar(); }}
+        />
+      ) : null}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ec.chips}>
+        {[{ id: "", nombre: "Todos los cursos" }, ...cursos].map((c) => (
+          <Pressable key={c.id || "todos"} onPress={() => setCursoSel(c.id)} style={[ec.chip, cursoSel === c.id && ec.chipOn]}>
+            <Text style={[ec.chipTxt, cursoSel === c.id && ec.chipTxtOn]}>{c.nombre}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <View style={ec.fila}>
+        {[["proximos", "Próximos"], ["pasados", "Pasados"]].map(([k, l]) => (
+          <Pressable key={k} onPress={() => setPeriodo(k)} style={[ec.chip, periodo === k && ec.chipOn]}>
+            <Text style={[ec.chipTxt, periodo === k && ec.chipTxtOn]}>{l}</Text>
+          </Pressable>
+        ))}
+        <View style={styles.flex1} />
+        <Pressable onPress={nuevo} style={[ec.btnNuevo, !cursoSel && ec.btnNuevoOff]}>
+          <Text style={ec.btnNuevoTxt}>+ Nuevo</Text>
+        </Pressable>
+      </View>
+      <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar evento…" placeholderTextColor={t.placeholder} style={ec.buscar} />
+
+      {eventos === null ? (
+        <Text style={ec.vacio}>Cargando…</Text>
+      ) : lista.length === 0 ? (
+        <Text style={ec.vacio}>{periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}{cursoSel ? " en este curso" : ""}.</Text>
+      ) : (
+        <Card style={ec.card}>
+          {lista.map((e, i) => {
+            const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
+            return (
+              <View key={e.id} style={[ec.row, i > 0 && ec.rowBorde]}>
+                <View style={[ec.icono, { backgroundColor: cfg.bg }]}><Text style={ec.iconoTxt}>{cfg.emoji}</Text></View>
+                <View style={styles.flex1}>
+                  <Text style={ec.titulo}>{e.titulo}</Text>
+                  <Text style={ec.meta}>
+                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label].filter(Boolean).join(" · ")}
+                  </Text>
+                  <Text style={ec.autor}>Creado por {autor(e.creado_por)}</Text>
+                </View>
+                {puede(e) ? (
+                  <View style={ec.acciones}>
+                    {e.tipo !== "festejo" ? (
+                      <Pressable onPress={() => setEditando(e)} hitSlop={6} style={ec.accion} accessibilityLabel="Editar evento">
+                        <MaterialCommunityIcons name="pencil-outline" size={17} color={t.textMuted} />
+                      </Pressable>
+                    ) : null}
+                    <Pressable onPress={() => borrar(e)} hitSlop={6} style={[ec.accion, ec.accionDanger]} accessibilityLabel="Eliminar evento">
+                      <MaterialCommunityIcons name="trash-can-outline" size={17} color={t.danger} />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </Card>
+      )}
+    </View>
+  );
+}
+
+const ec = StyleSheet.create({
+  chips: { gap: SPACE.sm, paddingBottom: SPACE.sm },
+  fila: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.sm },
+  chip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  chipOn: { borderColor: BLUE[500], backgroundColor: BLUE[50] },
+  chipTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted },
+  chipTxtOn: { color: BLUE[700] },
+  btnNuevo: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: RADIUS.md, backgroundColor: t.accent },
+  btnNuevoOff: { opacity: 0.5 },
+  btnNuevoTxt: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  buscar: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: t.text, backgroundColor: t.surface, marginBottom: SPACE.md },
+  vacio: { textAlign: "center", color: t.textFaint, fontSize: 13, paddingVertical: SPACE.xl },
+  card: { padding: 0, overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 12 },
+  rowBorde: { borderTopWidth: 1, borderTopColor: t.border },
+  icono: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  iconoTxt: { fontSize: 17 },
+  titulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  meta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  autor: { fontSize: 11.5, color: t.textFaint, marginTop: 1 },
+  acciones: { flexDirection: "row", gap: 6 },
+  accion: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center", backgroundColor: t.surface },
+  accionDanger: { borderColor: "#FEE2E2", backgroundColor: "#FEF2F2" },
+});

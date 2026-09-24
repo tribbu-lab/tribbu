@@ -30,6 +30,7 @@ import { UploadMenuExcel, Comedor } from "../comedor";
 import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
+import { EventosColegio } from "../calendario";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
@@ -49,6 +50,7 @@ const SECCIONES = [
   { grupo: "Comunidad", items: [
     { id: "alertas", l: "🚨 Alertas" },
     { id: "comunicaciones", l: "📢 Comunicaciones" },
+    { id: "eventos", l: "📅 Eventos" },
     { id: "autorizaciones", l: "✍️ Autorizaciones" },
     { id: "adopcion", l: "📈 Adopción" },
   ]},
@@ -878,6 +880,7 @@ export function SuperAdmin() {
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
+      {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
       {sec === "menu" ? (
