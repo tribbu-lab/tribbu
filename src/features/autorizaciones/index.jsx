@@ -5,7 +5,6 @@
 // colegio ven todas las respuestas y las exportan a Excel. La fecha límite
 // (opcional) también la hace cumplir la RLS (supabase/autorizaciones.sql).
 import { useState, useEffect, useCallback, useMemo } from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "../../supabase";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -19,7 +18,9 @@ const fmtFecha = (s) => new Date(s + "T00:00:00").toLocaleDateString("es-AR", { 
 const fmtCuando = (iso) => new Date(iso).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // Lista para imprimir el día de la salida.
-function exportarExcel(titulo, filas) {
+async function exportarExcel(titulo, filas) {
+  // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
+  const XLSX = await import("xlsx");
   const rows = filas.map(({ hijo, respuesta, curso }) => ({
     ...(curso ? { Curso: curso } : {}),
     Alumno: fmtNombre(hijo),

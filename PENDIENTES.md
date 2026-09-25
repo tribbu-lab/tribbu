@@ -49,47 +49,4 @@ preferencias de avisos en modo prueba, aviso de autorización sin responder,
 edad de los hermanos (web, con Excel), y las ~20 pantallas web tras el
 refactor de carga (sin errores ni recargas en loop).
 
-- [ ] **Fotos huérfanas en Storage**: no hay política DELETE en `storage.objects`,
-      así que borrar un recordatorio/evento/perdido deja su archivo en el bucket.
-      Agregar una policy de borrado (dueño o quien gestiona) o limpieza periódica.
-
-## Funcionalidades nuevas (acordadas, sin hacer)
-
-- [ ] **Fotos por evento**: galería privada por evento (acto, excursión) donde
-      las familias suben y ven fotos. Reusar el bucket privado `adjuntos` /
-      `SignedImg`. Definir: quién sube (¿cualquiera o solo Room Parent?),
-      moderación, límite por evento.
-- [ ] **Pago de colectas con Mercado Pago** (postergado): requiere cuenta de MP
-      del curso/colegio y webhooks. Se construye junto con el cobro del
-      Marketplace (misma integración).
-
-## "Comunidad" (en definición — Yanina lo está pensando, no implementar aún)
-
-Sección aparte que agrupa Lost&Found + Marketplace + Servicios (+ Carpool),
-como pestañas de un mismo lugar en vez de ítems sueltos en el menú. Todas
-comparten la base de Lost&Found: publicar, alcance curso/colegio,
-"me interesa" → se comparten contactos, vencimiento, quedan visibles un tiempo
-después de resueltas.
-
-- [ ] **Marketplace de cosas usadas** (uniformes, libros, útiles, disfraces).
-      Alcance colegio por defecto; foto, categoría, estado, talle, precio o
-      "lo regalo". Gancho con Info Útil ("hay 3 camperas talle 10").
-      **Modelo de negocio: comisión por venta a futuro** → exige que el pago
-      pase por Tribbu (Mercado Pago Marketplace: el vendedor vincula su MP y
-      MP separa la comisión), reclamos/devoluciones, términos y facturación.
-- [ ] **Servicios de la comunidad** (clases, niñeras, animación, fotografía,
-      profesionales). Ficha por persona + recomendaciones de familias.
-      **Modelo de negocio: fee por publicar** → cobrarlo desde la web, no
-      dentro de la app (Apple/Google pueden exigir su sistema de pagos para
-      compras in-app de funciones digitales; confirmar reglas vigentes).
-      Sensible: Tribbu no avala a nadie, decirlo explícito.
-- [ ] **Carpool**: arrancar por viajes puntuales ("ofrezco / necesito
-      lugar", zona, ida/vuelta, atado a eventos/cumples), pedido + aceptación
-      antes de compartir contacto, sin direcciones exactas, recordatorio la
-      noche anterior. Grupos rotativos fijos en una 2ª etapa. Abierto: zonas
-      libres vs. predefinidas por el colegio, si el colegio ve/aprueba los
-      retiros por otra familia.
-
-Propuesta de etapas: **1)** Comunidad gratis (volumen primero), con el modelo
-de datos ya pensado para cobrar (precio, vendido, comprador); **2)** cobro:
-Mercado Pago con comisión en el Marketplace + fee de Servicios vía web.
+- [x] ~~Fotos huérfanas en Storage~~ — hecho 2026-09-25 (storage-borrado.sql + borrarArchivos).

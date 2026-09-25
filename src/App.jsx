@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
@@ -11,21 +11,24 @@ import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal, NuevaPasswordRecovery } from "./features/auth";
-import { Muro }            from "./features/muro";
-import { Calendario }      from "./features/calendario";
-import { Cumpleanios }     from "./features/cumples";
-import { Finanzas }        from "./features/finanzas";
-import { Comedor }         from "./features/comedor";
-import { RecordatoriosTab } from "./features/recordatorios";
-import { InfoUtil }        from "./features/info";
-import { Contacto } from "./features/contacto";
-import { AdminPanel }      from "./features/admin";
-import { SuperAdmin }      from "./features/superadmin";
-import { Encuestas }       from "./features/encuestas";
-import { Autorizaciones }  from "./features/autorizaciones";
-import { Perdidos }        from "./features/perdidos";
+// Cada sección se descarga recién cuando se abre (antes todo iba en un único
+// archivo de ~1,3 MB que había que bajar entero antes de ver el login).
+const aLazy = (cargar, nombre) => lazy(() => cargar().then((m) => ({ default: m[nombre] })));
+const Muro             = aLazy(() => import("./features/muro"), "Muro");
+const Calendario       = aLazy(() => import("./features/calendario"), "Calendario");
+const Cumpleanios      = aLazy(() => import("./features/cumples"), "Cumpleanios");
+const Finanzas         = aLazy(() => import("./features/finanzas"), "Finanzas");
+const Comedor          = aLazy(() => import("./features/comedor"), "Comedor");
+const RecordatoriosTab = aLazy(() => import("./features/recordatorios"), "RecordatoriosTab");
+const InfoUtil         = aLazy(() => import("./features/info"), "InfoUtil");
+const Contacto         = aLazy(() => import("./features/contacto"), "Contacto");
+const AdminPanel       = aLazy(() => import("./features/admin"), "AdminPanel");
+const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmin");
+const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
+const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
+const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
-import { BusquedaGlobal }  from "./features/buscar";
+const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
@@ -442,7 +445,7 @@ function App() {
   // colegio_admin (multi-colegio): mismo panel que super, acotado a su
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
   if(usuario.rol==="super"||usuario.rol==="colegio_admin") return (
-    <SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/>
+    <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/></Suspense>
   );
 
   const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
@@ -640,7 +643,7 @@ function App() {
 
       {/* Contenido */}
       <div style={{flex:1,padding:"16px 16px 80px",boxSizing:"border-box",overflowY:"auto"}}>
-        {renderTab()}
+        <Suspense fallback={<Spinner/>}>{renderTab()}</Suspense>
       </div>
 
       {/* Barra de navegacion inferior */}
@@ -781,11 +784,13 @@ function App() {
               {noLeidos>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:700,padding:"0 5px",minWidth:18,textAlign:"center",lineHeight:"18px",border:"2px solid #F8FAFC"}}>{noLeidos>99?"99+":noLeidos}</span>}
             </button>
           </div>
+          <Suspense fallback={<Spinner/>}>
           {busquedaGlobal.trim() ? (
             <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
           ) : (
             renderTab()
           )}
+          </Suspense>
         </div>
       </div>
     </div>

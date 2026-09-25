@@ -16,7 +16,6 @@ import { ListToolbar } from "../../components";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import * as XLSX from "xlsx";
 import { useCargar } from "../../hooks/useCargar";
 
 export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
@@ -714,7 +713,9 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
 }
 
 // Exportar lista de asistencia de un festejo a Excel
-function exportarExcel({ evento, asistenciaDedup, alumnos }) {
+async function exportarExcel({ evento, asistenciaDedup, alumnos }) {
+  // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
+  const XLSX = await import("xlsx");
   const ESTADO = { si: "Confirma", no: "No va", pendiente: "Pendiente" };
 
   const rows = asistenciaDedup.map(a => {

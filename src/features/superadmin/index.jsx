@@ -24,7 +24,6 @@ import { useToast } from "../../hooks/useToast";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import * as XLSX from "xlsx";
 import { Comedor } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 import { CambiarPasswordModal } from "../auth";
@@ -2660,6 +2659,7 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
     setLoading(true); setMsg("");
     try {
       const data = await file.arrayBuffer();
+      const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
       const wb = XLSX.read(data, {cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
@@ -2760,6 +2760,7 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
     setLoading(true); setMsg("");
     try {
       const data = await file.arrayBuffer();
+      const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
       const wb = XLSX.read(data, {cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
