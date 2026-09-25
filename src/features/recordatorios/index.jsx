@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
@@ -17,7 +17,17 @@ import { Paginador } from "../../components/Paginador";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 
-export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange }) {
+// Descendente por fecha del recordatorio (no por cuándo se publicó): el orden
+// anterior (solo creado_en) salteaba fechas sin criterio visible. Sin fecha
+// (aviso genérico) cae al final, ordenado entre sí por creado_en.
+const ordenAvisos = (a,b) => {
+  if(a.fecha&&b.fecha) return b.fecha.localeCompare(a.fecha);
+  if(a.fecha&&!b.fecha) return -1;
+  if(!a.fecha&&b.fecha) return 1;
+  return (b.creado_en||"").localeCompare(a.creado_en||"");
+};
+
+export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -36,6 +46,16 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [expandidos,    setExpandidos]    = useState(()=>new Set());
   const toggleExpandido = (id) => setExpandidos(p=>{ const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const [pagina,        setPagina]        = useState(1);
+  // Aviso al que se llegó desde la campanita: se resalta y se lleva a la vista.
+  const [resaltado,     setResaltado]     = useState(null);
+  const [destinoUsado,  setDestinoUsado]  = useState(null);
+  // Llevar a la vista el aviso resaltado y sacar el resaltado a los pocos segundos.
+  useEffect(()=>{
+    if(!resaltado) return undefined;
+    const t1 = setTimeout(()=>document.getElementById(`aviso-${resaltado}`)?.scrollIntoView({behavior:"smooth",block:"center"}), 150);
+    const t2 = setTimeout(()=>setResaltado(null), 6000);
+    return ()=>{ clearTimeout(t1); clearTimeout(t2); };
+  },[resaltado]);
   const POR_PAG = 10;
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
@@ -161,16 +181,20 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(filtroOrigen==="colegio" && !r.grupo_id) return false;
     if(filtroOrigen==="normal"  &&  r.grupo_id) return false;
     return true;
-  }).sort((a,b)=>{
-    // Descendente por fecha del recordatorio (no por cuándo se publicó): el
-    // orden anterior (solo creado_en) salteaba fechas sin ningún criterio
-    // visible para quien lo mira ("28 ago, 10 abr, 8 may, 15 may..."). Sin
-    // fecha (aviso genérico) cae al final, ordenado entre sí por creado_en.
-    if(a.fecha&&b.fecha) return b.fecha.localeCompare(a.fecha);
-    if(a.fecha&&!b.fecha) return -1;
-    if(!a.fecha&&b.fecha) return 1;
-    return (b.creado_en||"").localeCompare(a.creado_en||"");
-  });
+  }).sort(ordenAvisos);
+
+  // Resolver el aviso pedido en el render, cuando ya está cargado: limpiar
+  // filtros (podría estar oculto), ir a su página, mostrarlo completo y resaltarlo.
+  const destinoKey = openAviso ? `${openAviso.id}:${openAviso.n}` : null;
+  const destino = destinoKey && destinoKey!==destinoUsado ? recordatorios.find(r=>r.id===openAviso.id && r.tipo!=="regalo_cumple") : null;
+  if(destino) {
+    setDestinoUsado(destinoKey);
+    setFiltroRango("all"); setFiltroPrio("all"); setFiltroLeido("all"); setFiltroOrigen("all");
+    const orden = recordatorios.filter(r=>r.tipo!=="regalo_cumple").sort(ordenAvisos);
+    setPagina(Math.floor(orden.findIndex(r=>r.id===destino.id)/POR_PAG)+1);
+    setExpandidos(p=>new Set([...p, destino.id]));
+    setResaltado(destino.id);
+  }
 
   const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
   const pagina_ = Math.min(pagina,totalPags);
@@ -335,7 +359,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         const esLargo = (r.texto||"").length > 150;
         const expandido = expandidos.has(r.id);
         return (
-          <div key={r.id} style={{display:"flex",alignItems:"flex-start",gap:0,padding:"11px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",opacity:esLeido?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
+          <div key={r.id} id={`aviso-${r.id}`} style={{display:"flex",alignItems:"flex-start",gap:0,padding:"11px 14px",marginBottom:6,borderRadius:12,background:r.id===resaltado?"#EFF6FF":"white",border:`1px solid ${r.id===resaltado?"#93C5FD":"#E2E8F0"}`,boxShadow:r.id===resaltado?"0 0 0 3px rgba(59,130,246,0.18)":"none",transition:"background 0.4s, box-shadow 0.4s",opacity:esLeido&&r.id!==resaltado?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
             <div style={{width:72,flexShrink:0,marginRight:12,textAlign:"center"}}>
               {r.fecha?(
                 <>

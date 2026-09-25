@@ -157,7 +157,16 @@ export function AppHeader({ notif }) {
         leidos={leidos}
         cargando={cargando}
         tagDeCurso={tagDeCurso}
-        onMarcarLeido={marcarLeido}
+        onAbrir={(n) => {
+          // Tocar una notificación lleva a lo que la originó (antes solo la
+          // marcaba leída). `t` fuerza el salto aunque sea el mismo aviso.
+          setPanelNotifs(false);
+          if (n._tipo === "alerta") { router.push("/(tabs)/muro"); return; }
+          marcarLeido(n.id);
+          if (n.tipo === "colecta_vence" && n.ref_id) router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(n.ref_id) } });
+          else if (n.tipo === "regalo_cumple") router.push("/(tabs)/cumples");
+          else router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(n.id), t: String(Date.now()) } });
+        }}
         onMarcarTodoLeido={marcarTodoLeido}
         onCerrar={() => setPanelNotifs(false)}
       />

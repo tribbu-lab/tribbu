@@ -133,6 +133,7 @@ function App() {
   const [tab,           setTab]           = useState(() => tabDeUrl() || "muro");
   const [openColecta,   setOpenColecta]   = useState(null);
   const [openFecha,     setOpenFecha]     = useState(null);
+  const [openAviso,     setOpenAviso]     = useState(null); // { id, n } — aviso a resaltar en Avisos
   const [cursoIdx,      setCursoIdx]      = useState(0);
   const [items,         setItems]         = useState([]);
   const [colegiosPorId, setColegiosPorId] = useState({});
@@ -501,6 +502,17 @@ function App() {
     setTab(t);
     if(extra?.openColecta) setOpenColecta(extra.openColecta);
     if(extra?.openFecha) setOpenFecha(extra.openFecha);
+    if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
+  };
+
+  // Tocar una notificación de la campanita lleva a lo que la originó.
+  const abrirNotificacion = (n) => {
+    setPanelNotifs(false);
+    if(n._tipo==="alerta") { navegarA("muro"); return; }
+    marcarLeido(n.id);
+    if(n.tipo==="colecta_vence" && n.ref_id) navegarA("finanzas",{openColecta:n.ref_id});
+    else if(n.tipo==="regalo_cumple") navegarA("cumples");
+    else navegarA("recordatorios",{openAviso:n.id});
   };
 
   const renderTab = () => {
@@ -515,7 +527,7 @@ function App() {
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
-      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()}/>;
+      case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()} openAviso={openAviso}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "comunidad": case "marketplace": case "perdidos": case "servicios":
         return <Comunidad sub={tab==="comunidad"?"marketplace":tab} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
@@ -593,7 +605,7 @@ function App() {
       {panelNotifs&&(
         <NotificacionesPanel
           notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
-          onMarcarLeido={marcarLeido}
+          onAbrir={abrirNotificacion}
           onCerrar={()=>setPanelNotifs(false)}
         />
       )}
@@ -710,7 +722,7 @@ function App() {
       {panelNotifs&&(
         <NotificacionesPanel
           notifs={notifs} leidos={leidos} cargando={cargandoNotifs} tagDeCurso={tagDeCurso}
-          onMarcarLeido={marcarLeido}
+          onAbrir={abrirNotificacion}
           onCerrar={()=>setPanelNotifs(false)}
         />
       )}

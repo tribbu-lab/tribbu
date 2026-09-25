@@ -69,7 +69,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   return { notifs, leidos, cargando, noLeidos, marcarLeido, recargar: cargar };
 }
 
-export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onCerrar }) {
+export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onAbrir, onCerrar }) {
   const PRIO = {
     alta:   { c: "#EF4444", bg: "#FEF2F2" },
     media:  { c: "#F59E0B", bg: "#FFFBEB" },
@@ -172,7 +172,7 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
             return (
               <div
                 key={n.id}
-                onClick={() => onMarcarLeido(n.id)}
+                onClick={() => onAbrir(n)}
                 style={{
                   padding: "12px 14px",
                   marginBottom: 8,
@@ -181,7 +181,7 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
                               : leido ? "#FAFAFA" : "white",
                   border: `1px solid ${esAlerta ? "#FCA5A5" : leido ? "#F1F5F9" : "#E2E8F0"}`,
                   borderLeft: `3px solid ${esAlerta ? "#EF4444" : n.urgente ? "#EF4444" : prio.c}`,
-                  cursor: leido ? "default" : "pointer",
+                  cursor: "pointer",
                   opacity: leido ? 0.6 : 1,
                   transition: "opacity 0.2s",
                 }}
@@ -240,7 +240,7 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onMa
         </div>
 
         <div style={{padding:"12px 16px",borderTop:"1px solid #F1F5F9",fontSize:11,color:"#94A3B8",textAlign:"center"}}>
-          Tocá una notificación para marcarla como leída
+          Tocá una notificación para ir a verla
         </div>
       </div>
     </div>

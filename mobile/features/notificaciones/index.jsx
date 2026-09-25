@@ -136,8 +136,7 @@ function NotifRow({ item, leido, tag, onPress }) {
 
   return (
     <Pressable
-      onPress={() => onPress(item.id)}
-      disabled={leido}
+      onPress={() => onPress(item)}
       style={[
         styles.notif,
         { borderLeftColor: esAlerta || item.urgente ? "#EF4444" : prio.c },
@@ -199,7 +198,7 @@ const bucketDe = (creado_en) => {
 };
 const GRUPOS = ["Hoy", "Ayer", "Esta semana", "Anterior"];
 
-export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onMarcarLeido, onMarcarTodoLeido, onCerrar }) {
+export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCurso, onAbrir, onMarcarTodoLeido, onCerrar }) {
   const insets = useSafeAreaInsets();
   const sections = GRUPOS.map((title) => ({ title, data: notifs.filter((n) => bucketDe(n.creado_en) === title) })).filter(
     (s) => s.data.length > 0
@@ -237,7 +236,7 @@ export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCu
                   item={item}
                   leido={item._tipo !== "alerta" && leidos.has(item.id)}
                   tag={tagDeCurso ? tagDeCurso(item.curso_id) : null}
-                  onPress={onMarcarLeido}
+                  onPress={onAbrir}
                 />
               )}
               ListEmptyComponent={
@@ -251,7 +250,7 @@ export function NotificacionesPanel({ visible, notifs, leidos, cargando, tagDeCu
           )}
 
           <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-            <Text style={styles.footerTxt}>Tocá una notificación para marcarla como leída</Text>
+            <Text style={styles.footerTxt}>Tocá una notificación para ir a verla</Text>
           </View>
         </Pressable>
       </Pressable>

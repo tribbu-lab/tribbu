@@ -149,7 +149,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, resaltado = false, es
   );
 });
 
-export function Recordatorios({ openAviso = null, openGrupo = null }) {
+export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null }) {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab + el punto de la campana (mismo hook levantado
@@ -364,7 +364,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null }) {
 
   // Resolver el deep-link en el render, cuando el aviso ya está cargado:
   // limpiar filtros (podría estar oculto), ir a su página y resaltarlo.
-  const destinoKey = openAviso ? `a:${openAviso}` : openGrupo ? `g:${openGrupo}` : null;
+  const destinoKey = openAviso ? `a:${openAviso}:${nonce || ""}` : openGrupo ? `g:${openGrupo}:${nonce || ""}` : null;
   const destino = destinoKey && destinoKey !== destinoUsado
     ? visiblesTipo.find((r) => (openAviso ? String(r.id) === openAviso : r.grupo_id === openGrupo))
     : null;
