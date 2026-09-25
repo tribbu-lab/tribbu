@@ -369,7 +369,7 @@ export function Muro() {
       btnBg: t.warningSoft,
       btnFg: "#B45309",
       titulo: c.titulo,
-      meta: `Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿ya terminaste de juntar?`,
+      meta: `Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿Terminó la colecta?`,
       accion: "Cerrar",
       tag: tagDeCurso(c.curso_id),
       onAccion: async () => {

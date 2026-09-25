@@ -241,7 +241,7 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
     })),
     ...(datos.porCerrar||[]).map(c=>({
       key:`pc-${c.id}`, tipo:"Colecta", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
-      icon:"🔒", titulo:c.titulo, meta:`Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿ya terminaste de juntar?`,
+      icon:"🔒", titulo:c.titulo, meta:`Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿Terminó la colecta?`,
       accion:"Cerrar", btnBg:"#FFFBEB", btnFg:"#B45309",
       onAccion:async(e)=>{e.stopPropagation(); await supabase.from("colectas").update({activa:false}).eq("id",c.id); cargar();},
       onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),

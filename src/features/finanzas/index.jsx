@@ -363,7 +363,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
               </div>
               {gestiona&&haceDias!==null&&haceDias>=DIAS_PARA_CERRAR&&(
                 <div style={{marginTop:10,padding:"9px 12px",borderRadius:10,background:"#FFFBEB",border:"1px solid #FDE68A",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                  <span style={{flex:1,minWidth:180,fontSize:12,color:"#92400E"}}>⏰ Venció hace {haceDias} días. Si ya terminaste de juntar, cerrala: así nadie sigue marcando pagos.</span>
+                  <span style={{flex:1,minWidth:180,fontSize:12,color:"#92400E"}}>⏰ Venció hace {haceDias} días. Si la colecta terminó, cerrala: así nadie sigue marcando pagos.</span>
                   <button onClick={()=>toggleActiva(c)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#B45309",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Cerrar colecta</button>
                 </div>
               )}

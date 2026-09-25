@@ -419,7 +419,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               const hace = c.activa && gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []) ? diasVencida(c, fmtLocalDate()) : null;
               return hace !== null && hace >= DIAS_PARA_CERRAR ? (
                 <View style={styles.porCerrar}>
-                  <Text style={styles.porCerrarTxt}>⏰ Venció hace {hace} días. Si ya terminaste de juntar, cerrala: así nadie sigue marcando pagos.</Text>
+                  <Text style={styles.porCerrarTxt}>⏰ Venció hace {hace} días. Si la colecta terminó, cerrala: así nadie sigue marcando pagos.</Text>
                   <Pressable onPress={() => toggleActiva(c)} style={styles.porCerrarBtn}>
                     <Text style={styles.porCerrarBtnTxt}>Cerrar colecta</Text>
                   </Pressable>
