@@ -21,7 +21,7 @@ function Proximamente() {
       <div style={{ display: "inline-block", marginTop: 10, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>PRÓXIMAMENTE</div>
       <div style={{ fontSize: 17, fontWeight: 800, marginTop: 12, color: "#0F172A" }}>Servicios de la comunidad</div>
       <div style={{ fontSize: 13.5, color: "#64748B", marginTop: 6, lineHeight: 1.55, maxWidth: 420, marginInline: "auto" }}>
-        Clases particulares, maestras de apoyo, niñeras, animación de cumpleaños, fotografía y más — recomendados por las familias del colegio.
+        En breve vas a poder ofrecer tus servicios en Tribbu: clases particulares, apoyo escolar, animación de cumpleaños, fotografía y más.
       </div>
     </div>
   );

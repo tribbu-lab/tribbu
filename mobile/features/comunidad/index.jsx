@@ -21,7 +21,7 @@ function Proximamente() {
         <Text style={styles.proxEmoji}>🧑‍🏫</Text>
         <Text style={styles.proxBadge}>PRÓXIMAMENTE</Text>
         <Text style={styles.proxTitulo}>Servicios de la comunidad</Text>
-        <Text style={styles.proxTxt}>Clases particulares, maestras de apoyo, niñeras, animación de cumpleaños, fotografía y más — recomendados por las familias del colegio.</Text>
+        <Text style={styles.proxTxt}>En breve vas a poder ofrecer tus servicios en Tribbu: clases particulares, apoyo escolar, animación de cumpleaños, fotografía y más.</Text>
       </View>
     </ScrollView>
   );
