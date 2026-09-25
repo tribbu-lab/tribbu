@@ -50,6 +50,8 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
       return { title: "✍️ Nueva autorización", body: String(payload.titulo || "") };
     case "perdido":
       return { title: "🧦 Lost&Found", body: String(payload.titulo || "") };
+    case "marketplace":
+      return { title: "🛍️ Marketplace", body: String(payload.titulo || "") };
     default:
       return { title: "tribbu", body: String(payload.mensaje || payload.titulo || "") };
   }

@@ -370,7 +370,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 }
 
 /** Pestaña de las familias. */
-export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId }) {
+export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, embebido = false }) {
   const [cursos, setCursos] = useState([]);
   const cargarCursos = useCallback(async () => {
     if (!cursoIds.length) return;
@@ -381,7 +381,8 @@ export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCu
   const puedeModerar = (o) => !!o.curso_id && cursosAdmin.includes(o.curso_id);
   return (
     <div style={{ maxWidth: 760 }}>
-      <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3 }}>Lost&amp;Found</div>
+      {/* Dentro de Comunidad el título lo pone la sección. */}
+      {!embebido && <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3 }}>Lost&amp;Found</div>}
       <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>Lo que se perdió y lo que apareció en tu curso y en el colegio</div>
       <Tablero cursoIds={cursoIds} cursosPublicar={cursos} colegioId={cursos[0]?.colegio_id} comoColegio={false} userId={userId} puedeModerar={puedeModerar} tagDeCurso={esVistaTodos ? tagDeCurso : null} />
     </div>

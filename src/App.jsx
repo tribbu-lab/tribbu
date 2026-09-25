@@ -26,7 +26,7 @@ const AdminPanel       = aLazy(() => import("./features/admin"), "AdminPanel");
 const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmin");
 const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
-const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
+const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
@@ -44,7 +44,10 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","contacto","admin"]);
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin"]);
+// Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
+// se marca el ítem "comunidad".
+const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","perdidos","servicios"]);
 const tabDeUrl = () => {
   try {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -61,6 +64,7 @@ const TAB_MAP = {
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
   perdido:      "perdidos",
+  marketplace:  "marketplace",
   resumen:      "muro", // resumen semanal (avisos-automaticos)
 };
 
@@ -474,6 +478,7 @@ function App() {
     setColorPickerIdx(null);
   };
 
+  const tabMenu = SUBS_COMUNIDAD.has(tab) ? "comunidad" : tab; // ítem del menú a resaltar
   const TABS = [
     {id:"muro",          label:"Inicio",        emoji:"🏠"},
     {id:"clases",        label:"Calendario",    emoji:"📅"},
@@ -482,7 +487,7 @@ function App() {
     {id:"recordatorios", label:"Avisos", emoji:"📌"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"autorizaciones",label:"Autorizaciones",emoji:"✍️"},
-    {id:"perdidos",      label:"Lost&Found",    emoji:"🧦"},
+    {id:"comunidad",     label:"Comunidad",     emoji:"🤝"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
@@ -512,7 +517,8 @@ function App() {
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
-      case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
+      case "comunidad": case "marketplace": case "perdidos": case "servicios":
+        return <Comunidad sub={tab==="comunidad"?"marketplace":tab} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
       case "autorizaciones": return <Autorizaciones cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
@@ -652,15 +658,15 @@ function App() {
         const TAB_FIJOS = ["muro","clases","cumples","recordatorios"];
         const tabsFijos = TABS.filter(t=>TAB_FIJOS.includes(t.id));
         const tabsExtra = TABS.filter(t=>!TAB_FIJOS.includes(t.id));
-        const masActivo = tabsExtra.some(t=>t.id===tab);
+        const masActivo = tabsExtra.some(t=>t.id===tabMenu);
         return (
           <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200}}>
             {menuMas&&(
               <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.15)",padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}} onClick={()=>setMenuMas(false)}>
                 {tabsExtra.map(t=>(
-                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tab===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                     <span style={{fontSize:20}}>{t.emoji}</span>
-                    <span style={{fontSize:10,fontWeight:tab===t.id?700:400,color:"white"}}>{t.label}</span>
+                    <span style={{fontSize:10,fontWeight:tabMenu===t.id?700:400,color:"white"}}>{t.label}</span>
                   </button>
                 ))}
                 <button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
@@ -675,11 +681,11 @@ function App() {
             )}
             <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",transition:"background 0.3s",paddingBottom:"env(safe-area-inset-bottom)"}}>
               {tabsFijos.map(t=>(
-                <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tab===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tabMenu===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
                   <span style={{fontSize:18}}>{t.emoji}</span>
-                  <span style={{fontSize:9,fontWeight:tab===t.id?700:400,whiteSpace:"nowrap",color:tab===t.id?"white":"rgba(255,255,255,0.45)"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
+                  <span style={{fontSize:9,fontWeight:tabMenu===t.id?700:400,whiteSpace:"nowrap",color:tabMenu===t.id?"white":"rgba(255,255,255,0.45)"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
                   {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:600,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
-                  {tab===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
+                  {tabMenu===t.id&&<span style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:hijoDotColor,borderRadius:2}}/>}
                 </button>
               ))}
               <button onClick={()=>setMenuMas(p=>!p)} style={{flex:1,padding:"8px 4px 10px",border:"none",background:menuMas||masActivo?"rgba(255,255,255,0.12)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
@@ -727,7 +733,7 @@ function App() {
 
         <div style={{padding:"0 12px",flex:1,paddingTop:8}}>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab===t.id?"rgba(255,255,255,0.12)":"transparent",color:tab===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tab===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
+            <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tabMenu===t.id?"rgba(255,255,255,0.12)":"transparent",color:tabMenu===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tabMenu===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:16}}>{t.emoji}</span>
               <span style={{flex:1}}>{t.label}</span>
               {t.id==="recordatorios"&&badgeCount>0&&(
