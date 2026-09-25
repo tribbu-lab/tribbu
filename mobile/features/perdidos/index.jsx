@@ -31,7 +31,7 @@ const hace = (iso) => {
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 };
 
-export function Perdidos() {
+export function Perdidos({ embebido = false }) {
   const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, items } = useSession();
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
@@ -183,7 +183,8 @@ export function Perdidos() {
           <View>
             <View style={styles.header}>
               <View style={styles.flex1}>
-                <Text style={styles.h1}>Lost&amp;Found</Text>
+                {/* Dentro de Comunidad el título lo pone la sección. */}
+                {!embebido ? <Text style={styles.h1}>Lost&amp;Found</Text> : null}
                 <Text style={styles.sub}>Lo que se perdió y lo que apareció</Text>
               </View>
               {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setNuevo(true)} /> : null}

@@ -528,7 +528,7 @@ export function Muro() {
       )}
 
       {datos.encontradosSemana > 0 ? (
-        <Pressable onPress={() => router.push("/(tabs)/perdidos")} style={styles.perdidosCard}>
+        <Pressable onPress={() => router.push({ pathname: "/(tabs)/comunidad", params: { sub: "perdidos" } })} style={styles.perdidosCard}>
           <Text style={styles.perdidosEmoji}>🧦</Text>
           <Text style={styles.perdidosTxt}>
             <Text style={styles.perdidosNum}>
