@@ -23,7 +23,6 @@ Una versión grande, con varias herramientas nuevas para la comunidad del curso.
 
 • Comunidad: una sección nueva en Más que reúne el Marketplace, Lost&Found y, próximamente, Servicios.
 • Marketplace: vendé o regalá lo que tus hijos ya no usan (ropa, uniformes, libros, juguetes). Publicá con hasta 3 fotos, precio o "Lo regalo", para tu curso o todo el colegio. Con "Me interesa" le avisamos al vendedor y se comparten los contactos.
-
 • Autorizaciones digitales: el colegio o el Room Parent te pide autorización para una salida o actividad y la respondés desde la app, por cada hijo, con comentario opcional. Si falta tu respuesta, te avisamos un día antes del cierre.
 • Lost&Found (perdidos y encontrados), ahora dentro de Comunidad: publicá lo que tu hijo perdió o lo que encontraste, con foto. Si alguien encuentra algo parecido a lo que buscás, te avisamos; y con "¡Es mío!" o "Lo tengo yo" se contactan sin exponer datos de nadie. Lo que ya tiene un aviso se marca como reclamado, y lo resuelto sigue a la vista hasta que vence.
 • Recordatorios automáticos: un aviso la tarde anterior con los eventos del día siguiente, las colectas por vencer y un resumen de la semana los domingos. Podés elegir cuáles recibir en Más → Notificaciones.
