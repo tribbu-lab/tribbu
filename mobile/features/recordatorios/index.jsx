@@ -4,7 +4,7 @@
 // de comunicados. La prioridad/urgencia vive en el dot de la fila; leído = dot
 // hueco + texto apagado.
 
-import { useState, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import {
   View,
   Text,
@@ -53,6 +53,15 @@ const PRIO = {
   baja: { l: "Baja", c: t.success, bg: t.successSoft },
 };
 const POR_PAG = 10;
+
+// Descendente por fecha del recordatorio (no por cuándo se publicó) — ver el
+// mismo fix en src/features/recordatorios/index.jsx (web).
+const ordenAvisos = (a, b) => {
+  if (a.fecha && b.fecha) return b.fecha.localeCompare(a.fecha);
+  if (a.fecha && !b.fecha) return -1;
+  if (!a.fecha && b.fecha) return 1;
+  return (b.creado_en || "").localeCompare(a.creado_en || "");
+};
 const RANGOS = [
   { value: "all", label: "Todos" },
   { value: "proximos", label: "Próximos" },
@@ -75,8 +84,9 @@ const ORIGENES = [
   { value: "normal", label: "Apoderados" },
 ];
 
-const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
-  const [expandido, setExpandido] = useState(false);
+const RecordatorioRow = memo(function RecordatorioRow({ r, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
+  // El aviso al que se llegó desde una notificación se muestra completo.
+  const [expandido, setExpandido] = useState(resaltado);
   const esLargo = (r.texto || "").length > 150;
   const prio = PRIO[r.prioridad || "media"];
   const dias = r.fecha
@@ -94,7 +104,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
   const dotColor = r.urgente ? t.danger : prio.c;
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, resaltado && styles.rowResaltado]}>
       <View style={[styles.rdot, esLeido ? styles.rdotLeido : { backgroundColor: dotColor }]} />
       <View style={styles.flex1}>
         {r.titulo ? <Text style={[styles.rowTitle, esLeido && styles.rowTxtLeido]}>{r.titulo}</Text> : null}
@@ -139,7 +149,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, esLeido, puedeEditar,
   );
 });
 
-export function Recordatorios() {
+export function Recordatorios({ openAviso = null, openGrupo = null }) {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab + el punto de la campana (mismo hook levantado
@@ -158,6 +168,10 @@ export function Recordatorios() {
   const [filtroLeido, setFiltroLeido] = useState("all");
   const [filtroOrigen, setFiltroOrigen] = useState("all");
   const [pagina, setPagina] = useState(1);
+  // Deep-link desde una notificación: aviso a resaltar y a llevar a la vista.
+  const [resaltado, setResaltado] = useState(null);
+  const listaRef = useRef(null);
+  const [destinoUsado, setDestinoUsado] = useState(null); // último openAviso/openGrupo ya resuelto
 
   const hoyStr = fmtLocalDate();
 
@@ -240,10 +254,11 @@ export function Recordatorios() {
       const { curso_id: _cid, ...upd } = payload;
       await supabase.from("recordatorios").update(upd).eq("id", modal.id);
     } else {
-      await supabase.from("recordatorios").insert({ ...payload, creado_por: userId });
+      const { data: creado } = await supabase.from("recordatorios").insert({ ...payload, creado_por: userId }).select("id").single();
       if (isAdmin) {
         const userIds = await getUserIdsByCurso(cursoDestino);
-        await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || form.texto, userIds } });
+        // `id` viaja en la notificación: al tocarla, la app abre este aviso.
+        await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || form.texto, id: creado?.id, userIds } });
       }
     }
     setSaving(false);
@@ -283,6 +298,21 @@ export function Recordatorios() {
     },
     [userId, leidosSet, recargarBadge]
   );
+
+  // Deep-link: una vez resaltado, llevarlo a la vista, marcarlo leído (se abrió
+  // desde la notificación) y sacar el resaltado a los pocos segundos.
+  useEffect(() => {
+    if (!resaltado) return undefined;
+    const idx = visible.findIndex((r) => r.id === resaltado);
+    if (idx >= 0) setTimeout(() => listaRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.2 }), 250);
+    if (userId && !leidosSet.has(resaltado)) {
+      supabase.from("recordatorio_leidos").upsert({ recordatorio_id: resaltado, usuario_id: userId }, { onConflict: "recordatorio_id,usuario_id" })
+        .then(() => { setLeidosSet((p) => new Set([...p, resaltado])); recargarBadge?.(); });
+    }
+    const t = setTimeout(() => setResaltado(null), 6000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resaltado]);
 
   const abrirNuevo = () => {
     setForm({
@@ -330,14 +360,21 @@ export function Recordatorios() {
       if (filtroOrigen === "normal" && r.grupo_id) return false;
       return true;
     })
-    .sort((a, b) => {
-      // Descendente por fecha del recordatorio (no por cuándo se publicó) —
-      // ver el mismo fix en src/features/recordatorios/index.jsx (web).
-      if (a.fecha && b.fecha) return b.fecha.localeCompare(a.fecha);
-      if (a.fecha && !b.fecha) return -1;
-      if (!a.fecha && b.fecha) return 1;
-      return (b.creado_en || "").localeCompare(a.creado_en || "");
-    });
+    .sort(ordenAvisos);
+
+  // Resolver el deep-link en el render, cuando el aviso ya está cargado:
+  // limpiar filtros (podría estar oculto), ir a su página y resaltarlo.
+  const destinoKey = openAviso ? `a:${openAviso}` : openGrupo ? `g:${openGrupo}` : null;
+  const destino = destinoKey && destinoKey !== destinoUsado
+    ? visiblesTipo.find((r) => (openAviso ? String(r.id) === openAviso : r.grupo_id === openGrupo))
+    : null;
+  if (destino) {
+    setDestinoUsado(destinoKey);
+    setFiltroRango("all"); setFiltroPrio("all"); setFiltroLeido("all"); setFiltroOrigen("all");
+    const orden = [...visiblesTipo].sort(ordenAvisos);
+    setPagina(Math.floor(orden.findIndex((r) => r.id === destino.id) / POR_PAG) + 1);
+    setResaltado(destino.id);
+  }
 
   const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAG));
   const pagina_ = Math.min(pagina, totalPags);
@@ -355,12 +392,15 @@ export function Recordatorios() {
         onClose={() => setVerLecturas(null)}
       />
       <FlatList
+        ref={listaRef}
         contentContainerStyle={styles.content}
         data={visible}
+        onScrollToIndexFailed={({ index }) => setTimeout(() => listaRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300)}
         keyExtractor={(r) => String(r.id)}
         renderItem={({ item }) => (
           <RecordatorioRow
             r={item}
+            resaltado={item.id === resaltado}
             esLeido={leidosSet.has(item.id)}
             // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
             puedeEditar={
@@ -710,6 +750,7 @@ const styles = StyleSheet.create({
   filtersRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm, marginTop: SPACE.md, marginBottom: SPACE.md },
 
   // fila de recordatorio
+  rowResaltado: { backgroundColor: "#EFF6FF", borderRadius: RADIUS.lg, marginHorizontal: -8, paddingHorizontal: 8 },
   row: {
     flexDirection: "row",
     alignItems: "center",

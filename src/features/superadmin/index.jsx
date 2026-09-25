@@ -2073,7 +2073,8 @@ export function ComunicacionesAdmin({ cursos }) {
       if(insertErr) throw insertErr;
       if(form.enviarPush) {
         const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
-        if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo, userIds } });
+        // `grupo`: cada familia recibe la fila de SU curso; la app la busca por grupo_id.
+        if(userIds.length) await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo, grupo:grupo_id, userIds } });
       }
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}${form.enviarPush?" · con push":" · sin push"}.`);

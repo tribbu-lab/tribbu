@@ -89,10 +89,11 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
       const { curso_id:_cid, ...upd } = payload;
       await supabase.from("recordatorios").update(upd).eq("id",modal.id);
     } else {
-      await supabase.from("recordatorios").insert({...payload, creado_por:userId});
+      const { data: creado } = await supabase.from("recordatorios").insert({...payload, creado_por:userId}).select("id").single();
       if(isAdmin) {
         const userIds = await getUserIdsByCurso(cursoDestino);
-        await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||form.texto, userIds } });
+        // `id` viaja en la notificación: al tocarla, la app abre este aviso.
+        await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||form.texto, id:creado?.id, userIds } });
       }
     }
     setSaving(false); setModal(null); cargar();

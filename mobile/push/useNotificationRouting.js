@@ -30,6 +30,8 @@ const routeForData = (data) => {
     type === "evento" && data?.fecha ? { openFecha: data.fecha }
     : type === "perdido" ? { sub: "perdidos" }
     : type === "marketplace" ? { sub: "marketplace" }
+    : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
+    : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }
     : {};
   return { pathname: route, params };
 };
