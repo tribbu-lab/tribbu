@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
@@ -96,7 +97,7 @@ export function Perdidos() {
   const borrar = (o) =>
     Alert.alert("Borrar publicación", "¿Seguro?", [
       { text: "Cancelar", style: "cancel" },
-      { text: "Borrar", style: "destructive", onPress: async () => { await supabase.from("objetos_perdidos").delete().eq("id", o.id); cargar(); } },
+      { text: "Borrar", style: "destructive", onPress: async () => { await supabase.from("objetos_perdidos").delete().eq("id", o.id); if (o.foto) borrarArchivos([o.foto], "adjuntos"); cargar(); } },
     ]);
 
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;

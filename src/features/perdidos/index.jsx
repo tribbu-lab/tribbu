@@ -8,6 +8,7 @@
 // los contactos (RPCs contacto_objeto_perdido / avisos_objeto_perdido).
 import { useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
 import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
@@ -285,6 +286,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const borrar = async (o) => {
     if (!confirm("¿Borrar esta publicación?")) return;
     await supabase.from("objetos_perdidos").delete().eq("id", o.id);
+    if (o.foto) borrarArchivos([o.foto], "adjuntos");
     cargar();
   };
   const verSugerencia = (s) => {

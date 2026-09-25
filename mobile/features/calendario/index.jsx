@@ -5,13 +5,15 @@
 // gestionan en Cumpleaños (no se abre su modal acá).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, StyleSheet, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, StyleSheet, Alert, RefreshControl } from "react-native";
+import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, safeUrl, fmtRangoFecha, fmtLocalDate } from "@shared/helpers";
 import { MESES } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
@@ -104,6 +106,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+  const { refrescando, onRefresh } = useRecarga(cargar);
 
   useEffect(() => {
     if (!openFecha) return;
@@ -129,10 +132,12 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     // Sin ON DELETE CASCADE hacia evento_asistencia: si el evento tiene RSVPs
     // (confirma_asistencia) el delete de "eventos" viola la FK y falla en
     // silencio (mismo patrón que eliminarAlumno en superadmin) — limpiar antes.
-    await supabase.from("evento_asistencia").delete().eq("evento_id", id);
-    const { error } = await supabase.from("eventos").delete().eq("id", id);
+    // Las asistencias se borran en cascada (eventos-permisos-edicion.sql).
+    const { data: borrados, error } = await supabase.from("eventos").delete().eq("id", id).select("adjuntos,imagen_url");
     setConfirm(null);
     if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
+    borrarArchivos(borrados?.[0]?.adjuntos, "adjuntos");
+    if (borrados?.[0]?.imagen_url) borrarArchivos([borrados[0].imagen_url], "eventos");
     cargar();
   };
 
@@ -205,7 +210,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const evDiaSelec = diaSelec ? eventosDelDia(diaSelec.year, diaSelec.month, diaSelec.day) : [];
 
   return (
-    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
       <View style={styles.headerRow}>
         <Text style={styles.h1}>Calendario</Text>
         {isAdmin ? (
@@ -1099,6 +1104,8 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
           onPress: async () => {
             const { error } = await supabase.from("eventos").delete().eq("id", e.id);
             if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
+            borrarArchivos(e.adjuntos, "adjuntos");
+            if (e.imagen_url) borrarArchivos([e.imagen_url], "eventos");
             cargar();
           },
         },

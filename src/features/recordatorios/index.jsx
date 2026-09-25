@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtRangoHora, fmtLocalDate, sanitize } from "../../lib/helpers";
@@ -98,8 +99,9 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   };
 
   const eliminar = async (id) => {
-    await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",id);
-    await supabase.from("recordatorios").delete().eq("id",id);
+    // Las lecturas se borran en cascada (permisos-avisos-pagos-asistencias.sql).
+    const { data: borrados } = await supabase.from("recordatorios").delete().eq("id",id).select("adjuntos");
+    borrarArchivos(borrados?.[0]?.adjuntos, "adjuntos");
     cargar();
     onBadgeChange?.();
   };

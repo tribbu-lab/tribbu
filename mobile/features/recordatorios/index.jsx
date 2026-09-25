@@ -20,6 +20,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
@@ -253,8 +254,9 @@ export function Recordatorios() {
 
   const eliminar = useCallback(
     async (id) => {
-      await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id", id);
-      await supabase.from("recordatorios").delete().eq("id", id);
+      // Las lecturas se borran en cascada (permisos-avisos-pagos-asistencias.sql).
+      const { data: borrados } = await supabase.from("recordatorios").delete().eq("id", id).select("adjuntos");
+      borrarArchivos(borrados?.[0]?.adjuntos, "adjuntos");
       cargar();
       recargarBadge?.();
     },

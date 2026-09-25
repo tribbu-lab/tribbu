@@ -6,7 +6,8 @@
 // El admin carga el menú desde un Excel (expo-document-picker + xlsx).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet, RefreshControl } from "react-native";
+import { useRecarga } from "../../lib/useRecarga";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -83,6 +84,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true, colegioId: 
     q.then((r) => setMenu(r.data || []));
   }, [colegioIdProp]);
   useEffect(() => { cargarMenu(); }, [cargarMenu]);
+  const { refrescando, onRefresh } = useRecarga(cargarMenu);
 
   const menuPorFecha = useMemo(() => {
     const map = {};
@@ -141,7 +143,7 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true, colegioId: 
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
       <View style={styles.topRow}>
         <View style={styles.flex1}>
           <Text style={styles.h1}>Comedor</Text>

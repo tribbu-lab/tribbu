@@ -28,6 +28,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -265,6 +266,7 @@ export function Muro() {
     setError(false);
     cargar();
   }, [cargar]);
+  useRecarga(cargar); // al volver al Inicio, sin pasar por el esqueleto de carga
 
   const onRefresh = async () => {
     setRefreshing(true);

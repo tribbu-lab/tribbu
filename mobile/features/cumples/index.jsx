@@ -19,7 +19,9 @@ import {
   KeyboardAvoidingView,
   Linking,
   StyleSheet,
+  RefreshControl,
 } from "react-native";
+import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
@@ -303,6 +305,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+  const { refrescando, onRefresh } = useRecarga(cargar);
 
   // Deep-link desde el Muro (card de invitación del carrusel de Pendientes):
   // abre el detalle del festejo apenas los datos lo contienen.
@@ -617,6 +620,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         data={ctrl.items}
         keyExtractor={(a) => a.id}
         renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
         ListHeaderComponent={Header}
         ListFooterComponent={
           lista.length > 20 ? (

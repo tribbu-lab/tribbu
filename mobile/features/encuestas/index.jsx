@@ -6,7 +6,8 @@
 // curso, o Super Admin.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, StyleSheet, RefreshControl } from "react-native";
+import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
@@ -72,6 +73,7 @@ export function Encuestas() {
   }, [cursoIds]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  const { refrescando, onRefresh } = useRecarga(cargar);
 
   const opcionesDe = (eid) => opciones.filter((o) => o.encuesta_id === eid);
   const votosDe = (eid) => votos.filter((v) => v.encuesta_id === eid);
@@ -213,6 +215,7 @@ export function Encuestas() {
       <FlatList
         data={filtro === "eliminadas" ? eliminadas : visibles}
         keyExtractor={(e) => e.id}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
         contentContainerStyle={{ padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE }}
         ListHeaderComponent={
           <>

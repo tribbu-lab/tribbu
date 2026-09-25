@@ -3,7 +3,8 @@
 // apoderado marca pagado para sus hijos. Deep-link: openColectaId abre el detalle.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet, RefreshControl } from "react-native";
+import { useRecarga } from "../../lib/useRecarga";
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
@@ -121,6 +122,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+  const { refrescando, onRefresh } = useRecarga(cargar);
 
   useEffect(() => {
     if (openColectaId && colectas.length) {
@@ -255,7 +257,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
   return (
     <View style={styles.screen}>
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
       <Text style={styles.h1}>Colectas</Text>
       <Text style={styles.subtitle}>{esVistaTodos ? "Regalos y gastos compartidos de tus cursos." : "Regalos y gastos compartidos del curso."}</Text>
 

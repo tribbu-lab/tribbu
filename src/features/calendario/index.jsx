@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
+import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtNombre, fmtRangoFecha, fmtLocalDate, safeUrl } from "../../lib/helpers";
@@ -113,10 +114,12 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
     // Sin ON DELETE CASCADE hacia evento_asistencia: si el evento tiene RSVPs
     // (confirma_asistencia) el delete de "eventos" viola la FK y falla en
     // silencio (mismo patrón que eliminarAlumno en superadmin) — limpiar antes.
-    await supabase.from("evento_asistencia").delete().eq("evento_id", id);
-    const { error } = await supabase.from("eventos").delete().eq("id", id);
+    // Las asistencias se borran en cascada (eventos-permisos-edicion.sql).
+    const { data: borrados, error } = await supabase.from("eventos").delete().eq("id", id).select("adjuntos,imagen_url");
     setConfirm(null);
     if(error) { showToast(`No se pudo eliminar: ${error.message}`, "error"); return; }
+    borrarArchivos(borrados?.[0]?.adjuntos, "adjuntos");
+    if(borrados?.[0]?.imagen_url) borrarArchivos([borrados[0].imagen_url], "eventos");
     cargar();
   };
 
@@ -788,6 +791,10 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
     setConfirmando(true);
     const { error } = await supabase.from("eventos").delete().eq("id", borrando.id);
     setConfirmando(false);
+    if (!error) {
+      borrarArchivos(borrando.adjuntos, "adjuntos");
+      if (borrando.imagen_url) borrarArchivos([borrando.imagen_url], "eventos");
+    }
     if (error) { showToast(`No se pudo eliminar: ${error.message}`, "error"); return; }
     showToast("Evento eliminado");
     setBorrando(null);
