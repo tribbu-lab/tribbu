@@ -4,6 +4,7 @@ import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtF, dHasta, fmtLocalDate } from "../../lib/helpers";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR } from "../../lib/muro";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -110,7 +111,8 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
       // aplica al crear (acción admin, nunca disponible en vista Todos)
       curso_id:       modal?.id ? modal.curso_id : cursoId,
-      activa:         true,
+      // activa solo al crear: editar una colecta cerrada no la reabre
+      ...(modal?.id ? {} : { activa: true }),
     };
     let err;
     if(modal?.id) { const r = await supabase.from("colectas").update(payload).eq("id",modal.id); err=r.error; }
@@ -318,6 +320,9 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         const resp           = usuarios.find(u=>u.id===c.responsable_id);
         const dias           = c.fecha_limite ? dHasta(c.fecha_limite) : null;
         const vencida        = dias!==null && dias<0;
+        // Cerrar/Reabrir: Room Parent, responsable o quien la creó (RLS puede_gestionar_colecta)
+        const gestiona       = gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []);
+        const haceDias       = c.activa ? diasVencida(c, fmtLocalDate()) : null;
         const tag            = tagDeCurso?.(c.curso_id) ?? null;
         const misAlumnosCurso = alumnosCurso.filter(a=>misHijos.includes(a.id));
 
@@ -348,6 +353,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 </div>
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
+                    {gestiona&&!isAdmin&&<button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>}
                     {isAdmin&&<>
                       {!tienePagos(c)&&<button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",alias_cbu:c.alias_cbu||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>}
                       <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
@@ -355,6 +361,12 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                     </>}
                   </div>
               </div>
+              {gestiona&&haceDias!==null&&haceDias>=DIAS_PARA_CERRAR&&(
+                <div style={{marginTop:10,padding:"9px 12px",borderRadius:10,background:"#FFFBEB",border:"1px solid #FDE68A",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <span style={{flex:1,minWidth:180,fontSize:12,color:"#92400E"}}>⏰ Venció hace {haceDias} días. Si ya terminaste de juntar, cerrala: así nadie sigue marcando pagos.</span>
+                  <button onClick={()=>toggleActiva(c)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#B45309",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Cerrar colecta</button>
+                </div>
+              )}
             </div>
 
             {/* Progreso */}

@@ -26,7 +26,7 @@ const TIPO_CONFIG = {
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
-import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -56,7 +56,7 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre, isAdmin, userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
+export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -146,6 +146,8 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       arr.push(h.id);
       misHijosPorCurso.set(h.curso_id, arr);
     }
+    // Colectas que gestiono y llevan 15+ días vencidas → "¿la cerrás?"
+    const porCerrar = colectasPorCerrar(cuotas.data||[], userId, cursosAdmin, fechaHoy);
     let colectasPend = [];
     const activas = colectasActivas(cuotas.data||[], fecha15);
     if(misHijosIds.length && activas.length) {
@@ -156,7 +158,7 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
     const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
     // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
     const invitaciones = festejosPendientes((invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), fechaHoy);
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, encuestasPend, autorizacionesPend, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
@@ -236,6 +238,14 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, tagDeCurso, cursoNombre,
       accion:"Registrar pago", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
       onAccion:(e)=>{e.stopPropagation();onNavigate?.("finanzas",{openColecta:c.id});}, onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
       tag:tagDe(c.curso_id), chip: c.monto_sugerido?`${c.moneda||"$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}`:null,
+    })),
+    ...(datos.porCerrar||[]).map(c=>({
+      key:`pc-${c.id}`, tipo:"Colecta", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
+      icon:"🔒", titulo:c.titulo, meta:`Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿ya terminaste de juntar?`,
+      accion:"Cerrar", btnBg:"#FFFBEB", btnFg:"#B45309",
+      onAccion:async(e)=>{e.stopPropagation(); await supabase.from("colectas").update({activa:false}).eq("id",c.id); cargar();},
+      onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
+      tag:tagDe(c.curso_id), chip:null,
     })),
     ...(datos.invitaciones||[]).map(ev=>({
       key:`i-${ev.id}`, tipo:"Invitación", color:"#047857", soft:"#F0FDF4", borde:"#A7F3D0",

@@ -34,7 +34,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "@shared/perdidos";
-import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
+import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -175,6 +175,9 @@ export function Muro() {
       arr.push(it.id);
       misHijosPorCurso.set(it.curso_id, arr);
     }
+    // Colectas que gestiono y llevan 15+ días vencidas → "¿la cerrás?"
+    const cursosAdmin = (items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id);
+    const porCerrar = colectasPorCerrar(cuotas.data || [], userId, cursosAdmin, fmtLocalDate());
     let colectasPend = [];
     const activas = colectasActivas(cuotas.data || [], fecha15);
     if (misHijosIds.length && activas.length) {
@@ -243,6 +246,7 @@ export function Muro() {
       recordatorios: recsNoLeidos,
       bdayList,
       colectasPend,
+      porCerrar,
       invitaciones,
       encuestasPend,
       autorizacionesPend,
@@ -354,6 +358,26 @@ export function Muro() {
       derecha: c.monto_sugerido
         ? { monto: `${c.moneda || "$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}` }
         : null,
+    })),
+    ...(datos.porCerrar || []).map((c) => ({
+      key: `pc-${c.id}`,
+      tipo: "Colecta",
+      dot: t.warning,
+      soft: t.warningSoft,
+      borde: t.warningBorder,
+      icon: "lock-outline",
+      btnBg: t.warningSoft,
+      btnFg: "#B45309",
+      titulo: c.titulo,
+      meta: `Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿ya terminaste de juntar?`,
+      accion: "Cerrar",
+      tag: tagDeCurso(c.curso_id),
+      onAccion: async () => {
+        await supabase.from("colectas").update({ activa: false }).eq("id", c.id);
+        cargar();
+      },
+      onPress: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
+      derecha: null,
     })),
     ...datos.invitaciones.map((ev) => ({
       key: `i-${ev.id}`,

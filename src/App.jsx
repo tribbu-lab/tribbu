@@ -502,7 +502,7 @@ function App() {
     // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
     // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
     switch(tab === "admin" && !isAdmin ? "muro" : tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;

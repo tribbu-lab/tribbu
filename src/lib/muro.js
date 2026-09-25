@@ -84,3 +84,29 @@ export const alertasUnaPorCurso = (alertas) => {
  * (neutro) el resto. Una sola regla para web y mobile.
  */
 export const nivelUrgencia = (dias) => (dias < 3 ? "hot" : dias <= 7 ? "soon" : "later");
+
+/**
+ * Quién gestiona una colecta (cerrar / reabrir) — mismo criterio que la RLS
+ * (puede_gestionar_colecta): la Room Parent del curso, el responsable (quien
+ * junta la plata) o quien la creó. El colegio lo hace desde su panel.
+ */
+export const gestionaColecta = (c, userId, cursosAdmin = []) =>
+  !!c && !!userId && (cursosAdmin.includes(c.curso_id) || c.responsable_id === userId || c.creado_por === userId);
+
+/** Días que pasaron desde la fecha límite (null si no tiene o no venció). */
+export const diasVencida = (c, hoyStr) => {
+  const lim = c.fecha_limite || c.vencimiento;
+  if (!lim || lim >= hoyStr) return null;
+  return Math.round((new Date(hoyStr + "T00:00:00") - new Date(lim + "T00:00:00")) / 86400000);
+};
+
+/** A los cuántos días de vencida se le sugiere a quien la gestiona cerrarla. */
+export const DIAS_PARA_CERRAR = 15;
+
+/**
+ * Colectas abiertas que llevan DIAS_PARA_CERRAR días o más vencidas y que el
+ * usuario gestiona → "¿Ya terminaste? Cerrala". No se cierran solas: siempre
+ * hay quien paga tarde, lo decide quien junta la plata.
+ */
+export const colectasPorCerrar = (colectas, userId, cursosAdmin, hoyStr) =>
+  colectas.filter((c) => c.activa && gestionaColecta(c, userId, cursosAdmin) && (diasVencida(c, hoyStr) ?? -1) >= DIAS_PARA_CERRAR);

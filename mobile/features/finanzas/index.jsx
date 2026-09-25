@@ -7,6 +7,7 @@ import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingVi
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR } from "@shared/muro";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
@@ -147,7 +148,8 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
       // aplica al crear (acción admin, nunca disponible en vista Todos)
       curso_id: modal?.id ? modal.curso_id : cursoId,
-      activa: true,
+      // activa solo al crear: editar una colecta cerrada no la reabre
+      ...(modal?.id ? {} : { activa: true }),
     };
     if (modal?.id) {
       await supabase.from("colectas").update(payload).eq("id", modal.id);
@@ -413,10 +415,26 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               </View>
             ) : null}
 
+            {(() => {
+              const hace = c.activa && gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []) ? diasVencida(c, fmtLocalDate()) : null;
+              return hace !== null && hace >= DIAS_PARA_CERRAR ? (
+                <View style={styles.porCerrar}>
+                  <Text style={styles.porCerrarTxt}>⏰ Venció hace {hace} días. Si ya terminaste de juntar, cerrala: así nadie sigue marcando pagos.</Text>
+                  <Pressable onPress={() => toggleActiva(c)} style={styles.porCerrarBtn}>
+                    <Text style={styles.porCerrarBtnTxt}>Cerrar colecta</Text>
+                  </Pressable>
+                </View>
+              ) : null;
+            })()}
             <View style={styles.colectaActions}>
               <Pressable onPress={() => setVistaAdmin(c)} style={styles.verPagosBtn}>
                 <Text style={styles.verPagosTxt}>Ver Detalle Colecta</Text>
               </Pressable>
+              {gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []) && !isAdmin ? (
+                <Pressable onPress={() => toggleActiva(c)} style={styles.iconBtn}>
+                  <Text style={[styles.iconTxt, { color: c.activa ? "#B45309" : t.success }]}>{c.activa ? "Cerrar" : "Reabrir"}</Text>
+                </Pressable>
+              ) : null}
               {isAdmin ? (
                 <>
                   {!tienePagos(c) ? (
@@ -680,6 +698,10 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, s
 }
 
 const styles = StyleSheet.create({
+  porCerrar: { marginTop: SPACE.sm, padding: 10, borderRadius: RADIUS.md, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", gap: 8 },
+  porCerrarTxt: { fontSize: 12.5, color: "#92400E", lineHeight: 17 },
+  porCerrarBtn: { alignSelf: "flex-start", paddingVertical: 7, paddingHorizontal: 12, borderRadius: RADIUS.sm, backgroundColor: "#B45309" },
+  porCerrarBtnTxt: { color: "#fff", fontSize: 12.5, fontWeight: "800" },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
