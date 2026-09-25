@@ -35,7 +35,7 @@ export function PreferenciasAvisosModal({ userId, onClose }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: 16, padding: 22, width: "100%", maxWidth: 400 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>🔔 Notificaciones</div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>⚙️ Configurar notificaciones</div>
           <button onClick={onClose} aria-label="Cerrar" style={{ border: "none", background: "none", color: "#94A3B8", cursor: "pointer", fontSize: 18 }}>✕</button>
         </div>
         <div style={{ fontSize: 12, color: "#64748B", marginBottom: 14, lineHeight: 1.45 }}>

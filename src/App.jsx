@@ -134,7 +134,7 @@ function App() {
   const [badgeCount,    setBadgeCount]    = useState(0);
   const [menuMas,       setMenuMas]       = useState(false);
   const [cambiarPass,   setCambiarPass]   = useState(false);
-  const [prefsAvisos,   setPrefsAvisos]   = useState(false); // modal "🔔 Notificaciones" (avisos automáticos)
+  const [prefsAvisos,   setPrefsAvisos]   = useState(false); // modal "⚙️ Configurar notificaciones" (avisos automáticos)
   const [eliminarCuenta,setEliminarCuenta]= useState(false);
   const [panelNotifs,   setPanelNotifs]   = useState(false);
   const [busquedaGlobal,setBusquedaGlobal]= useState("");
@@ -661,8 +661,8 @@ function App() {
                   </button>
                 ))}
                 <button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
-                  <span style={{fontSize:20}}>🔔</span>
-                  <span style={{fontSize:10,fontWeight:400,color:"white"}}>Notificaciones</span>
+                  <span style={{fontSize:20}}>⚙️</span>
+                  <span style={{fontSize:10,fontWeight:400,color:"white"}}>Configurar notificaciones</span>
                 </button>
                 <button onClick={()=>setEliminarCuenta(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(239,68,68,0.15)",cursor:"pointer",color:"#FCA5A5",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>🗑️</span>
@@ -732,12 +732,6 @@ function App() {
               )}
             </button>
           ))}
-          {/* Botón notificaciones in-app */}
-          <button onClick={()=>setPanelNotifs(p=>!p)} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:panelNotifs?"rgba(255,255,255,0.12)":"transparent",fontSize:13,fontWeight:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10,position:"relative"}}>
-            <span style={{fontSize:16}}>🔔</span>
-            <span style={{flex:1}}>Notificaciones</span>
-            {noLeidos>0&&<span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:600,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{noLeidos>99?"99+":noLeidos}</span>}
-          </button>
         </div>
 
         {/* Selector de hijos/Todos en la navegación (como el header de mobile):
@@ -753,7 +747,7 @@ function App() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>
           </div>
 
-          <button onClick={()=>setPrefsAvisos(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔔 Notificaciones</button>
+          <button onClick={()=>setPrefsAvisos(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>⚙️ Configurar notificaciones</button>
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>&larr; Cerrar sesion</button>
           <button onClick={()=>setEliminarCuenta(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(239,68,68,0.1)",color:"#FCA5A5",fontSize:12,fontWeight:600,textAlign:"left"}}>🗑️ Eliminar mi cuenta</button>
@@ -770,7 +764,7 @@ function App() {
           {/* Búsqueda global: filtra recordatorios/eventos/colectas del
               alcance actual, resultado se muestra como panel sobre el
               módulo activo (mismo criterio que mobile/features/buscar). */}
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:busquedaGlobal.trim()?12:14}}>
+          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginBottom:busquedaGlobal.trim()?12:14}}>
             <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 16px",border:"1px solid #E7ECF3",borderRadius:999,background:"white",width:300,boxSizing:"border-box"}}>
               <span style={{fontSize:15,color:"#94A3B8"}}>🔍</span>
               <input
@@ -780,6 +774,12 @@ function App() {
                 style={{flex:1,minWidth:0,border:"none",outline:"none",background:"transparent",fontSize:13.5,color:"#1E293B",fontFamily:"inherit"}}
               />
             </div>
+            {/* Campanita: bandeja rápida de lo nuevo (avisos sin leer + alertas).
+                Va acá arriba, no en el menú, para no parecer otra sección al lado de Avisos. */}
+            <button onClick={()=>setPanelNotifs(p=>!p)} aria-label={noLeidos>0?`Notificaciones: ${noLeidos} sin leer`:"Notificaciones"} title="Notificaciones" style={{position:"relative",width:44,height:44,borderRadius:999,border:"1px solid #E7ECF3",background:panelNotifs?"#EFF6FF":"white",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              🔔
+              {noLeidos>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:700,padding:"0 5px",minWidth:18,textAlign:"center",lineHeight:"18px",border:"2px solid #F8FAFC"}}>{noLeidos>99?"99+":noLeidos}</span>}
+            </button>
           </div>
           {busquedaGlobal.trim() ? (
             <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
