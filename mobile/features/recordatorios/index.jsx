@@ -362,7 +362,7 @@ export function Recordatorios() {
             esLeido={leidosSet.has(item.id)}
             // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
             puedeEditar={
-              (esVistaTodos ? item.creado_por === userId || cursosAdmin.has(item.curso_id) : isAdmin || item.creado_por === userId) &&
+              (item.creado_por === userId || (!item.creado_por && (esVistaTodos ? cursosAdmin.has(item.curso_id) : isAdmin))) &&
               item.tipo !== "colecta_vence"
             }
             tag={tagDeCurso(item.curso_id)}

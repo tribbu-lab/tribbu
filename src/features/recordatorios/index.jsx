@@ -64,7 +64,10 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
   const esPropio = (r) => r.creado_por === userId;
   // En vista "Todos" el permiso se resuelve contra el rol en el curso de la fila.
-  const puedeEditar = (r) => esVistaTodos ? (esPropio(r) || cursosAdmin.includes(r.curso_id)) : (isAdmin || esPropio(r));
+  // Igual que la RLS (puede_editar_recordatorio): cada uno edita/borra lo suyo;
+  // la Room Parent además los avisos viejos sin creador de su curso. Las
+  // Comunicaciones del colegio se gestionan desde el panel del colegio.
+  const puedeEditar = (r) => esPropio(r) || (!r.creado_por && (esVistaTodos ? cursosAdmin.includes(r.curso_id) : isAdmin));
 
   const guardar = async () => {
     if(!form.texto?.trim()) return;
