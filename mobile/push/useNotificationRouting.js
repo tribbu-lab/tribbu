@@ -14,7 +14,7 @@ export const TAB_MAP = {
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
   autorizacion: "/(tabs)/autorizaciones",
-  perdido: "/(tabs)/comunidad",
+  perdido: "/(tabs)/perdidos",
   marketplace: "/(tabs)/comunidad",
   resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
 };
@@ -28,7 +28,6 @@ const routeForData = (data) => {
   if (!route) return null;
   const params =
     type === "evento" && data?.fecha ? { openFecha: data.fecha }
-    : type === "perdido" ? { sub: "perdidos" }
     : type === "marketplace" ? { sub: "marketplace" }
     : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
     : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }

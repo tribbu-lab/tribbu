@@ -23,12 +23,12 @@ import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/av
 const t = THEMES.light;
 
 const BASE = [
-  { id: "buscar", label: "Buscar", emoji: "🔍" },
   { id: "comedor", label: "Comedor", emoji: "🍽️" },
+  { id: "perdidos", label: "Lost & Found", emoji: "🧦" },
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
+  { id: "finanzas", label: "Colectas", emoji: "💳" },
   { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
   { id: "comunidad", label: "Comunidad", emoji: "🤝" },
-  { id: "finanzas", label: "Colectas", emoji: "💳" },
   { id: "info", label: "Info Útil", emoji: "📋" },
   { id: "contacto", label: "Contacto", emoji: "📞" },
 ];

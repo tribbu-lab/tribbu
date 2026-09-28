@@ -27,6 +27,7 @@ const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmi
 const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
 const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
+const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
@@ -47,7 +48,7 @@ window._tribbuUserId = null;
 const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin"]);
 // Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
 // se marca el ítem "comunidad".
-const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","perdidos","servicios"]);
+const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","servicios"]);
 const tabDeUrl = () => {
   try {
     const t = new URLSearchParams(window.location.search).get("tab");
@@ -486,10 +487,11 @@ function App() {
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
     {id:"recordatorios", label:"Avisos", emoji:"📌"},
+    {id:"perdidos",      label:"Lost & Found",  emoji:"🧦"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
+    {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"autorizaciones",label:"Autorizaciones",emoji:"✍️"},
     {id:"comunidad",     label:"Comunidad",     emoji:"🤝"},
-    {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
     ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
@@ -529,8 +531,9 @@ function App() {
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()} openAviso={openAviso}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
-      case "comunidad": case "marketplace": case "perdidos": case "servicios":
+      case "comunidad": case "marketplace": case "servicios":
         return <Comunidad sub={tab==="comunidad"?"marketplace":tab} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
+      case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id}/>;
       case "autorizaciones": return <Autorizaciones cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;

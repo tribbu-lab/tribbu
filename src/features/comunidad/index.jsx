@@ -1,16 +1,16 @@
 // Comunidad — agrupa lo que las familias publican entre ellas: Marketplace
-// (cosas usadas), Lost&Found y Servicios (próximamente). Un solo ítem en el
-// menú; la sub-sección vive en la URL como ?tab=marketplace|perdidos|servicios
-// (App.jsx), así los deep-links de push y el Muro abren la pestaña correcta.
+// (cosas usadas) y Servicios (próximamente). Lost & Found vive fuera de acá,
+// como su propio ítem de menú (`?tab=perdidos` en App.jsx) — solo Marketplace
+// y Servicios comparten esta pestaña con su propia sub-sección en la URL
+// (?tab=marketplace|servicios), así los deep-links de push y el Muro abren
+// la pestaña correcta.
 import { lazy, Suspense } from "react";
 import { Spinner } from "../../components/Spinner";
 
 const Marketplace = lazy(() => import("../marketplace").then((m) => ({ default: m.Marketplace })));
-const Perdidos = lazy(() => import("../perdidos").then((m) => ({ default: m.Perdidos })));
 
 const SUBSECCIONES = [
   { id: "marketplace", label: "Marketplace", emoji: "🛍️" },
-  { id: "perdidos", label: "Lost&Found", emoji: "🧦" },
   { id: "servicios", label: "Servicios", emoji: "🧑‍🏫" },
 ];
 
@@ -44,7 +44,6 @@ export function Comunidad({ sub = "marketplace", onSub, ...props }) {
       </div>
       <Suspense fallback={<Spinner />}>
         {sub === "marketplace" && <Marketplace {...props} />}
-        {sub === "perdidos" && <Perdidos {...props} embebido />}
         {sub === "servicios" && <Proximamente />}
       </Suspense>
     </div>

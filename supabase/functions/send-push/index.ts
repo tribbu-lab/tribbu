@@ -49,7 +49,7 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
     case "autorizacion":
       return { title: "✍️ Nueva autorización", body: String(payload.titulo || "") };
     case "perdido":
-      return { title: "🧦 Lost&Found", body: String(payload.titulo || "") };
+      return { title: "🧦 Lost & Found", body: String(payload.titulo || "") };
     case "marketplace":
       return { title: "🛍️ Marketplace", body: String(payload.titulo || "") };
     default:

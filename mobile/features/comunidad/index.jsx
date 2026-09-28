@@ -1,16 +1,15 @@
-// Comunidad (puerto RN de src/features/comunidad): Marketplace, Lost&Found y
-// Servicios (próximamente) bajo un mismo ítem de "Más". La sub-sección llega
-// por param (?sub=marketplace|perdidos|servicios) desde el Muro y los push.
+// Comunidad (puerto RN de src/features/comunidad): Marketplace y Servicios
+// (próximamente) bajo un mismo ítem de "Más". Lost & Found vive fuera de
+// acá, como su propio tile en Más (`/(tabs)/perdidos`). La sub-sección
+// llega por param (?sub=marketplace|servicios) desde el Muro y los push.
 import { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { THEMES, TYPE, SPACE } from "@shared/tokens";
 import { Marketplace } from "../marketplace";
-import { Perdidos } from "../perdidos";
 
 const t = THEMES.light;
 const SUBSECCIONES = [
   { id: "marketplace", label: "🛍️ Marketplace" },
-  { id: "perdidos", label: "🧦 Lost&Found" },
   { id: "servicios", label: "🧑‍🏫 Servicios" },
 ];
 
@@ -54,7 +53,6 @@ export function Comunidad({ sub: subParam }) {
       </View>
       <View style={styles.flex1}>
         {sub === "marketplace" ? <Marketplace /> : null}
-        {sub === "perdidos" ? <Perdidos embebido /> : null}
         {sub === "servicios" ? <Proximamente /> : null}
       </View>
     </View>
