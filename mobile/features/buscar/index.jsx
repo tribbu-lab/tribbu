@@ -6,7 +6,7 @@
 // con `.ilike` sobre las tablas existentes, acotado a cursoIds.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, FlatList, StyleSheet, Keyboard } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
@@ -104,7 +104,7 @@ export function Buscar() {
   };
 
   return (
-    <View style={styles.screen}>
+    <Pressable style={styles.screen} onPress={Keyboard.dismiss}>
       <View style={styles.searchBar}>
         <MaterialCommunityIcons name="magnify" size={18} color={t.textFaint} />
         <TextInput
@@ -174,7 +174,7 @@ export function Buscar() {
           }
         />
       )}
-    </View>
+    </Pressable>
   );
 }
 
