@@ -11,3 +11,4 @@ export { LogoUploadInput } from "./LogoUploadInput";
 export { Wordmark }     from "./Wordmark";
 export { AdminFormModal } from "./AdminFormModal";
 export { ConfirmDestructivoModal } from "./ConfirmDestructivoModal";
+export { CursoListSelector } from "./CursoListSelector";

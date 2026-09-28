@@ -4,13 +4,14 @@ import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtNombre, fmtRangoFecha, fmtLocalDate, safeUrl } from "../../lib/helpers";
+import { fmtNombre, fmtRangoFecha, fmtLocalDate, safeUrl, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { Paginador } from "../../components/Paginador";
 import { ConfirmDestructivoModal } from "../../components/ConfirmDestructivoModal";
+import { CursoListSelector } from "../../components/CursoListSelector";
 import { useToast } from "../../hooks/useToast";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
@@ -735,6 +736,140 @@ export function EventoAsistenciaModal({ evento, onClose, misHijos=[], userId=nul
   );
 }
 
+// Publica el mismo evento en varios cursos a la vez (exclusivo de Super
+// Admin / Admin de Colegio, desde EventosColegio) — mismo patrón que
+// ComunicacionesAdmin para recordatorios: un grupo_id compartido marca las
+// filas como parte del mismo evento, aunque cada una se edita/borra por
+// curso como cualquier evento normal (ver specs/comunicaciones-multi-curso.md).
+function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
+  const [cursosSel, setCursosSel] = useState([]);
+  const [form, setForm] = useState({
+    titulo: "", tipo: "acto", fecha: "", fecha_fin: "",
+    hora: "", hora_fin: "", todo_el_dia: false,
+    lugar: "", url_ubicacion: "", descripcion: "",
+    confirma_asistencia: false, adjuntos: [],
+  });
+  const [subiendoAdj, setSubiendoAdj] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [publicando, setPublicando] = useState(false);
+  const [error, setError] = useState(null);
+
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const fechaFinInvalida = form.fecha_fin && form.fecha && form.fecha_fin < form.fecha;
+
+  const toggleCurso = (id) => setCursosSel(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
+  const todosSeleccionados = cursos.length>0 && cursosSel.length===cursos.length;
+  const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map(c=>c.id));
+  const puedePublicar = !!form.titulo.trim() && !!form.fecha && !fechaFinInvalida && cursosSel.length>0 && !subiendoAdj;
+
+  const publicar = async () => {
+    if(!puedePublicar) return;
+    setPublicando(true);
+    setError(null);
+    try {
+      const grupo_id = uuidLite();
+      const payloadBase = { ...form, fecha_fin: form.fecha_fin || null };
+      const rows = cursosSel.map(curso_id => ({ ...payloadBase, curso_id, grupo_id, creado_por: userId }));
+      const { data: creados, error: insertErr } = await supabase.from("eventos").insert(rows).select();
+      if(insertErr) throw insertErr;
+      // Igual que EventoModal: si pide asistencia, una fila pendiente por
+      // apoderado de cada curso alcanzado.
+      if(form.confirma_asistencia && creados?.length) {
+        for(const ev of creados) {
+          const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", ev.curso_id);
+          const hijosIds = (hijos||[]).map(h=>h.id);
+          if(!hijosIds.length) continue;
+          const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
+          const asistRows = (uh||[]).map(r=>({ evento_id:ev.id, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
+          if(asistRows.length) await supabase.from("evento_asistencia").upsert(asistRows, { onConflict:"evento_id,alumno_invitado_id", ignoreDuplicates:false });
+        }
+      }
+      // Push deduplicado: un apoderado con hijos en 2+ cursos elegidos recibe uno solo.
+      const userIds = [...new Set((await Promise.all(cursosSel.map(getUserIdsByCurso))).flat())];
+      if(userIds.length) await sendPush({ type:"evento", payload:{ titulo:form.titulo, fecha:form.fecha||"", userIds } });
+      onSave();
+    } catch(e) {
+      console.error("EventoMultiCursoModal.publicar:", e);
+      setError(e?.message || "No se pudo publicar. Probá de nuevo.");
+    } finally {
+      setPublicando(false);
+    }
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <Card style={{padding:24,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontSize:16,fontWeight:900,marginBottom:4}}>Evento para varios cursos</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Se publica como un evento independiente en cada curso elegido.</div>
+
+        {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,fontWeight:700,color:"#EF4444"}}>⚠️ {error}</div>}
+
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo").map(([k,v])=>(
+              <button key={k} onClick={()=>setForm(p=>({...p,tipo:k,confirma_asistencia:["paseo","acto","reunion"].includes(k)?p.confirma_asistencia:false}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
+            ))}
+          </div>
+        </div>
+        {[
+          {label:"Título",      key:"titulo",      type:"text", ph:"Ej: Feriado — sin clases"},
+          {label:"Fecha",       key:"fecha",       type:"date"},
+          {label:"Fecha fin (opcional, si dura varios días)", key:"fecha_fin", type:"date"},
+          {label:"Lugar",        key:"lugar",         type:"text", ph:"Ej: Patio del colegio"},
+          {label:"URL ubicación", key:"url_ubicacion", type:"url",  ph:"Ej: https://maps.google.com/..."},
+          {label:"Descripción",   key:"descripcion",   type:"text", ph:"Detalles adicionales"},
+        ].map(f=>(
+          <div key={f.key} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+            <input type={f.type} value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph||""} style={inp}/>
+            {f.key==="fecha_fin"&&fechaFinInvalida&&<div style={{fontSize:11,color:"#EF4444",marginTop:4}}>La fecha fin no puede ser anterior a la fecha de inicio</div>}
+          </div>
+        ))}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Hora</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setForm(p=>({...p,todo_el_dia:!p.todo_el_dia,...(p.todo_el_dia?{}:{hora:"",hora_fin:""})}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.todo_el_dia?"#3B82F6":"#E2E8F0"}`,background:form.todo_el_dia?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.todo_el_dia?"#3B82F6":"#94A3B8"}}>Todo el día</button>
+            {!form.todo_el_dia&&<input type="time" value={form.hora} onChange={e=>setForm(p=>({...p,hora:e.target.value}))} style={{...inp,width:"auto",flex:1}}/>}
+            {!form.todo_el_dia&&form.hora&&<><span style={{fontSize:12,color:"#94A3B8"}}>a</span><input type="time" value={form.hora_fin} onChange={e=>setForm(p=>({...p,hora_fin:e.target.value}))} style={{...inp,width:"auto",flex:1}}/></>}
+          </div>
+        </div>
+        <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+          <input type="checkbox" id="confirma_asist_multi" checked={!!form.confirma_asistencia} onChange={e=>setForm(p=>({...p,confirma_asistencia:e.target.checked}))} style={{width:16,height:16,cursor:"pointer",accentColor:"#3B82F6"}}/>
+          <label htmlFor="confirma_asist_multi" style={{fontSize:13,fontWeight:600,cursor:"pointer",color:"#0F172A"}}>Solicitar asistencia</label>
+        </div>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Adjuntos (opcional)</div>
+          <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId="eventos-multi-curso" onUploadingChange={setSubiendoAdj}/>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700}}>¿A qué cursos aplica?</div>
+          {cursos.length>0&&<button onClick={seleccionarTodos} style={{border:"none",background:"none",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700}}>{todosSeleccionados?"Ninguno":"Seleccionar todos"}</button>}
+        </div>
+        <div style={{marginBottom:20}}>
+          <CursoListSelector cursos={cursos} seleccionados={cursosSel} onToggle={toggleCurso}/>
+        </div>
+
+        {!confirmando ? (
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+            <button onClick={()=>setConfirmando(true)} disabled={!puedePublicar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:puedePublicar?"#3B82F6":"#93C5FD",color:"white",cursor:puedePublicar?"pointer":"default",fontSize:13,fontWeight:700}}>Publicar</button>
+          </div>
+        ) : (
+          <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>¿Publicar en {cursosSel.length} curso{cursosSel.length!==1?"s":""}?</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 /**
  * Sección "📅 Eventos" del panel del colegio (Super Admin / Admin de Colegio):
  * todos los eventos de los cursos del año, con quién los creó, para corregir o
@@ -752,6 +887,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const [periodo, setPeriodo] = useState("proximos");
   const [busqueda, setBusqueda] = useState("");
   const [editando, setEditando] = useState(null); // evento | "nuevo"
+  const [multiCurso, setMultiCurso] = useState(false);
   const [borrando, setBorrando] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
 
@@ -816,6 +952,14 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
           onSave={() => { setEditando(null); showToast("Evento guardado"); cargar(); }}
         />
       )}
+      {multiCurso && (
+        <EventoMultiCursoModal
+          cursos={cursos}
+          userId={userId}
+          onClose={() => setMultiCurso(false)}
+          onSave={() => { setMultiCurso(false); showToast("Evento publicado"); cargar(); }}
+        />
+      )}
       {borrando && (
         <ConfirmDestructivoModal
           titulo="¿Eliminar este evento?"
@@ -845,6 +989,11 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
             title={cursoSel ? "" : "Elegí un curso primero"}
             style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: cursoSel ? "#3B82F6" : "#93C5FD", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
           >+ Nuevo evento</button>
+          <button
+            onClick={() => setMultiCurso(true)}
+            title="Publicar el mismo evento en varios cursos a la vez (ej. un feriado)"
+            style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#1D4ED8", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+          >+ Evento para varios cursos</button>
         </div>
       </Card>
 
@@ -862,7 +1011,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{e.titulo}</div>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label].filter(Boolean).join(" · ")}
+                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label, e.grupo_id ? "🏫 varios cursos" : null].filter(Boolean).join(" · ")}
                   </div>
                   <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 1 }}>Creado por {autor(e.creado_por)}</div>
                 </div>
