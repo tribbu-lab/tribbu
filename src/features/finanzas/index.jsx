@@ -38,14 +38,17 @@ function DatosTransferencia({ aliasCbu, showToast }) {
   );
 }
 
-export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen, isMobile=true }) {
+export function Finanzas({ cursoId, cursoIds, esVistaTodos, tagDeCurso, cursosAdmin=[], userId, isAdmin, misHijos=[], openColectaId=null, onClearOpen, isMobile=true }) {
   const { showToast, Toast } = useToast();
   const [colectas,   setColectas]   = useState([]);
   const [alumnos,    setAlumnos]    = useState([]);
   const [usuarios,   setUsuarios]   = useState([]);
   const [pagos,      setPagos]      = useState([]); // todos los colecta_pagos del curso
+  // colecta_id -> Set(alumno_id): sin entrada (o Set vacío) = participan todos
+  // los alumnos del curso, igual que antes de esta feature.
+  const [participantes, setParticipantes] = useState({});
   const [modal,      setModal]      = useState(null); // null | {} | {id,...}
-  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",responsable_id:"",fecha_limite:"",alias_cbu:""});
+  const [form,       setForm]       = useState({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",responsable_id:"",fecha_limite:"",alias_cbu:"",participantesIds:null});
   const [saving,     setSaving]     = useState(false);
   const [vistaAdmin, setVistaAdmin] = useState(null); // colecta para ver detalle admin
 
@@ -58,12 +61,21 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
     const colIds = (colData||[]).map(c=>c.id);
 
     // responsables de los cursos del scope
-    const [alum, pag] = await Promise.all([
+    const [alum, pag, part] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color,curso_id").in("curso_id",cursoIds).order("nombre"),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id",colIds)
         : Promise.resolve({data:[]}),
+      colIds.length
+        ? supabase.from("colecta_participantes").select("colecta_id,alumno_id").in("colecta_id",colIds)
+        : Promise.resolve({data:[]}),
     ]);
+    const partMap = {};
+    for(const r of (part.data||[])) {
+      if(!partMap[r.colecta_id]) partMap[r.colecta_id] = new Set();
+      partMap[r.colecta_id].add(r.alumno_id);
+    }
+    setParticipantes(partMap);
     const alumnosIds = (alum.data||[]).map(a=>a.id);
     const uidsSet = new Set();
     // Siempre incluir al usuario logueado (room parent puede asignarse a sí mismo)
@@ -97,6 +109,9 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
   const guardar = async () => {
     if(!form.titulo?.trim()) return;
+    // En vista "Todos" el alta exige un curso destino elegido en el modal.
+    const cursoDestino = modal?.id ? modal.curso_id : (cursoId || form.curso_id);
+    if(!modal?.id && !cursoDestino) return;
     setSaving(true);
     const payload = {
       titulo:         form.titulo.trim(),
@@ -108,18 +123,18 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       responsable_id: form.responsable_id ? form.responsable_id : null,
       fecha_limite:   form.fecha_limite||null,
       vencimiento:    form.fecha_limite||fmtLocalDate(),
-      // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
-      // aplica al crear (acción admin, nunca disponible en vista Todos)
-      curso_id:       modal?.id ? modal.curso_id : cursoId,
+      // Al editar, conservar el curso de la colecta (nunca el de sesión).
+      curso_id:       cursoDestino,
       // activa solo al crear: editar una colecta cerrada no la reabre
       ...(modal?.id ? {} : { activa: true }),
     };
-    let err;
+    let err, colectaId = modal?.id || null;
     if(modal?.id) { const r = await supabase.from("colectas").update(payload).eq("id",modal.id); err=r.error; }
     else {
       const r = await supabase.from("colectas").insert(payload).select().single(); err=r.error;
       if(!err) {
         const nuevaColecta = r.data;
+        colectaId = nuevaColecta?.id ?? null;
         // Recordatorio para los apoderados del curso — persiste hasta que cada uno lo marca leído
         if(nuevaColecta?.id) {
           const montoTxt = payload.monto_sugerido ? ` — ${payload.moneda||"$"} ${Number(payload.monto_sugerido).toLocaleString("es-AR")}` : "";
@@ -140,6 +155,15 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
       }
     }
     if(err) { console.error("colectas error:", JSON.stringify(err)); showToast(`No se pudo guardar la colecta: ${err.message}`,"error"); setSaving(false); return; }
+    // Sincronizar quiénes participan — sin filas en colecta_participantes
+    // significa "todos", igual que el comportamiento de siempre.
+    if(colectaId) {
+      const alumnosCursoDestino = alumnos.filter(a=>a.curso_id===cursoDestino);
+      await supabase.from("colecta_participantes").delete().eq("colecta_id",colectaId);
+      if(form.participantesIds && form.participantesIds.length < alumnosCursoDestino.length) {
+        await supabase.from("colecta_participantes").insert(form.participantesIds.map(alumno_id=>({colecta_id:colectaId, alumno_id})));
+      }
+    }
     setSaving(false); setModal(null); cargar();
   };
 
@@ -185,9 +209,13 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
   const getPago = (colectaId, alumnoId) =>
     pagos.find(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
 
-  // Una vez que hay algún pago registrado, editar el monto/título distorsionaría
-  // lo ya recaudado — igual que las opciones de una encuesta con votos.
-  const tienePagos = (c) => pagos.some(p=>p.colecta_id===c.id&&p.estado==="pagado");
+  // Alumnos del curso que participan de esta colecta — sin filas en
+  // colecta_participantes participan todos (comportamiento de siempre).
+  const alumnosDeColecta = (c) => {
+    const base = alumnos.filter(a=>a.curso_id===c.curso_id);
+    const p = participantes[c.id];
+    return p && p.size ? base.filter(a=>p.has(a.id)) : base;
+  };
 
   const fmtM = (n, moneda="$") => n!=null ? `${moneda} ${Number(n).toLocaleString("es-AR")}` : "";
 
@@ -196,9 +224,26 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
   // mismo cálculo que ya hace cada tarjeta, agregado a nivel de módulo.
   let deudaTotal = 0, coleccionesConDeuda = 0;
   for(const c of colectas.filter(c=>c.activa)) {
-    const impagos = alumnos.filter(a=>a.curso_id===c.curso_id && misHijos.includes(a.id) && getPago(c.id,a.id)?.estado!=="pagado");
+    const impagos = alumnosDeColecta(c).filter(a=>misHijos.includes(a.id) && getPago(c.id,a.id)?.estado!=="pagado");
     if(impagos.length) { deudaTotal += impagos.length*(c.monto_sugerido||0); coleccionesConDeuda++; }
   }
+
+  // Opciones de curso destino para el alta en vista "Todos" (label = hijo/s) —
+  // mismo patrón que RecordatoriosTab.
+  const cursosOpciones = esVistaTodos
+    ? cursoIds.map(cid=>({curso_id:cid, tag:tagDeCurso?.(cid)})).filter(o=>o.tag)
+    : [];
+
+  // Curso destino del modal abierto (nuevo o edición) y sus alumnos, para el
+  // selector de "¿Quiénes participan?".
+  const cursoDestinoModal = modal ? (modal.id ? modal.curso_id : (cursoId || form.curso_id)) : null;
+  const alumnosCursoModal = cursoDestinoModal ? alumnos.filter(a=>a.curso_id===cursoDestinoModal) : [];
+  const participantesSel  = form.participantesIds ?? alumnosCursoModal.map(a=>a.id);
+  const toggleParticipante = (id) => setForm(p=>{
+    const actual = p.participantesIds ?? alumnosCursoModal.map(a=>a.id);
+    return {...p, participantesIds: actual.includes(id) ? actual.filter(x=>x!==id) : [...actual,id]};
+  });
+  const todosParticipan = participantesSel.length===alumnosCursoModal.length;
 
   return (
     <div>
@@ -211,6 +256,22 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar colecta":"Nueva colecta"}</div>
+            {!modal?.id&&cursosOpciones.length>0&&(
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PARA EL CURSO DE</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {cursosOpciones.map(o=>{
+                    const act = form.curso_id===o.curso_id;
+                    return (
+                      <button key={o.curso_id} onClick={()=>setForm(p=>({...p,curso_id:o.curso_id,participantesIds:null}))} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${act?"#3B82F6":"#E2E8F0"}`,background:act?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:act?"#3B82F6":"#94A3B8"}}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:o.tag.color,display:"inline-block"}}/>
+                        {o.tag.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {[
               {l:"Título",        k:"titulo",         ph:"Ej: Regalo día del maestro"},
               {l:"Descripción",   k:"descripcion",    ph:"Detalles opcionales"},
@@ -251,6 +312,26 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 {usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</option>)}
               </select>
             </div>
+            {alumnosCursoModal.length>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8"}}>¿QUIÉNES PARTICIPAN? ({participantesSel.length}/{alumnosCursoModal.length})</div>
+                  <button type="button" onClick={()=>setForm(p=>({...p,participantesIds: todosParticipan ? [] : alumnosCursoModal.map(a=>a.id)}))} style={{fontSize:11,fontWeight:700,color:"#3B82F6",background:"none",border:"none",cursor:"pointer"}}>{todosParticipan?"Ninguno":"Todos"}</button>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:160,overflowY:"auto",border:"1.5px solid #E2E8F0",borderRadius:10,padding:6}}>
+                  {alumnosCursoModal.map(a=>{
+                    const sel = participantesSel.includes(a.id);
+                    return (
+                      <div key={a.id} onClick={()=>toggleParticipante(a.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 9px",borderRadius:8,cursor:"pointer",background:sel?"#EFF6FF":"transparent"}}>
+                        <span style={{width:16,height:16,borderRadius:5,border:`1.5px solid ${sel?"#3B82F6":"#CBD5E1"}`,background:sel?"#3B82F6":"white",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"white",fontWeight:900}}>{sel?"✓":""}</span>
+                        <span style={{fontSize:13,color:sel?"#0F172A":"#64748B",fontWeight:sel?600:500}}>{a.nombre} {a.apellido}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!todosParticipan&&<div style={{fontSize:10.5,color:"#94A3B8",marginTop:4,lineHeight:1.4}}>Solo estas familias ven esta colecta y aparecen en el progreso.</div>}
+              </div>
+            )}
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
               <button onClick={guardar} disabled={saving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
@@ -272,7 +353,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 <DatosTransferencia aliasCbu={vistaAdmin.alias_cbu} showToast={showToast}/>
               </div>
             )}
-            {alumnos.filter(a=>a.curso_id===vistaAdmin.curso_id).map(a=>{
+            {alumnosDeColecta(vistaAdmin).map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
               const esResponsable = isAdmin || userId===vistaAdmin.responsable_id;
@@ -299,19 +380,17 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
       <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:(!isAdmin&&deudaTotal>0)?"1fr 320px":"1fr",gap:20,alignItems:"start"}}>
       <div>
-      {/* Botón nueva colecta (admin) */}
-      {isAdmin&&(
-        <div style={{marginBottom:16}}>
-          <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",alias_cbu:"",responsable_id:"",fecha_limite:"",});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
-        </div>
-      )}
+      {/* Botón nueva colecta — cualquier apoderado del curso puede crear una */}
+      <div style={{marginBottom:16}}>
+        <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",alias_cbu:"",responsable_id:"",fecha_limite:"",curso_id:cursoId||cursoIds[0]||null,participantesIds:null});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
+      </div>
 
       {colectas.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No hay colectas activas</div>}
 
       {colectas.map(c=>{
         // En vista Todos `alumnos` trae hijos de varios cursos: todo lo de esta
         // colecta se calcula solo con los alumnos de SU curso (no-op por hijo)
-        const alumnosCurso   = alumnos.filter(a=>a.curso_id===c.curso_id);
+        const alumnosCurso   = alumnosDeColecta(c);
         const alumnosPagados = alumnosCurso.filter(a=>getPago(c.id,a.id)?.estado==="pagado");
         const total          = alumnosCurso.length;
         const recaudado      = alumnosPagados.length * (c.monto_sugerido||0);
@@ -320,8 +399,11 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
         const resp           = usuarios.find(u=>u.id===c.responsable_id);
         const dias           = c.fecha_limite ? dHasta(c.fecha_limite) : null;
         const vencida        = dias!==null && dias<0;
-        // Cerrar/Reabrir: Room Parent, responsable o quien la creó (RLS puede_gestionar_colecta)
-        const gestiona       = gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []);
+        // Editar/Cerrar/Reabrir/Eliminar: Room Parent del curso, responsable o
+        // quien la creó (mismo criterio que la RLS puede_gestionar_colecta) —
+        // cursosAdmin (no isAdmin) porque en vista Todos isAdmin es siempre
+        // false aunque el usuario sea Room Parent del curso de esta colecta.
+        const gestiona       = gestionaColecta(c, userId, cursosAdmin);
         const haceDias       = c.activa ? diasVencida(c, fmtLocalDate()) : null;
         const tag            = tagDeCurso?.(c.curso_id) ?? null;
         const misAlumnosCurso = alumnosCurso.filter(a=>misHijos.includes(a.id));
@@ -353,9 +435,8 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 </div>
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                     <button onClick={()=>setVistaAdmin(c)} style={{padding:"4px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>Ver pagos</button>
-                    {gestiona&&!isAdmin&&<button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>}
-                    {isAdmin&&<>
-                      {!tienePagos(c)&&<button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",alias_cbu:c.alias_cbu||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||""});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>}
+                    {gestiona&&<>
+                      <button onClick={()=>{setModal(c);setForm({titulo:c.titulo||"",descripcion:c.descripcion||"",monto_sugerido:c.monto_sugerido||"",moneda:c.moneda||"$",alias_cbu:c.alias_cbu||"",responsable_id:c.responsable_id||"",fecha_limite:c.fecha_limite||"",participantesIds:participantes[c.id]?[...participantes[c.id]]:null});}} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
                       <button onClick={()=>toggleActiva(c)} style={{padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:c.activa?"#F59E0B":"#10B981"}}>{c.activa?"Cerrar":"Reabrir"}</button>
                       <button onClick={()=>eliminar(c.id)} style={{padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
                     </>}

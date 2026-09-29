@@ -2,7 +2,7 @@
 // colectas + colecta_pagos. Admin crea/edita/cierra/elimina y ve pagos; el
 // apoderado marca pagado para sus hijos. Deep-link: openColectaId abre el detalle.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet, RefreshControl } from "react-native";
 import { useRecarga } from "../../lib/useRecarga";
 import * as Clipboard from "expo-clipboard";
@@ -33,6 +33,7 @@ const FORM_VACIO = {
   responsable_id: "",
   fecha_limite: "",
   alias_cbu: "",
+  participantesIds: null, // null = participan todos los alumnos del curso
 };
 
 // Bloque "datos para transferir" con botón de copiar grande (item de rediseño
@@ -63,8 +64,19 @@ function DatosTransferencia({ aliasCbu, showToast, compact = false }) {
 }
 
 export function Finanzas({ openColectaId = null, onClearOpen }) {
-  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, misHijos = [], tagDeCurso } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, misHijos = [], tagDeCurso, items } = useSession();
   const userId = usuario?.id ?? null;
+  // En vista Todos isAdmin es siempre false aunque el usuario sea Room Parent
+  // de alguno de sus cursos — gestionaColecta necesita la lista completa.
+  const cursosAdmin = useMemo(
+    () => (items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id),
+    [items]
+  );
+  // Opciones de curso destino para el alta en vista "Todos" (label = hijo/s).
+  const cursosOpciones = useMemo(
+    () => (esVistaTodos ? cursoIds.map((cid) => ({ curso_id: cid, tag: tagDeCurso(cid) })).filter((o) => o.tag) : []),
+    [esVistaTodos, cursoIds, tagDeCurso]
+  );
   const { showToast, toast } = useToast();
   // Crear/borrar una colecta agrega/quita su recordatorio "colecta_vence" —
   // refresca el badge de Avisos + el punto de la campana (hook de _layout.jsx).
@@ -74,6 +86,9 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const [alumnos, setAlumnos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [pagos, setPagos] = useState([]);
+  // colecta_id -> Set(alumno_id): sin entrada (o Set vacío) = participan
+  // todos los alumnos del curso, igual que el comportamiento de siempre.
+  const [participantes, setParticipantes] = useState({});
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
@@ -89,12 +104,21 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       .order("id", { ascending: false });
     const colIds = (colData || []).map((c) => c.id);
 
-    const [alum, pag] = await Promise.all([
+    const [alum, pag, part] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,color,curso_id").in("curso_id", cursoIds).order("nombre"),
       colIds.length
         ? supabase.from("colecta_pagos").select("*").in("colecta_id", colIds)
         : Promise.resolve({ data: [] }),
+      colIds.length
+        ? supabase.from("colecta_participantes").select("colecta_id,alumno_id").in("colecta_id", colIds)
+        : Promise.resolve({ data: [] }),
     ]);
+    const partMap = {};
+    for (const r of part.data || []) {
+      if (!partMap[r.colecta_id]) partMap[r.colecta_id] = new Set();
+      partMap[r.colecta_id].add(r.alumno_id);
+    }
+    setParticipantes(partMap);
 
     const alumnosIds = (alum.data || []).map((a) => a.id);
     const uidsSet = new Set();
@@ -136,6 +160,9 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
   const guardar = async () => {
     if (!form.titulo?.trim()) return;
+    // En vista Todos el alta exige un curso destino elegido en el modal.
+    const cursoDestino = modal?.id ? modal.curso_id : (cursoId || form.curso_id);
+    if (!modal?.id && !cursoDestino) return;
     setSaving(true);
     const payload = {
       titulo: form.titulo.trim(),
@@ -147,18 +174,19 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       responsable_id: form.responsable_id || null,
       fecha_limite: form.fecha_limite || null,
       vencimiento: form.fecha_limite || fmtLocalDate(),
-      // Al editar, conservar el curso de la colecta; el cursoId de sesión solo
-      // aplica al crear (acción admin, nunca disponible en vista Todos)
-      curso_id: modal?.id ? modal.curso_id : cursoId,
+      // Al editar, conservar el curso de la colecta (nunca el de sesión).
+      curso_id: cursoDestino,
       // activa solo al crear: editar una colecta cerrada no la reabre
       ...(modal?.id ? {} : { activa: true }),
     };
+    let colectaId = modal?.id || null;
     if (modal?.id) {
       await supabase.from("colectas").update(payload).eq("id", modal.id);
     } else {
       const { data: nuevaColecta, error } = await supabase.from("colectas").insert(payload).select().single();
       if (error) console.error("colectas error:", JSON.stringify(error));
       if (!error) {
+        colectaId = nuevaColecta?.id ?? null;
         // Recordatorio para los apoderados del curso — persiste hasta que cada
         // uno lo marca leído (igual que la web)
         if (nuevaColecta?.id) {
@@ -179,6 +207,17 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         }
         const userIds = await getUserIdsByCurso(nuevaColecta?.curso_id ?? cursoId);
         await sendPush({ type: "colecta", payload: { descripcion: form.titulo, userIds } });
+      }
+    }
+    // Sincronizar quiénes participan — sin filas en colecta_participantes
+    // significa "todos", igual que el comportamiento de siempre.
+    if (colectaId) {
+      const alumnosCursoDestino = alumnos.filter((a) => a.curso_id === cursoDestino);
+      await supabase.from("colecta_participantes").delete().eq("colecta_id", colectaId);
+      if (form.participantesIds && form.participantesIds.length < alumnosCursoDestino.length) {
+        await supabase
+          .from("colecta_participantes")
+          .insert(form.participantesIds.map((alumno_id) => ({ colecta_id: colectaId, alumno_id })));
       }
     }
     setSaving(false);
@@ -208,9 +247,13 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const getPago = (colectaId, alumnoId) =>
     pagos.find((p) => p.colecta_id === colectaId && p.alumno_id === alumnoId);
 
-  // Una vez que hay algún pago registrado, editar el monto/título distorsionaría
-  // lo ya recaudado — igual que las opciones de una encuesta con votos.
-  const tienePagos = (c) => pagos.some((p) => p.colecta_id === c.id && p.estado === "pagado");
+  // Alumnos del curso que participan de esta colecta — sin filas en
+  // colecta_participantes participan todos (comportamiento de siempre).
+  const alumnosDeColecta = (c) => {
+    const base = alumnos.filter((a) => a.curso_id === c.curso_id);
+    const p = participantes[c.id];
+    return p && p.size ? base.filter((a) => p.has(a.id)) : base;
+  };
 
   const togglePago = async (colectaId, alumnoId, estadoActual) => {
     const nuevo = estadoActual === "pagado" ? "pendiente" : "pagado";
@@ -247,13 +290,18 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const deudaPropia = colectas
     .filter((c) => c.activa && c.monto_sugerido)
     .flatMap((c) => {
-      const alumnosCurso = alumnos.filter((a) => a.curso_id === c.curso_id && misHijos.includes(a.id));
+      const alumnosCurso = alumnosDeColecta(c).filter((a) => misHijos.includes(a.id));
       return alumnosCurso
         .filter((a) => getPago(c.id, a.id)?.estado !== "pagado")
         .map((a) => ({ colecta: c, dias: c.fecha_limite ? dHasta(c.fecha_limite) : null }));
     });
   const deudaTotal = deudaPropia.reduce((sum, d) => sum + (d.colecta.monto_sugerido || 0), 0);
   const deudaProxima = deudaPropia.reduce((min, d) => (d.dias != null && (min == null || d.dias < min) ? d.dias : min), null);
+
+  // Curso destino del modal abierto (nuevo o edición) y sus alumnos, para el
+  // selector de "¿Quiénes participan?".
+  const cursoDestinoModal = modal ? (modal.id ? modal.curso_id : (cursoId || form.curso_id)) : null;
+  const alumnosCursoModal = cursoDestinoModal ? alumnos.filter((a) => a.curso_id === cursoDestinoModal) : [];
 
   return (
     <View style={styles.screen}>
@@ -271,17 +319,16 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         </View>
       ) : null}
 
-      {isAdmin ? (
-        <Pressable
-          onPress={() => {
-            setForm(FORM_VACIO);
-            setModal({});
-          }}
-          style={styles.nuevaBtn}
-        >
-          <Text style={styles.nuevaTxt}>+ Nueva colecta</Text>
-        </Pressable>
-      ) : null}
+      {/* Cualquier apoderado del curso puede crear una colecta */}
+      <Pressable
+        onPress={() => {
+          setForm({ ...FORM_VACIO, curso_id: cursoId || cursoIds[0] || null });
+          setModal({});
+        }}
+        style={styles.nuevaBtn}
+      >
+        <Text style={styles.nuevaTxt}>+ Nueva colecta</Text>
+      </Pressable>
 
       {colectas.length === 0 ? (
         <Text style={styles.empty}>No hay colectas activas</Text>
@@ -290,7 +337,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
       {colectas.map((c) => {
         // En vista Todos `alumnos` trae hijos de varios cursos: todo lo de esta
         // colecta se calcula solo con los alumnos de SU curso (no-op por hijo)
-        const alumnosCurso = alumnos.filter((a) => a.curso_id === c.curso_id);
+        const alumnosCurso = alumnosDeColecta(c);
         const pagados = alumnosCurso.filter((a) => getPago(c.id, a.id)?.estado === "pagado");
         const total = alumnosCurso.length;
         const recaudado = pagados.length * (c.monto_sugerido || 0);
@@ -418,7 +465,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
             ) : null}
 
             {(() => {
-              const hace = c.activa && gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []) ? diasVencida(c, fmtLocalDate()) : null;
+              const hace = c.activa && gestionaColecta(c, userId, cursosAdmin) ? diasVencida(c, fmtLocalDate()) : null;
               return hace !== null && hace >= DIAS_PARA_CERRAR ? (
                 <View style={styles.porCerrar}>
                   <Text style={styles.porCerrarTxt}>⏰ Venció hace {hace} días. Si la colecta terminó, cerrala: así nadie sigue marcando pagos.</Text>
@@ -432,32 +479,26 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
               <Pressable onPress={() => setVistaAdmin(c)} style={styles.verPagosBtn}>
                 <Text style={styles.verPagosTxt}>Ver Detalle Colecta</Text>
               </Pressable>
-              {gestionaColecta(c, userId, isAdmin ? [c.curso_id] : []) && !isAdmin ? (
-                <Pressable onPress={() => toggleActiva(c)} style={styles.iconBtn}>
-                  <Text style={[styles.iconTxt, { color: c.activa ? "#B45309" : t.success }]}>{c.activa ? "Cerrar" : "Reabrir"}</Text>
-                </Pressable>
-              ) : null}
-              {isAdmin ? (
+              {gestionaColecta(c, userId, cursosAdmin) ? (
                 <>
-                  {!tienePagos(c) ? (
-                    <Pressable
-                      onPress={() => {
-                        setForm({
-                          titulo: c.titulo || "",
-                          descripcion: c.descripcion || "",
-                          monto_sugerido: c.monto_sugerido ? String(c.monto_sugerido) : "",
-                          moneda: c.moneda || "$",
-                          alias_cbu: c.alias_cbu || "",
-                          responsable_id: c.responsable_id || "",
-                          fecha_limite: c.fecha_limite || "",
-                        });
-                        setModal(c);
-                      }}
-                      style={styles.iconBtn}
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                    </Pressable>
-                  ) : null}
+                  <Pressable
+                    onPress={() => {
+                      setForm({
+                        titulo: c.titulo || "",
+                        descripcion: c.descripcion || "",
+                        monto_sugerido: c.monto_sugerido ? String(c.monto_sugerido) : "",
+                        moneda: c.moneda || "$",
+                        alias_cbu: c.alias_cbu || "",
+                        responsable_id: c.responsable_id || "",
+                        fecha_limite: c.fecha_limite || "",
+                        participantesIds: participantes[c.id] ? [...participantes[c.id]] : null,
+                      });
+                      setModal(c);
+                    }}
+                    style={styles.iconBtn}
+                  >
+                    <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                  </Pressable>
                   <Pressable onPress={() => toggleActiva(c)} style={styles.iconBtn}>
                     <Text style={[styles.iconTxt, { color: c.activa ? "#B45309" : t.success }]}>
                       {c.activa ? "Cerrar" : "Reabrir"}
@@ -480,13 +521,15 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         usuarios={usuarios}
         saving={saving}
         editing={!!modal?.id}
+        cursosOpciones={!modal?.id ? cursosOpciones : []}
+        alumnosCursoModal={alumnosCursoModal}
         onClose={() => setModal(null)}
         onGuardar={guardar}
       />
 
       <PagosModal
         colecta={vistaAdmin}
-        alumnos={vistaAdmin ? alumnos.filter((a) => a.curso_id === vistaAdmin.curso_id) : []}
+        alumnos={vistaAdmin ? alumnosDeColecta(vistaAdmin) : []}
         getPago={getPago}
         canToggle={(c) => isAdmin || userId === c?.responsable_id}
         onToggle={togglePago}
@@ -499,13 +542,43 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   );
 }
 
-function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, onClose, onGuardar }) {
+function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, cursosOpciones = [], alumnosCursoModal = [], onClose, onGuardar }) {
+  const participantesSel = form.participantesIds ?? alumnosCursoModal.map((a) => a.id);
+  const toggleParticipante = (id) =>
+    setForm((p) => {
+      const actual = p.participantesIds ?? alumnosCursoModal.map((a) => a.id);
+      return { ...p, participantesIds: actual.includes(id) ? actual.filter((x) => x !== id) : [...actual, id] };
+    });
+  const todosParticipan = participantesSel.length === alumnosCursoModal.length;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{editing ? "Editar colecta" : "Nueva colecta"}</Text>
+
+            {cursosOpciones.length > 0 ? (
+              <>
+                <Text style={styles.label}>PARA EL CURSO DE</Text>
+                <View style={styles.cursoRow}>
+                  {cursosOpciones.map((o) => {
+                    const active = form.curso_id === o.curso_id;
+                    return (
+                      <Pressable
+                        key={o.curso_id}
+                        onPress={() => setForm((p) => ({ ...p, curso_id: o.curso_id, participantesIds: null }))}
+                        style={[styles.cursoBtn, active && styles.cursoBtnOn]}
+                      >
+                        <View style={[styles.cursoDot, { backgroundColor: o.tag.color }]} />
+                        <Text style={[styles.cursoTxt, active && styles.cursoTxtOn]} numberOfLines={1}>
+                          {o.tag.nombre}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
 
             <Text style={styles.label}>TÍTULO</Text>
             <TextInput
@@ -590,6 +663,44 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, o
                 </Pressable>
               ))}
             </ScrollView>
+
+            {alumnosCursoModal.length > 0 ? (
+              <>
+                <View style={styles.partHeaderRow}>
+                  <Text style={styles.label}>
+                    ¿QUIÉNES PARTICIPAN? ({participantesSel.length}/{alumnosCursoModal.length})
+                  </Text>
+                  <Pressable
+                    onPress={() =>
+                      setForm((p) => ({
+                        ...p,
+                        participantesIds: todosParticipan ? [] : alumnosCursoModal.map((a) => a.id),
+                      }))
+                    }
+                  >
+                    <Text style={styles.partToggleTxt}>{todosParticipan ? "Ninguno" : "Todos"}</Text>
+                  </Pressable>
+                </View>
+                <ScrollView style={styles.partList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {alumnosCursoModal.map((a) => {
+                    const sel = participantesSel.includes(a.id);
+                    return (
+                      <Pressable key={a.id} onPress={() => toggleParticipante(a.id)} style={[styles.partRow, sel && styles.partRowOn]}>
+                        <View style={[styles.checkbox, sel && styles.checkboxOn]}>
+                          {sel ? <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" /> : null}
+                        </View>
+                        <Text style={styles.partTxt}>
+                          {a.nombre} {a.apellido}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                {!todosParticipan ? (
+                  <Text style={styles.hintInput}>Solo estas familias ven esta colecta y aparecen en el progreso.</Text>
+                ) : null}
+              </>
+            ) : null}
 
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
@@ -774,6 +885,12 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontWeight: "800", color: t.textStrong, letterSpacing: -0.2, marginBottom: 12 },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: 6, marginTop: SPACE.sm },
   input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 14, color: t.text, marginBottom: 4 },
+  cursoRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 4 },
+  cursoBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
+  cursoBtnOn: { borderColor: BLUE[600], backgroundColor: t.accentSoft },
+  cursoDot: { width: 8, height: 8, borderRadius: 4 },
+  cursoTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
+  cursoTxtOn: { color: BLUE[600] },
   montoRow: { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 4 },
   monedaBtn: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: t.surface, minHeight: 44, justifyContent: "center" },
   monedaOn: { borderColor: SLATE[900], backgroundColor: SLATE[900] },
@@ -783,6 +900,14 @@ const styles = StyleSheet.create({
   respRow: { minHeight: 44, justifyContent: "center", paddingVertical: 11, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: t.border },
   respOn: { backgroundColor: t.accentSoft },
   respTxt: { fontSize: 14, color: t.text },
+  partHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  partToggleTxt: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  partList: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, maxHeight: 160, padding: 4 },
+  partRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 8, borderRadius: RADIUS.sm },
+  partRowOn: { backgroundColor: t.accentSoft },
+  checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center", backgroundColor: t.surface },
+  checkboxOn: { borderColor: BLUE[600], backgroundColor: BLUE[600] },
+  partTxt: { fontSize: 13, color: t.text },
   modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
   cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
   cancelTxt: { color: t.textMuted, fontSize: 14, fontWeight: "700" },
