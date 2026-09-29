@@ -27,10 +27,10 @@ const hace = (iso) => {
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 };
 
-async function cargarDatos(cursoIds, userId) {
+// colegios ya viene resuelto por quien llama (de "Mi acceso"/items o del
+// propio listado del colegio) — evita repetir la consulta a "cursos".
+async function cargarDatos(cursoIds, colegios, userId) {
   if (!cursoIds.length) return { articulos: [], misInteres: new Set(), interesadosDe: {} };
-  const { data: cursos } = await supabase.from("cursos").select("id,colegio_id").in("id", cursoIds);
-  const colegios = [...new Set((cursos || []).map((c) => c.colegio_id))];
   const hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data } = await supabase
     .from("marketplace_articulos")
@@ -300,7 +300,8 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const [interesados, setInteresados] = useState(null); // { articulo, lista }
   const [vendiendo, setVendiendo] = useState(null); // { articulo, lista, comprador }
 
-  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, userId)), [cursoIds, userId]);
+  const colegios = useMemo(() => [...new Set(cursosPublicar.map((c) => c.colegio_id).filter(Boolean))], [cursosPublicar]);
+  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, colegios, userId)), [cursoIds, colegios, userId]);
   useCargar(cargar);
 
   const gestiona = (a) => a.publicado_por === userId || puedeModerar(a);
@@ -426,14 +427,18 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 }
 
 /** Pestaña de las familias (dentro de Comunidad). */
-export function Marketplace({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, userId }) {
-  const [cursos, setCursos] = useState([]);
-  const cargarCursos = useCallback(async () => {
-    if (!cursoIds.length) return;
-    const { data } = await supabase.from("cursos").select("id,nombre,colegio_id").in("id", esVistaTodos ? cursoIds : [cursoId]);
-    setCursos(data || []);
-  }, [cursoIds, esVistaTodos, cursoId]);
-  useCargar(cargarCursos);
+export function Marketplace({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, userId, items = [] }) {
+  // nombre/colegio_id de cada curso ya vienen en "Mi acceso" (items[].cursos) —
+  // evita una consulta a "cursos" en cada carga.
+  const cursos = useMemo(() => {
+    const ids = esVistaTodos ? cursoIds : cursoId ? [cursoId] : [];
+    return ids
+      .map((id) => {
+        const it = items.find((i) => i.curso_id === id);
+        return it?.cursos ? { id, nombre: it.cursos.nombre, colegio_id: it.cursos.colegio_id } : null;
+      })
+      .filter(Boolean);
+  }, [items, esVistaTodos, cursoIds, cursoId]);
   return <Tablero cursoIds={cursoIds} cursosPublicar={cursos} colegioId={cursos[0]?.colegio_id} comoColegio={false} userId={userId} puedeModerar={() => false} tagDeCurso={esVistaTodos ? tagDeCurso : null} />;
 }
 

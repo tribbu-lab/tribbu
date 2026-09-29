@@ -46,11 +46,16 @@ export function Perdidos({ embebido = false }) {
     const ids = esVistaTodos ? cursoIds : cursoId ? [cursoId] : [];
     return ids.map((id) => ({ id, nombre: tagDeCurso(id)?.nombre || (items || []).find((i) => i.curso_id === id)?.cursos?.nombre || "Mi curso" }));
   }, [esVistaTodos, cursoIds, cursoId, tagDeCurso, items]);
+  // colegio_id de cada curso ya viene en la sesión (items[].cursos.colegio_id)
+  // — evita un round-trip a "cursos" en cada carga, igual que Marketplace.
+  const colegioDe = useMemo(
+    () => new Map(cursoIds.map((cid) => [cid, (items || []).find((i) => i.curso_id === cid)?.cursos?.colegio_id]).filter(([, v]) => v)),
+    [cursoIds, items]
+  );
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
-    const { data: cursos } = await supabase.from("cursos").select("id,colegio_id").in("id", cursoIds);
-    const colegios = [...new Set((cursos || []).map((c) => c.colegio_id))];
+    const colegios = [...new Set(colegioDe.values())];
     const { data: objs } = await supabase
       .from("objetos_perdidos")
       .select("*")
@@ -59,13 +64,15 @@ export function Perdidos({ embebido = false }) {
       .order("creado_en", { ascending: false });
     const objetos = objs || [];
     const ids = objetos.map((o) => o.id);
-    const { data: avisos } = ids.length ? await supabase.from("objeto_perdido_avisos").select("objeto_id,usuario_id").in("objeto_id", ids) : { data: [] };
+    const [{ data: avisos }, reclamados] = await Promise.all([
+      ids.length ? supabase.from("objeto_perdido_avisos").select("objeto_id,usuario_id").in("objeto_id", ids) : Promise.resolve({ data: [] }),
+      cargarReclamados(supabase, ids),
+    ]);
     const misAvisos = new Set((avisos || []).filter((a) => a.usuario_id === userId).map((a) => a.objeto_id));
     const avisosDe = {};
     for (const a of avisos || []) avisosDe[a.objeto_id] = (avisosDe[a.objeto_id] || 0) + 1;
-    const reclamados = await cargarReclamados(supabase, ids);
-    setDatos({ objetos, misAvisos, avisosDe, reclamados, colegioDe: new Map((cursos || []).map((c) => [c.id, c.colegio_id])) });
-  }, [cursoIds, userId]);
+    setDatos({ objetos, misAvisos, avisosDe, reclamados });
+  }, [cursoIds, userId, colegioDe]);
   // Expo Router deja la pantalla montada: recargar al volver a ella (como
   // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
@@ -212,7 +219,7 @@ export function Perdidos({ embebido = false }) {
       {nuevo ? (
         <NuevoSheet
           cursos={cursosPublicar}
-          colegioDe={datos.colegioDe}
+          colegioDe={colegioDe}
           userId={userId}
           candidatos={vigentes}
           onClose={() => setNuevo(false)}

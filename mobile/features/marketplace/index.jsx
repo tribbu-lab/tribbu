@@ -44,11 +44,16 @@ export function Marketplace() {
     const ids = esVistaTodos ? cursoIds : cursoId ? [cursoId] : [];
     return ids.map((id) => ({ id, nombre: tagDeCurso(id)?.nombre || (items || []).find((i) => i.curso_id === id)?.cursos?.nombre || "Mi curso" }));
   }, [esVistaTodos, cursoIds, cursoId, tagDeCurso, items]);
+  // colegio_id de cada curso ya viene en la sesión (items[].cursos.colegio_id)
+  // — evita un round-trip a "cursos" en cada carga, igual que Perdidos.
+  const colegioDe = useMemo(
+    () => new Map(cursoIds.map((cid) => [cid, (items || []).find((i) => i.curso_id === cid)?.cursos?.colegio_id]).filter(([, v]) => v)),
+    [cursoIds, items]
+  );
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
-    const { data: cursos } = await supabase.from("cursos").select("id,colegio_id").in("id", cursoIds);
-    const colegios = [...new Set((cursos || []).map((c) => c.colegio_id))];
+    const colegios = [...new Set(colegioDe.values())];
     const hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data } = await supabase
       .from("marketplace_articulos")
@@ -68,9 +73,8 @@ export function Marketplace() {
       articulos,
       misInteres: new Set((propios || []).map((r) => r.articulo_id)),
       interesadosDe: Object.fromEntries((conteo || []).map((r) => [r.articulo_id, r.cantidad])),
-      colegioDe: new Map((cursos || []).map((c) => [c.id, c.colegio_id])),
     });
-  }, [cursoIds, userId]);
+  }, [cursoIds, userId, colegioDe]);
   useEffect(() => {
     cargar();
   }, [cargar]);
@@ -207,7 +211,7 @@ export function Marketplace() {
         </Sheet>
       ) : null}
       {nuevo ? (
-        <NuevoSheet cursos={cursosPublicar} colegioDe={datos.colegioDe} userId={userId} onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} />
+        <NuevoSheet cursos={cursosPublicar} colegioDe={colegioDe} userId={userId} onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} />
       ) : null}
     </View>
   );

@@ -26,11 +26,11 @@ const hace = (iso) => {
 };
 
 // Publicaciones vigentes de estos cursos (o de alcance colegio en sus colegios) +
-// qué avisé yo y cuántos avisos tienen las mías.
-async function cargarDatos(cursoIds, userId) {
+// qué avisé yo y cuántos avisos tienen las mías. colegios ya viene resuelto
+// por quien llama (de "Mi acceso"/items o del propio listado del colegio) —
+// evita repetir la consulta a "cursos" que ya hizo cargarCursos.
+async function cargarDatos(cursoIds, colegios, userId) {
   if (!cursoIds.length) return { objetos: [], misAvisos: new Set(), avisosDe: {}, reclamados: new Set() };
-  const { data: cursos } = await supabase.from("cursos").select("id,colegio_id").in("id", cursoIds);
-  const colegios = [...new Set((cursos || []).map((c) => c.colegio_id))];
   const filtro = filtroAlcance(cursoIds, colegios);
   const { data: objs } = await supabase
     .from("objetos_perdidos")
@@ -253,7 +253,8 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const [avisos, setAvisos] = useState(null); // { objeto, lista }
   const [resaltado, setResaltado] = useState(null);
 
-  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, userId)), [cursoIds, userId]);
+  const colegios = useMemo(() => [...new Set(cursosPublicar.map((c) => c.colegio_id).filter(Boolean))], [cursosPublicar]);
+  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, colegios, userId)), [cursoIds, colegios, userId]);
   useCargar(cargar);
 
   const gestiona = (o) => o.publicado_por === userId || puedeModerar(o);
@@ -370,14 +371,19 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 }
 
 /** Pestaña de las familias. */
-export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, embebido = false }) {
-  const [cursos, setCursos] = useState([]);
-  const cargarCursos = useCallback(async () => {
-    if (!cursoIds.length) return;
-    const { data } = await supabase.from("cursos").select("id,nombre,colegio_id").in("id", esVistaTodos ? cursoIds : [cursoId]);
-    setCursos(data || []);
-  }, [cursoIds, esVistaTodos, cursoId]);
-  useCargar(cargarCursos);
+export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, items = [], embebido = false }) {
+  // nombre/colegio_id de cada curso ya vienen en "Mi acceso" (items[].cursos) —
+  // evita una consulta a "cursos" en cada carga (items[].curso_id / .cursos.*
+  // vienen de App.jsx, que ya los cargó al loguearse).
+  const cursos = useMemo(() => {
+    const ids = esVistaTodos ? cursoIds : cursoId ? [cursoId] : [];
+    return ids
+      .map((id) => {
+        const it = items.find((i) => i.curso_id === id);
+        return it?.cursos ? { id, nombre: it.cursos.nombre, colegio_id: it.cursos.colegio_id } : null;
+      })
+      .filter(Boolean);
+  }, [items, esVistaTodos, cursoIds, cursoId]);
   const puedeModerar = (o) => !!o.curso_id && cursosAdmin.includes(o.curso_id);
   return (
     <div style={{ maxWidth: 760 }}>
