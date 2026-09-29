@@ -652,38 +652,55 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
     const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento };
     let eventoId = evento?.id;
-    if (esNuevo) {
-      const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
-      eventoId = ev?.id;
-      const userIds = await getUserIdsByCurso(cursoEvento);
-      await sendPush({ type: "evento", payload: { titulo: form.titulo, fecha: form.fecha || "", userIds } });
-    } else {
-      await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
+    try {
+      if (esNuevo) {
+        const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
+        eventoId = ev?.id;
+      } else {
+        await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
+      }
+    } catch (e) {
+      console.error("EventoModal.guardar (insert/update):", e);
+      setSaving(false);
+      return; // no se guardó — dejar el modal abierto para reintentar
     }
-    if (form.confirma_asistencia && eventoId) {
-      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
-      const hijosIds = (hijos || []).map((h) => h.id);
-      if (hijosIds.length) {
-        const { data: uh } = await supabase
-          .from("usuario_hijos")
-          .select("usuario_id,hijo_id")
-          .in("hijo_id", hijosIds);
-        const rows = (uh || []).map((r) => ({
-          evento_id: eventoId,
-          usuario_id: r.usuario_id,
-          alumno_invitado_id: r.hijo_id,
-          asiste: "pendiente",
-        }));
-        if (rows.length) {
-          await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
-          await supabase
-            .from("evento_asistencia")
-            .upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+    // El evento ya existe en la base a partir de acá: push y asistencia son
+    // best-effort, un error o una red lenta ahí no debe dejar el modal
+    // trabado sin cerrarse (pasaba: el evento se creaba bien pero "Guardando…"
+    // quedaba pegado para siempre si sendPush/getUserIdsByCurso fallaba).
+    try {
+      if (esNuevo) {
+        const userIds = await getUserIdsByCurso(cursoEvento);
+        await sendPush({ type: "evento", payload: { titulo: form.titulo, fecha: form.fecha || "", userIds } });
+      }
+      if (form.confirma_asistencia && eventoId) {
+        const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
+        const hijosIds = (hijos || []).map((h) => h.id);
+        if (hijosIds.length) {
+          const { data: uh } = await supabase
+            .from("usuario_hijos")
+            .select("usuario_id,hijo_id")
+            .in("hijo_id", hijosIds);
+          const rows = (uh || []).map((r) => ({
+            evento_id: eventoId,
+            usuario_id: r.usuario_id,
+            alumno_invitado_id: r.hijo_id,
+            asiste: "pendiente",
+          }));
+          if (rows.length) {
+            await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+            await supabase
+              .from("evento_asistencia")
+              .upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+          }
         }
       }
+    } catch (e) {
+      console.error("EventoModal.guardar (push/asistencia):", e);
+    } finally {
+      setSaving(false);
+      onSave();
     }
-    setSaving(false);
-    onSave();
   };
 
   return (

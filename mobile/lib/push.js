@@ -17,6 +17,14 @@ export const sendPush = async ({ type, payload }) => {
     // pública) — manda el access_token del usuario logueado como bearer.
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
+    // Sin timeout, una red lenta/colgada dejaba este fetch pendiente para
+    // siempre — y como quien llama a sendPush lo espera antes de cerrar su
+    // modal, todo el flujo de guardar quedaba trabado con el dato ya
+    // insertado (visto en Calendario: el evento se creaba en la base pero
+    // el modal nunca se cerraba). 10s: suficiente para una red normal, no
+    // tanto como para sentirse colgado.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
@@ -25,7 +33,9 @@ export const sendPush = async ({ type, payload }) => {
         apikey: supabaseAnonKey,
       },
       body: JSON.stringify({ type, payload }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     return await res.json();
   } catch (e) {
     console.error("sendPush error:", e);

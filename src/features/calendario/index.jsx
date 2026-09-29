@@ -537,37 +537,57 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     adjuntos:    evento?.adjuntos    || [],
   });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   // Escrituras siempre sobre el curso del evento (nunca el de sesión al editar)
   const cursoEvento = evento?.curso_id ?? cursoId;
   const fechaFinInvalida = form.fecha_fin && form.fecha && form.fecha_fin < form.fecha;
   const guardar = async () => {
     if(!form.titulo || !form.fecha || fechaFinInvalida) return;
+    setGuardando(true);
     // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
     const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento };
     let eventoId = evento?.id;
-    if(esNuevo) {
-      const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
-      eventoId = ev?.id;
-      const userIds = await getUserIdsByCurso(cursoEvento);
-      await sendPush({ type:"evento", payload:{ titulo:form.titulo, fecha:form.fecha||"", userIds } });
-    } else {
-      await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
+    try {
+      if(esNuevo) {
+        const { data: ev } = await supabase.from("eventos").insert({ ...payload, creado_por: userId }).select().single();
+        eventoId = ev?.id;
+      } else {
+        await supabase.from("eventos").update(payload).eq("id", evento.id); // sin creado_por: editar no cambia quién lo creó
+      }
+    } catch(e) {
+      console.error("EventoModal.guardar (insert/update):", e);
+      setGuardando(false);
+      return; // no se guardó — dejar el modal abierto para reintentar
     }
-    // Si confirma_asistencia: crear filas pendientes para todos los apoderados del curso
-    if(form.confirma_asistencia && eventoId) {
-      const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
-      const hijosIds = (hijos||[]).map(h=>h.id);
-      if(hijosIds.length) {
-        const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
-        const rows = (uh||[]).map(r=>({ evento_id:eventoId, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
-        if(rows.length) {
-          await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
-          await supabase.from("evento_asistencia").upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+    // El evento ya existe en la base a partir de acá: push y asistencia son
+    // best-effort, un error o una red lenta ahí no debe dejar el modal
+    // trabado sin cerrarse (el evento se creaba bien pero el botón quedaba
+    // pegado en "Guardando…" para siempre si sendPush/getUserIdsByCurso fallaba).
+    try {
+      if(esNuevo) {
+        const userIds = await getUserIdsByCurso(cursoEvento);
+        await sendPush({ type:"evento", payload:{ titulo:form.titulo, fecha:form.fecha||"", userIds } });
+      }
+      // Si confirma_asistencia: crear filas pendientes para todos los apoderados del curso
+      if(form.confirma_asistencia && eventoId) {
+        const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
+        const hijosIds = (hijos||[]).map(h=>h.id);
+        if(hijosIds.length) {
+          const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id",hijosIds);
+          const rows = (uh||[]).map(r=>({ evento_id:eventoId, usuario_id:r.usuario_id, alumno_invitado_id:r.hijo_id, asiste:"pendiente" }));
+          if(rows.length) {
+            await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
+            await supabase.from("evento_asistencia").upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
+          }
         }
       }
+    } catch(e) {
+      console.error("EventoModal.guardar (push/asistencia):", e);
+    } finally {
+      setGuardando(false);
+      onSave();
     }
-    onSave();
   };
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -613,7 +633,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-          <button onClick={guardar} disabled={subiendoAdj||fechaFinInvalida} style={{flex:2,padding:11,borderRadius:10,border:"none",background:subiendoAdj||fechaFinInvalida?"#93C5FD":"#3B82F6",color:"white",cursor:subiendoAdj||fechaFinInvalida?"default":"pointer",fontSize:13,fontWeight:700}}>Guardar</button>
+          <button onClick={guardar} disabled={guardando||subiendoAdj||fechaFinInvalida} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando||subiendoAdj||fechaFinInvalida?"#93C5FD":"#3B82F6",color:"white",cursor:guardando||subiendoAdj||fechaFinInvalida?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando...":"Guardar"}</button>
         </div>
       </Card>
     </div>
