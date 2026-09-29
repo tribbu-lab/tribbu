@@ -584,11 +584,22 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <Text style={[styles.diasTxt, { color: bl.c }]}>{bl.l}</Text>
           </View>
           {isAlumno && fest ? (
-            <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.miniFest}>
-              <Text style={styles.miniFestTxt}>
-                🎉 {new Date(fest.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-              </Text>
-            </Pressable>
+            <View style={styles.festRow}>
+              <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.miniFest}>
+                <Text style={styles.miniFestTxt}>
+                  🎉 {new Date(fest.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                </Text>
+              </Pressable>
+              {esMiHijo ? (
+                <Pressable
+                  onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id, festejo: fest })}
+                  style={styles.miniEdit}
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={14} color={t.textMuted} />
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
           {isAlumno && !fest && esMiHijo ? (
             <Pressable
@@ -1404,8 +1415,10 @@ const styles = StyleSheet.create({
   rowRight: { alignItems: "flex-end", gap: 5 },
   diasPill: { borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
   diasTxt: { fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  festRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   miniFest: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
   miniFestTxt: { fontSize: 10.5, fontWeight: "700", color: "#B45309" },
+  miniEdit: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, padding: 5 },
   miniCrear: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
   miniCrearTxt: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
   adminBtns: { flexDirection: "row", gap: 4 },
