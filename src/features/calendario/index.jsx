@@ -9,6 +9,7 @@ import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
+import { SignedImg } from "../../components/SignedImg";
 import { Paginador } from "../../components/Paginador";
 import { ConfirmDestructivoModal } from "../../components/ConfirmDestructivoModal";
 import { CursoListSelector } from "../../components/CursoListSelector";
@@ -276,6 +277,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                             {cfg.label}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
                           </div>
                           {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                          {e.tipo==="festejo"&&e.imagen_url&&<SignedImg src={e.imagen_url} bucket="eventos" alt="Invitación" style={{width:64,height:64,objectFit:"cover",borderRadius:8,marginTop:6,display:"block"}}/>}
                           <AdjuntosList adjuntos={e.adjuntos}/>
                         </div>
                         {e.tipo==="festejo"
@@ -367,6 +369,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                       {e.url_ubicacion&&<a href={safeUrl(e.url_ubicacion)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
                     </div>}
                     {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
+                    {e.tipo==="festejo"&&e.imagen_url&&<SignedImg src={e.imagen_url} bucket="eventos" alt="Invitación" style={{width:64,height:64,objectFit:"cover",borderRadius:8,marginTop:6,display:"block"}}/>}
                     <AdjuntosList adjuntos={e.adjuntos}/>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>

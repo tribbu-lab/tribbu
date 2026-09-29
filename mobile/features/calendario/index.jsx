@@ -18,8 +18,10 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
+import { SignedImage } from "../../components/SignedImage";
 import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
+import { FestejoDetalleModal } from "../cumples";
 
 const t = THEMES.light;
 
@@ -51,6 +53,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [modal, setModal] = useState(null); // "nuevo" | evento
   const [confirm, setConfirm] = useState(null);
   const [eventoDetalle, setEventoDetalle] = useState(null);
+  const [festejoDetalle, setFestejoDetalle] = useState(null);
   const [filtroRango, setFiltroRango] = useState("90");
   const [filtroTipo, setFiltroTipo] = useState("todos");
 
@@ -311,6 +314,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     isAdmin={isAdmin}
                     userId={userId}
                     onAsistencia={() => setEventoDetalle(e)}
+                    onFestejo={() => setFestejoDetalle(e)}
                     onEditar={() => setModal(e)}
                     onEliminar={() => setConfirm(e)}
                   />
@@ -392,13 +396,20 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                       </View>
                     ) : null}
                     {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
+                    {e.tipo === "festejo" && e.imagen_url ? (
+                      <SignedImage src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
+                    ) : null}
                     <AdjuntosList adjuntos={e.adjuntos} />
                   </View>
                   <View style={styles.listRight}>
                     <View style={styles.diasTag}>
                       <Text style={styles.diasTagTxt}>{diasTxt}</Text>
                     </View>
-                    {e.tipo !== "festejo" && e.confirma_asistencia ? (
+                    {e.tipo === "festejo" ? (
+                      <Pressable onPress={() => setFestejoDetalle(e)} style={styles.asistBtn}>
+                        <Text style={styles.asistTxt}>Ver invitados</Text>
+                      </Pressable>
+                    ) : e.confirma_asistencia ? (
                       <Pressable onPress={() => setEventoDetalle(e)} style={styles.asistBtn}>
                         <Text style={styles.asistTxt}>Asistencia</Text>
                       </Pressable>
@@ -464,6 +475,16 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         />
       ) : null}
 
+      {festejoDetalle ? (
+        <FestejoDetalleModal
+          evento={festejoDetalle}
+          userId={userId}
+          misHijos={misHijos}
+          onClose={() => setFestejoDetalle(null)}
+          onUpdate={cargar}
+        />
+      ) : null}
+
       <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
         <View style={styles.overlay}>
           <View style={styles.confirmCard}>
@@ -497,7 +518,7 @@ function TagHijo({ tag }) {
   );
 }
 
-function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onEditar, onEliminar }) {
+function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
   // Solo quien lo creó lo edita/borra (Room Parent incluida), igual que la
   // RLS (puede_editar_evento). El colegio lo hace desde su panel.
@@ -516,9 +537,16 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onEditar, onE
           {e.lugar ? ` · 📍${e.lugar}` : ""}
         </Text>
         {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
+        {e.tipo === "festejo" && e.imagen_url ? (
+          <SignedImage src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
+        ) : null}
         <AdjuntosList adjuntos={e.adjuntos} />
       </View>
-      {e.tipo !== "festejo" && e.confirma_asistencia ? (
+      {e.tipo === "festejo" ? (
+        <Pressable onPress={onFestejo} style={styles.asistBtn}>
+          <Text style={styles.asistTxt}>Ver invitados</Text>
+        </Pressable>
+      ) : e.confirma_asistencia ? (
         <Pressable onPress={onAsistencia} style={styles.asistBtn}>
           <Text style={styles.asistTxt}>Asistencia</Text>
         </Pressable>
@@ -967,6 +995,7 @@ const styles = StyleSheet.create({
   eventoTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   eventoMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   eventoDesc: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  fotoFestejo: { width: 64, height: 64, borderRadius: 8, marginTop: 6 },
   lugarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   mapLink: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
   asistBtn: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.sm, paddingVertical: 6, paddingHorizontal: 10, minHeight: 32, justifyContent: "center", backgroundColor: t.surface },
