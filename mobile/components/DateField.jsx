@@ -84,7 +84,11 @@ export function DateField({
       {Platform.OS === "ios" ? (
         <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
           <Pressable style={s.overlay} onPress={() => setOpen(false)}>
-            <Pressable style={s.sheet}>
+            {/* View, no Pressable: un Pressable acá compite por el touch con
+                los gestos nativos del calendario inline de iOS y el usuario
+                no puede tocar los días (bug conocido de la librería cuando el
+                picker queda envuelto en un componente táctil de RN). */}
+            <View style={s.sheet}>
               <DateTimePicker
                 value={parseYmd(value)}
                 mode="date"
@@ -103,7 +107,7 @@ export function DateField({
               >
                 <Text style={s.doneTxt}>Listo</Text>
               </Pressable>
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       ) : null}
