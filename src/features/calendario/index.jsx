@@ -17,6 +17,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { FestejoDetalleModal } from "../cumples";
 import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
 import { useCargar } from "../../hooks/useCargar";
+import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib/calendarioRango";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -61,17 +62,35 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [recordatorios,  setRecordatorios]  = useState([]);
   const { showToast, Toast } = useToast();
 
+  // Rango de eventos cargado (lib/calendarioRango): arranca en [1° del mes
+  // actual, hoy + 90 días] y se amplía acá, en el render, cuando la vista pide
+  // fechas fuera (otro mes, rango personalizado, deep-link). Antes se pedían
+  // todos los eventos del año en cada apertura.
+  const esCustom = filtroRango==="custom";
+  const necesario = rangoNecesario({
+    hoy, mes, vista,
+    desdeCustom: esCustom ? (filtroDesde||null) : null,
+    hastaCustom: esCustom ? (filtroHasta||fmtLocalDate(new Date(hoy.getFullYear()+1,11,31))) : null,
+  });
+  const [rangoEventos, setRangoEventos] = useState(null);
+  if(!cubre(rangoEventos, necesario)) setRangoEventos(unirRangos(rangoEventos, necesario));
+
+  // Comunicados = recordatorios con fecha de hoy en adelante, para todos o
+  // para mí (filtrado en la consulta; antes se traían todos y se filtraba acá).
   const cargarRecs = useCallback(async () => {
     if(!cursoIds?.length) return;
-    const hoyStr = fmtLocalDate(new Date());
-    const recs = await supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("fecha",{ascending:true});
-    setRecordatorios((recs.data||[]).filter(r=> (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id===null||r.para_usuario_id===undefined||r.para_usuario_id===userId)));
+    let q = supabase.from("recordatorios").select("*").in("curso_id",cursoIds).gte("fecha", fmtLocalDate(new Date()));
+    q = userId ? q.or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`) : q.is("para_usuario_id", null);
+    const recs = await q.order("fecha",{ascending:true});
+    setRecordatorios(recs.data||[]);
   }, [cursoIds, userId]);
 
   const cargar = useCallback(async () => {
-    if(!cursoIds?.length) return;
+    if(!cursoIds?.length || !rangoEventos) return;
     const [ev, al, ma, hor, col] = await Promise.all([
-      supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
+      // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
+      supabase.from("eventos").select("*").in("curso_id", cursoIds)
+        .lte("fecha", rangoEventos.hasta).or(filtroDesdeEventos(rangoEventos.desde)).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
@@ -95,7 +114,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       })),
     ];
     setCumples(todos);
-  }, [cursoIds]);
+  }, [cursoIds, rangoEventos]);
   useCargar(cargar);
   useCargar(cargarRecs);
 

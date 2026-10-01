@@ -9,6 +9,7 @@ import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardA
 import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, safeUrl, fmtRangoFecha, fmtLocalDate } from "@shared/helpers";
+import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "@shared/calendarioRango";
 import { MESES } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -56,6 +57,14 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [filtroRango, setFiltroRango] = useState("90");
   const [filtroTipo, setFiltroTipo] = useState("todos");
 
+  // Rango de eventos cargado (@shared/calendarioRango): arranca en [1° del mes
+  // actual, hoy + 90 días] y se amplía acá, en el render, cuando la vista pide
+  // fechas fuera (otro mes, deep-link). Antes se pedían todos los eventos del
+  // año en cada carga.
+  const necesario = rangoNecesario({ hoy, mes, vista });
+  const [rangoEventos, setRangoEventos] = useState(null);
+  if (!cubre(rangoEventos, necesario)) setRangoEventos(unirRangos(rangoEventos, necesario));
+
   // Deep-link (openFecha): la tarjeta del día queda debajo de la grilla del
   // mes en el mismo ScrollView — sin este scroll automático el usuario no ve
   // que la navegación surtió efecto. En vista "mes" la tarjeta del día es
@@ -64,25 +73,35 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const pendingScroll = useRef(false);
 
   const cargar = useCallback(async () => {
-    if (!cursoIds?.length) return;
+    if (!cursoIds?.length || !rangoEventos) return;
     const hoyStr = fmtLocalDate(new Date());
     const [ev, al, ma, hor, recs] = await Promise.all([
-      supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha"),
+      // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
+      supabase
+        .from("eventos")
+        .select("*")
+        .in("curso_id", cursoIds)
+        .lte("fecha", rangoEventos.hasta)
+        .or(filtroDesdeEventos(rangoEventos.desde))
+        .order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase
         .from("maestros")
         .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
         .in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
-      supabase.from("recordatorios").select("*").in("curso_id", cursoIds).order("fecha", { ascending: true }),
+      // Comunicados: recordatorios con fecha de hoy en adelante, para todos o
+      // para mí (filtrado en la consulta; antes se traían todos).
+      (userId
+        ? supabase.from("recordatorios").select("*").in("curso_id", cursoIds).or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
+        : supabase.from("recordatorios").select("*").in("curso_id", cursoIds).is("para_usuario_id", null)
+      )
+        .gte("fecha", hoyStr)
+        .order("fecha", { ascending: true }),
     ]);
     setEventos(ev.data || []);
     setHorarios(hor.data || []);
-    setRecordatorios(
-      (recs.data || []).filter(
-        (r) => (!r.fecha || r.fecha >= hoyStr) && (r.para_usuario_id === null || r.para_usuario_id === undefined || r.para_usuario_id === userId)
-      )
-    );
+    setRecordatorios(recs.data || []);
     setCumples([
       ...(al.data || [])
         .filter((a) => a.fecha_nacimiento)
@@ -103,7 +122,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),
     ]);
-  }, [cursoIds, userId]);
+  }, [cursoIds, userId, rangoEventos]);
 
   useEffect(() => {
     cargar();
