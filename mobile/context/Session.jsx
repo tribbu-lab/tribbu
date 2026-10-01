@@ -10,19 +10,11 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { supabase } from "../lib/supabase";
 import { getHijoColor, setHijoColor } from "@shared/helpers";
 import { HIJO_COLOR_DEFAULT } from "@shared/theme";
+import { SELECT_USUARIO_SESION, armarUsuario } from "@shared/sesion";
 import { registerForPush, savePushToken } from "../push/register";
 
 const SessionContext = createContext(null);
 
-const shapeUsuario = (data) => ({
-  ...data,
-  hijos: [...new Set((data.usuario_hijos || []).map((r) => r.hijo_id))],
-  cursos: (data.usuario_cursos || []).map((r) => r.curso_id),
-  cursosConRol: (data.usuario_cursos || []).map((r) => ({
-    curso_id: r.curso_id,
-    rol: r.rol || "padre",
-  })),
-});
 
 export function SessionProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
@@ -35,11 +27,12 @@ export function SessionProvider({ children }) {
   const cargarUsuario = useCallback(async (authUser) => {
     const { data } = await supabase
       .from("usuarios")
-      .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)")
+      // Trae también los hijos con su curso: "Mi acceso" se arma sin otro viaje.
+      .select(SELECT_USUARIO_SESION)
       .eq("auth_id", authUser.id)
       .eq("activo", true)
       .single();
-    if (data) setUsuario(shapeUsuario(data));
+    if (data) setUsuario(armarUsuario(data));
     else setUsuario(null);
   }, []);
 
@@ -50,7 +43,11 @@ export function SessionProvider({ children }) {
       if (session?.user) await cargarUsuario(session.user);
       if (mounted) setAuthLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION ya lo resolvió getSession() de arriba, y TOKEN_REFRESHED
+      // (cada hora) no cambia quién es el usuario: recargarlo en esos dos
+      // casos repetía el usuario y "Mi acceso" enteros en cada arranque.
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
       if (session?.user) cargarUsuario(session.user);
       else setUsuario(null);
     });
@@ -69,20 +66,10 @@ export function SessionProvider({ children }) {
     }
     let cancel = false;
     (async () => {
-      const [{ data: uhData }, { data: ucData }] = await Promise.all([
-        supabase
-          .from("usuario_hijos")
-          .select("hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))")
-          .eq("usuario_id", usuario.id),
-        supabase
-          .from("usuario_cursos")
-          .select("curso_id")
-          .eq("usuario_id", usuario.id)
-          .eq("rol", "room"),
-      ]);
-      if (cancel) return;
-      const cursosAdmin = new Set((ucData || []).map((r) => r.curso_id));
-      const next = (uhData || [])
+      // Hijos y cursos de Room Parent ya vienen con el usuario
+      // (SELECT_USUARIO_SESION): sin otro viaje a usuario_hijos/usuario_cursos.
+      const cursosAdmin = new Set((usuario.cursosConRol || []).filter((r) => r.rol === "room").map((r) => r.curso_id));
+      const next = (usuario.usuario_hijos || [])
         .map((r) => r.hijos)
         .filter(Boolean)
         .map((h) => ({

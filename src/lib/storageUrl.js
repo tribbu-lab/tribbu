@@ -10,6 +10,14 @@ import { supabase } from "../supabase";
 
 const SIGN_TTL = 60 * 60; // 1 hora
 
+// Caché de URLs firmadas: path → { promesa, vence }. Sin esto cada render de
+// una imagen privada (y el lightbox al ampliarla) pedía otra firma, y como la
+// URL firmada cambia en cada pedido, el navegador/RN volvía a descargar la
+// imagen entera. Se guarda la promesa (dos pedidos simultáneos de la misma
+// foto comparten uno) y se reusa hasta 5 min antes de que venza.
+const firmadas = new Map();
+const MARGEN_MS = 5 * 60 * 1000;
+
 // Devuelve { bucket, path } a partir de una URL pública/firmada guardada, o
 // null si `stored` ya es un path pelado (el caller pasa el bucket aparte).
 export function parseStoragePath(stored) {
@@ -28,12 +36,21 @@ export async function signStorageUrl(stored, bucket) {
   const b = parsed?.bucket || bucket;
   const p = parsed?.path || stored;
   if (!b || !p || p.startsWith("http")) return stored;
-  try {
-    const { data, error } = await supabase.storage.from(b).createSignedUrl(p, SIGN_TTL);
-    return error ? stored : (data?.signedUrl || stored);
-  } catch {
-    return stored;
-  }
+  const clave = `${b}/${p}`;
+  const enCache = firmadas.get(clave);
+  if (enCache && enCache.vence > Date.now()) return enCache.promesa;
+  const promesa = (async () => {
+    try {
+      const { data, error } = await supabase.storage.from(b).createSignedUrl(p, SIGN_TTL);
+      if (error || !data?.signedUrl) { firmadas.delete(clave); return stored; }
+      return data.signedUrl;
+    } catch {
+      firmadas.delete(clave);
+      return stored;
+    }
+  })();
+  firmadas.set(clave, { promesa, vence: Date.now() + SIGN_TTL * 1000 - MARGEN_MS });
+  return promesa;
 }
 
 // Borra del bucket los archivos de algo que se borró (aviso, evento,

@@ -10,6 +10,7 @@ import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Wordmark } from "../../components/Wordmark";
 import { Paginador } from "../../components/Paginador";
+import { SELECT_USUARIO_SESION, armarUsuario } from "../../lib/sesion";
 
 
 export function Login({ onLogin }) {
@@ -35,18 +36,13 @@ export function Login({ onLogin }) {
     }
     const { data, error } = await supabase
       .from("usuarios")
-      .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)")
+      .select(SELECT_USUARIO_SESION)
       .eq("auth_id", authData.user.id)
       .eq("activo", true)
       .single();
     setLd(false);
     if(error || !data) { setErr("Usuario no encontrado o inactivo"); return; }
-    onLogin({
-      ...data,
-      hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
-      cursos: data.usuario_cursos.map(r=>r.curso_id),
-      cursosConRol: data.usuario_cursos.map(r=>({curso_id:r.curso_id, rol:r.rol||"padre"})),
-    });
+    onLogin(armarUsuario(data));
   };
 
   const enviarReset = async () => {

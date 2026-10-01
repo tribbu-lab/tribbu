@@ -9,6 +9,7 @@ import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { SELECT_USUARIO_SESION, armarUsuario } from "./lib/sesion";
 import { TabActivaContext, TAB_ACTIVA, TAB_OCULTA } from "./hooks/useTabActiva";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal, NuevaPasswordRecovery } from "./features/auth";
@@ -212,11 +213,9 @@ function App() {
   useEffect(()=>{
     if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
     const cargarItems = async () => {
-      // 1. Hijos del usuario
-      const { data: uhData } = await supabase
-        .from("usuario_hijos")
-        .select("hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))")
-        .eq("usuario_id", usuario.id);
+      // 1. Hijos del usuario: ya vienen con el usuario (SELECT_USUARIO_SESION
+      // en lib/sesion.js), sin otro viaje a usuario_hijos.
+      const uhData = usuario.usuario_hijos || [];
 
       // 2. Cursos donde es Room Parent: ya vienen con el usuario
       // (usuario_cursos(curso_id, rol) en la consulta de sesión/login), no
@@ -263,17 +262,12 @@ function App() {
       if(session?.user) {
         const { data } = await supabase
           .from("usuarios")
-          .select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)")
+          .select(SELECT_USUARIO_SESION)
           .eq("auth_id", session.user.id)
           .eq("activo", true)
           .single();
         if(data) {
-          setUsuario({
-            ...data,
-            hijos:  [...new Set(data.usuario_hijos.map(r=>r.hijo_id))],
-            cursos: data.usuario_cursos.map(r=>r.curso_id),
-            cursosConRol: data.usuario_cursos.map(r=>({curso_id:r.curso_id, rol:r.rol||"padre"})),
-          });
+          setUsuario(armarUsuario(data));
           // Consumir tab pendiente de notificación (app cerrada)
           if(window._tribbuPendingTab) {
             setTab(window._tribbuPendingTab);
