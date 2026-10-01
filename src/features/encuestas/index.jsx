@@ -40,7 +40,8 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) { setCargando(false); return; }
-    setCargando(true);
+    // Sin setCargando(true): el "Cargando..." solo la primera vez (estado inicial);
+    // al recargar (volver a la pestaña, después de votar) se ve lo último cargado.
     const { data: encs } = await supabase.from("encuestas").select("*").in("curso_id", cursoIds).order("creado_en", { ascending: false });
     const ids = (encs || []).map(e => e.id);
     const [ops, vts] = await Promise.all([

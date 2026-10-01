@@ -14,10 +14,17 @@
 //
 // `recargarCuando` (opcional): recarga también cuando cambia ese valor, sin que
 // sea dependencia de cargar — p.ej. `active` para refrescar al abrir el panel.
+//
+// Dentro de una pestaña oculta (ver useTabActiva) no carga; al volver a
+// mostrarse vuelve a correr `cargar` en segundo plano (la pantalla sigue
+// mostrando lo último cargado mientras tanto).
 import { useEffect } from "react";
+import { useTabActiva } from "./useTabActiva";
 
 export function useCargar(cargar, recargarCuando) {
+  const activa = useTabActiva();
   useEffect(() => {
+    if (!activa) return undefined;
     let vigente = true;
     Promise.resolve().then(() => {
       if (vigente) cargar();
@@ -25,5 +32,5 @@ export function useCargar(cargar, recargarCuando) {
     return () => {
       vigente = false;
     };
-  }, [cargar, recargarCuando]);
+  }, [cargar, recargarCuando, activa]);
 }

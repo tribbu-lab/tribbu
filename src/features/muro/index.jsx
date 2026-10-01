@@ -27,6 +27,7 @@ const TIPO_CONFIG = {
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
+import { useTabActiva } from "../../hooks/useTabActiva";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -68,8 +69,9 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
   const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
 
   const cursosKey = cursoIds.join(",");
+  const tabActiva = useTabActiva(); // oculta: no carga; al volver, recarga en segundo plano
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{ cargar(); },[cursosKey]);
+  useEffect(()=>{ if(tabActiva) cargar(); },[cursosKey, tabActiva]);
 
   async function cargar() {
     if(!cursoIds.length) return;

@@ -9,6 +9,7 @@ import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { TabActivaContext, TAB_ACTIVA, TAB_OCULTA } from "./hooks/useTabActiva";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal, NuevaPasswordRecovery } from "./features/auth";
 // Cada sección se descarga recién cuando se abre (antes todo iba en un único
@@ -132,6 +133,8 @@ function App() {
   const [usuario,       setUsuario]       = useState(null);
   const [authLoading,   setAuthLoading]   = useState(true);
   const [tab,           setTab]           = useState(() => tabDeUrl() || "muro");
+  // Pestañas ya visitadas que quedan montadas (ocultas) — ver renderTabs.
+  const [tabsMontadas,  setTabsMontadas]  = useState({ ctx: null, tabs: {} });
   const [openColecta,   setOpenColecta]   = useState(null);
   const [openFecha,     setOpenFecha]     = useState(null);
   const [openAviso,     setOpenAviso]     = useState(null); // { id, n } — aviso a resaltar en Avisos
@@ -485,13 +488,10 @@ function App() {
     else navegarA("recordatorios",{openAviso:n.id});
   };
 
-  const renderTab = () => {
-    if(!cursoIds.length) return <Spinner/>;
+  const renderTab = (t) => {
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
-    // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
-    // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
-    switch(tab === "admin" && !isAdmin ? "muro" : tab) {
+    switch(t) {
       case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
@@ -500,7 +500,7 @@ function App() {
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()} openAviso={openAviso}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "comunidad": case "marketplace": case "servicios":
-        return <Comunidad sub={tab==="comunidad"?"marketplace":tab} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
+        return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "autorizaciones": return <Autorizaciones cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
@@ -508,6 +508,35 @@ function App() {
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       default: return null;
     }
+  };
+
+  // Pestañas en caché: la que se deja queda montada y oculta (display:none),
+  // así volver a ella es instantáneo — antes cada cambio de pestaña desmontaba
+  // la pantalla y la recargaba de cero con spinner. Cada una recibe por
+  // TabActivaContext si es la visible: useCargar/Muro no cargan ocultas y
+  // recargan en segundo plano al volver. Cambiar de hijo/curso (ctx) descarta
+  // todas menos la actual, para no recargar pantallas ocultas con otro curso.
+  // Marketplace/Servicios/Comunidad son una sola pantalla (Comunidad).
+  const claveTab = (t) => (t==="comunidad"||t==="marketplace"||t==="servicios") ? "comunidad" : t;
+  const renderTabs = () => {
+    if(!cursoIds.length) return <Spinner/>;
+    // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
+    // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
+    const tabEfectiva = tab === "admin" && !isAdmin ? "muro" : tab;
+    const clave = claveTab(tabEfectiva);
+    const ctx = `${usuario?.id}|${cursoIdx}|${cursoIds.join(",")}`;
+    let montadas = tabsMontadas;
+    if(montadas.ctx !== ctx || montadas.tabs[clave] !== tabEfectiva) {
+      montadas = { ctx, tabs: { ...(montadas.ctx === ctx ? montadas.tabs : {}), [clave]: tabEfectiva } };
+      setTabsMontadas(montadas); // ajuste en render (mismo patrón que Comunidad)
+    }
+    return Object.entries(montadas.tabs).map(([k, t]) => (
+      <div key={k} style={k === clave ? undefined : {display:"none"}}>
+        <TabActivaContext.Provider value={k === clave ? TAB_ACTIVA : TAB_OCULTA}>
+          <Suspense fallback={<Spinner/>}>{renderTab(t)}</Suspense>
+        </TabActivaContext.Provider>
+      </div>
+    ));
   };
 
   const pickerItem = colorPickerIdx!==null ? items[colorPickerIdx] : null;
@@ -632,7 +661,7 @@ function App() {
 
       {/* Contenido */}
       <div style={{flex:1,padding:"16px 16px 80px",boxSizing:"border-box",overflowY:"auto"}}>
-        <Suspense fallback={<Spinner/>}>{renderTab()}</Suspense>
+        {renderTabs()}
       </div>
 
       {/* Barra de navegacion inferior */}
@@ -773,13 +802,13 @@ function App() {
               {noLeidos>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:700,padding:"0 5px",minWidth:18,textAlign:"center",lineHeight:"18px",border:"2px solid #F8FAFC"}}>{noLeidos>99?"99+":noLeidos}</span>}
             </button>
           </div>
-          <Suspense fallback={<Spinner/>}>
+          {/* La búsqueda tapa las pestañas sin desmontarlas (no pierden su caché). */}
           {busquedaGlobal.trim() ? (
-            <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
-          ) : (
-            renderTab()
-          )}
-          </Suspense>
+            <Suspense fallback={<Spinner/>}>
+              <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
+            </Suspense>
+          ) : null}
+          <div style={busquedaGlobal.trim() ? {display:"none"} : undefined}>{renderTabs()}</div>
         </div>
       </div>
     </div>
