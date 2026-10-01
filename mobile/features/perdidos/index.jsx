@@ -23,6 +23,7 @@ import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
+import { ImagenAmpliable } from "../../components/Adjuntos";
 
 const t = THEMES.light;
 const fmtDia = (s) => (s ? new Date(s + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : null);
@@ -124,7 +125,7 @@ export function Perdidos({ embebido = false }) {
       <Card style={[styles.card, resuelta && styles.cardResuelta]}>
         <View style={styles.cardTop}>
           {o.foto ? (
-            <SignedImage src={o.foto} bucket="adjuntos" style={styles.foto} resizeMode="cover" />
+            <ImagenAmpliable src={o.foto} bucket="adjuntos" style={styles.foto} />
           ) : (
             <View style={[styles.foto, styles.fotoVacia]}><Text style={styles.fotoEmoji}>{c.e}</Text></View>
           )}

@@ -92,36 +92,49 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
   );
 }
 
+// Miniatura de una imagen de Storage privado que se abre en detalle (lightbox)
+// al hacer click. La usan AdjuntosList, la invitación de un festejo (bucket
+// "eventos") y la foto de Lost&Found.
+export function ImagenAmpliable({ src, bucket = "adjuntos", alt = "", style }) {
+  const [abierta, setAbierta] = useState(false);
+  if (!src) return null;
+  return (
+    <>
+      <SignedImg src={src} bucket={bucket} alt={alt}
+        onClick={(e) => { e.stopPropagation(); setAbierta(true); }}
+        style={{...style, cursor:"zoom-in"}}/>
+      {abierta && (
+        <div onClick={(e) => { e.stopPropagation(); setAbierta(false); }}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",
+            alignItems:"center",justifyContent:"center",padding:20,cursor:"zoom-out"}}>
+          <SignedImg src={src} bucket={bucket} alt={alt} style={{maxWidth:"100%",maxHeight:"90vh",borderRadius:12,objectFit:"contain"}}/>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AdjuntosList({ adjuntos }) {
-  const [preview, setPreview] = useState(null);
   const items = adjuntos || [];
   if (items.length === 0) return null;
-  const abrirPdf = async (a) => {
+  const abrirPdf = async (e, a) => {
+    e.stopPropagation();
     const url = await signStorageUrl(a.url, "adjuntos");
     if (url) window.open(url, "_blank", "noopener");
   };
   return (
-    <>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
-        {items.map((a, i) => a.tipo === "imagen" ? (
-          <SignedImg key={i} src={a.url} bucket="adjuntos" alt={a.nombre || "adjunto"} onClick={() => setPreview(a)}
-            style={{width:56,height:56,objectFit:"cover",borderRadius:10,border:"1px solid #E2E8F0",cursor:"pointer",display:"block"}}/>
-        ) : (
-          <button key={i} onClick={() => abrirPdf(a)}
-            style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:8,
-              border:"1px solid #E2E8F0",background:T.bg,cursor:"pointer",maxWidth:180}}>
-            <span style={{fontSize:13,flexShrink:0}}>📄</span>
-            <span style={{fontSize:11,fontWeight:700,color:T.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre || "Documento"}</span>
-          </button>
-        ))}
-      </div>
-      {preview && (
-        <div onClick={() => setPreview(null)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",
-            alignItems:"center",justifyContent:"center",padding:20,cursor:"pointer"}}>
-          <SignedImg src={preview.url} bucket="adjuntos" alt={preview.nombre || "adjunto"} style={{maxWidth:"100%",maxHeight:"90vh",borderRadius:12,objectFit:"contain"}}/>
-        </div>
-      )}
-    </>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+      {items.map((a, i) => a.tipo === "imagen" ? (
+        <ImagenAmpliable key={i} src={a.url} bucket="adjuntos" alt={a.nombre || "adjunto"}
+          style={{width:56,height:56,objectFit:"cover",borderRadius:10,border:"1px solid #E2E8F0",display:"block"}}/>
+      ) : (
+        <button key={i} onClick={(e) => abrirPdf(e, a)}
+          style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:8,
+            border:"1px solid #E2E8F0",background:T.bg,cursor:"pointer",maxWidth:180}}>
+          <span style={{fontSize:13,flexShrink:0}}>📄</span>
+          <span style={{fontSize:11,fontWeight:700,color:T.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nombre || "Documento"}</span>
+        </button>
+      ))}
+    </div>
   );
 }

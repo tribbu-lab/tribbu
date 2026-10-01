@@ -17,8 +17,7 @@ import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
-import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
-import { SignedImage } from "../../components/SignedImage";
+import { AdjuntosInput, AdjuntosList, ImagenAmpliable } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
 import { FestejoDetalleModal } from "../cumples";
@@ -397,7 +396,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                     ) : null}
                     {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
                     {e.tipo === "festejo" && e.imagen_url ? (
-                      <SignedImage src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
+                      <ImagenAmpliable src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
                     ) : null}
                     <AdjuntosList adjuntos={e.adjuntos} />
                   </View>
@@ -538,7 +537,7 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
         </Text>
         {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
         {e.tipo === "festejo" && e.imagen_url ? (
-          <SignedImage src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
+          <ImagenAmpliable src={e.imagen_url} bucket="eventos" style={styles.fotoFestejo} />
         ) : null}
         <AdjuntosList adjuntos={e.adjuntos} />
       </View>

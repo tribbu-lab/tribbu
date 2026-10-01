@@ -97,8 +97,27 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
   );
 }
 
+// Miniatura de una imagen de Storage privado que se abre en detalle (lightbox)
+// al tocarla. La usan AdjuntosList, la invitación de un festejo (bucket
+// "eventos") y la foto de Lost&Found.
+export function ImagenAmpliable({ src, bucket = "adjuntos", style, resizeMode = "cover" }) {
+  const [abierta, setAbierta] = useState(false);
+  if (!src) return null;
+  return (
+    <>
+      <Pressable onPress={() => setAbierta(true)} accessibilityRole="imagebutton" accessibilityLabel="Ver imagen">
+        <SignedImage src={src} bucket={bucket} style={style} resizeMode={resizeMode} />
+      </Pressable>
+      <Modal visible={abierta} transparent animationType="fade" onRequestClose={() => setAbierta(false)}>
+        <Pressable style={styles.lightbox} onPress={() => setAbierta(false)}>
+          {abierta ? <SignedImage src={src} bucket={bucket} style={styles.lightboxImg} resizeMode="contain" /> : null}
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
 export function AdjuntosList({ adjuntos }) {
-  const [preview, setPreview] = useState(null);
   const items = adjuntos || [];
   if (items.length === 0) return null;
 
@@ -108,28 +127,18 @@ export function AdjuntosList({ adjuntos }) {
   };
 
   return (
-    <>
-      <View style={styles.listWrap}>
-        {items.map((a, i) =>
-          a.tipo === "imagen" ? (
-            <Pressable key={i} onPress={() => setPreview(a)}>
-              <SignedImage src={a.url} bucket="adjuntos" style={styles.thumbLg} />
-            </Pressable>
-          ) : (
-            <Pressable key={i} onPress={() => abrirPdf(a)} style={styles.pdfChip}>
-              <MaterialCommunityIcons name="file-pdf-box" size={15} color={t.danger} />
-              <Text style={styles.pdfChipTxt} numberOfLines={1}>{a.nombre || "Documento"}</Text>
-            </Pressable>
-          )
-        )}
-      </View>
-
-      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
-        <Pressable style={styles.lightbox} onPress={() => setPreview(null)}>
-          {preview ? <SignedImage src={preview.url} bucket="adjuntos" style={styles.lightboxImg} resizeMode="contain" /> : null}
-        </Pressable>
-      </Modal>
-    </>
+    <View style={styles.listWrap}>
+      {items.map((a, i) =>
+        a.tipo === "imagen" ? (
+          <ImagenAmpliable key={i} src={a.url} bucket="adjuntos" style={styles.thumbLg} />
+        ) : (
+          <Pressable key={i} onPress={() => abrirPdf(a)} style={styles.pdfChip}>
+            <MaterialCommunityIcons name="file-pdf-box" size={15} color={t.danger} />
+            <Text style={styles.pdfChipTxt} numberOfLines={1}>{a.nombre || "Documento"}</Text>
+          </Pressable>
+        )
+      )}
+    </View>
   );
 }
 

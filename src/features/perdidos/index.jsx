@@ -13,7 +13,7 @@ import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
 import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
 import { Card } from "../../components/Card";
-import { SignedImg } from "../../components/SignedImg";
+import { ImagenAmpliable } from "../../components/Adjuntos";
 import { useCargar } from "../../hooks/useCargar";
 
 const MAX_FOTO = 10 * 1024 * 1024;
@@ -58,7 +58,7 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
     <Card style={{ padding: 0, overflow: "hidden", marginBottom: 12, opacity: resuelta ? 0.7 : 1 }}>
       <div style={{ display: "flex", gap: 12, padding: 14 }}>
         {o.foto
-          ? <SignedImg src={o.foto} bucket="adjuntos" alt={o.titulo} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 12, flexShrink: 0, background: "#F1F5F9" }} />
+          ? <ImagenAmpliable src={o.foto} bucket="adjuntos" alt={o.titulo} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 12, flexShrink: 0, background: "#F1F5F9" }} />
           : <div style={{ width: 92, height: 92, borderRadius: 12, background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, flexShrink: 0 }}>{cat.e}</div>}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 3 }}>
