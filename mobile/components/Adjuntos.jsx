@@ -60,7 +60,7 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
           {adjuntos.map((a, i) => (
             <View key={i} style={[styles.item, a.tipo === "pdf" && styles.itemPdf]}>
               {a.tipo === "imagen" ? (
-                <SignedImage src={a.url} bucket="adjuntos" style={styles.thumb} />
+                <SignedImage src={a.url} bucket="adjuntos" style={styles.thumb} miniatura />
               ) : (
                 <>
                   <MaterialCommunityIcons name="file-pdf-box" size={18} color={t.danger} />
@@ -106,7 +106,7 @@ export function ImagenAmpliable({ src, bucket = "adjuntos", style, resizeMode = 
   return (
     <>
       <Pressable onPress={() => setAbierta(true)} accessibilityRole="imagebutton" accessibilityLabel="Ver imagen">
-        <SignedImage src={src} bucket={bucket} style={style} resizeMode={resizeMode} />
+        <SignedImage src={src} bucket={bucket} style={style} resizeMode={resizeMode} miniatura />
       </Pressable>
       <Modal visible={abierta} transparent animationType="fade" onRequestClose={() => setAbierta(false)}>
         <Pressable style={styles.lightbox} onPress={() => setAbierta(false)}>

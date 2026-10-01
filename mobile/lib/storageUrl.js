@@ -3,6 +3,7 @@
 // (supabase/storage-privado.sql).
 
 import { supabase } from "./supabase";
+import { pathMiniatura, esMiniatura } from "@shared/miniaturas";
 
 const SIGN_TTL = 60 * 60; // 1 hora
 
@@ -21,23 +22,40 @@ export function parseStoragePath(stored) {
   return { bucket: m[1], path: decodeURIComponent(m[2]) };
 }
 
-export async function signStorageUrl(stored, bucket) {
+export async function signStorageUrl(stored, bucket, { miniatura = false } = {}) {
   if (!stored || typeof stored !== "string") return stored;
   const parsed = parseStoragePath(stored);
   const b = parsed?.bucket || bucket;
   const p = parsed?.path || stored;
   if (!b || !p || p.startsWith("http")) return stored;
+  // Miniatura (lib/miniaturas): la .thumb.jpg de al lado si existe; si no
+  // (fotos subidas antes de las miniaturas), la original como siempre.
+  if (miniatura && !esMiniatura(p)) {
+    const mini = await firmar(b, pathMiniatura(p));
+    if (mini) return mini;
+  }
+  return (await firmar(b, p)) || stored;
+}
+
+// Firma b/p con caché: la promesa (URL firmada, o null si no se pudo) se
+// reusa hasta 5 min antes de vencer. Un 404 (no existe — típico de una
+// miniatura que todavía no se generó) también queda en caché, para no
+// repetir el pedido fallido en cada render; cualquier otro error, no.
+function firmar(b, p) {
   const clave = `${b}/${p}`;
   const enCache = firmadas.get(clave);
   if (enCache && enCache.vence > Date.now()) return enCache.promesa;
   const promesa = (async () => {
     try {
       const { data, error } = await supabase.storage.from(b).createSignedUrl(p, SIGN_TTL);
-      if (error || !data?.signedUrl) { firmadas.delete(clave); return stored; }
+      if (error || !data?.signedUrl) {
+        if (String(error?.statusCode ?? error?.status) !== "404") firmadas.delete(clave);
+        return null;
+      }
       return data.signedUrl;
     } catch {
       firmadas.delete(clave);
-      return stored;
+      return null;
     }
   })();
   firmadas.set(clave, { promesa, vence: Date.now() + SIGN_TTL * 1000 - MARGEN_MS });
@@ -59,6 +77,8 @@ export async function borrarArchivos(refs, bucket) {
     const p = parsed?.path || stored;
     if (!b || !p || p.startsWith("http")) continue;
     (porBucket[b] = porBucket[b] || []).push(p);
+    // Y su miniatura, si tiene (si no existe, remove la ignora).
+    if (!esMiniatura(p)) porBucket[b].push(pathMiniatura(p));
   }
   for (const [b, paths] of Object.entries(porBucket)) {
     try {

@@ -14,6 +14,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados, avisaAlCurso, textoPushPublicado } from "../../lib/perdidos";
 import { Card } from "../../components/Card";
 import { ImagenAmpliable } from "../../components/Adjuntos";
+import { subirImagen } from "../../lib/imagenesWeb";
 import { useCargar } from "../../hooks/useCargar";
 
 const MAX_FOTO = 10 * 1024 * 1024;
@@ -156,9 +157,10 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, candidatos, onClos
     const colegio = comoColegio ? colegioId : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
     let path = null;
     if (foto) {
-      const ext = (foto.name.split(".").pop() || "jpg").toLowerCase();
-      path = `perdidos/${colegio}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("adjuntos").upload(path, foto, { contentType: foto.type });
+      // Original achicada + miniatura (lib/imagenesWeb).
+      const res = await subirImagen(supabase, "adjuntos", `perdidos/${colegio}/${Date.now()}`, foto);
+      path = res.path;
+      const upErr = res.error;
       if (upErr) { setGuardando(false); setError("No se pudo subir la foto."); return; }
     }
     const fila = {

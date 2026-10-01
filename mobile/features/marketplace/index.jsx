@@ -223,7 +223,7 @@ function Tarjeta({ a, tag, onPress }) {
   return (
     <Pressable onPress={onPress} style={[styles.tarjeta, vendido && styles.vendido]} accessibilityRole="button" accessibilityLabel={`${a.titulo}, ${fmtPrecio(a)}`}>
       <View style={styles.tarjetaFoto}>
-        {a.fotos?.[0] ? <SignedImage src={a.fotos[0]} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" /> : <Text style={styles.fotoEmoji}>{cat.e}</Text>}
+        {a.fotos?.[0] ? <SignedImage src={a.fotos[0]} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" miniatura /> : <Text style={styles.fotoEmoji}>{cat.e}</Text>}
         {vendido ? <Text style={styles.badgeVendido}>VENDIDO</Text> : null}
         {a.es_colegio ? <Text style={styles.badgeColegio}>🏫</Text> : null}
       </View>
@@ -252,7 +252,7 @@ function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onM
               <View style={styles.miniaturas}>
                 {a.fotos.map((f, i) => (
                   <Pressable key={f} onPress={() => setFoto(i)} style={[styles.miniatura, i === foto && styles.miniaturaOn]} accessibilityLabel={`Foto ${i + 1}`}>
-                    <SignedImage src={f} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" />
+                    <SignedImage src={f} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" miniatura />
                   </Pressable>
                 ))}
               </View>
@@ -386,7 +386,7 @@ function NuevoSheet({ cursos, colegioDe, userId, onClose, onCreado }) {
         <View style={styles.fotosRow}>
           {fotos.map((f) => (
             <Pressable key={f} onPress={() => quitarFoto(f)} style={styles.fotoPreview} accessibilityLabel="Quitar foto">
-              <SignedImage src={f} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" />
+              <SignedImage src={f} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" miniatura />
               <Text style={styles.quitar}>✕</Text>
             </Pressable>
           ))}

@@ -10,6 +10,7 @@ import { Card } from "../../components/Card";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { SignedImg } from "../../components/SignedImg";
+import { subirImagen } from "../../lib/imagenesWeb";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar } from "../../components";
@@ -541,9 +542,8 @@ export function FestejoModal({ alumnoId, alumnoNombre, cursoId, userId, festejoE
     const file = e.target.files[0];
     if(!file) return;
     setImgUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `festejos/${cursoId}_${alumnoId}_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("eventos").upload(path, file, { upsert: true });
+    // Original achicada + miniatura (lib/imagenesWeb): las invitaciones llegaban a 2 MB.
+    const { path, error } = await subirImagen(supabase, "eventos", `festejos/${cursoId}_${alumnoId}_${Date.now()}`, file, { upsert: true });
     if(!error) {
       setForm(p=>({...p, imagen_url: path})); // bucket privado: se guarda el path
     } else {
@@ -875,7 +875,7 @@ export function FestejoDetalleModal({ evento, misHijos=[], onClose, onUpdate }) 
           <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}}>
             {evento.imagen_url&&(
               <div onClick={()=>setImgZoom(true)} style={{cursor:"zoom-in",position:"relative"}}>
-                <SignedImg src={evento.imagen_url} bucket="eventos" alt="Invitación" style={{width:80,height:80,objectFit:"cover",borderRadius:12,border:"1.5px solid #E2E8F0",display:"block"}}/>
+                <SignedImg src={evento.imagen_url} bucket="eventos" alt="Invitación" miniatura style={{width:80,height:80,objectFit:"cover",borderRadius:12,border:"1.5px solid #E2E8F0",display:"block"}}/>
                 <div style={{position:"absolute",bottom:4,right:4,background:"rgba(0,0,0,0.45)",borderRadius:4,padding:"1px 4px",fontSize:9,color:"white",fontWeight:700}}>🔍</div>
               </div>
             )}

@@ -14,6 +14,7 @@ import { sendPush } from "../../lib/push";
 import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance } from "../../lib/marketplace";
 import { Card } from "../../components/Card";
 import { SignedImg } from "../../components/SignedImg";
+import { subirImagen } from "../../lib/imagenesWeb";
 import { useCargar } from "../../hooks/useCargar";
 
 const MAX_FOTO_BYTES = 10 * 1024 * 1024;
@@ -88,7 +89,7 @@ function Tarjeta({ a, tag, onAbrir }) {
     <button onClick={() => onAbrir(a)} style={{ padding: 0, border: "1px solid #E7ECF3", borderRadius: 16, background: "white", cursor: "pointer", textAlign: "left", overflow: "hidden", display: "flex", flexDirection: "column", opacity: vendido ? 0.65 : 1, fontFamily: "inherit" }}>
       <div style={{ position: "relative", width: "100%", aspectRatio: "1 / 1", background: "#F1F5F9" }}>
         {a.fotos?.[0]
-          ? <SignedImg src={a.fotos[0]} bucket="adjuntos" alt={a.titulo} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          ? <SignedImg src={a.fotos[0]} bucket="adjuntos" alt={a.titulo} miniatura style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{cat.e}</div>}
         {vendido && <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 8, background: "#0F172A", color: "white" }}>VENDIDO</span>}
         {a.es_colegio && <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 8, background: "#EEF2FF", color: "#4F46E5" }}>🏫 Colegio</span>}
@@ -120,7 +121,7 @@ function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
               {a.fotos.map((f, i) => (
                 <button key={f} onClick={() => setFoto(i)} aria-label={`Foto ${i + 1}`} style={{ padding: 0, border: `2px solid ${i === foto ? "#3B82F6" : "transparent"}`, borderRadius: 8, cursor: "pointer", background: "none" }}>
-                  <SignedImg src={f} bucket="adjuntos" alt="" style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 6, display: "block" }} />
+                  <SignedImg src={f} bucket="adjuntos" alt="" miniatura style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 6, display: "block" }} />
                 </button>
               ))}
             </div>
@@ -187,9 +188,8 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, onClose, onCreado 
     const colegio = comoColegio ? colegioId : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
     const paths = [];
     for (const f of fotos) {
-      const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `marketplace/${colegio}/${Date.now()}-${paths.length}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("adjuntos").upload(path, f, { contentType: f.type });
+      // Original achicada + miniatura (lib/imagenesWeb).
+      const { path, error: upErr } = await subirImagen(supabase, "adjuntos", `marketplace/${colegio}/${Date.now()}-${paths.length}`, f);
       if (upErr) { borrarArchivos(paths, "adjuntos"); setGuardando(false); setError("No se pudo subir una de las fotos."); return; }
       paths.push(path);
     }

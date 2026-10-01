@@ -75,11 +75,14 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
       supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
-      supabase.from("colegio").select("horario_clases").eq("id","d31b5547-246b-46fa-906e-950e51d4af58").single(),
+      // Horario de clases del colegio de estos cursos (tabla multi-colegio
+      // "colegios", la que se edita en Contacto/panel del colegio — antes se
+      // leía de la singleton vieja "colegio", que ya no se actualiza).
+      supabase.from("cursos").select("colegios(horario_clases)").in("id", cursoIds),
     ]);
     setEventos(ev.data||[]);
     setHorarios(hor.data||[]);
-    setHorarioColegio(col.data?.horario_clases||null);
+    setHorarioColegio((col.data||[]).map(c=>c.colegios?.horario_clases).find(Boolean)||null);
     // Armamos cumples como eventos virtuales (próxima ocurrencia)
     const todos = [
       ...(al.data||[]).filter(a=>a.fecha_nacimiento).map(a=>({

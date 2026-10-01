@@ -13,6 +13,8 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { MINI_LADO, ORIGINAL_LADO, CALIDAD_ORIGINAL, CALIDAD_MINI, pathMiniatura } from "@shared/miniaturas";
 import { supabase } from "./supabase";
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -45,12 +47,28 @@ const EXT_MIME = {
   heic: "image/heic",
 };
 
+// Re-encodea `asset` a JPEG con el lado mayor ≤ `lado` (sin agrandar) y
+// devuelve el uri del archivo temporal.
+async function aJpeg(asset, lado, compress) {
+  const ctx = ImageManipulator.manipulate(asset.uri);
+  const mayor = Math.max(asset.width || 0, asset.height || 0);
+  if (mayor > lado) ctx.resize(asset.width >= asset.height ? { width: lado } : { height: lado });
+  const img = await ctx.renderAsync();
+  const out = await img.saveAsync({ compress, format: SaveFormat.JPEG });
+  return out.uri;
+}
+
 /**
  * Pide permiso, abre la galería, sube la imagen elegida al bucket indicado y
  * devuelve `{ url }` con la URL pública, o `null` si el usuario canceló.
  * Lanza si falla el permiso o la subida (el caller muestra el error).
+ *
+ * `conMiniatura` (default): la original se sube como JPEG de lado ≤ 1600 px y
+ * al lado su miniatura .thumb.jpg (ver @shared/miniaturas) — las fotos de
+ * celular vienen a 4000 px y las pantallas solo necesitan la chica. Se saltea
+ * para logos (PNG con transparencia), el bucket público libros y GIFs.
  */
-export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "" }) {
+export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "", conMiniatura = true }) {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) throw new Error("Permiso de galería denegado");
 
@@ -62,9 +80,26 @@ export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "" }
 
   const asset = res.assets[0];
   if (asset.fileSize && asset.fileSize > MAX_FILE_BYTES) throw new Error("La imagen supera los 10 MB");
-  const ext = (asset.uri.split(".").pop() || "jpg").toLowerCase().split("?")[0];
-  const contentType = EXT_MIME[ext] || asset.mimeType || "image/jpeg";
-  const url = await uploadBase64({ uri: asset.uri, bucket, pathPrefix, ext, contentType });
+  let ext = (asset.uri.split(".").pop() || "jpg").toLowerCase().split("?")[0];
+  let contentType = EXT_MIME[ext] || asset.mimeType || "image/jpeg";
+  let uri = asset.uri;
+  let miniUri = null;
+  if (conMiniatura && bucket !== "libros" && ext !== "gif") {
+    try {
+      [uri, miniUri] = await Promise.all([aJpeg(asset, ORIGINAL_LADO, CALIDAD_ORIGINAL), aJpeg(asset, MINI_LADO, CALIDAD_MINI)]);
+      ext = "jpg";
+      contentType = "image/jpeg";
+    } catch {
+      uri = asset.uri; // si no se pudo procesar, la original tal cual (como antes)
+      miniUri = null;
+    }
+  }
+  const path = `${pathPrefix}${Date.now()}.${ext}`;
+  const [url] = await Promise.all([
+    uploadBase64({ uri, bucket, path, contentType }),
+    // Miniatura best-effort: si falla, las pantallas usan la original.
+    miniUri ? uploadBase64({ uri: miniUri, bucket, path: pathMiniatura(path), contentType: "image/jpeg" }).catch(() => null) : null,
+  ]);
   return { url, nombre: asset.fileName || null };
 }
 
@@ -85,14 +120,13 @@ export async function pickAndUploadDocument({ bucket = "adjuntos", pathPrefix = 
   // Android puede ignorar el filtro de MIME del picker: revalidamos acá.
   const esPdf = asset.mimeType === "application/pdf" || /\.pdf$/i.test(asset.name || asset.uri);
   if (!esPdf) throw new Error("Solo se permiten archivos PDF");
-  const url = await uploadBase64({ uri: asset.uri, bucket, pathPrefix, ext: "pdf", contentType: "application/pdf" });
+  const url = await uploadBase64({ uri: asset.uri, bucket, path: `${pathPrefix}${Date.now()}.pdf`, contentType: "application/pdf" });
   return { url, nombre: asset.name || "documento.pdf" };
 }
 
-async function uploadBase64({ uri, bucket, pathPrefix, ext, contentType }) {
+async function uploadBase64({ uri, bucket, path, contentType }) {
   const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
   const bytes = base64ToBytes(b64);
-  const path = `${pathPrefix}${Date.now()}.${ext}`;
 
   const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
     contentType,

@@ -1348,7 +1348,7 @@ function ColegioAdmin({ colegioId }) {
     setErr("");
     setSubiendoLogo(true);
     try {
-      const r = await pickAndUploadImage({ bucket: "adjuntos", pathPrefix: `colegios/${colId}/` });
+      const r = await pickAndUploadImage({ bucket: "adjuntos", pathPrefix: `colegios/${colId}/`, conMiniatura: false });
       if (r?.url) setForm((p) => ({ ...p, logo_url: r.url }));
     } catch (e) {
       setErr(e.message || "No se pudo subir el logo");

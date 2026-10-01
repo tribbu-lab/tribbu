@@ -11,6 +11,7 @@ import { T } from "../lib/theme";
 import { sanitize } from "../lib/helpers";
 import { signStorageUrl } from "../lib/storageUrl";
 import { SignedImg } from "./SignedImg";
+import { subirImagen } from "../lib/imagenesWeb";
 
 export const MAX_ADJUNTOS = 3;
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -33,10 +34,14 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
     if (file.size > MAX_BYTES) { setError("El archivo supera los 10 MB"); return; }
 
     setUploading(true);
-    const ext  = (file.name.split(".").pop() || (esPdf ? "pdf" : "jpg")).toLowerCase();
-    const path = `${cursoId}/${Date.now()}.${ext}`;
-    const { error: upError } = await supabase.storage.from("adjuntos")
-      .upload(path, file, { upsert: true, contentType: file.type });
+    // Imágenes: original achicada + miniatura (lib/imagenesWeb). PDF, tal cual.
+    let path, upError;
+    if (esImagen) {
+      ({ path, error: upError } = await subirImagen(supabase, "adjuntos", `${cursoId}/${Date.now()}`, file, { upsert: true }));
+    } else {
+      path = `${cursoId}/${Date.now()}.pdf`;
+      ({ error: upError } = await supabase.storage.from("adjuntos").upload(path, file, { upsert: true, contentType: file.type }));
+    }
     if (upError) {
       setError("Error al subir el archivo: " + upError.message);
     } else {
@@ -61,7 +66,7 @@ export function AdjuntosInput({ adjuntos = [], onChange, cursoId, onUploadingCha
               border:"1.5px solid #E2E8F0",borderRadius:10,background:T.bg,
               padding:a.tipo === "imagen" ? 3 : "8px 30px 8px 10px",maxWidth:"100%"}}>
               {a.tipo === "imagen" ? (
-                <SignedImg src={a.url} bucket="adjuntos" alt={a.nombre} style={{width:52,height:52,objectFit:"cover",borderRadius:8,display:"block"}}/>
+                <SignedImg src={a.url} bucket="adjuntos" alt={a.nombre} miniatura style={{width:52,height:52,objectFit:"cover",borderRadius:8,display:"block"}}/>
               ) : (
                 <>
                   <span style={{fontSize:16,flexShrink:0}}>📄</span>
@@ -100,7 +105,7 @@ export function ImagenAmpliable({ src, bucket = "adjuntos", alt = "", style }) {
   if (!src) return null;
   return (
     <>
-      <SignedImg src={src} bucket={bucket} alt={alt}
+      <SignedImg src={src} bucket={bucket} alt={alt} miniatura
         onClick={(e) => { e.stopPropagation(); setAbierta(true); }}
         style={{...style, cursor:"zoom-in"}}/>
       {abierta && (
