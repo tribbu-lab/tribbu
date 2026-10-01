@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
 import { useCargar } from "../../hooks/useCargar";
@@ -12,6 +12,10 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   const [notifs,   setNotifs]   = useState([]);
   const [leidos,   setLeidos]   = useState(new Set());
   const [cargando, setCargando] = useState(false);
+  // Ids de todos los avisos vigentes (sin el tope de 30 del panel): de acá sale
+  // el contador de no leídos de la pestaña Avisos, sin que App.jsx tenga que
+  // volver a pedir los mismos recordatorios. `v` cambia en cada refresco.
+  const [recIds,   setRecIds]   = useState({ ids: [], v: 0 });
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length || !userId) return;
@@ -22,8 +26,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
-        .order("fecha", { ascending: true, nullsFirst: false })
-        .limit(30),
+        .order("fecha", { ascending: true, nullsFirst: false }),
       supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId),
       supabase.from("alertas").select("*").in("curso_id", cursoIds).eq("activa", true)
         .order("creado_en", { ascending: false }).limit(3),
@@ -43,15 +46,30 @@ export function useNotificaciones({ cursoIds, userId, active }) {
       emoji: "🚨",
     }));
 
-    const recsNotifs = (recs.data||[]).map(r => ({
+    const recsNotifs = (recs.data||[]).slice(0, 30).map(r => ({
       ...r,
       _tipo: "recordatorio",
     }));
 
+    setRecIds(p => ({ ids: (recs.data||[]).map(r => r.id), v: p.v + 1 }));
     setNotifs([...alertasNotifs, ...recsNotifs]);
     setCargando(false);
   }, [cursoIds, userId]);
   useCargar(cargar, active); // también al abrir el panel
+
+  // Cada 30 s, solo los ids (liviano) para que el contador muestre avisos nuevos.
+  const refrescarIds = useCallback(async () => {
+    if(!cursoIds?.length || !userId) return;
+    const { data } = await supabase.from("recordatorios").select("id")
+      .in("curso_id", cursoIds)
+      .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
+      .or(`fecha.is.null,fecha.gte.${fmtLocalDate()}`);
+    if(data) setRecIds(p => ({ ids: data.map(r => r.id), v: p.v + 1 }));
+  }, [cursoIds, userId]);
+  useEffect(() => {
+    const iv = setInterval(refrescarIds, 30000);
+    return () => clearInterval(iv);
+  }, [refrescarIds]);
 
 
   const marcarLeido = async (id) => {
@@ -65,8 +83,9 @@ export function useNotificaciones({ cursoIds, userId, active }) {
   };
 
   const noLeidos = notifs.filter(n => n._tipo === "alerta" || !leidos.has(n.id)).length;
+  const avisosSinLeer = recIds.ids.filter(id => !leidos.has(id)).length;
 
-  return { notifs, leidos, cargando, noLeidos, marcarLeido, recargar: cargar };
+  return { notifs, leidos, cargando, noLeidos, avisosSinLeer, avisosVersion: recIds.v, marcarLeido, recargar: cargar };
 }
 
 export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onAbrir, onCerrar }) {

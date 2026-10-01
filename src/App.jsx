@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
-import { getHijoColor, setHijoColor, fmtLocalDate, colorColegio } from "./lib/helpers";
+import { getHijoColor, setHijoColor, colorColegio } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -140,7 +140,7 @@ function App() {
   const [colegiosPorId, setColegiosPorId] = useState({});
   const [hijoColorsMap, setHijoColorsMap] = useState({});
   const [colorPickerIdx,setColorPickerIdx]= useState(null);
-  const [badgeCount,    setBadgeCount]    = useState(0);
+  const [badgeVisto,    setBadgeVisto]    = useState(-1); // avisosVersion al tocar la pestaña Avisos
   const [menuMas,       setMenuMas]       = useState(false);
   const [cambiarPass,   setCambiarPass]   = useState(false);
   const [prefsAvisos,   setPrefsAvisos]   = useState(false); // modal "⚙️ Configurar notificaciones" (avisos automáticos)
@@ -200,10 +200,11 @@ function App() {
   };
 
   // Hook de notificaciones — siempre se llama, usa guards internos cuando no hay sesión
-  const { notifs, leidos, cargando: cargandoNotifs, noLeidos,
+  const { notifs, leidos, cargando: cargandoNotifs, noLeidos, avisosSinLeer, avisosVersion,
           marcarLeido, recargar: recargarNotifs } = useNotificaciones({
     cursoIds: _cursoIds, userId: usuario?.id ?? null, active: panelNotifs,
   });
+  const badgeCount = avisosVersion === badgeVisto ? 0 : avisosSinLeer;
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
@@ -214,14 +215,10 @@ function App() {
         .select("hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))")
         .eq("usuario_id", usuario.id);
 
-      // 2. Cursos donde es Room Parent
-      const { data: ucData } = await supabase
-        .from("usuario_cursos")
-        .select("curso_id")
-        .eq("usuario_id", usuario.id)
-        .eq("rol", "room");
-
-      const cursosAdmin = new Set((ucData||[]).map(r=>r.curso_id));
+      // 2. Cursos donde es Room Parent: ya vienen con el usuario
+      // (usuario_cursos(curso_id, rol) en la consulta de sesión/login), no
+      // hace falta otro viaje al servidor.
+      const cursosAdmin = new Set((usuario.cursosConRol||[]).filter(r=>r.rol==="room").map(r=>r.curso_id));
 
       const items = (uhData||[])
         .map(r=>r.hijos)
@@ -252,39 +249,10 @@ function App() {
     cargarItems();
   },[usuario]);
 
-  // Badge: recarga al cambiar de curso/usuario, cada 30s, y cuando cambia el
-  // estado de lectura — NO al cambiar de tab (ver nota más abajo). Reusa el
-  // `recordatorio_leidos` que ya trae useNotificaciones (misma consulta
-  // exacta, sin filtro de curso ni fecha) en vez de pedirlo de nuevo: antes
-  // cada cambio de hijo/curso disparaba esa consulta 3 veces en paralelo
-  // (Muro, este badge y notificaciones), cada una compitiendo por conexión
-  // con las demás.
-  const cargarBadge = (usr, itmList, idx, leidosSet) => {
-    if(!usr) return;
-    const itm_ = itmList[idx];
-    const cids_ = itm_?._tipo==="todos"
-      ? [...new Set(itmList.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))]
-      : [itm_?._tipo==="hijo" ? itm_?.curso_id : itm_?.id].filter(Boolean);
-    if(!cids_.length) return;
-    const hoy = fmtLocalDate();
-    supabase.from("recordatorios").select("id").in("curso_id", cids_)
-      .or(`para_usuario_id.is.null,para_usuario_id.eq.${usr.id}`)
-      .or(`fecha.is.null,fecha.gte.${hoy}`)
-      .then(({data:recs}) => {
-        setBadgeCount((recs||[]).filter(r=>!leidosSet.has(r.id)).length);
-      });
-  };
-  // NO al cambiar de tab: la cuenta de no leídos no depende de qué pantalla
-  // se está mirando, así que recalcularla en cada navegación solo agrega un
-  // round-trip innecesario a cada cambio de módulo. `leidos` en las deps
-  // hace que se recalcule solo cuando el estado de lectura realmente
-  // cambió (incluye el refresh explícito de Recordatorios vía onBadgeChange
-  // más abajo, que llama a recargarNotifs en vez de a cargarBadge directo).
-  useEffect(()=>{
-    cargarBadge(usuario, items, cursoIdx, leidos);
-    const iv = setInterval(()=>cargarBadge(usuario, items, cursoIdx, leidos), 30000);
-    return ()=>clearInterval(iv);
-  },[usuario, items, cursoIdx, leidos]);
+  // Badge de Avisos: sale de useNotificaciones (avisosSinLeer), que ya trae
+  // los recordatorios y los leídos — antes App pedía los mismos avisos otra
+  // vez por su cuenta (al arrancar, al cambiar los leídos y cada 30 s).
+  // Tocar la pestaña Avisos lo oculta hasta el próximo refresco del hook.
 
   // Restaurar sesión al recargar la página
   useEffect(()=>{
@@ -524,7 +492,7 @@ function App() {
     // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
     // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
     switch(tab === "admin" && !isAdmin ? "muro" : tab) {
-      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
+      case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
@@ -679,7 +647,7 @@ function App() {
             {menuMas&&(
               <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.15)",padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}} onClick={()=>setMenuMas(false)}>
                 {tabsExtra.map(t=>(
-                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                     <span style={{fontSize:20}}>{t.emoji}</span>
                     <span style={{fontSize:10,fontWeight:tabMenu===t.id?700:400,color:"white"}}>{t.label}</span>
                   </button>
@@ -696,7 +664,7 @@ function App() {
             )}
             <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",transition:"background 0.3s",paddingBottom:"env(safe-area-inset-bottom)"}}>
               {tabsFijos.map(t=>(
-                <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tabMenu===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); setMenuMas(false); }} style={{flex:1,padding:"8px 4px 10px",border:"none",background:"transparent",cursor:"pointer",color:tabMenu===t.id?"white":"rgba(255,255,255,0.45)",display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
                   <span style={{fontSize:18}}>{t.emoji}</span>
                   <span style={{fontSize:9,fontWeight:tabMenu===t.id?700:400,whiteSpace:"nowrap",color:tabMenu===t.id?"white":"rgba(255,255,255,0.45)"}}>{t.label.length>7?t.label.slice(0,7)+"…":t.label}</span>
                   {t.id==="recordatorios"&&badgeCount>0&&<span style={{position:"absolute",top:4,right:"50%",transform:"translateX(8px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:600,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>}
@@ -748,7 +716,7 @@ function App() {
 
         <div style={{padding:"0 12px",flex:1,paddingTop:8}}>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeCount(0); }} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tabMenu===t.id?"rgba(255,255,255,0.12)":"transparent",color:tabMenu===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tabMenu===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
+            <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tabMenu===t.id?"rgba(255,255,255,0.12)":"transparent",color:tabMenu===t.id?"white":"rgba(255,255,255,0.55)",fontSize:13,fontWeight:tabMenu===t.id?700:400,textAlign:"left",marginBottom:2,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:16}}>{t.emoji}</span>
               <span style={{flex:1}}>{t.label}</span>
               {t.id==="recordatorios"&&badgeCount>0&&(

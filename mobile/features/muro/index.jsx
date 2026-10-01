@@ -109,6 +109,11 @@ export function Muro() {
     // Todas las lecturas por curso van por cursoIds: en vista "Todos" abarca
     // todos los cursos con hijos; en vista por hijo es solo el curso activo.
     const cursosScope = cursoIds;
+    // Dos lotes en paralelo (antes eran ~7 consultas en fila después del
+    // primero, cada una un viaje a us-east-1). Lote 1: lo que solo depende de
+    // los cursos/usuario. Lote 2: lo que necesita ids del lote 1.
+    // colegio_id por curso sale de la sesión (items), sin ir a "cursos".
+    const colegios = [...new Set(cursosScope.map((cid) => (items || []).find((i) => i.curso_id === cid)?.cursos?.colegio_id).filter(Boolean))];
 
     const [
       alerta,
@@ -122,11 +127,22 @@ export function Muro() {
       leidosData,
       invitacionesData,
       encuestasData,
+      objsData,
+      autsData,
     ] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
       supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(1),
-      supabase.from("recordatorios").select("*").in("curso_id", cursosScope).order("creado_en", { ascending: false }),
+      // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
+      // fecha o dentro de los próximos 15 días, para todos o para mí — no el
+      // historial completo del año.
+      supabase
+        .from("recordatorios")
+        .select("*")
+        .in("curso_id", cursosScope)
+        .or(`para_usuario_id.is.null${userId ? `,para_usuario_id.eq.${userId}` : ""}`)
+        .or(`fecha.is.null,and(fecha.gte.${fechaHoy},fecha.lte.${fecha15})`)
+        .order("creado_en", { ascending: false }),
       supabase.from("colectas").select("*").in("curso_id", cursosScope),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
@@ -140,6 +156,34 @@ export function Muro() {
             .eq("asiste", "pendiente")
         : Promise.resolve({ data: [] }),
       supabase.from("encuestas").select("*").in("curso_id", cursosScope),
+      // Perdidos y encontrados: objetos encontrados esta semana en mis cursos / colegio.
+      supabase
+        .from("objetos_perdidos")
+        .select("id,tipo,estado,vence_en,creado_en,publicado_por")
+        .or(filtroAlcance(cursosScope, colegios))
+        .eq("tipo", "encontrado")
+        .eq("estado", "abierto")
+        .gte("creado_en", new Date(Date.now() - 7 * 86400000).toISOString()),
+      misHijosIds.length
+        ? supabase.from("autorizaciones").select("id,titulo,curso_id,fecha_limite,fecha_evento").in("curso_id", cursosScope)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const objs = objsData.data || [];
+    const auts = autsData.data || [];
+    const encuestasActivas = encuestasAbiertas(encuestasData.data || [], fechaHoy);
+    const activas = colectasActivas(cuotas.data || [], fecha15);
+    const [reclamados, respData, votosData, pagosData] = await Promise.all([
+      cargarReclamados(supabase, objs.map((o) => o.id)),
+      auts.length
+        ? supabase.from("autorizacion_respuestas").select("autorizacion_id,hijo_id").in("autorizacion_id", auts.map((a) => a.id)).in("hijo_id", misHijosIds)
+        : Promise.resolve({ data: [] }),
+      userId && encuestasActivas.length
+        ? supabase.from("encuesta_votos").select("encuesta_id").eq("usuario_id", userId).in("encuesta_id", encuestasActivas.map((e) => e.id))
+        : Promise.resolve({ data: [] }),
+      misHijosIds.length && activas.length
+        ? supabase.from("colecta_pagos").select("*").in("colecta_id", activas.map((c) => c.id)).in("alumno_id", misHijosIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const bdayList = [
@@ -179,66 +223,22 @@ export function Muro() {
     // Colectas que gestiono y llevan 15+ días vencidas → "¿la cerrás?"
     const cursosAdmin = (items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id);
     const porCerrar = colectasPorCerrar(cuotas.data || [], userId, cursosAdmin, fmtLocalDate());
-    let colectasPend = [];
-    const activas = colectasActivas(cuotas.data || [], fecha15);
-    if (misHijosIds.length && activas.length) {
-      const { data: pagosData } = await supabase
-        .from("colecta_pagos")
-        .select("*")
-        .in("colecta_id", activas.map((c) => c.id))
-        .in("alumno_id", misHijosIds);
-      colectasPend = colectasPendientes(activas, pagosData || [], misHijosPorCurso);
-    }
+    const colectasPend =
+      misHijosIds.length && activas.length ? colectasPendientes(activas, pagosData.data || [], misHijosPorCurso) : [];
 
     // Invitaciones a festejos futuros sin responder (una card por festejo).
     const invitaciones = festejosPendientes(invitacionesData.data || [], fechaHoy);
 
     // Encuestas abiertas (ni cerradas ni eliminadas) donde el usuario todavía no votó.
-    let encuestasPend = [];
-    const encuestasActivas = encuestasAbiertas(encuestasData.data || [], fechaHoy);
-    if (userId && encuestasActivas.length) {
-      const { data: misVotosData } = await supabase
-        .from("encuesta_votos")
-        .select("encuesta_id")
-        .eq("usuario_id", userId)
-        .in("encuesta_id", encuestasActivas.map((e) => e.id));
-      const votadas = new Set((misVotosData || []).map((v) => v.encuesta_id));
-      encuestasPend = encuestasActivas.filter((e) => !votadas.has(e.id));
-    }
+    const votadas = new Set((votosData.data || []).map((v) => v.encuesta_id));
+    const encuestasPend = userId ? encuestasActivas.filter((e) => !votadas.has(e.id)) : [];
 
     // Perdidos y encontrados: cuántos objetos aparecieron esta semana en mis cursos / colegio.
-    let encontradosSemana = 0;
-    {
-      const { data: cc } = await supabase.from("cursos").select("colegio_id").in("id", cursosScope);
-      const colegios = [...new Set((cc || []).map((c) => c.colegio_id))];
-      const { data: objs } = await supabase
-        .from("objetos_perdidos")
-        .select("id,tipo,estado,vence_en,creado_en,publicado_por")
-        .or(filtroAlcance(cursosScope, colegios))
-        .eq("tipo", "encontrado")
-        .eq("estado", "abierto")
-        .gte("creado_en", new Date(Date.now() - 7 * 86400000).toISOString());
-      const reclamados = await cargarReclamados(supabase, (objs || []).map((o) => o.id));
-      encontradosSemana = encontradosDeLaSemana(objs || [], userId, { reclamados });
-    }
+    const encontradosSemana = encontradosDeLaSemana(objs, userId, { reclamados });
 
     // Autorizaciones abiertas con algún hijo mío sin responder.
-    let autorizacionesPend = [];
-    if (misHijosIds.length) {
-      const { data: auts } = await supabase
-        .from("autorizaciones")
-        .select("id,titulo,curso_id,fecha_limite,fecha_evento")
-        .in("curso_id", cursosScope);
-      if ((auts || []).length) {
-        const { data: resp } = await supabase
-          .from("autorizacion_respuestas")
-          .select("autorizacion_id,hijo_id")
-          .in("autorizacion_id", auts.map((a) => a.id))
-          .in("hijo_id", misHijosIds);
-        const misHijosObj = (hijosData.data || []).filter((h) => misHijosIds.includes(h.id));
-        autorizacionesPend = autorizacionesPendientes(auts, misHijosObj, resp || [], fechaHoy);
-      }
-    }
+    const misHijosObj = (hijosData.data || []).filter((h) => misHijosIds.includes(h.id));
+    const autorizacionesPend = auts.length ? autorizacionesPendientes(auts, misHijosObj, respData.data || [], fechaHoy) : [];
 
     setDatos({
       alertas: alertasUnaPorCurso(alerta.data || []),
