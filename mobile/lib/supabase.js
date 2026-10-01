@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import { getRuntimeConfig } from "@shared/runtimeConfig";
+import { fetchQueAnotaCambios } from "./cambios";
 
 const { supabaseUrl, supabaseAnonKey } = getRuntimeConfig();
 
@@ -26,6 +27,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
+  // Anota cada escritura (ver lib/cambios.js): useRecarga no saltea la
+  // recarga de una pantalla si hubo cambios desde que se cargó.
+  global: { fetch: fetchQueAnotaCambios },
 });
 
 // Refrescar el token solo cuando la app está en foreground.

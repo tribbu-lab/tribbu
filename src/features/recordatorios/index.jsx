@@ -16,6 +16,7 @@ import { Paginador } from "../../components/Paginador";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 
 // Descendente por fecha del recordatorio (no por cuándo se publicó): el orden
 // anterior (solo creado_en) salteaba fechas sin criterio visible. Sin fecha
@@ -69,15 +70,16 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
-    const [recs, leidos, al] = await Promise.all([
-      supabase.from("recordatorios").select("*").in("curso_id",cursoIds).order("creado_en",{ascending:false}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
+    const [recsRes, al] = await Promise.all([
+      // "¿Lo leí?" embebido (lib/leidos): sin pedir aparte todos mis leídos.
+      conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId).in("curso_id",cursoIds).order("creado_en",{ascending:false}),
       cursoId
         ? supabase.from("alertas").select("*").eq("curso_id",cursoId).eq("activa",true).order("creado_en",{ascending:false}).limit(1)
         : Promise.resolve({data:[]}),
     ]);
-    setRecordatorios(recs.data||[]);
-    setLeidosSet(new Set((leidos.data||[]).map(r=>r.recordatorio_id)));
+    const { recs, leidos } = separarLeidos(recsRes.data);
+    setRecordatorios(recs);
+    setLeidosSet(leidos);
     setAlerta((al.data||[])[0]||null);
   }, [cursoId, cursoIds, userId]);
   useCargar(cargar, active); // también al volver a la pestaña

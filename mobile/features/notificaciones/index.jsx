@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
 import { fmtLocalDate } from "@shared/helpers";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 
 // Contexto para compartir el resultado de useNotificaciones (levantado una sola
 // vez en app/(tabs)/_layout.jsx) con las pantallas de tabs. Sin esto, la tab
@@ -30,16 +31,14 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     if (!cursoIds?.length || !userId) return;
     setCargando(true);
     const hoy = fmtLocalDate();
-    const [recs, leidosData, alertas] = await Promise.all([
-      supabase
-        .from("recordatorios")
-        .select("*")
+    const [recs, alertas] = await Promise.all([
+      // "¿Lo leí?" embebido (@shared/leidos): sin pedir aparte todos mis leídos.
+      conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId)
         .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
         .order("fecha", { ascending: true, nullsFirst: false })
         .limit(30),
-      supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId),
       supabase
         .from("alertas")
         .select("*")
@@ -49,7 +48,8 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .limit(3),
     ]);
 
-    setLeidos(new Set((leidosData.data || []).map((r) => r.recordatorio_id)));
+    const { recs: recsLimpios, leidos: leidosSet } = separarLeidos(recs.data);
+    setLeidos(leidosSet);
 
     const alertasNotifs = (alertas.data || []).map((a) => ({
       id: `alerta-${a.id}`,
@@ -60,7 +60,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
       curso_id: a.curso_id,
       emoji: "🚨",
     }));
-    const recsNotifs = (recs.data || []).map((r) => ({ ...r, _tipo: "recordatorio" }));
+    const recsNotifs = recsLimpios.map((r) => ({ ...r, _tipo: "recordatorio" }));
     setNotifs([...alertasNotifs, ...recsNotifs]);
     setCargando(false);
   }, [cursoIds, userId]);

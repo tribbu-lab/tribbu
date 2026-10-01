@@ -28,6 +28,7 @@ import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 import { useTabActiva } from "../../hooks/useTabActiva";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -83,13 +84,14 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
     // depende de los cursos/usuario. Lote 2: lo que necesita ids del lote 1.
     // colegio_id por curso sale de "Mi acceso" (items), sin ir a "cursos".
     const colegios = [...new Set(cursoIds.map(cid=>(items||[]).find(i=>i.curso_id===cid)?.cursos?.colegio_id).filter(Boolean))];
-    const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,leidosData,encuestasData,objsData,autsData] = await Promise.all([
+    const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,encuestasData,objsData,autsData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
       // fecha o dentro de los próximos 15 días, para todos o para mí — no
       // el historial completo del año.
-      supabase.from("recordatorios").select("*").in("curso_id",cursoIds)
+      // "¿Lo leí?" viene embebido (lib/leidos): sin pedir aparte todos mis leídos.
+      conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId).in("curso_id",cursoIds)
         .or(`para_usuario_id.is.null${userId?`,para_usuario_id.eq.${userId}`:""}`)
         .or(`fecha.is.null,and(fecha.gte.${fechaHoy},fecha.lte.${fecha15})`)
         .order("creado_en",{ascending:false}),
@@ -99,7 +101,6 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
       (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).eq("asiste","pendiente") : Promise.resolve({data:[]}),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id",userId) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
       // Perdidos y encontrados: objetos encontrados esta semana en mis cursos / colegio.
       supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
@@ -138,9 +139,9 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
       })),
     ].filter(a=>a.dias<=15)
      .sort((a,b)=>a.dias-b.dias);
-    const leidosIds = new Set((leidosData.data||[]).map(l=>l.recordatorio_id));
+    const { recs: recsVigentes, leidos: leidosIds } = separarLeidos(recordatorios.data);
     setLeidosMuro(new Set([...leidosIds]));
-    const recsNoLeidos = recordatoriosPendientes(recordatorios.data||[], leidosIds, userId, fechaHoy, fecha15);
+    const recsNoLeidos = recordatoriosPendientes(recsVigentes, leidosIds, userId, fechaHoy, fecha15);
     // Colectas pendientes: cada colecta se evalúa contra MIS hijos de SU curso
     // (en vista Todos hay colectas de varios cursos; un hijo de otro curso no
     // cuenta como "impago"). Mismo patrón que mobile/features/muro.

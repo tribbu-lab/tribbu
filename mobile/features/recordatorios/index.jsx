@@ -24,6 +24,7 @@ import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
@@ -190,18 +191,13 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
-    const [recs, leidos] = await Promise.all([
-      supabase
-        .from("recordatorios")
-        .select("*")
-        .in("curso_id", cursoIds)
-        .order("creado_en", { ascending: false }),
-      userId
-        ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId)
-        : Promise.resolve({ data: [] }),
-    ]);
-    setRecordatorios(recs.data || []);
-    setLeidosSet(new Set((leidos.data || []).map((r) => r.recordatorio_id)));
+    // "¿Lo leí?" embebido (@shared/leidos): sin pedir aparte todos mis leídos.
+    const { data } = await conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId)
+      .in("curso_id", cursoIds)
+      .order("creado_en", { ascending: false });
+    const { recs, leidos } = separarLeidos(data);
+    setRecordatorios(recs);
+    setLeidosSet(leidos);
   }, [cursoIds, userId]);
 
   useEffect(() => {

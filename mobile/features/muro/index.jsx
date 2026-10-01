@@ -36,6 +36,7 @@ import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "@shared/perdidos";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -124,7 +125,6 @@ export function Muro() {
       hijosData,
       maestrosData,
       eventosData,
-      leidosData,
       invitacionesData,
       encuestasData,
       objsData,
@@ -136,9 +136,8 @@ export function Muro() {
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
       // fecha o dentro de los próximos 15 días, para todos o para mí — no el
       // historial completo del año.
-      supabase
-        .from("recordatorios")
-        .select("*")
+      // "¿Lo leí?" embebido (@shared/leidos): sin pedir aparte todos mis leídos.
+      conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId)
         .in("curso_id", cursosScope)
         .or(`para_usuario_id.is.null${userId ? `,para_usuario_id.eq.${userId}` : ""}`)
         .or(`fecha.is.null,and(fecha.gte.${fechaHoy},fecha.lte.${fecha15})`)
@@ -147,7 +146,6 @@ export function Muro() {
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
       supabase.from("eventos").select("*").in("curso_id", cursosScope).gte("fecha", fechaHoy).lte("fecha", fecha15).order("fecha"),
-      userId ? supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId) : Promise.resolve({ data: [] }),
       userId && misHijosIds.length
         ? supabase
             .from("evento_asistencia")
@@ -207,9 +205,9 @@ export function Muro() {
       .filter((a) => a.dias <= 15)
       .sort((a, b) => a.dias - b.dias);
 
-    const leidosIds = new Set((leidosData.data || []).map((l) => l.recordatorio_id));
+    const { recs: recsVigentes, leidos: leidosIds } = separarLeidos(recordatorios.data);
 
-    const recsNoLeidos = recordatoriosPendientes(recordatorios.data || [], leidosIds, userId, fechaHoy, fecha15);
+    const recsNoLeidos = recordatoriosPendientes(recsVigentes, leidosIds, userId, fechaHoy, fecha15);
 
     // Mis hijos agrupados por curso: cada colecta se evalúa contra los hijos de
     // SU curso (en modo unificado hay colectas de varios cursos en cuotas).

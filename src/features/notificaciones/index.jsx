@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
 import { useCargar } from "../../hooks/useCargar";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
@@ -21,18 +22,18 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     if(!cursoIds?.length || !userId) return;
     setCargando(true);
     const hoy = fmtLocalDate();
-    const [recs, leidosData, alertas] = await Promise.all([
-      supabase.from("recordatorios").select("*")
+    const [recsRes, alertas] = await Promise.all([
+      // "¿Lo leí?" embebido (lib/leidos): sin pedir aparte todos mis leídos.
+      conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId)
         .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
         .order("fecha", { ascending: true, nullsFirst: false }),
-      supabase.from("recordatorio_leidos").select("recordatorio_id").eq("usuario_id", userId),
       supabase.from("alertas").select("*").in("curso_id", cursoIds).eq("activa", true)
         .order("creado_en", { ascending: false }).limit(3),
     ]);
 
-    const leidosSet = new Set((leidosData.data||[]).map(r => r.recordatorio_id));
+    const { recs, leidos: leidosSet } = separarLeidos(recsRes.data);
     setLeidos(leidosSet);
 
     // Combinar alertas + recordatorios en una sola lista
@@ -46,12 +47,12 @@ export function useNotificaciones({ cursoIds, userId, active }) {
       emoji: "🚨",
     }));
 
-    const recsNotifs = (recs.data||[]).slice(0, 30).map(r => ({
+    const recsNotifs = recs.slice(0, 30).map(r => ({
       ...r,
       _tipo: "recordatorio",
     }));
 
-    setRecIds(p => ({ ids: (recs.data||[]).map(r => r.id), v: p.v + 1 }));
+    setRecIds(p => ({ ids: recs.map(r => r.id), v: p.v + 1 }));
     setNotifs([...alertasNotifs, ...recsNotifs]);
     setCargando(false);
   }, [cursoIds, userId]);
