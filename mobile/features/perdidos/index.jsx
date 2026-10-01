@@ -5,15 +5,15 @@
 // no se manda push. "¡Es mío!" /
 // "Lo tengo yo" avisa a quien publicó y comparte los contactos. Lo que publica
 // el colegio (su caja de objetos perdidos) se carga desde el Super Admin web.
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
-import { sendPush } from "../../lib/push";
+import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
-import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "@shared/perdidos";
+import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados, avisaAlCurso, textoPushPublicado } from "@shared/perdidos";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -32,7 +32,7 @@ const hace = (iso) => {
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 };
 
-export function Perdidos({ embebido = false }) {
+export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) {
   const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, items } = useSession();
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
@@ -87,6 +87,29 @@ export function Perdidos({ embebido = false }) {
   const visibles = useMemo(() => ordenarVisibles((datos?.objetos || []).filter((o) => estaVisible(o))), [datos]);
   const gestiona = (o) => o.publicado_por === userId || (!!o.curso_id && cursosAdmin.includes(o.curso_id));
 
+  // Deep-link desde una push "perdido": ir al objeto (su pestaña, sin filtro de
+  // categoría), llevarlo a la vista y resaltarlo unos segundos.
+  const listaRef = useRef(null);
+  const [resaltado, setResaltado] = useState(null);
+  const [destinoUsado, setDestinoUsado] = useState(null);
+  const destinoKey = openObjeto ? `${openObjeto}:${nonce || ""}` : null;
+  const destino = destinoKey && destinoKey !== destinoUsado ? visibles.find((o) => String(o.id) === openObjeto) : null;
+  if (destino) {
+    setDestinoUsado(destinoKey);
+    setTab(destino.tipo);
+    setCat("todas");
+    setResaltado(destino.id);
+  }
+  useEffect(() => {
+    if (!resaltado) return undefined;
+    const o = visibles.find((x) => x.id === resaltado);
+    const idx = o ? visibles.filter((x) => x.tipo === o.tipo).findIndex((x) => x.id === resaltado) : -1;
+    if (idx >= 0) setTimeout(() => listaRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.2 }), 250);
+    const timer = setTimeout(() => setResaltado(null), 6000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resaltado]);
+
   const verContacto = async (o) => {
     setContacto({ titulo: o.titulo, lista: null });
     const { data } = await supabase.rpc("contacto_objeto_perdido", { p_id: o.id });
@@ -122,7 +145,7 @@ export function Perdidos({ embebido = false }) {
     const sugerencias = propio && !resuelta ? coincidencias(o, vigentes.filter((x) => !datos.reclamados.has(x.id))) : [];
     const tag = tagDeCurso(o.curso_id);
     return (
-      <Card style={[styles.card, resuelta && styles.cardResuelta]}>
+      <Card style={[styles.card, resuelta && styles.cardResuelta, o.id === resaltado && styles.cardResaltada]}>
         <View style={styles.cardTop}>
           {o.foto ? (
             <ImagenAmpliable src={o.foto} bucket="adjuntos" style={styles.foto} />
@@ -182,6 +205,8 @@ export function Perdidos({ embebido = false }) {
   return (
     <View style={styles.screen}>
       <FlatList
+        ref={listaRef}
+        onScrollToIndexFailed={({ index }) => setTimeout(() => listaRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300)}
         data={lista}
         keyExtractor={(o) => o.id}
         renderItem={renderItem}
@@ -274,7 +299,7 @@ function AvisarSheet({ o, userId, onClose, onAvisado }) {
     const { error } = await supabase.from("objeto_perdido_avisos").insert({ objeto_id: o.id, usuario_id: userId, mensaje: sanitize(mensaje) || null });
     if (error) { setEnviando(false); Alert.alert("No se pudo avisar", "Probá de nuevo."); return; }
     if (o.publicado_por) {
-      await sendPush({ type: "perdido", payload: { titulo: `${o.tipo === "encontrado" ? "Alguien dice que es suyo" : "Alguien lo tiene"}: ${o.titulo}`, userIds: [o.publicado_por] } });
+      await sendPush({ type: "perdido", payload: { titulo: `${o.tipo === "encontrado" ? "Alguien dice que es suyo" : "Alguien lo tiene"}: ${o.titulo}`, userIds: [o.publicado_por], objetoId: o.id } });
     }
     setEnviando(false);
     onAvisado();
@@ -323,9 +348,16 @@ function NuevoSheet({ cursos, colegioDe, userId, candidatos, onClose, onCreado }
       .select()
       .single();
     if (error) { setGuardando(false); Alert.alert("No se pudo publicar", error.message); return; }
+    // Un "Encontré" nuevo avisa a quien busca algo parecido, con un texto propio.
+    let duenos = [];
     if (nuevo.tipo === "encontrado") {
-      const duenos = [...new Set(coincidencias(nuevo, candidatos, { max: 10 }).map((x) => x.objeto.publicado_por).filter((u) => u && u !== userId))];
-      if (duenos.length) await sendPush({ type: "perdido", payload: { titulo: `Puede que hayan encontrado lo que buscás: ${nuevo.titulo}`, userIds: duenos } });
+      duenos = [...new Set(coincidencias(nuevo, candidatos, { max: 10 }).map((x) => x.objeto.publicado_por).filter((u) => u && u !== userId))];
+      if (duenos.length) await sendPush({ type: "perdido", payload: { titulo: `Puede que hayan encontrado lo que buscás: ${nuevo.titulo}`, userIds: duenos, objetoId: nuevo.id } });
+    }
+    // Lo publicado para "Mi curso" avisa al resto del curso (lo de todo el colegio, no).
+    if (avisaAlCurso(nuevo)) {
+      const curso = (await getUserIdsByCurso(nuevo.curso_id)).filter((u) => u !== userId && !duenos.includes(u));
+      if (curso.length) await sendPush({ type: "perdido", payload: { titulo: textoPushPublicado(nuevo), userIds: curso, objetoId: nuevo.id } });
     }
     setGuardando(false);
     onCreado(nuevo);
@@ -402,6 +434,7 @@ const styles = StyleSheet.create({
   badgeEncontrado: { backgroundColor: "#DCFCE7", color: "#166534" },
   badgeResuelto: { backgroundColor: "#E2E8F0", color: "#334155" },
   cardResuelta: { opacity: 0.7 },
+  cardResaltada: { borderColor: t.accent, borderWidth: 2, backgroundColor: "#EFF6FF" },
   cat: { fontSize: 11, color: t.textMuted },
   colegio: { fontSize: 10, fontWeight: "700", color: "#6366F1" },
   titulo: { fontSize: 15, fontWeight: "800", color: t.text },

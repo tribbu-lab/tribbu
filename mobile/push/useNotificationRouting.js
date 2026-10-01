@@ -31,6 +31,7 @@ const routeForData = (data) => {
     : type === "marketplace" ? { sub: "marketplace" }
     : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
     : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }
+    : type === "perdido" && data?.objetoId ? { openObjeto: String(data.objetoId), t: String(Date.now()) }
     : {};
   return { pathname: route, params };
 };

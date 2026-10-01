@@ -10,8 +10,8 @@ import { useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
-import { sendPush } from "../../lib/push";
-import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados } from "../../lib/perdidos";
+import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados, avisaAlCurso, textoPushPublicado } from "../../lib/perdidos";
 import { Card } from "../../components/Card";
 import { ImagenAmpliable } from "../../components/Adjuntos";
 import { useCargar } from "../../hooks/useCargar";
@@ -169,10 +169,16 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, candidatos, onClos
     };
     const { data: nuevo, error: err } = await supabase.from("objetos_perdidos").insert(fila).select().single();
     if (err) { setGuardando(false); setError("No se pudo publicar: " + err.message); return; }
-    // Un "Encontré" nuevo avisa a quien busca algo parecido (única push al publicar).
+    // Un "Encontré" nuevo avisa a quien busca algo parecido, con un texto propio.
+    let duenos = [];
     if (nuevo.tipo === "encontrado") {
-      const duenos = [...new Set(coincidencias(nuevo, candidatos, { max: 10 }).map((x) => x.objeto.publicado_por).filter((u) => u && u !== userId))];
-      if (duenos.length) await sendPush({ type: "perdido", payload: { titulo: `Puede que hayan encontrado lo que buscás: ${nuevo.titulo}`, userIds: duenos } });
+      duenos = [...new Set(coincidencias(nuevo, candidatos, { max: 10 }).map((x) => x.objeto.publicado_por).filter((u) => u && u !== userId))];
+      if (duenos.length) await sendPush({ type: "perdido", payload: { titulo: `Puede que hayan encontrado lo que buscás: ${nuevo.titulo}`, userIds: duenos, objetoId: nuevo.id } });
+    }
+    // Lo publicado para "Mi curso" avisa al resto del curso (lo de todo el colegio, no).
+    if (avisaAlCurso(nuevo)) {
+      const curso = (await getUserIdsByCurso(nuevo.curso_id)).filter((u) => u !== userId && !duenos.includes(u));
+      if (curso.length) await sendPush({ type: "perdido", payload: { titulo: textoPushPublicado(nuevo), userIds: curso, objetoId: nuevo.id } });
     }
     setGuardando(false);
     onCreado?.(nuevo);
@@ -264,7 +270,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
     const { error } = await supabase.from("objeto_perdido_avisos").insert({ objeto_id: o.id, usuario_id: userId, mensaje: sanitize(mensaje) || null });
     if (error) { alert("No se pudo avisar. Probá de nuevo."); return; }
     if (o.publicado_por) {
-      await sendPush({ type: "perdido", payload: { titulo: `${o.tipo === "encontrado" ? "Alguien dice que es suyo" : "Alguien lo tiene"}: ${o.titulo}`, userIds: [o.publicado_por] } });
+      await sendPush({ type: "perdido", payload: { titulo: `${o.tipo === "encontrado" ? "Alguien dice que es suyo" : "Alguien lo tiene"}: ${o.titulo}`, userIds: [o.publicado_por], objetoId: o.id } });
     }
     setAvisando(null); setMensaje("");
     await cargar();

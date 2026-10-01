@@ -90,6 +90,17 @@ export const encontradosDeLaSemana = (objetos, userId, { reclamados = new Set(),
   objetos.filter((o) => o.tipo === "encontrado" && estaVigente(o, ahora) && o.publicado_por !== userId
     && !reclamados.has(o.id) && ahora - new Date(o.creado_en) <= 7 * 86400000).length;
 
+/**
+ * ¿Publicar este objeto avisa por push a todo su curso? Solo lo que una
+ * familia publica para "Mi curso"; lo de alcance colegio (y la caja del
+ * colegio) no le llega a nadie, para no inundar a todo el colegio.
+ */
+export const avisaAlCurso = (o) => o.alcance === "curso" && !o.es_colegio && !!o.curso_id;
+
+/** Cuerpo de la push al curso cuando se publica un objeto. */
+export const textoPushPublicado = (o) =>
+  `${o.tipo === "encontrado" ? "🙌 Encontraron" : "😟 Se perdió"}: ${o.titulo}`;
+
 /** Ids (Set) de los objetos que ya tienen algún aviso, sin revelar de quién. */
 export async function cargarReclamados(supabase, ids) {
   if (!ids.length) return new Set();
