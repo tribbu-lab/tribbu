@@ -21,6 +21,7 @@ export function Login({ onLogin }) {
   const [vistaReset,setVistaReset] = useState(false);
   const [resetOk,setResetOk]       = useState(false);
   const [resetLd,setResetLd]       = useState(false);
+  const [verPass,setVerPass]       = useState(false);
 
   const go = async (emailArg, passArg) => {
     const loginEmail = emailArg || email;
@@ -61,6 +62,7 @@ export function Login({ onLogin }) {
   };
 
   const inputStyle = {width:"100%",padding:"12px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"white",fontSize:14,boxSizing:"border-box",outline:"none"};
+  const btnVer = {minWidth:44,padding:"0 12px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.12)",background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.6)",cursor:"pointer",fontSize:14,flexShrink:0};
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0F172A 0%,#1E3A5F 50%,#0F172A 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -101,7 +103,10 @@ export function Login({ onLogin }) {
             </div>
             <div style={{marginBottom:8}}>
               <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:6,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Contraseña</div>
-              <input value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} type="password" style={inputStyle}/>
+              <div style={{display:"flex",gap:6}}>
+                <input value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} type={verPass?"text":"password"} autoComplete="current-password" style={inputStyle}/>
+                <button onClick={()=>setVerPass(p=>!p)} style={btnVer} type="button" aria-label={verPass?"Ocultar contraseña":"Mostrar contraseña"}>{verPass?"🙈":"👁"}</button>
+              </div>
             </div>
             <div style={{textAlign:"right",marginBottom:16}}>
               <button onClick={()=>{setVistaReset(true);setErr("");}} style={{fontSize:12,color:"rgba(255,255,255,0.4)",background:"none",border:"none",cursor:"pointer",padding:0}}>¿Olvidaste tu contraseña?</button>

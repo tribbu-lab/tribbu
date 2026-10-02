@@ -16,10 +16,34 @@ import {
   StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
+import { MIN_TOUCH } from "@shared/tokens";
 import { WEB_APP_URL } from "@shared/appUrl";
 import { Wordmark } from "../../components/Wordmark";
+
+// Input de contraseña con botón ver/ocultar superpuesto a la derecha. El
+// margen inferior del `style` pasa al contenedor para que el ícono quede
+// centrado sobre el input.
+function PasswordInput({ style, iconColor, ...props }) {
+  const [ver, setVer] = useState(false);
+  const { marginBottom, ...inputStyle } = StyleSheet.flatten(style) || {};
+  return (
+    <View style={[styles.passWrap, { marginBottom }]}>
+      <TextInput {...props} secureTextEntry={!ver} style={[inputStyle, styles.passInput]} />
+      <Pressable
+        onPress={() => setVer((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={ver ? "Ocultar contraseña" : "Mostrar contraseña"}
+        hitSlop={4}
+        style={styles.passBtn}
+      >
+        <MaterialCommunityIcons name={ver ? "eye-off-outline" : "eye-outline"} size={20} color={iconColor} />
+      </Pressable>
+    </View>
+  );
+}
 
 // ── Login ─────────────────────────────────────────────────────────────────
 // onSuccess: opcional — lo usa BiometricGate como fallback de identidad
@@ -164,10 +188,10 @@ export function Login({ onSuccess } = {}) {
                 />
               </Field>
               <Field label="Contraseña">
-                <TextInput
+                <PasswordInput
                   value={pass}
                   onChangeText={setPass}
-                  secureTextEntry
+                  iconColor="rgba(255,255,255,0.6)"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="current-password"
@@ -242,9 +266,9 @@ export function CambiarPasswordModal({ visible, onClose }) {
             ) : (
               <>
                 <Text style={styles.modalLabel}>NUEVA CONTRASEÑA</Text>
-                <TextInput value={nueva} onChangeText={setNueva} secureTextEntry placeholder="Mínimo 6 caracteres" placeholderTextColor="#94A3B8" style={styles.modalInput} />
+                <PasswordInput value={nueva} onChangeText={setNueva} iconColor="#94A3B8" placeholder="Mínimo 6 caracteres" placeholderTextColor="#94A3B8" style={styles.modalInput} />
                 <Text style={styles.modalLabel}>CONFIRMAR CONTRASEÑA</Text>
-                <TextInput value={confirma} onChangeText={setConfirma} secureTextEntry placeholder="Repetí la contraseña" placeholderTextColor="#94A3B8" style={styles.modalInput} />
+                <PasswordInput value={confirma} onChangeText={setConfirma} iconColor="#94A3B8" placeholder="Repetí la contraseña" placeholderTextColor="#94A3B8" style={styles.modalInput} />
                 {err ? <Text style={styles.errDark}>{err}</Text> : null}
                 <View style={styles.modalBtns}>
                   <Pressable onPress={cerrar} style={styles.cancelBtn}>
@@ -344,6 +368,9 @@ const styles = StyleSheet.create({
   center: { alignItems: "center", paddingVertical: 8 },
   bigEmoji: { fontSize: 36, marginBottom: 12 },
   okTxt: { fontSize: 14, fontWeight: "700", color: T.green, marginBottom: 16 },
+  passWrap: { justifyContent: "center" },
+  passInput: { paddingRight: MIN_TOUCH },
+  passBtn: { position: "absolute", right: 0, top: 0, bottom: 0, width: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
   // Modal cambiar pass
   modalOverlay: {
     flex: 1,
