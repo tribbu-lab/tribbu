@@ -6,7 +6,7 @@
 // pagos: el vendedor marca "Vendido" (y opcionalmente a quién) — eso queda
 // guardado para cobrar comisión más adelante. Vence a los 60 días; lo vendido
 // se sigue viendo una semana, marcado.
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize } from "../../lib/helpers";
@@ -52,6 +52,37 @@ async function cargarDatos(cursoIds, colegios, userId) {
     misInteres: new Set((mios || []).map((r) => r.articulo_id)),
     interesadosDe: Object.fromEntries((conteo || []).map((r) => [r.articulo_id, r.cantidad])),
   };
+}
+
+// Fotos a pantalla completa (click en la foto del detalle): flechas o ← →
+// para pasar, Esc o click afuera para cerrar.
+function VisorFotos({ fotos, inicial, titulo, onClose }) {
+  const [i, setI] = useState(inicial);
+  const n = fotos.length;
+  const mover = useCallback((d) => setI((x) => (x + d + n) % n), [n]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); onClose(); }
+      else if (e.key === "ArrowRight" && n > 1) mover(1);
+      else if (e.key === "ArrowLeft" && n > 1) mover(-1);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [mover, n, onClose]);
+  const flecha = (lado) => ({ position: "absolute", top: "50%", [lado]: 12, transform: "translateY(-50%)", width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.15)", color: "white", fontSize: 26, cursor: "pointer", lineHeight: "44px" });
+  return (
+    <div onClick={onClose} role="dialog" aria-label={`Fotos: ${titulo}`} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 64px" }}>
+      <SignedImg src={fotos[i]} bucket="adjuntos" alt={`${titulo} — foto ${i + 1}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8, display: "block" }} />
+      <button onClick={onClose} aria-label="Cerrar" style={{ position: "absolute", top: 12, right: 14, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.15)", color: "white", fontSize: 18, cursor: "pointer" }}>✕</button>
+      {n > 1 && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); mover(-1); }} aria-label="Foto anterior" style={flecha("left")}>‹</button>
+          <button onClick={(e) => { e.stopPropagation(); mover(1); }} aria-label="Foto siguiente" style={flecha("right")}>›</button>
+          <div style={{ position: "absolute", bottom: 16, left: 0, right: 0, textAlign: "center", color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: 600 }}>{i + 1} / {n}</div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function Modal({ titulo, onClose, children, ancho = 460 }) {
@@ -108,15 +139,21 @@ function Tarjeta({ a, tag, onAbrir }) {
 
 function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
+  const [ampliada, setAmpliada] = useState(false);
   const cat = categoria(a.categoria);
   const propio = a.publicado_por === userId;
   const vendido = a.estado === "vendido";
   const dias = diasParaVencer(a);
   return (
     <Modal titulo={a.titulo} onClose={onClose} ancho={520}>
+      {ampliada && <VisorFotos fotos={a.fotos} inicial={foto} titulo={a.titulo} onClose={() => setAmpliada(false)} />}
       {a.fotos?.length > 0 && (
         <div style={{ marginBottom: 12 }}>
-          <SignedImg src={a.fotos[foto]} bucket="adjuntos" alt={a.titulo} style={{ width: "100%", maxHeight: 340, objectFit: "contain", borderRadius: 12, background: "#F1F5F9", display: "block" }} />
+          <div style={{ position: "relative" }}>
+            <SignedImg src={a.fotos[foto]} bucket="adjuntos" alt={a.titulo} onClick={() => setAmpliada(true)}
+              style={{ width: "100%", maxHeight: 340, objectFit: "contain", borderRadius: 12, background: "#F1F5F9", display: "block", cursor: "zoom-in" }} />
+            <button onClick={() => setAmpliada(true)} aria-label="Ver fotos más grandes" style={{ position: "absolute", right: 8, bottom: 8, padding: "5px 10px", borderRadius: 8, border: "none", background: "rgba(15,23,42,0.7)", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🔍 Ampliar</button>
+          </div>
           {a.fotos.length > 1 && (
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
               {a.fotos.map((f, i) => (

@@ -4,7 +4,8 @@
 // comparte los contactos; el vendedor marca Vendido (y opcionalmente a quién).
 // Lo que publica el colegio se carga desde el panel del colegio web.
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, Image, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, Image, Modal, useWindowDimensions, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush } from "../../lib/push";
@@ -237,18 +238,56 @@ function Tarjeta({ a, tag, onPress }) {
   );
 }
 
+// Fotos a pantalla completa: se pasan deslizando; ✕ o "atrás" cierra y deja
+// seleccionada en el detalle la última que se vio.
+function VisorFotos({ fotos, inicial, onClose }) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [i, setI] = useState(inicial);
+  return (
+    <Modal visible transparent={false} animationType="fade" onRequestClose={() => onClose(i)} statusBarTranslucent>
+      <View style={styles.visor}>
+        <FlatList
+          data={fotos}
+          keyExtractor={(f) => f}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={inicial}
+          getItemLayout={(_, idx) => ({ length: width, offset: width * idx, index: idx })}
+          onMomentumScrollEnd={(e) => setI(Math.round(e.nativeEvent.contentOffset.x / width))}
+          renderItem={({ item }) => (
+            <View style={{ width, height, justifyContent: "center" }}>
+              <SignedImage src={item} bucket="adjuntos" style={{ width, height: height * 0.8 }} resizeMode="contain" />
+            </View>
+          )}
+        />
+        <Pressable onPress={() => onClose(i)} hitSlop={10} style={[styles.visorCerrar, { top: insets.top + 10 }]} accessibilityRole="button" accessibilityLabel="Cerrar">
+          <Text style={styles.visorCerrarTxt}>✕</Text>
+        </Pressable>
+        {fotos.length > 1 ? <Text style={[styles.visorContador, { bottom: insets.bottom + 20 }]}>{i + 1} / {fotos.length}</Text> : null}
+      </View>
+    </Modal>
+  );
+}
+
 function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
+  const [ampliada, setAmpliada] = useState(false);
   const cat = categoria(a.categoria);
   const propio = a.publicado_por === userId;
   const vendido = a.estado === "vendido";
   const dias = diasParaVencer(a);
   return (
     <Sheet visible onClose={onClose} title={a.titulo}>
+      {ampliada ? <VisorFotos fotos={a.fotos} inicial={foto} onClose={(i) => { setFoto(i); setAmpliada(false); }} /> : null}
       <ScrollView style={styles.sheetScroll}>
         {a.fotos?.length ? (
           <View>
-            <SignedImage src={a.fotos[foto]} bucket="adjuntos" style={styles.fotoGrande} resizeMode="contain" />
+            <Pressable onPress={() => setAmpliada(true)} accessibilityRole="imagebutton" accessibilityLabel="Ver fotos más grandes">
+              <SignedImage src={a.fotos[foto]} bucket="adjuntos" style={styles.fotoGrande} resizeMode="contain" />
+              <Text style={styles.ampliarTag}>🔍 Ampliar</Text>
+            </Pressable>
             {a.fotos.length > 1 ? (
               <View style={styles.miniaturas}>
                 {a.fotos.map((f, i) => (
@@ -486,6 +525,11 @@ const styles = StyleSheet.create({
   tarjetaTitulo: { fontSize: 13, fontWeight: "600", color: t.text, marginTop: 2, lineHeight: 17 },
   meta: { fontSize: 11.5, color: t.textFaint, marginTop: 4 },
   fotoGrande: { width: "100%", height: 260, borderRadius: RADIUS.lg, backgroundColor: "#F1F5F9" },
+  ampliarTag: { position: "absolute", right: 8, bottom: 8, fontSize: 12, fontWeight: "700", color: "white", backgroundColor: "rgba(15,23,42,0.7)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, overflow: "hidden" },
+  visor: { flex: 1, backgroundColor: "#000" },
+  visorCerrar: { position: "absolute", right: 14, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  visorCerrarTxt: { color: "white", fontSize: 18, fontWeight: "700" },
+  visorContador: { position: "absolute", left: 0, right: 0, textAlign: "center", color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "600" },
   miniaturas: { flexDirection: "row", gap: 6, marginTop: 6 },
   miniatura: { width: 54, height: 54, borderRadius: 8, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
   miniaturaOn: { borderColor: t.accent },
