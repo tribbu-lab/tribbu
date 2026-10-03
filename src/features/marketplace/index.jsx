@@ -11,7 +11,7 @@ import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
-import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance } from "../../lib/marketplace";
+import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio } from "../../lib/marketplace";
 import { Card } from "../../components/Card";
 import { SignedImg } from "../../components/SignedImg";
 import { subirImagen } from "../../lib/imagenesWeb";
@@ -106,7 +106,7 @@ function Tarjeta({ a, tag, onAbrir }) {
   );
 }
 
-function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onRenovar, onBorrar }) {
+function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
   const cat = categoria(a.categoria);
   const propio = a.publicado_por === userId;
@@ -156,66 +156,90 @@ function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose
           {nInteresados > 0 && <button onClick={() => onVerInteresados(a)} style={{ ...btnSec, color: "#047857", borderColor: "#BBF7D0", background: "#F0FDF4" }}>🙋 {nInteresados} {nInteresados === 1 ? "interesado" : "interesados"}</button>}
           {!vendido && <button onClick={() => onVendido(a)} style={btnSec}>✓ Vendido</button>}
           {!vendido && dias <= 10 && <button onClick={() => onRenovar(a)} style={btnSec}>↻ Renovar {DIAS_VIGENCIA} días</button>}
+          <button onClick={() => onEditar(a)} style={btnSec}>✏️ Editar</button>
           <div style={{ flex: 1 }} />
-          <button onClick={() => onBorrar(a)} style={{ ...btnSec, color: "#EF4444", borderColor: "#FEE2E2" }}>Borrar</button>
+          <button onClick={() => onBorrar(a)} style={{ ...btnSec, color: "#EF4444", borderColor: "#FEE2E2" }}>🗑 Borrar</button>
         </div>
       )}
     </Modal>
   );
 }
 
-function NuevoModal({ cursos, colegioId, comoColegio, userId, onClose, onCreado }) {
-  const [form, setForm] = useState({ titulo: "", descripcion: "", categoria: "uniformes", condicion: "usado", talle: "", es_regalo: false, precio: "", alcance: "colegio", curso_id: cursos[0]?.id || null });
-  const [fotos, setFotos] = useState([]); // File[]
+// Publicar o editar (`articulo`). Cada foto es { path } (ya subida) o { file,
+// preview } (nueva, se sube recién al guardar). La primera es la principal (la
+// de la tarjeta): tocar otra la pasa adelante.
+function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioProp, userId, onClose, onGuardado }) {
+  const editando = !!articulo;
+  // Al editar manda la publicación: el colegio que modera un aviso de una familia no lo convierte en "del colegio".
+  const comoColegio = editando ? !!articulo.es_colegio : comoColegioProp;
+  const [form, setForm] = useState(() =>
+    editando
+      ? { titulo: articulo.titulo || "", descripcion: articulo.descripcion || "", categoria: articulo.categoria, condicion: articulo.condicion, talle: articulo.talle || "", es_regalo: !!articulo.es_regalo, precio: articulo.precio != null ? String(Number(articulo.precio)) : "", alcance: articulo.alcance, curso_id: articulo.curso_id || cursos[0]?.id || null }
+      : { titulo: "", descripcion: "", categoria: "uniformes", condicion: "usado", talle: "", es_regalo: false, precio: "", alcance: "colegio", curso_id: cursos[0]?.id || null }
+  );
+  const [fotos, setFotos] = useState(() => (articulo?.fotos || []).map((path) => ({ key: path, path })));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const elegirFotos = (lista) => {
-    const nuevas = [...fotos, ...Array.from(lista || [])].slice(0, MAX_FOTOS);
-    if (nuevas.some((f) => f.size > MAX_FOTO_BYTES)) { setError("Cada foto puede pesar hasta 10 MB."); return; }
+    const archivos = Array.from(lista || []);
+    if (archivos.some((f) => f.size > MAX_FOTO_BYTES)) { setError("Cada foto puede pesar hasta 10 MB."); return; }
     setError(null);
-    setFotos(nuevas);
+    const base = Date.now();
+    setFotos((p) => [...p, ...archivos.map((file, i) => ({ key: `n${base}-${i}`, file, preview: URL.createObjectURL(file) }))].slice(0, MAX_FOTOS));
   };
 
-  const publicar = async () => {
+  const guardar = async () => {
     if (!form.titulo.trim()) { setError("Contá qué es (ej: Buzo del uniforme talle 10)."); return; }
-    const precio = Number(String(form.precio).replace(/\./g, "").replace(",", "."));
+    const precio = parsearPrecio(form.precio);
     if (!form.es_regalo && (!form.precio || !Number.isFinite(precio) || precio < 0)) { setError("Poné el precio o marcá \"Lo regalo\"."); return; }
     if (!fotos.length) { setError("Subí al menos una foto: es lo primero que se mira."); return; }
     if (form.alcance === "curso" && !form.curso_id) { setError("Elegí el curso."); return; }
     setGuardando(true); setError(null);
-    const colegio = comoColegio ? colegioId : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
+    const colegio = editando ? articulo.colegio_id : comoColegio ? colegioId : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
     const paths = [];
-    for (const f of fotos) {
+    const subidas = [];
+    const base = Date.now();
+    for (const [i, f] of fotos.entries()) {
+      if (f.path) { paths.push(f.path); continue; }
       // Original achicada + miniatura (lib/imagenesWeb).
-      const { path, error: upErr } = await subirImagen(supabase, "adjuntos", `marketplace/${colegio}/${Date.now()}-${paths.length}`, f);
-      if (upErr) { borrarArchivos(paths, "adjuntos"); setGuardando(false); setError("No se pudo subir una de las fotos."); return; }
+      const { path, error: upErr } = await subirImagen(supabase, "adjuntos", `marketplace/${colegio}/${base}-${i}`, f.file);
+      if (upErr) { borrarArchivos(subidas, "adjuntos"); setGuardando(false); setError("No se pudo subir una de las fotos."); return; }
+      subidas.push(path);
       paths.push(path);
     }
-    const fila = {
+    const campos = {
       titulo: sanitize(form.titulo), descripcion: sanitize(form.descripcion) || null, categoria: form.categoria,
       condicion: form.condicion, talle: sanitize(form.talle) || null, es_regalo: form.es_regalo,
       precio: form.es_regalo ? null : precio, fotos: paths, alcance: form.alcance,
-      curso_id: form.alcance === "curso" || !comoColegio ? form.curso_id : null, colegio_id: colegio,
-      publicado_por: userId, es_colegio: !!comoColegio,
+      curso_id: form.alcance === "curso" || !comoColegio ? form.curso_id : null,
     };
-    const { data: nuevo, error: err } = await supabase.from("marketplace_articulos").insert(fila).select().single();
-    if (err) { borrarArchivos(paths, "adjuntos"); setGuardando(false); setError("No se pudo publicar: " + err.message); return; }
+    const { error: err } = editando
+      ? await supabase.from("marketplace_articulos").update(campos).eq("id", articulo.id)
+      : await supabase.from("marketplace_articulos").insert({ ...campos, colegio_id: colegio, publicado_por: userId, es_colegio: !!comoColegio });
+    if (err) { borrarArchivos(subidas, "adjuntos"); setGuardando(false); setError((editando ? "No se pudo guardar: " : "No se pudo publicar: ") + err.message); return; }
+    if (editando) borrarArchivos(fotosQuitadas(articulo.fotos, paths), "adjuntos");
     setGuardando(false);
-    onCreado?.(nuevo);
+    onGuardado?.();
     onClose();
   };
 
   return (
-    <Modal titulo="Publicar en el Marketplace" onClose={onClose}>
+    <Modal titulo={editando ? "Editar publicación" : "Publicar en el Marketplace"} onClose={onClose}>
       <div style={{ marginBottom: 12 }}>
         <div style={lbl}>FOTOS (hasta {MAX_FOTOS})</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {fotos.map((f, i) => (
-            <div key={i} style={{ position: "relative" }}>
-              <img src={URL.createObjectURL(f)} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, display: "block" }} />
-              <button onClick={() => setFotos(fotos.filter((_, j) => j !== i))} aria-label="Quitar foto" style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#0F172A", color: "white", cursor: "pointer", fontSize: 11 }}>✕</button>
+            <div key={f.key} style={{ position: "relative" }}>
+              <button onClick={() => setFotos((p) => hacerPrincipal(p, i))} title={i === 0 ? "Foto principal" : "Usar como foto principal"} aria-label={i === 0 ? "Foto principal" : "Usar como foto principal"}
+                style={{ padding: 0, border: `2px solid ${i === 0 ? "#3B82F6" : "transparent"}`, borderRadius: 12, cursor: i === 0 ? "default" : "pointer", background: "none", position: "relative", display: "block", overflow: "hidden" }}>
+                {f.path
+                  ? <SignedImg src={f.path} bucket="adjuntos" alt="" miniatura style={{ width: 64, height: 64, objectFit: "cover", display: "block" }} />
+                  : <img src={f.preview} alt="" style={{ width: 64, height: 64, objectFit: "cover", display: "block" }} />}
+                {i === 0 && <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 8.5, fontWeight: 800, color: "white", background: "rgba(37,99,235,.85)", padding: "2px 0" }}>PRINCIPAL</span>}
+              </button>
+              <button onClick={() => setFotos((p) => p.filter((x) => x.key !== f.key))} aria-label="Quitar foto" style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#0F172A", color: "white", cursor: "pointer", fontSize: 11 }}>✕</button>
             </div>
           ))}
           {fotos.length < MAX_FOTOS && (
@@ -225,6 +249,7 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, onClose, onCreado 
             </label>
           )}
         </div>
+        {fotos.length > 1 && <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 6 }}>Tocá una foto para que sea la principal (la que se ve en la lista).</div>}
       </div>
       <div style={{ marginBottom: 10 }}>
         <div style={lbl}>QUÉ ES</div>
@@ -269,17 +294,17 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, onClose, onCreado 
             <button key={k} onClick={() => set("alcance", k)} style={chip(form.alcance === k)}>{t}</button>
           ))}
         </div>
-        {(form.alcance === "curso" || !comoColegio) && cursos.length > 1 && (
+        {(form.alcance === "curso" || !comoColegio) && cursos.length > 1 && (!form.curso_id || cursos.some((c) => c.id === form.curso_id)) && (
           <select value={form.curso_id || ""} onChange={(e) => set("curso_id", e.target.value)} style={inp} aria-label="Curso">
             {cursos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         )}
       </div>
-      <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca "Me interesa" te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</div>
+      {!editando && <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca "Me interesa" te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</div>}
       {error && <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 8 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onClose} style={{ ...btnSec, flex: 1, color: "#94A3B8" }}>Cancelar</button>
-        <button onClick={publicar} disabled={guardando} style={{ ...btnPri, flex: 2, opacity: guardando ? 0.6 : 1 }}>{guardando ? "Publicando…" : "Publicar"}</button>
+        <button onClick={guardar} disabled={guardando} style={{ ...btnPri, flex: 2, opacity: guardando ? 0.6 : 1 }}>{guardando ? (editando ? "Guardando…" : "Publicando…") : editando ? "Guardar cambios" : "Publicar"}</button>
       </div>
     </Modal>
   );
@@ -292,7 +317,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const [soloRegalos, setSoloRegalos] = useState(false);
   const [mios, setMios] = useState(false);
   const [busqueda, setBusqueda] = useState("");
-  const [nuevo, setNuevo] = useState(false);
+  const [editor, setEditor] = useState(null); // { articulo } — articulo null = nueva publicación
   const [abierto, setAbierto] = useState(null);
   const [interesando, setInteresando] = useState(null);
   const [mensaje, setMensaje] = useState("");
@@ -357,13 +382,13 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 
   return (
     <div>
-      {nuevo && <NuevoModal cursos={cursosPublicar} colegioId={colegioId} comoColegio={comoColegio} userId={userId} onClose={() => setNuevo(false)} onCreado={() => cargar()} />}
+      {editor && <ArticuloModal articulo={editor.articulo} cursos={cursosPublicar} colegioId={colegioId} comoColegio={comoColegio} userId={userId} onClose={() => setEditor(null)} onGuardado={() => cargar()} />}
       {abierto && (
         <Detalle
           a={abierto} userId={userId} gestiona={gestiona(abierto)} yaMeInteresa={datos.misInteres.has(abierto.id)}
           nInteresados={datos.interesadosDe[abierto.id] || 0} tag={tagDeCurso?.(abierto.curso_id)}
           onClose={() => setAbierto(null)} onMeInteresa={(a) => { setInteresando(a); setMensaje(""); }} onVerContacto={verContacto}
-          onVerInteresados={verInteresados} onVendido={abrirVendido} onRenovar={renovar} onBorrar={borrar}
+          onVerInteresados={verInteresados} onVendido={abrirVendido} onEditar={(a) => { setAbierto(null); setEditor({ articulo: a }); }} onRenovar={renovar} onBorrar={borrar}
         />
       )}
       {interesando && (
@@ -404,7 +429,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
         <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: buzo, talle 10, libro de inglés…" aria-label="Buscar en el Marketplace" style={{ ...inp, flex: "1 1 200px", background: "white" }} />
-        <button onClick={() => setNuevo(true)} style={btnPri}>+ Publicar</button>
+        <button onClick={() => setEditor({ articulo: null })} style={btnPri}>+ Publicar</button>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
         {[{ k: "todas", l: "Todo", e: "" }, ...CATEGORIAS].map((c) => <button key={c.k} onClick={() => setCat(c.k)} style={chip(cat === c.k)}>{c.e} {c.l}</button>)}

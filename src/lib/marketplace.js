@@ -58,3 +58,12 @@ export const coincideBusqueda = (a, q) => {
 /** Filtro .or() de PostgREST: lo de estos cursos + lo de alcance colegio en sus colegios. */
 export const filtroAlcance = (cursoIds, colegioIds) =>
   [`curso_id.in.(${cursoIds.join(",")})`, ...(colegioIds.length ? [`and(alcance.eq.colegio,colegio_id.in.(${colegioIds.join(",")}))`] : [])].join(",");
+
+/** La primera foto es la principal (la de la tarjeta): pasa la i al principio. */
+export const hacerPrincipal = (fotos, i) => (i <= 0 || i >= fotos.length ? fotos : [fotos[i], ...fotos.filter((_, j) => j !== i)]);
+
+/** Paths que estaban en la publicación y ya no (para borrarlos de Storage al guardar). */
+export const fotosQuitadas = (antes, despues) => (antes || []).filter((p) => !(despues || []).includes(p));
+
+/** Precio tipeado ("15.000", "1500,50") → número, o NaN. */
+export const parsearPrecio = (s) => Number(String(s ?? "").replace(/\./g, "").replace(",", "."));

@@ -4,14 +4,14 @@
 // comparte los contactos; el vendedor marca Vendido (y opcionalmente a quién).
 // Lo que publica el colegio se carga desde el panel del colegio web.
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, Image, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush } from "../../lib/push";
-import { pickAndUploadImage } from "../../lib/media";
+import { pickImages, uploadImage } from "../../lib/media";
 import { useRecarga } from "../../lib/useRecarga";
 import { sanitize } from "@shared/helpers";
-import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance } from "@shared/marketplace";
+import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio } from "@shared/marketplace";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -34,7 +34,7 @@ export function Marketplace() {
   const [soloRegalos, setSoloRegalos] = useState(false);
   const [mios, setMios] = useState(false);
   const [busqueda, setBusqueda] = useState("");
-  const [nuevo, setNuevo] = useState(false);
+  const [editor, setEditor] = useState(null); // { articulo } — articulo null = nueva publicación
   const [abierto, setAbierto] = useState(null);
   const [interesando, setInteresando] = useState(null);
   const [contactos, setContactos] = useState(null); // { titulo, lista, interesados }
@@ -146,7 +146,7 @@ export function Marketplace() {
           <View>
             <View style={styles.buscarRow}>
               <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar: buzo, talle 10…" placeholderTextColor={t.placeholder} style={[styles.input, styles.flex1]} />
-              {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setNuevo(true)} /> : null}
+              {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setEditor({ articulo: null })} /> : null}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               {[{ k: "todas", l: "Todo", e: "" }, ...CATEGORIAS].map((c) => chip(cat === c.k, `${c.e} ${c.l}`.trim(), () => setCat(c.k), c.k))}
@@ -171,6 +171,7 @@ export function Marketplace() {
           onVerContacto={() => { const a = abierto; setAbierto(null); verContacto(a); }}
           onVerInteresados={() => { const a = abierto; setAbierto(null); verInteresados(a); }}
           onVendido={() => { const a = abierto; setAbierto(null); abrirVendido(a); }}
+          onEditar={() => { const a = abierto; setAbierto(null); setEditor({ articulo: a }); }}
           onRenovar={() => renovar(abierto)}
           onBorrar={() => borrar(abierto)}
         />
@@ -210,8 +211,8 @@ export function Marketplace() {
           </ScrollView>
         </Sheet>
       ) : null}
-      {nuevo ? (
-        <NuevoSheet cursos={cursosPublicar} colegioDe={colegioDe} userId={userId} onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} />
+      {editor ? (
+        <ArticuloSheet articulo={editor.articulo} cursos={cursosPublicar} colegioDe={colegioDe} userId={userId} onClose={() => setEditor(null)} onGuardado={() => { setEditor(null); cargar(); }} />
       ) : null}
     </View>
   );
@@ -236,7 +237,7 @@ function Tarjeta({ a, tag, onPress }) {
   );
 }
 
-function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onRenovar, onBorrar }) {
+function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
   const cat = categoria(a.categoria);
   const propio = a.publicado_por === userId;
@@ -283,7 +284,8 @@ function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onM
             {nInteresados > 0 ? <Button title={`🙋 ${nInteresados} ${nInteresados === 1 ? "interesado" : "interesados"}`} variant="secondary" size="sm" onPress={onVerInteresados} /> : null}
             {!vendido ? <Button title="✓ Vendido" variant="secondary" size="sm" onPress={onVendido} /> : null}
             {!vendido && dias <= 10 ? <Button title={`↻ Renovar ${DIAS_VIGENCIA} días`} variant="secondary" size="sm" onPress={onRenovar} /> : null}
-            <Pressable onPress={onBorrar} hitSlop={8} style={styles.borrar}><Text style={styles.borrarTxt}>Borrar</Text></Pressable>
+            <Button title="✏️ Editar" variant="secondary" size="sm" onPress={onEditar} />
+            <Pressable onPress={onBorrar} hitSlop={8} style={styles.borrar} accessibilityRole="button"><Text style={styles.borrarTxt}>🗑 Borrar</Text></Pressable>
           </View>
         ) : null}
       </ScrollView>
@@ -331,48 +333,76 @@ function InteresSheet({ a, userId, onClose, onListo }) {
   );
 }
 
-function NuevoSheet({ cursos, colegioDe, userId, onClose, onCreado }) {
-  const [form, setForm] = useState({ titulo: "", descripcion: "", categoria: "uniformes", condicion: "usado", talle: "", es_regalo: false, precio: "", alcance: "colegio", curso_id: cursos[0]?.id || null });
-  const [fotos, setFotos] = useState([]); // paths ya subidos
-  const [subiendo, setSubiendo] = useState(false);
+// Publicar o editar (`articulo`). Las fotos se eligen en el teléfono y se suben
+// recién al guardar: se pueden quitar y elegir la principal (la primera, la de
+// la tarjeta) sin dejar archivos huérfanos en Storage. Cada foto es { path }
+// (ya subida, al editar) o { asset } (nueva, todavía en el teléfono).
+function ArticuloSheet({ articulo, cursos, colegioDe, userId, onClose, onGuardado }) {
+  const editando = !!articulo;
+  const [form, setForm] = useState(() =>
+    editando
+      ? { titulo: articulo.titulo || "", descripcion: articulo.descripcion || "", categoria: articulo.categoria, condicion: articulo.condicion, talle: articulo.talle || "", es_regalo: !!articulo.es_regalo, precio: articulo.precio != null ? String(Number(articulo.precio)) : "", alcance: articulo.alcance, curso_id: articulo.curso_id || cursos[0]?.id || null }
+      : { titulo: "", descripcion: "", categoria: "uniformes", condicion: "usado", talle: "", es_regalo: false, precio: "", alcance: "colegio", curso_id: cursos[0]?.id || null }
+  );
+  const [fotos, setFotos] = useState(() => (articulo?.fotos || []).map((path) => ({ key: path, path })));
+  const [eligiendo, setEligiendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
-  const colegio = colegioDe.get(form.curso_id);
+  // Al editar, si el curso ya no está en "Mi acceso", queda el colegio de la publicación.
+  const colegio = colegioDe.get(form.curso_id) || articulo?.colegio_id;
 
-  const agregarFoto = async () => {
-    setSubiendo(true);
+  const agregarFotos = async () => {
+    setEligiendo(true);
     try {
-      const r = await pickAndUploadImage({ bucket: "adjuntos", pathPrefix: `marketplace/${colegio}/` });
-      if (r?.url) setFotos((p) => [...p, r.url].slice(0, MAX_FOTOS));
+      const assets = await pickImages({ max: MAX_FOTOS - fotos.length });
+      const base = Date.now();
+      setFotos((p) => [...p, ...assets.map((asset, i) => ({ key: `n${base}-${i}`, asset }))].slice(0, MAX_FOTOS));
     } catch (e) {
-      Alert.alert("No se pudo subir la foto", e?.message || "Probá de nuevo.");
+      Alert.alert("No se pudo agregar la foto", e?.message || "Probá de nuevo.");
     }
-    setSubiendo(false);
+    setEligiendo(false);
   };
-  const quitarFoto = (path) => {
-    setFotos((p) => p.filter((x) => x !== path));
-    borrarArchivos([path], "adjuntos");
-  };
-  const cerrar = () => {
-    if (fotos.length) borrarArchivos(fotos, "adjuntos"); // subidas y descartadas
-    onClose();
-  };
-  const publicar = async () => {
+
+  const guardar = async () => {
     if (!form.titulo.trim()) { Alert.alert("Falta qué es", "Ej: Buzo del uniforme talle 10."); return; }
-    const precio = Number(String(form.precio).replace(/\./g, "").replace(",", "."));
+    const precio = parsearPrecio(form.precio);
     if (!form.es_regalo && (!form.precio || !Number.isFinite(precio) || precio < 0)) { Alert.alert("Falta el precio", "Poné el precio o marcá \"Lo regalo\"."); return; }
     if (!fotos.length) { Alert.alert("Falta una foto", "Es lo primero que se mira."); return; }
     if (!form.curso_id) { Alert.alert("Elegí el curso"); return; }
     setGuardando(true);
-    const { error } = await supabase.from("marketplace_articulos").insert({
+    // Las nuevas se suben en orden, cada una con su nombre (base-índice).
+    const paths = [];
+    const subidas = [];
+    try {
+      const base = Date.now();
+      for (const [i, f] of fotos.entries()) {
+        if (f.path) { paths.push(f.path); continue; }
+        const r = await uploadImage(f.asset, { bucket: "adjuntos", path: `marketplace/${colegio}/${base}-${i}` });
+        subidas.push(r.url);
+        paths.push(r.url);
+      }
+    } catch (e) {
+      borrarArchivos(subidas, "adjuntos");
+      setGuardando(false);
+      Alert.alert("No se pudo subir una foto", e?.message || "Probá de nuevo.");
+      return;
+    }
+    const campos = {
       titulo: sanitize(form.titulo), descripcion: sanitize(form.descripcion) || null, categoria: form.categoria,
       condicion: form.condicion, talle: sanitize(form.talle) || null, es_regalo: form.es_regalo,
-      precio: form.es_regalo ? null : precio, fotos, alcance: form.alcance, curso_id: form.curso_id,
-      colegio_id: colegio, publicado_por: userId, es_colegio: false,
-    });
+      precio: form.es_regalo ? null : precio, fotos: paths, alcance: form.alcance, curso_id: form.curso_id, colegio_id: colegio,
+    };
+    const { error } = editando
+      ? await supabase.from("marketplace_articulos").update(campos).eq("id", articulo.id)
+      : await supabase.from("marketplace_articulos").insert({ ...campos, publicado_por: userId, es_colegio: false });
     setGuardando(false);
-    if (error) { Alert.alert("No se pudo publicar", error.message); return; }
-    onCreado();
+    if (error) {
+      borrarArchivos(subidas, "adjuntos");
+      Alert.alert(editando ? "No se pudo guardar" : "No se pudo publicar", error.message);
+      return;
+    }
+    if (editando) borrarArchivos(fotosQuitadas(articulo.fotos, paths), "adjuntos");
+    onGuardado();
   };
   const chip = (on, label, onPress, key) => (
     <Pressable key={key || label} onPress={onPress} style={[styles.chip, on && styles.chipOn]}>
@@ -380,22 +410,28 @@ function NuevoSheet({ cursos, colegioDe, userId, onClose, onCreado }) {
     </Pressable>
   );
   return (
-    <Sheet visible onClose={cerrar} title="Publicar en el Marketplace">
+    <Sheet visible onClose={onClose} title={editando ? "Editar publicación" : "Publicar en el Marketplace"}>
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         <Text style={styles.label}>Fotos (hasta {MAX_FOTOS})</Text>
         <View style={styles.fotosRow}>
-          {fotos.map((f) => (
-            <Pressable key={f} onPress={() => quitarFoto(f)} style={styles.fotoPreview} accessibilityLabel="Quitar foto">
-              <SignedImage src={f} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" miniatura />
-              <Text style={styles.quitar}>✕</Text>
-            </Pressable>
+          {fotos.map((f, i) => (
+            <View key={f.key}>
+              <Pressable onPress={() => setFotos((p) => hacerPrincipal(p, i))} style={[styles.fotoPreview, i === 0 && styles.fotoPrincipal]} accessibilityLabel={i === 0 ? "Foto principal" : "Usar como foto principal"}>
+                {f.path ? <SignedImage src={f.path} bucket="adjuntos" style={styles.fotoLlena} resizeMode="cover" miniatura /> : <Image source={{ uri: f.asset.uri }} style={styles.fotoLlena} resizeMode="cover" />}
+                {i === 0 ? <Text style={styles.principalTag}>PRINCIPAL</Text> : null}
+              </Pressable>
+              <Pressable onPress={() => setFotos((p) => p.filter((x) => x.key !== f.key))} hitSlop={6} style={styles.quitarBtn} accessibilityLabel="Quitar foto">
+                <Text style={styles.quitar}>✕</Text>
+              </Pressable>
+            </View>
           ))}
           {fotos.length < MAX_FOTOS ? (
-            <Pressable onPress={agregarFoto} disabled={subiendo} style={[styles.fotoPreview, styles.fotoAgregar]} accessibilityLabel="Agregar foto">
-              <Text style={styles.fotoAgregarTxt}>{subiendo ? "…" : "+"}</Text>
+            <Pressable onPress={agregarFotos} disabled={eligiendo || guardando} style={[styles.fotoPreview, styles.fotoAgregar]} accessibilityLabel="Agregar fotos">
+              <Text style={styles.fotoAgregarTxt}>{eligiendo ? "…" : "+"}</Text>
             </Pressable>
           ) : null}
         </View>
+        {fotos.length > 1 ? <Text style={styles.hint}>Tocá una foto para que sea la principal (la que se ve en la lista).</Text> : null}
         <Text style={styles.label}>Qué es</Text>
         <TextInput value={form.titulo} onChangeText={(v) => set("titulo", v)} placeholder="Ej: Buzo del uniforme talle 10" placeholderTextColor={t.placeholder} style={styles.input} />
         <Text style={styles.label}>Categoría</Text>
@@ -417,8 +453,8 @@ function NuevoSheet({ cursos, colegioDe, userId, onClose, onCreado }) {
           {chip(form.alcance === "curso", "Mi curso", () => set("alcance", "curso"))}
         </View>
         {cursos.length > 1 ? <View style={styles.wrap}>{cursos.map((c) => chip(form.curso_id === c.id, c.nombre, () => set("curso_id", c.id), c.id))}</View> : null}
-        <Text style={styles.hint}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca “Me interesa” te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</Text>
-        <Button title={guardando ? "Publicando…" : "Publicar"} onPress={publicar} disabled={guardando || subiendo} style={styles.mtMd} />
+        {editando ? null : <Text style={styles.hint}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca “Me interesa” te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</Text>}
+        <Button title={guardando ? (editando ? "Guardando…" : "Publicando…") : editando ? "Guardar cambios" : "Publicar"} onPress={guardar} disabled={guardando || eligiendo} style={styles.mtMd} />
       </ScrollView>
     </Sheet>
   );
@@ -460,7 +496,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 13.5, color: t.text, lineHeight: 19, marginTop: 4 },
   yaHay: { fontSize: 12.5, color: t.textMuted, textAlign: "center", marginTop: SPACE.sm },
   gestion: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: SPACE.lg, paddingTop: SPACE.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border },
-  borrar: { marginLeft: "auto", padding: 6 },
+  borrar: { marginLeft: "auto", paddingHorizontal: 12, paddingVertical: 9, borderRadius: RADIUS.md, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
   borrarTxt: { color: t.danger, fontSize: 13, fontWeight: "700" },
   sheetScroll: { flexShrink: 1 },
   label: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 4, marginTop: SPACE.sm },
@@ -470,11 +506,14 @@ const styles = StyleSheet.create({
   precioRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   hint: { fontSize: 11.5, color: t.textFaint, marginTop: SPACE.sm, lineHeight: 16 },
   mtMd: { marginTop: SPACE.md },
-  fotosRow: { flexDirection: "row", gap: SPACE.sm, flexWrap: "wrap" },
+  fotosRow: { flexDirection: "row", gap: SPACE.md, flexWrap: "wrap", paddingTop: 6, paddingRight: 6 },
   fotoPreview: { width: 72, height: 72, borderRadius: 10, overflow: "hidden", backgroundColor: "#F1F5F9" },
   fotoAgregar: { borderWidth: 1.5, borderStyle: "dashed", borderColor: "#CBD5E1", alignItems: "center", justifyContent: "center" },
   fotoAgregarTxt: { fontSize: 26, color: t.textMuted },
-  quitar: { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "#0F172A", color: "white", fontSize: 11, textAlign: "center", lineHeight: 20, overflow: "hidden" },
+  fotoPrincipal: { borderWidth: 2, borderColor: t.accent },
+  principalTag: { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, fontWeight: "800", color: "white", backgroundColor: "rgba(37,99,235,0.85)", textAlign: "center", paddingVertical: 2 },
+  quitarBtn: { position: "absolute", top: -6, right: -6 },
+  quitar: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#0F172A", color: "white", fontSize: 11, textAlign: "center", lineHeight: 22, overflow: "hidden" },
   opcionComprador: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, marginTop: 6 },
   opcionTxt: { fontSize: 14, fontWeight: "600", color: t.text },
   contactoTitulo: { fontSize: 12.5, color: t.textMuted, marginBottom: SPACE.sm },

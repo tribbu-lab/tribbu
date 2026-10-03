@@ -32,7 +32,10 @@ export default function TabsLayout() {
     <View style={styles.root}>
       <AppHeader notif={notif} />
       <Tabs
-        screenOptions={{ headerShown: false }}
+        // freezeOnBlur: las pestañas que no se ven no se re-renderizan (cada
+        // cambio de sesión/notificaciones re-renderizaba TODAS las montadas);
+        // al volver a una se pone al día de una sola vez.
+        screenOptions={{ headerShown: false, freezeOnBlur: true }}
         tabBar={(props) => <FloatingTabBar {...props} badge={badge} />}
       >
         <Tabs.Screen name="muro" options={{ title: "Inicio" }} />

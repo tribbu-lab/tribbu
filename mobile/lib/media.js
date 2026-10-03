@@ -69,17 +69,35 @@ async function aJpeg(asset, lado, compress) {
  * para logos (PNG con transparencia), el bucket público libros y GIFs.
  */
 export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "", conMiniatura = true }) {
+  const [asset] = await pickImages();
+  if (!asset) return null;
+  return uploadImage(asset, { bucket, path: `${pathPrefix}${Date.now()}`, conMiniatura });
+}
+
+/**
+ * Abre la galería y devuelve los assets elegidos SIN subirlos ([] si canceló).
+ * `max` > 1 deja elegir varias de una vez. Para formularios que suben recién
+ * al guardar (Marketplace): así se pueden reordenar o quitar sin tocar Storage.
+ */
+export async function pickImages({ max = 1 } = {}) {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) throw new Error("Permiso de galería denegado");
-
   const res = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     quality: 0.8,
+    ...(max > 1 ? { allowsMultipleSelection: true, selectionLimit: max, orderedSelection: true } : {}),
   });
-  if (res.canceled || !res.assets?.[0]) return null;
+  if (res.canceled || !res.assets?.length) return [];
+  const assets = res.assets.slice(0, max);
+  if (assets.some((a) => a.fileSize && a.fileSize > MAX_FILE_BYTES)) throw new Error("La imagen supera los 10 MB");
+  return assets;
+}
 
-  const asset = res.assets[0];
-  if (asset.fileSize && asset.fileSize > MAX_FILE_BYTES) throw new Error("La imagen supera los 10 MB");
+/**
+ * Sube un asset de pickImages a `${path}.<ext>` (+ su .thumb.jpg) y devuelve
+ * `{ url, nombre }` — el PATH para buckets privados, la URL pública para libros.
+ */
+export async function uploadImage(asset, { bucket = "eventos", path: pathSinExt, conMiniatura = true }) {
   let ext = (asset.uri.split(".").pop() || "jpg").toLowerCase().split("?")[0];
   let contentType = EXT_MIME[ext] || asset.mimeType || "image/jpeg";
   let uri = asset.uri;
@@ -94,7 +112,7 @@ export async function pickAndUploadImage({ bucket = "eventos", pathPrefix = "", 
       miniUri = null;
     }
   }
-  const path = `${pathPrefix}${Date.now()}.${ext}`;
+  const path = `${pathSinExt}.${ext}`;
   const [url] = await Promise.all([
     uploadBase64({ uri, bucket, path, contentType }),
     // Miniatura best-effort: si falla, las pantallas usan la original.
