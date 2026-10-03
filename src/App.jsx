@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, memo, lazy, Suspense } from "react";
 import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
@@ -129,6 +129,21 @@ if (isNative) {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Una pestaña en caché (ver renderTabs). Mientras SIGUE oculta no se
+// re-renderiza: antes cada render de App (cambiar de pestaña, el poll de
+// notificaciones cada 30 s) re-renderizaba todas las pestañas ya visitadas,
+// y la navegación se ponía más lenta cuanto más se usaba. Al volver a ser la
+// visible se pone al día con las props actuales.
+const TabCacheada = memo(function TabCacheada({ activa, children }) {
+  return (
+    <div style={activa ? undefined : {display:"none"}}>
+      <TabActivaContext.Provider value={activa ? TAB_ACTIVA : TAB_OCULTA}>
+        <Suspense fallback={<Spinner/>}>{children}</Suspense>
+      </TabActivaContext.Provider>
+    </div>
+  );
+}, (prev, next) => !prev.activa && !next.activa);
 
 function App() {
   const [usuario,       setUsuario]       = useState(null);
@@ -525,11 +540,7 @@ function App() {
       setTabsMontadas(montadas); // ajuste en render (mismo patrón que Comunidad)
     }
     return Object.entries(montadas.tabs).map(([k, t]) => (
-      <div key={k} style={k === clave ? undefined : {display:"none"}}>
-        <TabActivaContext.Provider value={k === clave ? TAB_ACTIVA : TAB_OCULTA}>
-          <Suspense fallback={<Spinner/>}>{renderTab(t)}</Suspense>
-        </TabActivaContext.Provider>
-      </div>
+      <TabCacheada key={k} activa={k === clave}>{renderTab(t)}</TabCacheada>
     ));
   };
 
