@@ -176,12 +176,14 @@ frena el envío a review y hay que avisarlo **antes** de que el usuario mande.
 2. Report submission status from each submit command's output (ASC: el build
    tarda ~10–30 min en procesarse y luego hay que asignarlo a la versión en App
    Store Connect; Play: aparece en el track interno en minutos).
-3. Remind the user of the manual console steps that EAS does NOT do, per
-   `mobile/STORE_RELEASE.md`: attaching the processed build + submitting for
-   review in ASC, and promotion beyond the internal track in Play Console.
-   Pegá en el chat los dos bloques listos para copiar de
-   `mobile/stores/release-notes-<version>.md` (Phase 3) — son parte de esos
-   pasos manuales, y levantá ahí cualquier problema con las Review Notes.
+3. El siguiente paso es **`/store-promote`**: promueve el vc del track interno
+   a producción en Play y, en ASC, asigna el build a la versión, carga las
+   Novedades y la envía a review, todo con las notas de la Phase 3. Con ASC hay
+   que esperar a que el build termine de procesarse (si no, el skill aborta y
+   pide reintentar). Pegá igual en el chat los dos bloques de
+   `mobile/stores/release-notes-<version>.md` y levantá ahí cualquier problema
+   con las Review Notes: `/store-promote` no envía a review mientras las notas
+   mencionen el código demo.
 4. Delete or leave the local artifacts as the user prefers (they're gitignored).
 
 ## Failure fallbacks
