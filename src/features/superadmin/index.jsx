@@ -2042,13 +2042,13 @@ export function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map(c=>c.id));
 
   const publicar = async () => {
-    if(!form.titulo?.trim() || !form.texto?.trim() || !form.fecha || cursosSel.length===0) return;
+    if(!form.titulo?.trim() || !form.texto?.trim() || cursosSel.length===0) return;
     setPublicando(true);
     setError(null);
     try {
       const grupo_id = uuidLite();
       const rows = cursosSel.map(curso_id=>({
-        titulo: sanitize(form.titulo), texto: sanitize(form.texto), fecha: form.fecha, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
+        titulo: sanitize(form.titulo), texto: sanitize(form.texto), fecha: form.fecha||fmtLocalDate(), hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
         prioridad: form.prioridad||"media", urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
@@ -2089,7 +2089,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:140}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA</div>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (si no elegís, hoy)</div>
           <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
         </div>
         <div style={{minWidth:100}}>
@@ -2134,7 +2134,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
 
       {!confirmando ? (
-        <button onClick={()=>setConfirmando(true)} disabled={!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.titulo?.trim()||!form.texto?.trim()||!form.fecha||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
+        <button onClick={()=>setConfirmando(true)} disabled={!form.titulo?.trim()||!form.texto?.trim()||cursosSel.length===0||subiendoAdj} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",background:(!form.titulo?.trim()||!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"#CBD5E1":"#3B82F6",color:"white",fontSize:13,fontWeight:700,cursor:(!form.titulo?.trim()||!form.texto?.trim()||cursosSel.length===0||subiendoAdj)?"default":"pointer"}}>
           Publicar
         </button>
       ) : (

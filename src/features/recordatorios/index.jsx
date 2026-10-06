@@ -104,7 +104,10 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     const hora_fin = hora_inicio && form.hora_fin ? form.hora_fin : null;
     if(hora_fin && hora_fin < hora_inicio) { alert("La hora de fin no puede ser anterior a la de inicio."); return; }
     setSaving(true);
-    const payload = { titulo:sanitize(form.titulo)||null, texto:sanitize(form.texto), fecha:form.fecha||null, hora_inicio, hora_fin, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
+    // Un aviso nuevo sin fecha se guarda con la de hoy: sin fecha quedaba al
+    // final de la lista y no se encontraba. Al editar se respeta lo que tenga.
+    const fecha = form.fecha || (modal?.id ? null : hoyStr);
+    const payload = { titulo:sanitize(form.titulo)||null, texto:sanitize(form.texto), fecha, hora_inicio, hora_fin, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
     if(modal?.id) {
       // Al editar no se pisa curso_id: en vista "Todos" la fila puede ser de
       // otro curso y el payload la movería.
@@ -269,7 +272,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
               <div style={{flex:"1 1 140px"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA {modal?.id ? "(opcional)" : "(si no elegís, hoy)"}</div>
                 <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
               </div>
               <div style={{flex:"1 1 90px"}}>

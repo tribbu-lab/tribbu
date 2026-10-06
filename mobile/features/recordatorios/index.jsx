@@ -236,7 +236,9 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
     const payload = {
       titulo: sanitize(form.titulo) || null,
       texto: sanitize(form.texto),
-      fecha: form.fecha || null,
+      // Un aviso nuevo sin fecha se guarda con la de hoy (sin fecha quedaba al
+      // final de la lista). Al editar se respeta lo que tenga — mismo que web.
+      fecha: form.fecha || (modal?.id ? null : fmtLocalDate()),
       hora_inicio,
       hora_fin,
       prioridad: form.prioridad || "media",
@@ -554,7 +556,7 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
                 style={[styles.modalInput, styles.modalTextarea]}
               />
 
-              <Text style={styles.modalLabel}>Fecha (opcional)</Text>
+              <Text style={styles.modalLabel}>{editing ? "Fecha (opcional)" : "Fecha (si no elegís, hoy)"}</Text>
               <DateField
                 value={form.fecha || ""}
                 onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
