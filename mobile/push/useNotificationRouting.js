@@ -47,14 +47,17 @@ export function useNotificationRouting(ready) {
     // Cold start: la app se abrió tocando una notificación.
     if (!handledColdStart.current) {
       handledColdStart.current = true;
-      Notifications.getLastNotificationResponseAsync().then((response) => {
-        const target = routeForData(response?.notification?.request?.content?.data);
-        if (target) router.push(target);
-      });
+      const response = Notifications.getLastNotificationResponse();
+      // La "última respuesta" queda guardada hasta que se borra: sin esto, si
+      // este layout se volvía a montar, re-navegaba a la misma notificación.
+      if (response) Notifications.clearLastNotificationResponse();
+      const target = routeForData(response?.notification?.request?.content?.data);
+      if (target) router.push(target);
     }
 
     // Foreground/background: toque de notificación con la app viva.
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      Notifications.clearLastNotificationResponse();
       const target = routeForData(response?.notification?.request?.content?.data);
       if (target) router.push(target);
     });

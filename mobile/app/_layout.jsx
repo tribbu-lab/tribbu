@@ -3,6 +3,7 @@
 // layout móvil: el Super Admin va a su propia pila (super), el resto a las tabs.
 
 import { useState, useEffect } from "react";
+import { View, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -39,17 +40,16 @@ function RootNavigator() {
   // Candado biométrico local (ver specs/desbloqueo-con-huella-digital.md) —
   // no toca la sesión de Supabase, solo gatea mostrarla. Se re-chequea por
   // apertura en frío y por usuario (cambia de cuenta en el mismo device →
-  // vuelve a "checking" para ese usuario nuevo).
-  const [bioState, setBioState] = useState("checking"); // checking | locked | off | unlocked
+  // vuelve a "checking" para ese usuario nuevo). El estado queda atado al
+  // usuario para el que se resolvió: para un usuario nuevo es "checking" desde
+  // el primer render, sin un render intermedio en "off".
+  const [bio, setBio] = useState({ uid: null, estado: "off" }); // estado: locked | off | unlocked
+  const bioState = !usuario?.id ? "off" : bio.uid === usuario.id ? bio.estado : "checking";
   useEffect(() => {
-    if (!usuario?.id) {
-      setBioState("off");
-      return;
-    }
+    if (!usuario?.id) return undefined;
     let cancel = false;
-    setBioState("checking");
     getBiometricPref(usuario.id).then((enabled) => {
-      if (!cancel) setBioState(enabled ? "locked" : "off");
+      if (!cancel) setBio({ uid: usuario.id, estado: enabled ? "locked" : "off" });
     });
     return () => {
       cancel = true;
@@ -68,19 +68,35 @@ function RootNavigator() {
     }
   }, [usuario, vaAlPanel, authLoading, segments, router]);
 
-  if (authLoading || (usuario && bioState === "checking")) {
-    return <Spinner style={{ backgroundColor: "#0F172A" }} />;
-  }
+  const cargando = authLoading || (!!usuario && bioState === "checking");
+  const bloqueado = !!usuario && bioState === "locked";
 
-  if (usuario && bioState === "locked") {
-    return <BiometricGate onUnlock={() => setBioState("unlocked")} />;
-  }
-
+  // El <Stack> se renderiza SIEMPRE y la carga / el candado van por encima.
+  // Antes se reemplazaba el Stack por el spinner: si el gate de arriba
+  // navegaba justo cuando el Stack se desmontaba (al abrir la app tocando una
+  // notificación pasaba siempre), la navegación quedaba sin navegador,
+  // expo-router remontaba todo el layout raíz y la app entraba en un bucle de
+  // recargas (se tildaba y parpadeaba).
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="(super)" />
-    </Stack>
+    <View style={styles.root}>
+      <View style={styles.root} importantForAccessibility={cargando || bloqueado ? "no-hide-descendants" : "auto"}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(super)" />
+        </Stack>
+      </View>
+      {cargando ? (
+        <Spinner style={[StyleSheet.absoluteFill, { backgroundColor: "#0F172A" }]} />
+      ) : bloqueado ? (
+        <View style={StyleSheet.absoluteFill}>
+          <BiometricGate onUnlock={() => setBio({ uid: usuario.id, estado: "unlocked" })} />
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
