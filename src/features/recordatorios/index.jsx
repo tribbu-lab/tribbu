@@ -4,7 +4,7 @@ import { supabase } from "../../supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtRangoHora, fmtLocalDate, sanitize } from "../../lib/helpers";
+import { fmtRangoHora, fmtLocalDate, sanitize, fmtEnviado, ordenPorEnviado } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
@@ -18,15 +18,11 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 
-// Descendente por fecha del recordatorio (no por cuándo se publicó): el orden
-// anterior (solo creado_en) salteaba fechas sin criterio visible. Sin fecha
-// (aviso genérico) cae al final, ordenado entre sí por creado_en.
-const ordenAvisos = (a,b) => {
-  if(a.fecha&&b.fecha) return b.fecha.localeCompare(a.fecha);
-  if(a.fecha&&!b.fecha) return -1;
-  if(!a.fecha&&b.fecha) return 1;
-  return (b.creado_en||"").localeCompare(a.creado_en||"");
-};
+// Último publicado primero (creado_en), no por la fecha del aviso: ordenar por
+// `fecha` dejaba arriba un aviso con fecha lejana y los recién llegados abajo.
+// La fecha del aviso (la del evento) sigue en la columna izquierda y cada fila
+// dice además cuándo se envió (fmtEnviado).
+const ordenAvisos = ordenPorEnviado;
 
 export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
   const [recordatorios, setRecordatorios] = useState([]);
@@ -104,10 +100,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     const hora_fin = hora_inicio && form.hora_fin ? form.hora_fin : null;
     if(hora_fin && hora_fin < hora_inicio) { alert("La hora de fin no puede ser anterior a la de inicio."); return; }
     setSaving(true);
-    // Un aviso nuevo sin fecha se guarda con la de hoy: sin fecha quedaba al
-    // final de la lista y no se encontraba. Al editar se respeta lo que tenga.
-    const fecha = form.fecha || (modal?.id ? null : hoyStr);
-    const payload = { titulo:sanitize(form.titulo)||null, texto:sanitize(form.texto), fecha, hora_inicio, hora_fin, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
+    const payload = { titulo:sanitize(form.titulo)||null, texto:sanitize(form.texto), fecha:form.fecha||null, hora_inicio, hora_fin, prioridad:form.prioridad||"media", urgente:form.urgente||false, adjuntos:form.adjuntos||[], curso_id:cursoDestino };
     if(modal?.id) {
       // Al editar no se pisa curso_id: en vista "Todos" la fila puede ser de
       // otro curso y el payload la movería.
@@ -272,7 +265,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
               <div style={{flex:"1 1 140px"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA {modal?.id ? "(opcional)" : "(si no elegís, hoy)"}</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA (opcional)</div>
                 <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
               </div>
               <div style={{flex:"1 1 90px"}}>
@@ -392,6 +385,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
                 }
                 {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
                 <ChipLecturas filas={lecturas[r.id]} onClick={()=>setVerLecturas(r)}/>
+                {r.creado_en&&<span style={{fontSize:10,color:"#94A3B8",whiteSpace:"nowrap"}}>{fmtEnviado(r.creado_en)}</span>}
               </div>
               <AdjuntosList adjuntos={r.adjuntos}/>
             </div>
@@ -424,7 +418,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         </div>
       )}
 
-      {/* ── Historial de comunicados ────────────────────────────────── */}
+      {/* ── Historial de alertas ──────────────────────────────────── */}
       <HistorialComunicados cursoIds={cursoIds} tagDeCurso={tagDeCurso} isAdmin={isAdmin} />
     </div>
   );
@@ -475,7 +469,7 @@ function HistorialComunicados({ cursoIds=[], tagDeCurso=null }) {
           padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",
           background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}
       >
-        <span>📢 Historial de comunicados</span>
+        <span>🚨 Historial de alertas</span>
         <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
       </button>
 
@@ -484,7 +478,7 @@ function HistorialComunicados({ cursoIds=[], tagDeCurso=null }) {
           <input
             value={busqueda}
             onChange={e=>setBusqueda(e.target.value)}
-            placeholder="Buscar en comunicados..."
+            placeholder="Buscar en alertas..."
             style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",
               fontSize:13,outline:"none",fontFamily:"inherit",background:"white",
               boxSizing:"border-box",marginBottom:10}}
@@ -496,7 +490,7 @@ function HistorialComunicados({ cursoIds=[], tagDeCurso=null }) {
 
           {!cargando && filtradas.length === 0 && (
             <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>
-              {busqueda ? "Sin resultados para esa búsqueda" : "Sin comunicados anteriores"}
+              {busqueda ? "Sin resultados para esa búsqueda" : "Sin alertas anteriores"}
             </div>
           )}
 

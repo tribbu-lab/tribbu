@@ -90,6 +90,25 @@ export const fmtHace = (iso) => {
   return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
 };
 
+/**
+ * Cuándo se publicó un aviso (creado_en) → "Enviado hoy 14:32" / "Enviado ayer 09:10" /
+ * "Enviado 3 oct". Distinto de la fecha del aviso (`fecha`), que es la del evento.
+ */
+export const fmtEnviado = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const hora = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const dias = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
+  if (dias <= 0) return `Enviado hoy ${hora}`;
+  if (dias === 1) return `Enviado ayer ${hora}`;
+  const opts = { day: "numeric", month: "short" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return `Enviado ${d.toLocaleDateString("es-AR", opts)}`;
+};
+
+/** Orden de la lista de avisos: el último publicado primero (creado_en desc). */
+export const ordenPorEnviado = (a, b) => (b.creado_en || "").localeCompare(a.creado_en || "");
+
 /** Días que faltan hasta una fecha (negativo = ya pasó) */
 export const dHasta = (s) => {
   const hoy = new Date();

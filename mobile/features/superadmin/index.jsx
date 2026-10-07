@@ -1625,7 +1625,7 @@ function ComunicacionesAdmin({ cursos }) {
   const seleccionarTodos = () => setCursosSel(todosSeleccionados ? [] : cursos.map((c) => c.id));
 
   const publicar = async () => {
-    if (!form.titulo?.trim() || !form.texto?.trim() || cursosSel.length === 0) return;
+    if (!form.titulo?.trim() || !form.texto?.trim() || !form.fecha || cursosSel.length === 0) return;
     setPublicando(true);
     setError(null);
     try {
@@ -1633,7 +1633,7 @@ function ComunicacionesAdmin({ cursos }) {
       const rows = cursosSel.map((curso_id) => ({
         titulo: sanitize(form.titulo),
         texto: sanitize(form.texto),
-        fecha: form.fecha || fmtLocalDate(), // sin fecha → hoy, igual que Recordatorios
+        fecha: form.fecha,
         hora_inicio: form.hora_inicio || null,
         hora_fin: form.hora_fin || null,
         prioridad: form.prioridad || "media",
@@ -1661,7 +1661,7 @@ function ComunicacionesAdmin({ cursos }) {
     }
   };
 
-  const puedePublicar = !!form.titulo?.trim() && !!form.texto?.trim() && cursosSel.length > 0 && !subiendoAdj;
+  const puedePublicar = !!form.titulo?.trim() && !!form.texto?.trim() && !!form.fecha && cursosSel.length > 0 && !subiendoAdj;
 
   return (
     <View>
@@ -1698,7 +1698,7 @@ function ComunicacionesAdmin({ cursos }) {
         style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
       />
 
-      <Text style={styles.label}>FECHA (si no elegís, hoy)</Text>
+      <Text style={styles.label}>FECHA</Text>
       <DateField value={form.fecha || ""} onChange={(v) => setForm((p) => ({ ...p, fecha: v }))} clearable style={styles.input} />
 
       <View style={comStyles.prioRow}>

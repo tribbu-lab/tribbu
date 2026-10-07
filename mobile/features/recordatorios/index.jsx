@@ -1,7 +1,7 @@
 // Recordatorios — patrón A3 (ver mobile/DESIGN_SYSTEM.md §7). Lista con leídos/
 // no-leídos, filtros colapsados en select-chips (Sheet), alta/edición y borrado.
 // El admin que crea un recordatorio dispara un push al curso. Incluye historial
-// de comunicados. La prioridad/urgencia vive en el dot de la fila; leído = dot
+// de alertas. La prioridad/urgencia vive en el dot de la fila; leído = dot
 // hueco + texto apagado.
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
@@ -22,7 +22,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
+import { sanitize, fmtRangoHora, fmtLocalDate, fmtEnviado, ordenPorEnviado } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -55,14 +55,9 @@ const PRIO = {
 };
 const POR_PAG = 10;
 
-// Descendente por fecha del recordatorio (no por cuándo se publicó) — ver el
-// mismo fix en src/features/recordatorios/index.jsx (web).
-const ordenAvisos = (a, b) => {
-  if (a.fecha && b.fecha) return b.fecha.localeCompare(a.fecha);
-  if (a.fecha && !b.fecha) return -1;
-  if (!a.fecha && b.fecha) return 1;
-  return (b.creado_en || "").localeCompare(a.creado_en || "");
-};
+// Último publicado primero (creado_en), no por la fecha del aviso — igual que
+// la web (src/features/recordatorios/index.jsx). Cada fila dice cuándo se envió.
+const ordenAvisos = ordenPorEnviado;
 const RANGOS = [
   { value: "all", label: "Todos" },
   { value: "proximos", label: "Próximos" },
@@ -116,6 +111,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, resaltado = false, es
           </Pressable>
         ) : null}
         <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
+        {r.creado_en ? <Text style={styles.rowEnviado} numberOfLines={1}>{fmtEnviado(r.creado_en)}</Text> : null}
         {tag ? (
           <View style={styles.tagRow}>
             <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
@@ -236,9 +232,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
     const payload = {
       titulo: sanitize(form.titulo) || null,
       texto: sanitize(form.texto),
-      // Un aviso nuevo sin fecha se guarda con la de hoy (sin fecha quedaba al
-      // final de la lista). Al editar se respeta lo que tenga — mismo que web.
-      fecha: form.fecha || (modal?.id ? null : fmtLocalDate()),
+      fecha: form.fecha || null,
       hora_inicio,
       hora_fin,
       prioridad: form.prioridad || "media",
@@ -556,7 +550,7 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
                 style={[styles.modalInput, styles.modalTextarea]}
               />
 
-              <Text style={styles.modalLabel}>{editing ? "Fecha (opcional)" : "Fecha (si no elegís, hoy)"}</Text>
+              <Text style={styles.modalLabel}>Fecha (opcional)</Text>
               <DateField
                 value={form.fecha || ""}
                 onChange={(v) => setForm((p) => ({ ...p, fecha: v }))}
@@ -686,14 +680,14 @@ function HistorialComunicados({ cursoIds, tagDeCurso }) {
     <View style={styles.histWrap}>
       <Text style={styles.label}>Comunicados</Text>
       <Pressable onPress={toggle} style={styles.histToggle}>
-        <Text style={styles.histToggleTxt}>📢 Historial de comunicados</Text>
+        <Text style={styles.histToggleTxt}>🚨 Historial de alertas</Text>
         <MaterialCommunityIcons name={abierto ? "chevron-up" : "chevron-down"} size={18} color={t.textFaint} />
       </Pressable>
 
       {abierto ? (
         <View style={styles.histList}>
           {cargando ? <Text style={styles.empty}>Cargando...</Text> : null}
-          {!cargando && alertas.length === 0 ? <Text style={styles.empty}>Sin comunicados anteriores</Text> : null}
+          {!cargando && alertas.length === 0 ? <Text style={styles.empty}>Sin alertas anteriores</Text> : null}
           {!cargando &&
             alertas.map((a) => (
               <View key={a.id} style={[styles.histItem, a.activa && styles.histItemActiva]}>
@@ -768,6 +762,7 @@ const styles = StyleSheet.create({
   rowTxtLeido: { fontWeight: "500", color: t.textMuted },
   verMasTxt: { fontSize: 11.5, fontWeight: "700", color: BLUE[600], marginTop: 2 },
   rowMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  rowEnviado: { fontSize: 11, color: t.textFaint, marginTop: 1 },
   // tag de hijo en modo "Todos": dot con el color de identidad + primer(os) nombre(s)
   tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
   tagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
