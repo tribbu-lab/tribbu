@@ -79,6 +79,9 @@ export default {
         "./plugins/withMultiSizeAppIcon",
         { icon: "./assets/icon.png" },
       ],
+      // Xcode 27 falla el archive si algún target de Pods declara un deployment
+      // target < 15.0 (SDWebImage, RNCAsyncStorage); los sube a 15.1.
+      "./plugins/withPodsDeploymentTarget",
       [
         // media.js pide permiso de fototeca (subida de invitaciones de cumples);
         // sin este string en Info.plist, iOS crashea al pedirlo.
