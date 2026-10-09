@@ -18,7 +18,7 @@ export default {
     slug: "tribbu",
     owner: "albatross-tech",
     scheme: "tribbu",
-    version: "1.11.0",
+    version: "1.12.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: true,
