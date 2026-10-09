@@ -47,8 +47,27 @@ git diff --stat <commit-release-anterior>..HEAD -- mobile/ src/lib/
    son "novedades" de la app y no van en las notas de tienda.
 3. Validation gates: `npm run lint` and `npx expo export -p ios` must pass.
 4. Toolchain (per platform being built):
-   - **iOS**: `xcodebuild -version` and `which fastlane` must succeed
-     (`brew install fastlane` if missing).
+   - **iOS**: `which fastlane` must succeed (`brew install fastlane` if
+     missing), and the build **must use Xcode 26.x, never 27+** — check with
+     `DEVELOPER_DIR=/Applications/Xcode-26.2.app/Contents/Developer xcodebuild -version`.
+     **Por qué (2026-10-09, 1.12.0 build 35):** una app compilada con el SDK
+     de iOS 27 tiene que adoptar el ciclo de vida UIScene o iOS la mata al
+     abrir (`EXC_BREAKPOINT` en
+     `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`); Expo
+     SDK 54 no lo adopta. El build compila, sube y pasa el procesamiento de
+     ASC sin quejas — el crash aparece recién al abrirlo desde TestFlight. EAS
+     lo confirma: su imagen `sdk-54` es Xcode 26.0 y Xcode 27 es `sdk-58`.
+     El `Xcode.app` del sistema se actualiza solo (App Store) a 27, así que
+     Xcode 26.2 vive aparte en `/Applications/Xcode-26.2.app` y el build de
+     iOS lleva `DEVELOPER_DIR` (fastlane/xcodebuild/CocoaPods lo respetan; no
+     hace falta `sudo xcode-select`). Si falta, pedile al usuario que lo baje
+     de developer.apple.com/download/all (requiere su Apple ID). Chequeá
+     también `xcodebuild -checkFirstLaunchStatus` y `pod --version` con ese
+     `DEVELOPER_DIR`: tras actualizar Xcode, la licencia sin aceptar o el
+     first-launch pendiente rompen el build a mitad de camino y cada intento
+     quema un buildNumber (los arregla el usuario con `! sudo xcodebuild
+     -license accept` / `! sudo xcodebuild -runFirstLaunch`). Esta regla se
+     levanta recién cuando se migre a una versión de Expo que adopte UIScene.
    - **Android**: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`
      and `ANDROID_HOME="$HOME/Library/Android/sdk"` must exist (`/usr/bin/java` is a stub).
 5. EAS session: `npx -y eas-cli@latest whoami` (login lives in `~/.expo`; if it
@@ -61,12 +80,16 @@ git diff --stat <commit-release-anterior>..HEAD -- mobile/ src/lib/
 Always the first platform built.
 
 ```bash
+DEVELOPER_DIR=/Applications/Xcode-26.2.app/Contents/Developer \
 npx -y eas-cli@latest build -p ios --profile production --local \
   --non-interactive --output ./tribbu-production.ipa
 ```
 
 - Run in background (takes 10–25 min); watch for completion, then confirm the
   `.ipa` exists and is non-trivial in size.
+- **Antes de submitear, verificá con qué SDK salió** (ver el porqué en Phase 0):
+  `plutil -extract DTSDKName raw <Info.plist del IPA>` tiene que ser
+  `iphoneos26.x`. Si dice `iphoneos27…`, NO lo subas: crashea al abrir.
 - Requires Xcode + fastlane. First run may prompt for keychain access — if the
   build hangs or fails on codesigning/keychain, surface the error and ask the
   user to run it once in an interactive terminal; don't loop retries.

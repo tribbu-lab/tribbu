@@ -1,6 +1,6 @@
 # Release notes 1.12.0 (es-419)
 
-Android vc42 · iOS build 35 · commits `bb8b708..4b9d6a9` (desde 1.11.0)
+Android vc42 · iOS build 36 · commits `bb8b708..4b9d6a9` (desde 1.11.0)
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
@@ -34,5 +34,6 @@ Sólo commits que tocan `mobile/` o `src/lib/`.
 - Fuera del binario: `ef00732` (pestañas en caché, solo web), `5c63fc3` (skill `/store-promote` + `mobile/scripts/promover-release.mjs`, no se bundlea), `1f88adf` (notas 1.11.0).
 - `4343d60` — bump a 1.12.0.
 - `4b9d6a9` — (solo iOS, posterior al build de Android) la máquina pasó a Xcode 27, que trata como **error** un `IPHONEOS_DEPLOYMENT_TARGET` < 15.0: los targets de recursos de SDWebImage (9.0) y RNCAsyncStorage (13.4) rompían el archive. Config plugin `plugins/withPodsDeploymentTarget.js` los sube a 15.1 en el `post_install` del Podfile. No cambia el comportamiento de la app (el mínimo real de la app ya era 15.1). Antes hubo que aceptar la licencia (`xcodebuild -license accept`) y correr `xcodebuild -runFirstLaunch`; los intentos fallidos quemaron los builds 32, 33 y 34.
+- **iOS build 35 — NO USAR (crashea al abrir).** Compilado con Xcode 27 / SDK iOS 27: una app con ese SDK tiene que adoptar UIScene o iOS la mata al iniciar (`EXC_BREAKPOINT` en `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`, reporte de crash de TestFlight en iOS 27.0.1); Expo SDK 54 no lo adopta. **Build 36** se recompiló del mismo commit con Xcode 26.2 (`/Applications/Xcode-26.2.app` vía `DEVELOPER_DIR`; IPA con `DTXcode=2620`, `DTSDKName=iphoneos26.2`, igual que build 31). Adjuntar solo el 36.
 
 **Review Notes de ASC**: nada de este release toca login, alta de cuentas ni onboarding (`21f1628` cambia el arranque/candado biométrico, no cómo se entra). Las notas reescritas el 2026-10-03 (cuenta demo demo@tribbu.app, sin código) siguen válidas. Ojo con los datos del "Colegio Demo tribbu": la colecta demo vence el 16/10 y los eventos son de oct–nov 2026; si la review se demora pasado mediados de noviembre, correr fechas.
