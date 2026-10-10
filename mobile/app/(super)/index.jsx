@@ -7,10 +7,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
 import { SuperAdmin } from "../../features/superadmin";
+import { useMensajesNoLeidos } from "../../lib/useMensajesNoLeidos";
 
 export default function SuperHome() {
   const insets = useSafeAreaInsets();
-  const { logout } = useSession();
+  const { logout, usuario } = useSession();
+  // Canal Realtime de mensajes: la bandeja de soporte y Ayuda y soporte se
+  // actualizan en vivo (sin badge en el panel).
+  useMensajesNoLeidos(usuario?.id ?? null, { contar: false });
 
   return (
     <View style={styles.screen}>

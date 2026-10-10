@@ -34,6 +34,7 @@ export default function RootLayout() {
 function RootNavigator() {
   const { usuario, isSuper, esColegioAdmin, authLoading } = useSession();
   const vaAlPanel = isSuper || esColegioAdmin; // ambos van al stack (super), no a las tabs
+  const esDocente = usuario?.rol === "docente"; // solo Mensajes: stack (docente)
   const segments = useSegments();
   const router = useRouter();
 
@@ -61,12 +62,14 @@ function RootNavigator() {
     const grupo = segments[0]; // "login" | "(tabs)" | "(super)" | undefined
     if (!usuario) {
       if (grupo !== "login") router.replace("/login");
+    } else if (esDocente) {
+      if (grupo !== "(docente)") router.replace("/(docente)");
     } else if (vaAlPanel) {
       if (grupo !== "(super)") router.replace("/(super)");
     } else {
       if (grupo !== "(tabs)") router.replace("/(tabs)/muro");
     }
-  }, [usuario, vaAlPanel, authLoading, segments, router]);
+  }, [usuario, vaAlPanel, esDocente, authLoading, segments, router]);
 
   const cargando = authLoading || (!!usuario && bioState === "checking");
   const bloqueado = !!usuario && bioState === "locked";
@@ -84,6 +87,7 @@ function RootNavigator() {
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(super)" />
+          <Stack.Screen name="(docente)" />
         </Stack>
       </View>
       {cargando ? (

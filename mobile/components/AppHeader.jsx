@@ -16,6 +16,7 @@ import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
 import { colorColegio } from "@shared/helpers";
+import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -37,6 +38,7 @@ export function AppHeader({ notif }) {
     setColorHijo,
   } = useSession();
 
+  const { noLeidos: mensajesSinLeer } = useMensajesCtx();
   const [panelNotifs, setPanelNotifs] = useState(false);
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
@@ -76,6 +78,10 @@ export function AppHeader({ notif }) {
         <View style={styles.actions}>
           <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
             <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
+          </Pressable>
+          <Pressable onPress={() => router.push("/(tabs)/mensajes")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={mensajesSinLeer > 0 ? `Mensajes: ${mensajesSinLeer} sin leer` : "Mensajes"}>
+            <MaterialCommunityIcons name="message-outline" size={18} color="rgba(255,255,255,0.85)" />
+            {mensajesSinLeer > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
           </Pressable>
           <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
             <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />

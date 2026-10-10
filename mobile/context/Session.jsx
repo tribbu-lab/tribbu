@@ -60,7 +60,7 @@ export function SessionProvider({ children }) {
   // Cargar "items" (hijos + cursos admin) cuando hay usuario no-super.
   // super y colegio_admin no tienen "Mi acceso" — van directo a su panel.
   useEffect(() => {
-    if (!usuario || usuario.rol === "super" || usuario.rol === "colegio_admin") {
+    if (!usuario || usuario.rol === "super" || usuario.rol === "colegio_admin" || usuario.rol === "docente") {
       setItems([]);
       return;
     }

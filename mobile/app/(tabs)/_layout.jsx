@@ -12,6 +12,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
 import { useNotificaciones, NotificacionesProvider } from "../../features/notificaciones";
+import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
 
 export default function TabsLayout() {
   const { usuario, cursoIds } = useSession();
@@ -20,6 +21,8 @@ export default function TabsLayout() {
   // de pedirlo de nuevo por separado en cada cambio de hijo/curso.
   const notif = useNotificaciones({ cursoIds, userId: usuario?.id ?? null, active: true });
   const badge = notif.notifs.filter((n) => n._tipo === "recordatorio" && !notif.leidos.has(n.id)).length;
+  // Badge de Mensajes + la única suscripción Realtime (ver lib/useMensajesNoLeidos).
+  const mensajes = useMensajesNoLeidos(usuario?.id ?? null);
   useNotificationRouting(true);
 
   // Oculta del bottom-bar las secundarias (se alcanzan desde "Más").
@@ -29,6 +32,7 @@ export default function TabsLayout() {
 
   return (
     <NotificacionesProvider value={notif}>
+    <MensajesProvider value={mensajes}>
     <View style={styles.root}>
       <AppHeader notif={notif} />
       <Tabs
@@ -55,8 +59,10 @@ export default function TabsLayout() {
         <Tabs.Screen name="info" options={hidden} />
         <Tabs.Screen name="contacto" options={hidden} />
         <Tabs.Screen name="admin" options={hidden} />
+        <Tabs.Screen name="mensajes" options={hidden} />
       </Tabs>
     </View>
+    </MensajesProvider>
     </NotificacionesProvider>
   );
 }

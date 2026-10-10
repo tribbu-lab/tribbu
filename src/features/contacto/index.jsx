@@ -279,7 +279,7 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
   );
 }
 
-export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso }) {
+export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, userId, onEscribir }) {
   const { showToast, Toast } = useToast();
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});
@@ -339,7 +339,12 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso }) {
               <div key={a.id} style={{display:"flex",gap:8}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:"#3B82F6",flexShrink:0,marginTop:5}}/>
                 <div style={{minWidth:0,flex:1}}>
-                  <div style={{fontSize:12.5,fontWeight:600,color:"#0F172A",lineHeight:1.3}}>{fmtNombre(a)}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontSize:12.5,fontWeight:600,color:"#0F172A",lineHeight:1.3,flex:1,minWidth:0}}>{fmtNombre(a)}</div>
+                    {onEscribir&&a.id!==userId?(
+                      <button onClick={()=>onEscribir(a.id)} aria-label={`Escribirle a ${fmtNombre(a)}`} style={{border:"1px solid #BFDBFE",background:"#EFF6FF",color:"#1D4ED8",borderRadius:999,padding:"4px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",flexShrink:0,minHeight:28}}>💬 Escribir</button>
+                    ):null}
+                  </div>
                   {(a.telefono||a.email)&&(
                     <div style={{fontSize:11,marginTop:2,display:"flex",flexWrap:"wrap",columnGap:12,rowGap:1}}>
                       <ContactoDatos email={a.email} telefono={a.telefono} showToast={showToast} style={{fontSize:11}}/>

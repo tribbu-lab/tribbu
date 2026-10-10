@@ -31,6 +31,7 @@ import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { EventosColegio } from "../calendario";
+import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
@@ -52,11 +53,17 @@ const SECCIONES = [
     { id: "comunicaciones", l: "📢 Comunicaciones" },
     { id: "eventos", l: "📅 Eventos" },
     { id: "autorizaciones", l: "✍️ Autorizaciones" },
+    { id: "mensajes_familias", l: "💬 Mensajes de familias", soloColegioAdmin: true },
+    { id: "denuncias", l: "🚩 Denuncias" },
     { id: "adopcion", l: "📈 Adopción" },
   ]},
   { grupo: "Colegio", items: [
     { id: "colegio", l: "🏫 Colegio" },
     { id: "menu", l: "🍽️ Menú" },
+  ]},
+  { grupo: "Ayuda", items: [
+    { id: "soporte", l: "🛟 Soporte", soloSuper: true },
+    { id: "soporte_colegio", l: "🛟 Ayuda y soporte", soloColegioAdmin: true },
   ]},
 ];
 const TODAS_SECCIONES = SECCIONES.flatMap((g) => g.items);
@@ -647,7 +654,7 @@ export function SuperAdmin() {
 
       {sec === null ? (
         <View>
-          {SECCIONES.map((g) => (
+          {SECCIONES.map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin)) })).filter((g) => g.items.length).map((g) => (
             <View key={g.grupo} style={styles.grupoWrap}>
               <Text style={styles.grupoLabel}>{g.grupo}</Text>
               <View style={styles.moduloGrid}>
@@ -883,6 +890,10 @@ export function SuperAdmin() {
       {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
+      {sec === "denuncias" ? <DenunciasColegio key={activeColegioId} colegioId={activeColegioId} /> : null}
+      {sec === "soporte" && !esColegioAdmin ? <BandejaSoporte /> : null}
+      {sec === "soporte_colegio" ? <SoporteColegioAdmin /> : null}
+      {sec === "mensajes_familias" && esColegioAdmin ? <BandejaColegio /> : null}
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>

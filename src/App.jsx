@@ -30,9 +30,11 @@ const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas"
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
 const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
 const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
+const Mensajes         = aLazy(() => import("./features/mensajes"), "Mensajes");
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
+import { useMensajesNoLeidos } from "./hooks/useMensajesNoLeidos";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
 // ── Capacitor nativo: solo carga en la app Android, no en la web ──
@@ -47,7 +49,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin"]);
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes"]);
 // Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
 // se marca el ítem "comunidad".
 const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","servicios"]);
@@ -69,6 +71,7 @@ const TAB_MAP = {
   perdido:      "perdidos",
   marketplace:  "marketplace",
   resumen:      "muro", // resumen semanal (avisos-automaticos)
+  mensaje:      "mensajes",
 };
 
 // Inicializar OneSignal via import dinámico con reintentos
@@ -154,6 +157,14 @@ function App() {
   const [openColecta,   setOpenColecta]   = useState(null);
   const [openFecha,     setOpenFecha]     = useState(null);
   const [openAviso,     setOpenAviso]     = useState(null); // { id, n } — aviso a resaltar en Avisos
+  // Pedido de navegación a Mensajes ({ conversacionId | soporte | usuarioId, n }).
+  // `?tab=mensajes&c=<id>` (link de una conversación) abre esa al entrar.
+  const [abrirMensajes, setAbrirMensajes] = useState(() => {
+    try {
+      const c = new URLSearchParams(window.location.search).get("c");
+      return c ? { conversacionId: c, n: 1 } : null;
+    } catch { return null; }
+  });
   const [cursoIdx,      setCursoIdx]      = useState(0);
   const [items,         setItems]         = useState([]);
   const [colegiosPorId, setColegiosPorId] = useState({});
@@ -224,6 +235,10 @@ function App() {
     cursoIds: _cursoIds, userId: usuario?.id ?? null, active: panelNotifs,
   });
   const badgeCount = avisosVersion === badgeVisto ? 0 : avisosSinLeer;
+  // Mensajes: no leídos + la única suscripción Realtime de la sesión (también
+  // la usa la bandeja de soporte del super, que acá no cuenta badge).
+  const esPanelAdmin = usuario?.rol==="super" || usuario?.rol==="colegio_admin";
+  const { noLeidos: mensajesSinLeer, recargar: recargarMensajes } = useMensajesNoLeidos(usuario?.id ?? null, { contar: !!usuario && !esPanelAdmin });
 
   useEffect(()=>{
     if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
@@ -434,6 +449,30 @@ function App() {
     <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/></Suspense>
   );
 
+  // Docente (specs/mensajes.md): solo Mensajes con las familias de sus cursos
+  // (+ soporte). Sin "Mi acceso" ni el resto de las pestañas.
+  if(usuario.rol==="docente") return (
+    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
+      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
+      {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
+      <div style={{background:"#0F172A",position:"sticky",top:0,zIndex:100,paddingTop:"env(safe-area-inset-top)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",maxWidth:1240,margin:"0 auto",gap:8}}>
+          <Wordmark size={22} letterSpacing={-1}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+            <span style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{usuario.nombre} · Docente</span>
+            <button onClick={()=>setCambiarPass(true)} aria-label="Cambiar contraseña" style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>🔑</button>
+            <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
+          </div>
+        </div>
+      </div>
+      <div style={{flex:1,padding:isMobile?"16px":"20px 40px",boxSizing:"border-box",maxWidth:1240,width:"100%",margin:"0 auto"}}>
+        <Suspense fallback={<Spinner/>}>
+          <Mensajes esDocente userId={usuario.id} items={[]} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes}/>
+        </Suspense>
+      </div>
+    </div>
+  );
+
   const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
   // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
   // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer color"
@@ -467,6 +506,7 @@ function App() {
     {id:"comedor",       label:"Comedor",       emoji:"🍽️"},
     {id:"cumples",       label:"Cumpleaños",    emoji:"🎂"},
     {id:"recordatorios", label:"Avisos", emoji:"📌"},
+    {id:"mensajes",      label:"Mensajes",      emoji:"💬"},
     {id:"perdidos",      label:"Lost & Found",  emoji:"🧦"},
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
@@ -485,7 +525,12 @@ function App() {
     if(extra?.openColecta) setOpenColecta(extra.openColecta);
     if(extra?.openFecha) setOpenFecha(extra.openFecha);
     if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
+    if(extra?.conversacionId || extra?.soporte || extra?.usuarioId) {
+      setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, n: Date.now() });
+    }
   };
+  // "💬 Escribir" en Alumnos → abre (o crea) el 1 a 1 con ese apoderado.
+  const escribirA = (usuarioId) => navegarA("mensajes", { usuarioId });
 
   // Tocar una notificación de la campanita lleva a lo que la originó.
   const abrirNotificacion = (n) => {
@@ -504,7 +549,7 @@ function App() {
       case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
-      case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre}/>;
+      case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre} onEscribir={escribirA}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
       case "recordatorios": return <RecordatoriosTab cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()} openAviso={openAviso}/>;
       case "cumples":  return <Cumpleanios cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
@@ -515,6 +560,7 @@ function App() {
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
+      case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes}/>;
       default: return null;
     }
   };
@@ -628,6 +674,11 @@ function App() {
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600}}>{usuario.nombre?.split(" ")[0]}</div>
+            {/* Mensajes */}
+            <button onClick={()=>{ setTab("mensajes"); setMenuMas(false); }} aria-label={mensajesSinLeer>0?`Mensajes: ${mensajesSinLeer} sin leer`:"Mensajes"} style={{position:"relative",background:tab==="mensajes"?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16}}>
+              💬
+              {mensajesSinLeer>0&&<span style={{position:"absolute",top:0,right:0,background:"#EF4444",color:"white",borderRadius:20,fontSize:8,fontWeight:600,padding:"0 3px",minWidth:14,textAlign:"center",lineHeight:"14px",transform:"translate(4px,-4px)"}}>{mensajesSinLeer>9?"9+":mensajesSinLeer}</span>}
+            </button>
             {/* Campana de notificaciones */}
             <button onClick={()=>setPanelNotifs(p=>!p)} style={{position:"relative",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16}}>
               🔔
@@ -681,11 +732,16 @@ function App() {
             {menuMas&&(
               <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.15)",padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}} onClick={()=>setMenuMas(false)}>
                 {tabsExtra.map(t=>(
-                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10,position:"relative"}}>
                     <span style={{fontSize:20}}>{t.emoji}</span>
                     <span style={{fontSize:10,fontWeight:tabMenu===t.id?700:400,color:"white"}}>{t.label}</span>
+                    {t.id==="mensajes"&&mensajesSinLeer>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 22px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:600,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{mensajesSinLeer>99?"99+":mensajesSinLeer}</span>}
                   </button>
                 ))}
+                <button onClick={()=>navegarA("mensajes",{soporte:true})} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                  <span style={{fontSize:20}}>🛟</span>
+                  <span style={{fontSize:10,fontWeight:400,color:"white"}}>Ayuda y soporte</span>
+                </button>
                 <button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>⚙️</span>
                   <span style={{fontSize:10,fontWeight:400,color:"white"}}>Configurar notificaciones</span>
@@ -756,6 +812,9 @@ function App() {
               {t.id==="recordatorios"&&badgeCount>0&&(
                 <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:600,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{badgeCount>99?"99+":badgeCount}</span>
               )}
+              {t.id==="mensajes"&&mensajesSinLeer>0&&(
+                <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:600,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px"}}>{mensajesSinLeer>99?"99+":mensajesSinLeer}</span>
+              )}
             </button>
           ))}
         </div>
@@ -773,6 +832,7 @@ function App() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{ROL_LABEL[rolEfectivo]}</div>
           </div>
 
+          <button onClick={()=>navegarA("mensajes",{soporte:true})} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🛟 Ayuda y soporte</button>
           <button onClick={()=>setPrefsAvisos(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>⚙️ Configurar notificaciones</button>
           <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
           <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>&larr; Cerrar sesion</button>

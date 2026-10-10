@@ -15,6 +15,7 @@ import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
+import { BloqueadosSheet } from "../../features/mensajes";
 import { deleteMyAccount } from "../../lib/authAdmin";
 import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
 import { supabase } from "../../lib/supabase";
@@ -23,6 +24,7 @@ import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/av
 const t = THEMES.light;
 
 const BASE = [
+  { id: "mensajes", label: "Mensajes", emoji: "💬" },
   { id: "comedor", label: "Comedor", emoji: "🍽️" },
   { id: "perdidos", label: "Lost & Found", emoji: "🧦" },
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
@@ -40,6 +42,7 @@ export default function MasScreen() {
   const router = useRouter();
   const { isAdmin, usuario, logout } = useSession();
   const [cambiarPass, setCambiarPass] = useState(false);
+  const [bloqueados, setBloqueados] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [bioEnabled, setBioEnabledState] = useState(false);
   // Avisos automáticos que quiere recibir (preferencias_avisos; sin fila = todos).
@@ -175,7 +178,22 @@ export default function MasScreen() {
 
       <Text style={styles.label}>Cuenta</Text>
       <View style={styles.card}>
-        <Pressable onPress={() => setCambiarPass(true)} style={styles.crow}>
+        <Pressable onPress={() => router.push({ pathname: "/(tabs)/mensajes", params: { soporte: "1", t: String(Date.now()) } })} style={styles.crow}>
+          <MaterialCommunityIcons name="lifebuoy" size={19} color={t.textMuted} />
+          <View style={styles.flex1}>
+            <Text style={styles.crowTitulo}>Ayuda y soporte</Text>
+            <Text style={styles.crowMeta}>Escribile al equipo de tribbu</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
+        </Pressable>
+        <Pressable onPress={() => setBloqueados(true)} style={[styles.crow, styles.crowBorde]}>
+          <MaterialCommunityIcons name="account-cancel-outline" size={19} color={t.textMuted} />
+          <View style={styles.flex1}>
+            <Text style={styles.crowTitulo}>Usuarios bloqueados</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
+        </Pressable>
+        <Pressable onPress={() => setCambiarPass(true)} style={[styles.crow, styles.crowBorde]}>
           <MaterialCommunityIcons name="key-outline" size={19} color={t.textMuted} />
           <View style={styles.flex1}>
             <Text style={styles.crowTitulo}>Cambiar contraseña</Text>
@@ -208,6 +226,7 @@ export default function MasScreen() {
       </View>
 
       <CambiarPasswordModal visible={cambiarPass} onClose={() => setCambiarPass(false)} />
+      <BloqueadosSheet visible={bloqueados} onCerrar={() => setBloqueados(false)} />
     </ScrollView>
   );
 }

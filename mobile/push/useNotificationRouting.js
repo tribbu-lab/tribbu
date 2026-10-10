@@ -17,6 +17,7 @@ export const TAB_MAP = {
   perdido: "/(tabs)/perdidos",
   marketplace: "/(tabs)/comunidad",
   resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
+  mensaje: "/(tabs)/mensajes",
 };
 
 // Además del tab, arma los params de deep-link específicos por tipo (mismo
@@ -32,6 +33,7 @@ const routeForData = (data) => {
     : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
     : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }
     : type === "perdido" && data?.objetoId ? { openObjeto: String(data.objetoId), t: String(Date.now()) }
+    : type === "mensaje" && data?.conversacionId ? { c: String(data.conversacionId), t: String(Date.now()) }
     : {};
   return { pathname: route, params };
 };

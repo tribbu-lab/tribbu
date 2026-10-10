@@ -17,6 +17,7 @@ import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
+import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
 import { EventosColegio } from "../calendario";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector } from "../../components";
@@ -55,7 +56,10 @@ const SECCIONES = [
     {id:"autorizaciones",l:"✍️ Autorizaciones"},
     {id:"marketplace",l:"🛍️ Marketplace"},
     {id:"perdidos",l:"🧦 Lost & Found"},
+    {id:"mensajes_familias",l:"💬 Mensajes de familias",soloColegioAdmin:true},
+    {id:"denuncias",l:"🚩 Denuncias"},
     {id:"adopcion",l:"📈 Adopción"},
+    {id:"soporte_colegio",l:"🛟 Ayuda y soporte",soloColegioAdmin:true},
   ]},
   { grupo: "Colegio", items: [
     {id:"colegio",l:"🏫 Colegio"},
@@ -65,7 +69,7 @@ const SECCIONES = [
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
-const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"}, {id:"super_admins",l:"👑 Super Admins"} ] };
+const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"}, {id:"soporte",l:"🛟 Soporte"}, {id:"super_admins",l:"👑 Super Admins"} ] };
 
 // Header contextual por módulo (handoff Tribbu Admin): eyebrow (grupo) +
 // título + descripción de qué gestiona la pantalla — reemplaza el título
@@ -84,6 +88,10 @@ const SECCION_INFO = {
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio también puede publicar (por ejemplo, la feria de uniformes) y borrar lo que no corresponda." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
+  mensajes_familias:{ titulo:"Mensajes de familias", descripcion:"Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras." },
+  denuncias:      { titulo:"Denuncias de Mensajes", descripcion:"Mensajes que una familia denunció en el chat. Ves solo el mensaje denunciado, nunca el resto de la conversación." },
+  soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
+  soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
@@ -685,11 +693,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     if(!form.nombre) return;
     const apellido = form.apellido||"";
     const avatar = form.avatar||(`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase()||form.nombre.slice(0,2).toUpperCase();
+    let maestroId = form.id;
     if(modal==="nuevo_maestro") {
       // id generado en el cliente: un colegio_admin no puede leer de vuelta un
       // maestro recién insertado (RLS lo ve solo vía maestro_cursos, que todavía
       // no existe) — con .select().single() eso daba "Error al guardar el maestro".
       const id = uuidLite();
+      maestroId = id;
       const { error } = await supabase.from("maestros").insert({id,nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null});
       if(error) { showToast(`Error al guardar el maestro: ${error.message}`, "error"); return; }
       if(form.cursos?.length) {
@@ -702,7 +712,58 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
       if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
     }
+    if(form.darAcceso && !form.usuario_id) {
+      const ok = await crearAccesoDocente(maestroId);
+      if(!ok) return;
+    } else if(form.usuario_id && form.accesoPass?.trim()) {
+      const ok = await cambiarPassDocente(form.usuario_id, form.accesoPass.trim());
+      if(!ok) return;
+    }
     setModal(null); cargar();
+  };
+
+  // ── Acceso a Mensajes para docentes (rol "docente", specs/mensajes.md) ──
+  // Cuenta propia vinculada a la ficha (maestros.usuario_id): solo ve Mensajes
+  // con las familias de sus cursos. Mismo flujo de alta que un apoderado.
+  const crearAccesoDocente = async (maestroId) => {
+    const email = sanitize(form.email||"").toLowerCase().trim();
+    if(!maestroId) { showToast("Guardá el maestro y después dale acceso desde Editar", "error"); return false; }
+    if(!email || !form.accesoPass?.trim()) { showToast("Para dar acceso hacen falta email y contraseña", "error"); return false; }
+    if(!activeColegioId) { showToast("Elegí un colegio primero", "error"); return false; }
+    let auth_id = null;
+    try {
+      ({ auth_id } = await authAdminCreate(email, form.accesoPass.trim()));
+    } catch(e) { showToast(`No se pudo crear el acceso: ${e.message||e}`, "error"); return false; }
+    const usuarioId = uuidLite();
+    const apellido = form.apellido||"";
+    const { error: eU } = await supabase.from("usuarios").insert({
+      id: usuarioId, nombre: sanitize(form.nombre), apellido: sanitize(apellido)||null, email,
+      rol: "docente", colegio_id: activeColegioId, auth_id, activo: true,
+      avatar: (`${(form.nombre||"")[0]||""}${apellido[0]||""}`).toUpperCase(),
+    });
+    if(eU) { showToast(`No se pudo crear la cuenta: ${eU.message}`, "error"); return false; }
+    const { error: eM } = await supabase.from("maestros").update({ usuario_id: usuarioId }).eq("id", maestroId);
+    if(eM) { showToast(`Cuenta creada, pero no se pudo vincular: ${eM.message}`, "error"); return false; }
+    showToast("✓ Acceso creado: ya puede entrar a tribbu con ese email", "success");
+    return true;
+  };
+  const cambiarPassDocente = async (usuarioId, pass) => {
+    const { data: u } = await supabase.from("usuarios").select("auth_id,email").eq("id", usuarioId).maybeSingle();
+    try {
+      const r = await authAdminUpdate(u?.auth_id, { password: pass, current_email: u?.email });
+      if(r?.auth_id_reparado) await supabase.from("usuarios").update({ auth_id: r.auth_id_reparado }).eq("id", usuarioId);
+    } catch(e) { showToast(`No se pudo cambiar la contraseña: ${e.message||e}`, "error"); return false; }
+    showToast("✓ Contraseña actualizada", "success");
+    return true;
+  };
+  const quitarAccesoDocente = async () => {
+    if(!form.usuario_id || !window.confirm("¿Quitarle el acceso a Mensajes? Ya no va a poder entrar; las conversaciones se conservan.")) return;
+    await supabase.from("usuarios").update({ activo: false }).eq("id", form.usuario_id);
+    const { error } = await supabase.from("maestros").update({ usuario_id: null }).eq("id", form.id);
+    if(error) { showToast("No se pudo quitar el acceso", "error"); return; }
+    setForm(p=>({ ...p, usuario_id: null }));
+    showToast("Acceso quitado", "success");
+    cargar();
   };
 
   const eliminarMaestro = async (id) => {
@@ -759,8 +820,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // Nav visible: super sin colegio elegido todavía solo tiene "Plataforma"
   // (nada más que mostrar sin un colegio activo); con uno elegido, o siendo
   // colegio_admin (que siempre tiene el suyo), se agrega el resto tal cual.
+  // "🛟 Ayuda y soporte" (escribirle al equipo tribbu) es del colegio_admin;
+  // el super atiende esas consultas en Plataforma → 🛟 Soporte.
+  const seccionesColegio = esSuper
+    ? SECCIONES.map(g=>({ ...g, items: g.items.filter(i=>!i.soloColegioAdmin) }))
+    : SECCIONES;
   const seccionesVisibles = esSuper
-    ? (colegioId ? [SECCION_PLATAFORMA, ...SECCIONES] : [SECCION_PLATAFORMA])
+    ? (colegioId ? [SECCION_PLATAFORMA, ...seccionesColegio] : [SECCION_PLATAFORMA])
     : SECCIONES;
 
   return (
@@ -1053,6 +1119,29 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
               <CursoListSelector cursos={cursosAnoActual} seleccionados={form.cursos||[]} onToggle={id=>setForm(p=>{ const sel=(p.cursos||[]).includes(id); return {...p,cursos:sel?p.cursos.filter(x=>x!==id):[...(p.cursos||[]),id]}; })}/>
+            </div>
+            <div style={{marginBottom:12,padding:12,borderRadius:12,border:"1px solid #E2E8F0",background:"#F8FAFC"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso a Mensajes</div>
+              {form.usuario_id ? (
+                <>
+                  <div style={{fontSize:12.5,color:"#065F46",fontWeight:700,marginBottom:8}}>✓ Puede entrar a tribbu y chatear con las familias de sus cursos{form.email?` (${form.email})`:""}.</div>
+                  <input type="password" value={form.accesoPass||""} onChange={e=>setForm(p=>({...p,accesoPass:e.target.value}))} placeholder="Nueva contraseña (opcional)" autoComplete="new-password" style={{...inp,marginBottom:8}}/>
+                  <button onClick={quitarAccesoDocente} style={{border:"none",background:"none",color:"#EF4444",fontSize:12,fontWeight:700,cursor:"pointer",padding:0}}>Quitar acceso</button>
+                </>
+              ) : (
+                <>
+                  <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer"}}>
+                    <input type="checkbox" checked={!!form.darAcceso} onChange={e=>setForm(p=>({...p,darAcceso:e.target.checked}))}/>
+                    <span style={{color:"#0F172A"}}>Darle acceso para chatear con las familias</span>
+                  </label>
+                  {form.darAcceso?(
+                    <div style={{marginTop:8}}>
+                      <div style={{fontSize:11.5,color:"#64748B",marginBottom:6}}>Entra con el email de arriba y esta contraseña. Solo ve Mensajes; el colegio puede leer sus chats.</div>
+                      <input type="password" value={form.accesoPass||""} onChange={e=>setForm(p=>({...p,accesoPass:e.target.value}))} placeholder="Contraseña inicial" autoComplete="new-password" style={inp}/>
+                    </div>
+                  ):null}
+                </>
+              )}
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
@@ -1590,6 +1679,18 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="marketplace"&&(
         <MarketplaceColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
+      )}
+      {sec==="mensajes_familias"&&!esSuper&&(
+        <BandejaColegio userId={usuario?.id} isMobile={isMobile}/>
+      )}
+      {sec==="denuncias"&&(
+        <DenunciasColegio colegioId={activeColegioId}/>
+      )}
+      {sec==="soporte"&&esSuper&&(
+        <BandejaSoporte userId={usuario?.id} isMobile={isMobile}/>
+      )}
+      {sec==="soporte_colegio"&&(
+        <SoporteColegioAdmin userId={usuario?.id} colegioNombre={colegioNombre} isMobile={isMobile}/>
       )}
       {sec==="perdidos"&&(
         <PerdidosColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>

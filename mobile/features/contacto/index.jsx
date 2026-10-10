@@ -4,6 +4,7 @@
 // - Alumnos: listado del curso con sus apoderados (solo lectura, igual que la web).
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "expo-router";
 import { View, Text, Pressable, ScrollView, TextInput, Linking, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
@@ -195,7 +196,8 @@ const ICONO_FILA = {
 };
 
 export function Alumnos() {
-  const { cursoIds, esVistaTodos, tagDeCurso } = useSession();
+  const { cursoIds, esVistaTodos, tagDeCurso, usuario } = useSession();
+  const router = useRouter();
   const [hijos, setHijos] = useState([]);
   const [apodMap, setApodMap] = useState({});
   const [busqueda, setBusqueda] = useState("");
@@ -276,6 +278,18 @@ export function Alumnos() {
                     </Text>
                   ) : null}
                 </View>
+                {a.id !== usuario?.id ? (
+                  <Pressable
+                    onPress={() => router.push({ pathname: "/(tabs)/mensajes", params: { usuario: a.id, t: String(Date.now()) } })}
+                    style={styles.escribirBtn}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Escribirle a ${fmtNombre(a)}`}
+                  >
+                    <MaterialCommunityIcons name="message-outline" size={15} color={BLUE[700]} />
+                    <Text style={styles.escribirTxt}>Escribir</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ))
           )}
@@ -399,6 +413,8 @@ const styles = StyleSheet.create({
   alumnoNac: { fontSize: 11.5, color: t.textMuted, marginTop: 2 },
   apodBox: { borderTopWidth: 1, borderTopColor: t.border, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, gap: SPACE.sm },
   apodRow: { flexDirection: "row", alignItems: "flex-start", gap: SPACE.sm },
+  escribirBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: BLUE[200], backgroundColor: BLUE[50], alignSelf: "center" },
+  escribirTxt: { fontSize: 12, fontWeight: "700", color: BLUE[700] },
   apodDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: t.accent, marginTop: 5 },
   apodNombre: { fontSize: 12.5, fontWeight: "600", color: t.textStrong, lineHeight: 16 },
   apodDato: { fontSize: 11.5, color: t.textMuted, marginTop: 1 },

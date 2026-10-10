@@ -88,7 +88,7 @@ function CursoHeader({ tag }) {
   );
 }
 
-export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin, userId, cursoNombre="" }) {
+export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin, userId, cursoNombre="", onEscribir }) {
   const [sec,setSec] = useState("utiles");
 
   return (
@@ -103,7 +103,7 @@ export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin,
       {sec==="utiles"    &&<Utiles    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
       {sec==="uniformes" &&<Uniformes cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
       {sec==="libros"    &&<Libros    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin}/>}
+      {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={userId} onEscribir={onEscribir}/>}
     </div>
   );
 }
