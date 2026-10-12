@@ -29,6 +29,8 @@ import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../li
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
+import { etiquetaDocente } from "../../lib/docentes";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -190,6 +192,8 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
   // Sin datos todavía: si ya falló el primer intento, mostrar el error con
   // reintentar en vez de un Spinner eterno (Tanda 1 del handoff — antes una
   // falla de red en la primera carga dejaba el muro cargando para siempre).
+  // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" en Pendientes.
+  const docenteDe = useAutoresDocentesHook((datos?.recordatorios||[]).map(r=>r.creado_por));
   if(!datos) return error ? <ErrorMuro onReintentar={cargar} tieneDatos={false}/> : <Spinner/>;
 
   // Colecta más próxima a cerrar entre las que YA cerrará; solo para el
@@ -229,7 +233,7 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
     ...datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
       key:`r-${r.id}`, tipo:"Aviso", color:"#DC2626", soft:"#FEF2F2", borde:"#FECACA",
       icon:"📌", titulo:r.titulo||r.texto,
-      meta:`Sin leer${r.fecha?` · ${new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}`:""}${fmtRangoHora(r.hora_inicio,r.hora_fin)?` · ${fmtRangoHora(r.hora_inicio,r.hora_fin)}`:""}${r.grupo_id?" · 🏫 Comunicación del colegio":""}`,
+      meta:`Sin leer${r.fecha?` · ${new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}`:""}${fmtRangoHora(r.hora_inicio,r.hora_fin)?` · ${fmtRangoHora(r.hora_inicio,r.hora_fin)}`:""}${r.grupo_id?" · 🏫 Comunicación del colegio":""}${docenteDe(r.creado_por)?` · ${etiquetaDocente(docenteDe(r.creado_por))}`:""}`,
       accion:"Marcar leído", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
       onAccion:(e)=>{e.stopPropagation();marcarLeidoMuro(r.id);}, onPress:()=>onNavigate?.("recordatorios"),
       tag:tagDe(r.curso_id), chip:chipDias(diasHasta(r.fecha)),

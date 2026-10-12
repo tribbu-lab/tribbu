@@ -18,6 +18,8 @@ import { FestejoDetalleModal } from "../cumples";
 import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
 import { useCargar } from "../../hooks/useCargar";
 import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib/calendarioRango";
+import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
+import { etiquetaDocente } from "../../lib/docentes";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -42,7 +44,9 @@ function TagHijo({ tag }) {
   );
 }
 
-export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha }) {
+export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha, cursosDocente=[] }) {
+  // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
+  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
   const [horarioColegio, setHorarioColegio] = useState(null);
@@ -53,6 +57,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [vista,   setVista]   = useState("mes");
   const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
+  // Eventos publicados por docentes: etiqueta "👩‍🏫 Laura · Inglés".
+  const docenteDe = useAutoresDocentes(eventos.map(e=>e.creado_por));
   const [cumples, setCumples] = useState([]);
   const [diaSelec,setDiaSelec]= useState(null);
   const [modal,   setModal]   = useState(null);
@@ -230,7 +236,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
         <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Calendario 📅</div>
-        {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
+        {puedeCrear&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
       </div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>Clases, eventos y cumpleaños</div>
 
@@ -280,7 +286,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                 <div style={{fontSize:14,fontWeight:800}}>
                   {diaSelec.day} de {MESES[diaSelec.month]}
                 </div>
-                {isAdmin&&<button onClick={()=>setModal("nuevo")} style={{padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+                {puedeCrear&&<button onClick={()=>setModal("nuevo")} style={{padding:"5px 12px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
               </div>
               {evDiaSelec.length===0
                 ? <div style={{fontSize:13,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin eventos este día</div>
@@ -293,6 +299,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                             <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
                             <TagHijo tag={tagDeCurso(e.curso_id)}/>
+                            {docenteDe(e.creado_por)?<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1"}}>{etiquetaDocente(docenteDe(e.creado_por))}</span>:null}
                           </div>
                           <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
                             {cfg.label}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
@@ -380,6 +387,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                       <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
                       <TagHijo tag={tagDeCurso(e.curso_id)}/>
+                      {docenteDe(e.creado_por)?<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1"}}>{etiquetaDocente(docenteDe(e.creado_por))}</span>:null}
                     </div>
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
                       {fmtRangoFecha(e.fecha, e.fecha_fin)}

@@ -124,7 +124,7 @@ export function MateriasAdmin({ colegioId, showToast }) {
       ) : null}
 
       <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
-        La lista de materias del colegio. Cada curso arma sus <b style={{ color: C.text }}>clases</b> eligiendo de acá (en 🕐 Horarios o en la ficha de cada maestro). Si hay dos nombres para lo mismo (“Gym” y “Educación Física”), usá <b style={{ color: C.text }}>Unificar</b>.
+        Las clases se asignan en 🕐 Horarios o en la ficha de cada maestro. Si hay dos nombres para lo mismo (“Gym” y “Educación Física”), usá <b style={{ color: C.text }}>Unificar</b>.
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <input value={nueva} onChange={(e) => setNueva(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") crear(); }} placeholder="Nueva materia (ej: Inglés)" aria-label="Nueva materia" style={{ ...inp, flex: "1 1 220px" }} />

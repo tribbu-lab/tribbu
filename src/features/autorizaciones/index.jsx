@@ -237,7 +237,7 @@ async function cargarDatos(cursoIds, { soloGestion = false, misHijosIds = [] } =
 }
 
 /** Pestaña de las familias / Room Parent. */
-export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, misHijos = [] }) {
+export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, misHijos = [], cursosDocente = [] }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
   const [cursosInfo, setCursosInfo] = useState([]);
@@ -250,13 +250,17 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
   useCargar(cargar);
 
   // Cursos donde puede crear: Room Parent (en Todos, los de cursosAdmin).
-  const cursosQueGestiona = esVistaTodos ? cursosAdmin : (isAdmin && cursoId ? [cursoId] : []);
+  // Room Parent: gestiona todo lo del curso. Docente: crea en sus cursos, pero
+  // gestiona solo lo suyo (RLS: puede_ver_lecturas = creador o colegio).
+  const cursosRoom = esVistaTodos ? cursosAdmin : (isAdmin && cursoId ? [cursoId] : []);
+  const cursosDoc = esVistaTodos ? cursosDocente : (cursoId && cursosDocente.includes(cursoId) ? [cursoId] : []);
+  const cursosQueGestiona = [...new Set([...cursosRoom, ...cursosDoc])];
   useEffect(() => {
     if (!cursosQueGestiona.length) return;
     supabase.from("cursos").select("id,nombre").in("id", cursosQueGestiona).then(({ data }) => setCursosInfo(data || []));
   }, [cursosQueGestiona.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const gestiona = (a) => a.creado_por === userId || cursosQueGestiona.includes(a.curso_id);
+  const gestiona = (a) => a.creado_por === userId || cursosRoom.includes(a.curso_id);
 
   if (!datos) return <div style={{ padding: 30, textAlign: "center", color: "#94A3B8" }}>Cargando…</div>;
   const { autorizaciones, respuestas, alumnos } = datos;

@@ -2548,7 +2548,7 @@ export function HorariosAdmin({ cursos, colegioId, showToast }) {
         {n:cursos.length, l:"Cursos"},
         {n:Object.keys(clasesPorCurso).length, l:"Con horario", c:"#10B981", sub:`de ${cursos.length}`},
         {n:cursos.length-Object.keys(clasesPorCurso).length, l:"Sin horario", c:"#B45309"},
-        {n:Object.values(clasesPorCurso).reduce((a,b)=>a+b,0), l:"Clases cargadas"},
+        {n:Object.values(clasesPorCurso).reduce((a,b)=>a+b,0), l:"Bloques de horario"},
       ]}/>
 
       {/* Selector de curso */}

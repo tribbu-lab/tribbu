@@ -4,6 +4,8 @@ import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
 import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
+import { etiquetaDocente } from "../../lib/docentes";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
@@ -90,6 +92,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
 }
 
 export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onAbrir, onCerrar }) {
+  const docenteDe = useAutoresDocentes((notifs||[]).map(n=>n.creado_por));
   const PRIO = {
     alta:   { c: "#EF4444", bg: "#FEF2F2" },
     media:  { c: "#F59E0B", bg: "#FFFBEB" },
@@ -233,6 +236,9 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onAb
                       )}
                       {n.urgente&&!esAlerta&&(
                         <span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 6px",borderRadius:6}}>Urgente</span>
+                      )}
+                      {!esAlerta&&docenteDe(n.creado_por)&&(
+                        <span style={{fontSize:10,fontWeight:700,color:"#0369A1",background:"#F0F9FF",padding:"2px 6px",borderRadius:6,whiteSpace:"nowrap"}}>{etiquetaDocente(docenteDe(n.creado_por))}</span>
                       )}
                       {!esAlerta&&n.grupo_id&&(
                         <span style={{fontSize:10,fontWeight:700,color:"#6366F1",background:"#EEF2FF",padding:"2px 6px",borderRadius:6,whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>

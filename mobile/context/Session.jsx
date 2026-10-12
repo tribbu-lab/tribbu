@@ -10,7 +10,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { supabase } from "../lib/supabase";
 import { getHijoColor, setHijoColor } from "@shared/helpers";
 import { HIJO_COLOR_DEFAULT } from "@shared/theme";
-import { SELECT_USUARIO_SESION, armarUsuario } from "@shared/sesion";
+import { SELECT_USUARIO_SESION, armarUsuario, itemsDeDocente } from "@shared/sesion";
 import { registerForPush, savePushToken } from "../push/register";
 
 const SessionContext = createContext(null);
@@ -60,12 +60,23 @@ export function SessionProvider({ children }) {
   // Cargar "items" (hijos + cursos admin) cuando hay usuario no-super.
   // super y colegio_admin no tienen "Mi acceso" — van directo a su panel.
   useEffect(() => {
-    if (!usuario || usuario.rol === "super" || usuario.rol === "colegio_admin" || usuario.rol === "docente") {
+    if (!usuario || usuario.rol === "super" || usuario.rol === "colegio_admin") {
       setItems([]);
       return;
     }
     let cancel = false;
     (async () => {
+      // Docente: "Mi acceso" = sus cursos (de sus clases, ya en la sesión).
+      if (usuario.rol === "docente") {
+        setItems(itemsDeDocente(usuario.cursosDocente));
+        setCursoIdx(0);
+        const ids = [...new Set((usuario.cursosDocente || []).map((c) => c.colegio_id).filter(Boolean))];
+        if (ids.length) {
+          const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url,color_primario").in("id", ids);
+          if (!cancel) setColegiosPorId(Object.fromEntries((cols || []).map((c) => [c.id, c])));
+        }
+        return;
+      }
       // Hijos y cursos de Room Parent ya vienen con el usuario
       // (SELECT_USUARIO_SESION): sin otro viaje a usuario_hijos/usuario_cursos.
       const cursosAdmin = new Set((usuario.cursosConRol || []).filter((r) => r.rol === "room").map((r) => r.curso_id));
@@ -155,7 +166,7 @@ export function SessionProvider({ children }) {
 
   // Cursos distintos donde el usuario tiene hijos (excluye el pseudo-item "Todos").
   const cursosHijos = useMemo(
-    () => [...new Set(items.filter((i) => i._tipo === "hijo").map((i) => i.curso_id).filter(Boolean))],
+    () => [...new Set(items.filter((i) => i._tipo === "hijo" || i._tipo === "curso").map((i) => i.curso_id).filter(Boolean))],
     [items]
   );
 
@@ -166,6 +177,7 @@ export function SessionProvider({ children }) {
   const tagPorCurso = useMemo(() => {
     const m = new Map();
     for (const it of items) {
+      if (it._tipo === "curso") { m.set(it.curso_id, { nombre: it.nombre?.split(" - ")[0]?.trim() || it.nombre, color: colorDeItem(it) }); continue; }
       if (it._tipo !== "hijo" || !it.curso_id) continue;
       const nombre = it.nombre?.split(" ")[0] || "";
       const prev = m.get(it.curso_id);
@@ -186,7 +198,8 @@ export function SessionProvider({ children }) {
     const itemActual = items[cursoIdx] || null;
     // En "Todos" no hay curso único: sin rol admin (las acciones por curso
     // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
-    const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
+    const esDocente = usuario?.rol === "docente";
+    const rolEfectivo = esVistaTodos ? (esDocente ? "docente" : "padre") : itemActual?.rolEfectivo || "padre";
     const cursoId = esVistaTodos ? null : itemActual?.curso_id ?? null;
     // Igual criterio que colegioActivo en src/App.jsx (web): solo con un
     // colegio inequívoco (no en Todos, ni sin logo cargado).
@@ -198,6 +211,10 @@ export function SessionProvider({ children }) {
       // colegio_admin: mismo panel de administración que super pero acotado a
       // su colegio_id por RLS. NO es isSuper (no activa lógica de plataforma).
       esColegioAdmin: usuario?.rol === "colegio_admin",
+      // Docente (specs/docentes-clases-y-grupos.md): sus cursos en "Mi acceso",
+      // publica en ellos; cursosDocente = ids donde puede publicar.
+      esDocente,
+      cursosDocente: esDocente ? (usuario?.cursosDocente || []).map((c) => c.id) : [],
       items,
       cursoIdx,
       setCursoIdx,

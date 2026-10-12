@@ -1,6 +1,6 @@
 ---
 title: Docentes con sus cursos, materias y clases, y grupos de mensajes
-status: in-progress (fase A implemented 2026-10-12)
+status: in-progress (fases A y B implementadas 2026-10-12)
 priority: high
 ---
 
@@ -40,15 +40,15 @@ completa) → C (grupos).
 - [x] En Mensajes → Nuevo → Maestras, cada maestra aparece con la materia que da en ese curso.
 
 ### Fase B: docente completa
-- [ ] Una docente entra a tribbu con "Mi acceso" = sus cursos (uno por curso, con el color del curso; "Todos" si tiene más de uno), igual que un apoderado con varios hijos.
-- [ ] Ve, para sus cursos: Inicio (pendientes y agenda del curso), Avisos, Calendario + Horario, Alumnos (nombre del alumno y nombres de sus apoderados, **sin teléfono ni email**) y Mensajes. No ve Colectas, Cumpleaños/festejos de las familias, Marketplace, Lost & Found ni Comedor.
-- [ ] Puede publicar **Avisos** (con push) para uno o varios de sus cursos; se muestran con una etiqueta "👩‍🏫 Seño Laura · Inglés" en Avisos, Muro y Notificaciones, y se pueden filtrar por origen como las comunicaciones del colegio.
-- [ ] Puede crear **Eventos** en el calendario de sus cursos (pruebas, salidas, entregas), con la misma etiqueta.
-- [ ] Puede pedir **Autorizaciones** a sus cursos y ver las respuestas por alumno (igual que la Room Parent).
-- [ ] Puede crear **Encuestas** para sus cursos y ver resultados; **no** puede votar en encuestas de las familias.
-- [ ] Edita y borra solo lo que ella publicó; el colegio puede editar o borrar lo de sus docentes.
-- [ ] Desde Alumnos, "💬 Escribir a la familia" abre el hilo alumno × maestra (ya existente).
-- [ ] Funciona en web (desktop sidebar y mobile web) y en la app, con el mismo patrón de navegación que el apoderado (bottom tabs + Más).
+- [x] Una docente entra a tribbu con "Mi acceso" = sus cursos (uno por curso, con el color del curso; "Todos" si tiene más de uno), igual que un apoderado con varios hijos.
+- [x] Ve, para sus cursos: Inicio (pendientes y agenda del curso), Avisos, Calendario + Horario, Alumnos (nombre del alumno y nombres de sus apoderados, **sin teléfono ni email**) y Mensajes. No ve Colectas, Cumpleaños/festejos de las familias, Marketplace, Lost & Found ni Comedor.
+- [x] Puede publicar **Avisos** (con push) para uno o varios de sus cursos; se muestran con una etiqueta "👩‍🏫 Seño Laura · Inglés" en Avisos, Muro y Notificaciones, y se pueden filtrar por origen como las comunicaciones del colegio.
+- [x] Puede crear **Eventos** en el calendario de sus cursos (pruebas, salidas, entregas), con la misma etiqueta.
+- [x] Puede pedir **Autorizaciones** a sus cursos y ver las respuestas por alumno (igual que la Room Parent).
+- [x] Puede crear **Encuestas** para sus cursos y ver resultados; **no** puede votar en encuestas de las familias.
+- [x] Edita y borra solo lo que ella publicó; el colegio puede editar o borrar lo de sus docentes.
+- [x] Desde Alumnos, "💬 Escribir a la familia" abre el hilo alumno × maestra (ya existente).
+- [x] Funciona en web (desktop sidebar y mobile web) y en la app, con el mismo patrón de navegación que el apoderado (bottom tabs + Más).
 
 ### Fase C: mensajes a varias familias
 - [ ] **Grupo del curso** (fase 2 de specs/mensajes.md): uno por curso del año, automático, con todas las familias del curso y su Room Parent (sin maestras ni colegio). Lo modera la Room Parent; cada mensaje lleva quién lo escribió; se puede silenciar; requiere aceptar las normas.

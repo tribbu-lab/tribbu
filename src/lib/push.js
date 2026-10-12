@@ -39,30 +39,13 @@ export const sendPush = async ({ type, payload }) => {
 };
 
 /**
- * Devuelve todos los usuario_id vinculados a un curso:
- * admins directos + padres de hijos de ese curso.
+ * Devuelve todos los usuario_id vinculados a un curso (familias + Room
+ * Parents) en una sola request: RPC usuarios_de_curso (supabase/docentes.sql).
+ * Antes eran 3 lecturas en serie (usuario_cursos, hijos, usuario_hijos), que
+ * además una docente no puede hacer por RLS — sus avisos no le llegaban a nadie.
  */
 export const getUserIdsByCurso = async (cursoId) => {
-  const { data: adminRows } = await supabase
-    .from("usuario_cursos")
-    .select("usuario_id")
-    .eq("curso_id", cursoId);
-
-  const adminIds = (adminRows || []).map((r) => r.usuario_id);
-
-  const { data: hijos } = await supabase
-    .from("hijos")
-    .select("id")
-    .eq("curso_id", cursoId);
-
-  const hijoIds = (hijos || []).map((h) => h.id);
-  if (!hijoIds.length) return adminIds;
-
-  const { data: padres } = await supabase
-    .from("usuario_hijos")
-    .select("usuario_id")
-    .in("hijo_id", hijoIds);
-
-  const padreIds = (padres || []).map((r) => r.usuario_id);
-  return [...new Set([...adminIds, ...padreIds])];
+  const { data, error } = await supabase.rpc("usuarios_de_curso", { p_curso: cursoId });
+  if (error) { console.error("usuarios_de_curso:", error.message); return []; }
+  return [...new Set((data || []).map((r) => (typeof r === "string" ? r : r.usuarios_de_curso)))];
 };

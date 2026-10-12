@@ -38,7 +38,9 @@ const TIPO_CONFIG = {
 const pad = (n) => String(n).padStart(2, "0");
 
 export function Calendario({ openFecha = null, onClearOpenFecha }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [] } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [] } = useSession();
+  // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
+  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const userId = usuario?.id ?? null;
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -234,7 +236,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
       <View style={styles.headerRow}>
         <Text style={styles.h1}>Calendario</Text>
-        {isAdmin ? (
+        {puedeCrear ? (
           <Pressable onPress={() => setModal("nuevo")} style={styles.addBtn}>
             <Text style={styles.addTxt}>+ Evento</Text>
           </Pressable>
@@ -315,7 +317,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
                 <Text style={styles.diaTitle}>
                   {diaSelec.day} de {MESES[diaSelec.month]}
                 </Text>
-                {isAdmin ? (
+                {puedeCrear ? (
                   <Pressable onPress={() => setModal("nuevo")} style={styles.miniAdd}>
                     <Text style={styles.miniAddTxt}>+ Agregar</Text>
                   </Pressable>

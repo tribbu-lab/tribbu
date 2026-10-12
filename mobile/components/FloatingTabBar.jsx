@@ -7,6 +7,7 @@
 
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSession } from "../context/Session";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, BLUE, RADIUS, SHADOW, TYPE } from "@shared/tokens";
 
@@ -30,12 +31,14 @@ const TABS = [
 ];
 
 export function FloatingTabBar({ state, navigation, badge = 0 }) {
+  // La docente no tiene Cumpleaños (es de las familias).
+  const { esDocente } = useSession();
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.wrap, { paddingBottom: insets.bottom + 8 }]} pointerEvents="box-none">
       <View style={styles.bar}>
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => !(esDocente && tab.name === "cumples")).map((tab) => {
           const idx = state.routes.findIndex((r) => r.name === tab.name);
           if (idx === -1) return null;
           const route = state.routes[idx];

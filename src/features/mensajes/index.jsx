@@ -846,6 +846,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     abrirVisto.current = abrir.n;
     Promise.resolve().then(async () => {
       if (abrir.soporte) { abrirSoporte(); return; }
+      if (abrir.alumnoDocente) { onAlumno(abrir.alumnoDocente); return; }
       if (abrir.conversacionId) {
         const c = convs.find((x) => x.id === abrir.conversacionId);
         if (c) setActiva(c);

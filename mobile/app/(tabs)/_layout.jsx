@@ -60,6 +60,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="contacto" options={hidden} />
         <Tabs.Screen name="admin" options={hidden} />
         <Tabs.Screen name="mensajes" options={hidden} />
+        <Tabs.Screen name="alumnos" options={hidden} />
       </Tabs>
     </View>
     </MensajesProvider>

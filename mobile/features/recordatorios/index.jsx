@@ -35,6 +35,8 @@ import { DateField } from "../../components/DateField";
 import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { useLecturas } from "../../lib/useLecturas";
 import { useNotificacionesCtx } from "../notificaciones";
+import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
+import { etiquetaDocente } from "@shared/docentes";
 
 // "18", "18:5", "1830", "18:30" → "18:30" · vacío → null · inválido → false.
 const normalizarHora = (v) => {
@@ -80,7 +82,7 @@ const ORIGENES = [
   { value: "normal", label: "Apoderados" },
 ];
 
-const RecordatorioRow = memo(function RecordatorioRow({ r, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
+const RecordatorioRow = memo(function RecordatorioRow({ r, docente = null, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
   // El aviso al que se llegó desde una notificación se muestra completo.
   const [expandido, setExpandido] = useState(resaltado);
   const esLargo = (r.texto || "").length > 150;
@@ -94,7 +96,7 @@ const RecordatorioRow = memo(function RecordatorioRow({ r, resaltado = false, es
     ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" })
     : null;
   const horaRango = fmtRangoHora(r.hora_inicio, r.hora_fin);
-  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null, r.grupo_id ? "🏫 Comunicación del colegio" : null]
+  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null, r.grupo_id ? "🏫 Comunicación del colegio" : null, docente]
     .filter(Boolean)
     .join(" · ") || "Sin fecha";
   const dotColor = r.urgente ? t.danger : prio.c;
@@ -155,6 +157,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   const recargarBadge = notifCtx?.recargar;
 
   const [recordatorios, setRecordatorios] = useState([]);
+  // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" (specs/docentes-clases-y-grupos.md).
+  const docenteDe = useAutoresDocentes(recordatorios.map((r) => r.creado_por));
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [verLecturas, setVerLecturas] = useState(null); // aviso con "¿quién lo leyó?" abierto
@@ -391,6 +395,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
         keyExtractor={(r) => String(r.id)}
         renderItem={({ item }) => (
           <RecordatorioRow
+            docente={etiquetaDocente(docenteDe(item.creado_por))}
             r={item}
             resaltado={item.id === resaltado}
             esLeido={leidosSet.has(item.id)}

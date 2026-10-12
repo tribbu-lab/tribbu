@@ -702,8 +702,8 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   );
 });
 
-export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, nonce = null, esDocente = false }) {
-  const { usuario, items, tagDeCurso } = useSession();
+export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, nonce = null }) {
+  const { usuario, items, tagDeCurso, esDocente } = useSession();
   const userId = usuario?.id ?? null;
   const { recargar: recargarBadge } = useMensajesCtx();
   const [convs, setConvs] = useState(null);
@@ -785,10 +785,11 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   // Deep links: push (c), "Ayuda y soporte" (soporte), Alumnos (usuario). Una vez por nonce.
   useEffect(() => {
     if (!convs) return;
-    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}`;
-    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario)) return;
+    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}|${abrirAlumno?.hijo_id}`;
+    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario && !abrirAlumno)) return;
     visto.current = clave;
     if (pedirSoporte) { abrirSoporte(); return; }
+    if (abrirAlumno) { onAlumno(abrirAlumno); return; }
     if (abrirConv) {
       const c = convs.find((x) => x.id === abrirConv);
       if (c) setActiva(c);

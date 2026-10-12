@@ -17,6 +17,8 @@ import { Paginador } from "../../components/Paginador";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
+import { etiquetaDocente } from "../../lib/docentes";
 
 // Último publicado primero (creado_en), no por la fecha del aviso: ordenar por
 // `fecha` dejaba arriba un aviso con fecha lejana y los recién llegados abajo.
@@ -40,6 +42,8 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [filtroPrio,    setFiltroPrio]    = useState("all");
   const [filtroLeido,   setFiltroLeido]   = useState("all");
   const [filtroOrigen,  setFiltroOrigen]  = useState("all");
+  // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" y filtro por origen.
+  const docenteDe = useAutoresDocentes(recordatorios.map(r=>r.creado_por));
   const [expandidos,    setExpandidos]    = useState(()=>new Set());
   const toggleExpandido = (id) => setExpandidos(p=>{ const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const [pagina,        setPagina]        = useState(1);
@@ -177,7 +181,8 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     if(filtroLeido==="leidos"   && !leidosSet.has(r.id)) return false;
     if(filtroLeido==="noleidos" &&  leidosSet.has(r.id)) return false;
     if(filtroOrigen==="colegio" && !r.grupo_id) return false;
-    if(filtroOrigen==="normal"  &&  r.grupo_id) return false;
+    if(filtroOrigen==="docente" && !docenteDe(r.creado_por)) return false;
+    if(filtroOrigen==="normal"  && (r.grupo_id || docenteDe(r.creado_por))) return false;
     return true;
   }).sort(ordenAvisos);
 
@@ -325,6 +330,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         <select value={filtroOrigen} onChange={e=>{setFiltroOrigen(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
           <option value="all">Todos los orígenes</option>
           <option value="colegio">🏫 Comunicaciones del colegio</option>
+          <option value="docente">👩‍🏫 Docentes</option>
           <option value="normal">Apoderados</option>
         </select>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
@@ -376,6 +382,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
               <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}
                 {r.grupo_id&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EEF2FF",color:"#6366F1",whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>}
+                {docenteDe(r.creado_por)&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1",whiteSpace:"nowrap"}}>{etiquetaDocente(docenteDe(r.creado_por))}</span>}
                 {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:10,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
                 {r.tipo==="regalo_cumple"
                   ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>

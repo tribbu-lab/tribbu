@@ -21,9 +21,9 @@ export const T = {
 // "room" (ver supabase/rol-admin-a-room.sql) — el label visible ya decía
 // "Room Parent" desde antes, esto solo evita que el identificador se
 // confunda con las nociones nuevas de admin de plataforma/colegio.
-export const ROL_LABEL = { padre: "Apoderado", room: "Room Parent", super: "Super Admin", colegio_admin: "Admin de Colegio" };
-export const ROL_COLOR = { padre: "#3B82F6",   room: "#10B981",    super: "#8B5CF6",       colegio_admin: "#F59E0B" };
-export const ROL_BG    = { padre: "#EFF6FF",   room: "#F0FDF4",    super: "#F5F3FF",       colegio_admin: "#FFFBEB" };
+export const ROL_LABEL = { padre: "Apoderado", room: "Room Parent", super: "Super Admin", colegio_admin: "Admin de Colegio", docente: "Docente" };
+export const ROL_COLOR = { padre: "#3B82F6",   room: "#10B981",    super: "#8B5CF6",       colegio_admin: "#F59E0B", docente: "#0EA5E9" };
+export const ROL_BG    = { padre: "#EFF6FF",   room: "#F0FDF4",    super: "#F5F3FF",       colegio_admin: "#FFFBEB", docente: "#F0F9FF" };
 
 export const HIJO_COLORS_CUSTOM = [
   "#F43F5E","#F97316","#EAB308","#22C55E",

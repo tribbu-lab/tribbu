@@ -34,13 +34,19 @@ const BASE = [
   { id: "info", label: "Info Útil", emoji: "📋" },
   { id: "contacto", label: "Contacto", emoji: "📞" },
 ];
+const DOCENTE = [
+  { id: "mensajes", label: "Mensajes", emoji: "💬" },
+  { id: "alumnos", label: "Alumnos", emoji: "🎒" },
+  { id: "encuestas", label: "Encuestas", emoji: "📊" },
+  { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
+];
 const ADMIN = [
   { id: "admin", label: "Admin", emoji: "⚙️" },
 ];
 
 export default function MasScreen() {
   const router = useRouter();
-  const { isAdmin, usuario, logout } = useSession();
+  const { isAdmin, esDocente, usuario, logout } = useSession();
   const [cambiarPass, setCambiarPass] = useState(false);
   const [bloqueados, setBloqueados] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -74,7 +80,8 @@ export default function MasScreen() {
       Alert.alert("No se pudo guardar", "Probá de nuevo en unos minutos.");
     }
   };
-  const opciones = isAdmin ? [...BASE, ...ADMIN] : BASE;
+  // Docente: solo lo de sus cursos (specs/docentes-clases-y-grupos.md, Fase B).
+  const opciones = esDocente ? DOCENTE : isAdmin ? [...BASE, ...ADMIN] : BASE;
 
   useEffect(() => {
     if (!usuario?.id) return;

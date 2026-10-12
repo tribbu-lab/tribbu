@@ -9,7 +9,8 @@ import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
 import { useIsMobile } from "./hooks/useIsMobile";
-import { SELECT_USUARIO_SESION, armarUsuario } from "./lib/sesion";
+import { SELECT_USUARIO_SESION, armarUsuario, itemsDeDocente } from "./lib/sesion";
+import { TABS_DOCENTE } from "./lib/docentes";
 import { TabActivaContext, TAB_ACTIVA, TAB_OCULTA } from "./hooks/useTabActiva";
 
 import { Login, SeleccionPerfil, CambiarPasswordModal, EliminarCuentaModal, NuevaPasswordRecovery } from "./features/auth";
@@ -31,6 +32,7 @@ const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autor
 const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
 const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
 const Mensajes         = aLazy(() => import("./features/mensajes"), "Mensajes");
+const AlumnosDocente   = aLazy(() => import("./features/docente"), "AlumnosDocente");
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones, NotificacionesPanel } from "./features/notificaciones";
@@ -49,7 +51,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes"]);
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos"]);
 // Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
 // se marca el ítem "comunidad".
 const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","servicios"]);
@@ -196,7 +198,7 @@ function App() {
   // Identidad estable: las features dependen de cursoIds en sus efectos y un
   // array nuevo por render dispararía refetches en cadena.
   const _cursoIds = useMemo(()=>{
-    if(_esVistaTodos) return [...new Set(items.filter(i=>i._tipo==="hijo").map(i=>i.curso_id).filter(Boolean))];
+    if(_esVistaTodos) return [...new Set(items.filter(i=>i._tipo==="hijo"||i._tipo==="curso").map(i=>i.curso_id).filter(Boolean))];
     return _cursoId ? [_cursoId] : [];
   },[items, _esVistaTodos, _cursoId]);
   // Ids de mis hijos, memoizado: las pantallas lo usan como dependencia de su
@@ -221,6 +223,9 @@ function App() {
   // hijo): las pantallas lo llaman incondicionalmente para etiquetar filas.
   const tagDeCurso = (cid) => {
     if(!_esVistaTodos || !cid) return null;
+    // Docente: el tag es el curso mismo (nombre corto: "4°B - Primaria" → "4°B").
+    const cur = items.find(i=>i._tipo==="curso" && i.curso_id===cid);
+    if(cur) return { nombre: cur.nombre?.split(" - ")[0]?.trim() || cur.nombre, color: getHijoColorEfectivo(cur) };
     const hs = items.filter(i=>i._tipo==="hijo" && i.curso_id===cid);
     if(!hs.length) return null;
     return {
@@ -243,6 +248,16 @@ function App() {
   useEffect(()=>{
     if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
     const cargarItems = async () => {
+      // Docente: "Mi acceso" = sus cursos (de sus clases, ya en la sesión).
+      if(usuario.rol==="docente") {
+        setItems(itemsDeDocente(usuario.cursosDocente));
+        const colegioIds = [...new Set((usuario.cursosDocente||[]).map(c=>c.colegio_id).filter(Boolean))];
+        if(colegioIds.length) {
+          const { data: cols } = await supabase.from("colegios").select("id,nombre,logo_url,color_primario").in("id",colegioIds);
+          setColegiosPorId(Object.fromEntries((cols||[]).map(c=>[c.id,c])));
+        }
+        return;
+      }
       // 1. Hijos del usuario: ya vienen con el usuario (SELECT_USUARIO_SESION
       // en lib/sesion.js), sin otro viaje a usuario_hijos.
       const uhData = usuario.usuario_hijos || [];
@@ -419,7 +434,11 @@ function App() {
   const colegioActivo = !esVistaTodos ? colegiosPorId[itemActual?.cursos?.colegio_id] : null;
   // En "Todos" no hay curso único: sin rol admin (las acciones por curso
   // requieren elegir un hijo) y cursoId null; las lecturas van por cursoIds.
-  const rolEfectivo = esVistaTodos ? "padre" : itemActual?.rolEfectivo || "padre";
+  // Docente: rol propio también en "Todos" (sus cursos), nunca "padre".
+  const esDocente   = usuario.rol==="docente";
+  const rolEfectivo = esVistaTodos ? (esDocente?"docente":"padre") : itemActual?.rolEfectivo || "padre";
+  // Cursos donde la docente publica (avisos, eventos, autorizaciones, encuestas).
+  const cursosDocente = esDocente ? (usuario.cursosDocente||[]).map(c=>c.id) : [];
   const esPadre     = rolEfectivo==="padre";
   const isAdmin     = rolEfectivo==="room";
   const cursoId     = _cursoId;
@@ -432,7 +451,7 @@ function App() {
   const nombresCursosBusqueda = esVistaTodos
     ? (() => {
         const nombres = [...new Map(
-          items.filter(i=>i._tipo==="hijo" && i.curso_id)
+          items.filter(i=>(i._tipo==="hijo"||i._tipo==="curso") && i.curso_id)
             .map(i=>[i.curso_id, i.cursos?.nombre?.split(" - ")[0]?.trim() || i.cursos?.nombre])
         ).values()].filter(Boolean);
         if(nombres.length<=1) return nombres[0] || "tus cursos";
@@ -447,30 +466,6 @@ function App() {
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
   if(usuario.rol==="super"||usuario.rol==="colegio_admin") return (
     <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/></Suspense>
-  );
-
-  // Docente (specs/mensajes.md): solo Mensajes con las familias de sus cursos
-  // (+ soporte). Sin "Mi acceso" ni el resto de las pestañas.
-  if(usuario.rol==="docente") return (
-    <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",display:"flex",flexDirection:"column"}}>
-      {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
-      {eliminarCuenta&&<EliminarCuentaModal onClose={()=>setEliminarCuenta(false)} onEliminada={cerrarSesionTrasEliminar}/>}
-      <div style={{background:"#0F172A",position:"sticky",top:0,zIndex:100,paddingTop:"env(safe-area-inset-top)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",maxWidth:1240,margin:"0 auto",gap:8}}>
-          <Wordmark size={22} letterSpacing={-1}/>
-          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-            <span style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{usuario.nombre} · Docente</span>
-            <button onClick={()=>setCambiarPass(true)} aria-label="Cambiar contraseña" style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:12}}>🔑</button>
-            <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:11}}>Salir</button>
-          </div>
-        </div>
-      </div>
-      <div style={{flex:1,padding:isMobile?"16px":"20px 40px",boxSizing:"border-box",maxWidth:1240,width:"100%",margin:"0 auto"}}>
-        <Suspense fallback={<Spinner/>}>
-          <Mensajes esDocente userId={usuario.id} items={[]} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes}/>
-        </Suspense>
-      </div>
-    </div>
   );
 
   const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
@@ -515,7 +510,7 @@ function App() {
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
     ...(isAdmin?[{id:"admin",label:"Admin",emoji:"⚙️"}]:[]),
-  ];
+  ].concat(esDocente?[{id:"alumnos",label:"Alumnos",emoji:"🎒"}]:[]).filter(t=>!esDocente||TABS_DOCENTE.includes(t.id));
 
   // Compartida entre Muro y la búsqueda global (header desktop): navegar a
   // otro tab, opcionalmente abriendo una colecta/fecha puntual.
@@ -525,8 +520,8 @@ function App() {
     if(extra?.openColecta) setOpenColecta(extra.openColecta);
     if(extra?.openFecha) setOpenFecha(extra.openFecha);
     if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
-    if(extra?.conversacionId || extra?.soporte || extra?.usuarioId) {
-      setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, n: Date.now() });
+    if(extra?.conversacionId || extra?.soporte || extra?.usuarioId || extra?.alumnoDocente) {
+      setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, alumnoDocente: extra.alumnoDocente, n: Date.now() });
     }
   };
   // "💬 Escribir" en Alumnos → abre (o crea) el 1 a 1 con ese apoderado.
@@ -547,7 +542,7 @@ function App() {
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     switch(t) {
       case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
-      case "clases":   return <Calendario cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
+      case "clases":   return <Calendario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre} onEscribir={escribirA}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
@@ -556,11 +551,12 @@ function App() {
       case "comunidad": case "marketplace": case "servicios":
         return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
-      case "autorizaciones": return <Autorizaciones cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
+      case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
-      case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes}/>;
+      case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente}/>;
+      case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
       default: return null;
     }
   };
@@ -577,7 +573,8 @@ function App() {
     if(!cursoIds.length) return <Spinner/>;
     // ?tab=admin sin ser Room Parent de este curso (link ajeno, o cambió de
     // hijo/"Todos" estando en Admin): mostrar el Muro, no el panel.
-    const tabEfectiva = tab === "admin" && !isAdmin ? "muro" : tab;
+    // Docente: solo sus pestañas; "Alumnos" (vista docente) solo para docentes.
+    const tabEfectiva = (tab === "admin" && !isAdmin) || (esDocente && !TABS_DOCENTE.includes(tab)) || (!esDocente && tab === "alumnos") ? "muro" : tab;
     const clave = claveTab(tabEfectiva);
     const ctx = `${usuario?.id}|${cursoIdx}|${cursoIds.join(",")}`;
     let montadas = tabsMontadas;

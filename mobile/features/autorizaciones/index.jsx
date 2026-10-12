@@ -36,9 +36,13 @@ export function Autorizaciones() {
 
   const misHijos = useMemo(() => (items || []).filter((i) => i._tipo === "hijo"), [items]);
   const cursosAdmin = useMemo(() => misHijos.filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id), [misHijos]);
+  const { cursosDocente = [] } = useSession();
+  // Room Parent gestiona todo lo del curso; la docente crea en sus cursos pero
+  // gestiona solo lo suyo (RLS: creador o colegio).
+  const cursosRoom = useMemo(() => (esVistaTodos ? [...new Set(cursosAdmin)] : isAdmin && cursoId ? [cursoId] : []), [esVistaTodos, cursosAdmin, isAdmin, cursoId]);
   const cursosQueGestiona = useMemo(
-    () => (esVistaTodos ? [...new Set(cursosAdmin)] : isAdmin && cursoId ? [cursoId] : []),
-    [esVistaTodos, cursosAdmin, isAdmin, cursoId]
+    () => [...new Set([...cursosRoom, ...(esVistaTodos ? cursosDocente : cursoId && cursosDocente.includes(cursoId) ? [cursoId] : [])])],
+    [cursosRoom, esVistaTodos, cursosDocente, cursoId]
   );
 
   const cargar = useCallback(async () => {
@@ -60,7 +64,7 @@ export function Autorizaciones() {
     try { await cargar(); } finally { setRefrescando(false); }
   };
 
-  const gestiona = (a) => a.creado_por === userId || cursosQueGestiona.includes(a.curso_id);
+  const gestiona = (a) => a.creado_por === userId || cursosRoom.includes(a.curso_id);
 
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;
   const lista = [
