@@ -19,6 +19,7 @@ import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
+import { useConfirmar } from "../../hooks/useConfirmar";
 import { cargarClasesCurso, etiquetaClase, cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { EventosColegio } from "../calendario";
 import { useListControls } from "../../hooks/useListControls";
@@ -169,6 +170,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [selUsuarios,setSelUsuarios]   = useState(new Set());
   const [asignarCursoModal,setAsignarCursoModal] = useState(false);
   const isMobile = useIsMobile();
+  const [confirmar, confirmUI] = useConfirmar();
   const { showToast, Toast } = useToast();
 
   const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
@@ -767,7 +769,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     return true;
   };
   const quitarAccesoDocente = async () => {
-    if(!form.usuario_id || !window.confirm("¿Quitarle el acceso a Mensajes? Ya no va a poder entrar; las conversaciones se conservan.")) return;
+    if(!form.usuario_id || !(await confirmar({ titulo:"¿Quitarle el acceso?", detalle:"Ya no va a poder entrar a tribbu; sus conversaciones se conservan.", textoConfirmar:"Quitar acceso" }))) return;
     await supabase.from("usuarios").update({ activo: false }).eq("id", form.usuario_id);
     const { error } = await supabase.from("maestros").update({ usuario_id: null }).eq("id", form.id);
     if(error) { showToast("No se pudo quitar el acceso", "error"); return; }
@@ -843,6 +845,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",overflowX:"hidden"}}>
       <style>{`#tribbu-sa-nav::-webkit-scrollbar{width:6px}#tribbu-sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:3px}#tribbu-sa-nav::-webkit-scrollbar-track{background:transparent}`}</style>
       <Toast />
+      {confirmUI}
       {/* Feedback banner para operaciones de Auth */}
       {authSyncMsg&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:400,maxWidth:480,width:"90%",background:authSyncMsg.ok?"#F0FDF4":"#FFFBEB",border:`1.5px solid ${authSyncMsg.ok?"#10B981":"#F59E0B"}`,borderRadius:14,padding:"14px 18px",boxShadow:"0 8px 24px rgba(0,0,0,0.12)",display:"flex",alignItems:"flex-start",gap:10}}>

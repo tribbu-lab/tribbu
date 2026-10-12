@@ -110,6 +110,20 @@ export function MateriasAdmin({ colegioId }) {
     ]);
   };
 
+  const eliminar = () => {
+    const n = usos[sel.id] || 0;
+    Alert.alert(`¿Eliminar “${sel.nombre}”?`, n
+      ? `Se quitan sus ${n} ${n === 1 ? "clase" : "clases"} de los cursos (los bloques de horario quedan con su texto, sin clase). Si es la misma que otra, usá “Unificar”.`
+      : "No la usa ningún curso.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: async () => {
+        const { error } = await supabase.from("materias").delete().eq("id", sel.id);
+        if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
+        setSel(null); recargar();
+      } },
+    ]);
+  };
+
   if (!colegioId) return <Text style={s.muted}>Elegí un colegio primero.</Text>;
   if (materias === null) return <ActivityIndicator color={t.accent} />;
   return (
@@ -152,6 +166,9 @@ export function MateriasAdmin({ colegioId }) {
               <Pressable onPress={async () => { if (await actualizar({ activo: !sel.activo })) setSel(null); }} style={[s.btnSec, { marginTop: SPACE.md }]}>
                 <Text style={s.btnSecTxt}>{sel?.activo ? "Ocultar de las listas" : "Volver a mostrar"}</Text>
               </Pressable>
+              <Pressable onPress={eliminar} style={[s.btnSec, { marginTop: SPACE.sm, borderColor: t.dangerBorder }]}>
+                <Text style={[s.btnSecTxt, { color: t.danger }]}>Eliminar materia</Text>
+              </Pressable>
               <View style={[s.row, { marginTop: SPACE.lg }]}>
                 <Pressable onPress={() => setSel(null)} style={[s.btnSec, s.flex1]}><Text style={s.btnSecTxt}>Cerrar</Text></Pressable>
                 <Pressable onPress={guardar} style={[s.btnPri, s.flex1]}><Text style={s.btnPriTxt}>Guardar nombre</Text></Pressable>
@@ -188,16 +205,33 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio 
       } },
     ]);
   };
+  // "Renombrar" una clase = cambiarle la materia (sus horarios pasan a la nueva).
+  const [cambiando, setCambiando] = useState(null); // clase cuya materia se está cambiando
+  const cambiarMateria = async (c, nueva) => {
+    setCambiando(null);
+    if (!nueva || nueva === c.materia_id) return;
+    const { error } = await supabase.from("clases").update({ materia_id: nueva }).eq("id", c.id);
+    if (error) { Alert.alert(error.code === "23505" ? "Ese curso ya tiene esa materia con esa maestra" : "No se pudo cambiar", error.code === "23505" ? undefined : error.message); return; }
+    onCambio?.();
+  };
   const activas = (materias || []).filter((m) => m.activo);
   return (
     <View style={[s.card, { padding: SPACE.md, marginBottom: SPACE.md }]}>
       <Text style={s.label}>CLASES DE {curso.nombre.toUpperCase()}</Text>
       {!clases.length ? <Text style={s.muted}>Todavía no hay clases. Agregá las materias que se dan y quién las da.</Text> : null}
       {clases.map((c) => (
-        <View key={c.id} style={s.claseFila}>
-          <View style={[s.dot, { backgroundColor: c.materias?.color || SLATE[400] }]} />
-          <Text style={[s.filaTxt, s.flex1]} numberOfLines={1}>{etiquetaClase(c)}</Text>
-          <Pressable onPress={() => quitar(c)} hitSlop={8} accessibilityLabel={`Quitar ${c.materias?.nombre}`}><Text>🗑</Text></Pressable>
+        <View key={c.id}>
+          <View style={s.claseFila}>
+            <View style={[s.dot, { backgroundColor: c.materias?.color || SLATE[400] }]} />
+            <Text style={[s.filaTxt, s.flex1]} numberOfLines={1}>{etiquetaClase(c)}</Text>
+            <Pressable onPress={() => setCambiando(cambiando === c.id ? null : c.id)} hitSlop={8} accessibilityLabel={`Cambiar la materia de ${c.materias?.nombre}`}><Text>✏️</Text></Pressable>
+            <Pressable onPress={() => quitar(c)} hitSlop={8} accessibilityLabel={`Quitar ${c.materias?.nombre}`}><Text>🗑</Text></Pressable>
+          </View>
+          {cambiando === c.id ? (
+            <View style={[s.wrap, { marginBottom: SPACE.sm }]}>
+              {activas.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={m.id === c.materia_id} onPress={() => cambiarMateria(c, m.id)} />)}
+            </View>
+          ) : null}
         </View>
       ))}
       {abierto ? (

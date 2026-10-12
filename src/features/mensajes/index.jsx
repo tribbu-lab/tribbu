@@ -18,6 +18,7 @@ import { SignedImg } from "../../components/SignedImg";
 import { Spinner } from "../../components/Spinner";
 import { useCargar } from "../../hooks/useCargar";
 import { EVENTO_MENSAJE, EVENTO_RESYNC } from "../../hooks/useMensajesNoLeidos";
+import { useConfirmar } from "../../hooks/useConfirmar";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
@@ -511,6 +512,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [silenciado, setSilenciado] = useState(!!conv.silenciado);
   const [bloqueado, setBloqueado] = useState(!!conv.bloqueado);
   const [estado, setEstado] = useState(conv.estado || "abierta");
+  const [confirmar, confirmUI] = useConfirmar();
   const fondo = useRef(null);
   const inputRef = useRef(null);
   const mensajesRef = useRef([]);
@@ -684,7 +686,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   };
 
   const eliminar = async (m) => {
-    if (!window.confirm("¿Eliminar este mensaje? Se va a ver como \"Mensaje eliminado\".")) return;
+    if (!(await confirmar({ titulo: "¿Eliminar este mensaje?", detalle: "Se va a ver como “Mensaje eliminado”.", textoConfirmar: "Eliminar" }))) return;
     const { data, error: e } = await supabase.from("mensajes").update({ borrado_en: new Date().toISOString() }).eq("id", m.id).select().single();
     if (e) { setError("No se pudo eliminar el mensaje."); return; }
     borrarArchivos(m.fotos || [], "adjuntos");
@@ -707,7 +709,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const toggleBloqueo = async () => {
     setMenu(false);
     if (!conv.otro_id) return;
-    if (!bloqueado && !window.confirm(`¿Bloquear a ${conv.titulo}? No va a poder escribirte y no vas a ver sus mensajes en grupos. No se le avisa.`)) return;
+    if (!bloqueado && !(await confirmar({ titulo: `¿Bloquear a ${conv.titulo}?`, detalle: "No va a poder escribirte y no vas a ver sus mensajes en grupos. No se le avisa.", textoConfirmar: "Bloquear" }))) return;
     const { error: e } = bloqueado
       ? await supabase.from("usuario_bloqueos").delete().eq("usuario_id", userId).eq("bloqueado_id", conv.otro_id)
       : await supabase.from("usuario_bloqueos").insert({ usuario_id: userId, bloqueado_id: conv.otro_id });
@@ -719,7 +721,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
 
   const bloquearAutor = async (m) => {
     const nombre = nombres[m.autor_id] || "esta persona";
-    if (!window.confirm(`¿Bloquear a ${nombre}? No vas a ver sus mensajes en grupos y no va a poder escribirte. No se le avisa.`)) return;
+    if (!(await confirmar({ titulo: `¿Bloquear a ${nombre}?`, detalle: "No vas a ver sus mensajes en grupos y no va a poder escribirte. No se le avisa.", textoConfirmar: "Bloquear" }))) return;
     const { error: e } = await supabase.from("usuario_bloqueos").insert({ usuario_id: userId, bloqueado_id: m.autor_id });
     if (e && e.code !== "23505") { setError("No se pudo bloquear."); return; }
     setBloqueados((b) => new Set([...b, m.autor_id]));
@@ -730,7 +732,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
 
   const salirDelGrupo = async () => {
     setMenu(false);
-    if (!window.confirm(`¿Salir de “${conv.titulo}”? Ya no vas a ver sus mensajes.`)) return;
+    if (!(await confirmar({ titulo: `¿Salir de “${conv.titulo}”?`, detalle: "Ya no vas a ver sus mensajes.", textoConfirmar: "Salir del grupo" }))) return;
     const { error: e } = await supabase.rpc("salir_de_grupo", { p_conv: conv.id });
     if (e) { setError("No se pudo salir del grupo."); return; }
     onSalioGrupo?.();
@@ -760,6 +762,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   return (
     <div style={{ display: "flex", flexDirection: "column", height: alto || "100%", minHeight: 0, background: C.bg, position: "relative" }}>
       {visor ? <VisorFoto path={visor} onClose={() => setVisor(null)} /> : null}
+      {confirmUI}
       {verParticipantes ? <ParticipantesModal conv={conv} onCerrar={() => setVerParticipantes(false)} /> : null}
       {denunciar ? <DenunciarModal mensaje={denunciar} onCerrar={() => setDenunciar(null)} onListo={() => { setDenunciar(null); setSeleccionado(null); setAviso("Gracias. El colegio va a revisar el mensaje."); }} /> : null}
 
@@ -1360,6 +1363,7 @@ export function DenunciasColegio({ colegioId }) {
   const [denuncias, setDenuncias] = useState(null);
   const [filtro, setFiltro] = useState("pendiente");
   const [trabajando, setTrabajando] = useState(null);
+  const [confirmar, confirmUI] = useConfirmar();
   const [error, setError] = useState("");
 
   const cargar = useCallback(async () => {
@@ -1377,7 +1381,7 @@ export function DenunciasColegio({ colegioId }) {
   useEffect(() => { Promise.resolve().then(cargar); }, [cargar]);
 
   const resolver = async (d, eliminar) => {
-    if (eliminar && !window.confirm("¿Eliminar el mensaje? Se va a ver como \"Mensaje eliminado\" para todos.")) return;
+    if (eliminar && !(await confirmar({ titulo: "¿Eliminar el mensaje?", detalle: "Se va a ver como “Mensaje eliminado” para todos.", textoConfirmar: "Eliminar mensaje" }))) return;
     setTrabajando(d.id);
     const { error: e } = await supabase.rpc("resolver_denuncia", { p_denuncia: d.id, p_eliminar: eliminar });
     setTrabajando(null);
@@ -1390,6 +1394,7 @@ export function DenunciasColegio({ colegioId }) {
 
   return (
     <div>
+      {confirmUI}
       <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 12, lineHeight: 1.5, maxWidth: 640 }}>
         Acá ves <b>solo</b> los mensajes que una familia denunció — nunca el resto de las conversaciones. Podés eliminar el mensaje (queda como “Mensaje eliminado”) o marcar la denuncia como resuelta sin hacer nada.
       </div>
