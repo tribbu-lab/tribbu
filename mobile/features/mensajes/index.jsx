@@ -276,14 +276,17 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null,
 const MAX_GRUPO = 49; // + quien lo crea = 50
 const SIN_EXCLUIR = [];
 
-function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR }) {
+// soloDe: ids de cursos a los que se limita la lista (el perfil elegido); null = todos.
+function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR, soloDe = null }) {
   const [familias, setFamilias] = useState(null);
   const [q, setQ] = useState("");
   useEffect(() => {
     let vivo = true;
-    supabase.rpc("familias_para_mensaje").then(({ data }) => { if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id))); });
+    supabase.rpc("familias_para_mensaje").then(({ data }) => {
+      if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id) && (!soloDe || (f.curso_ids || []).some((c) => soloDe.includes(c)))));
+    });
     return () => { vivo = false; };
-  }, [excluir]);
+  }, [excluir, soloDe]);
   const lista = useMemo(() => filtrarFamilias(familias || [], q), [familias, q]);
   const sel = new Set(seleccion);
   const toggle = (id) => {
@@ -332,7 +335,7 @@ function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir 
   );
 }
 
-function GrupoSheet({ visible, grupo = null, cursos, onCerrar, onListo }) {
+function GrupoSheet({ visible, grupo = null, cursos, cursoId = null, onCerrar, onListo }) {
   const [nombre, setNombre] = useState("");
   const [seleccion, setSeleccion] = useState([]);
   const [actuales, setActuales] = useState(null);
@@ -353,7 +356,7 @@ function GrupoSheet({ visible, grupo = null, cursos, onCerrar, onListo }) {
     setGuardando(true);
     const { data, error } = grupo
       ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
-      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion });
+      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
     setGuardando(false);
     if (error) { Alert.alert("No se pudo guardar el grupo", error.message); return; }
     onListo(grupo ? grupo.id : data);
@@ -372,7 +375,7 @@ function GrupoSheet({ visible, grupo = null, cursos, onCerrar, onListo }) {
         </View>
       ) : null}
       <Text style={s.notaChica}>{grupo ? "Sumar familias:" : "Elegí las familias:"}</Text>
-      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} />
+      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
         <Button title={grupo ? "Guardar" : "Crear grupo"} onPress={guardar} loading={guardando} full={false} style={s.flex1} />
@@ -381,7 +384,7 @@ function GrupoSheet({ visible, grupo = null, cursos, onCerrar, onListo }) {
   );
 }
 
-function DifusionSheet({ visible, cursos, onCerrar, onListo }) {
+function DifusionSheet({ visible, cursos, cursoId = null, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -390,7 +393,7 @@ function DifusionSheet({ visible, cursos, onCerrar, onListo }) {
     if (!seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
     if (!texto.trim()) { Alert.alert("Escribí el mensaje"); return; }
     setEnviando(true);
-    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto) });
+    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId });
     setEnviando(false);
     if (error) { Alert.alert("No se pudo enviar", error.message); return; }
     const r = Array.isArray(data) ? data[0] : data;
@@ -400,7 +403,7 @@ function DifusionSheet({ visible, cursos, onCerrar, onListo }) {
     <Sheet visible={visible} onClose={onCerrar} title="Mensaje a varias familias" style={s.sheetAlto}>
       <Text style={s.sheetIntro}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</Text>
       <TextInput value={texto} onChangeText={(v) => setTexto(v.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" placeholderTextColor={t.placeholder} multiline style={[s.inputArea, { marginBottom: SPACE.sm }]} accessibilityLabel="Mensaje" />
-      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} />
+      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
         <Button title={`Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
@@ -928,6 +931,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
 
 export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, nonce = null }) {
   const { usuario, items, tagDeCurso, esDocente, hijoActivoId, cursoIds, esVistaTodos } = useSession();
+  const cursoPerfil = !esVistaTodos && cursoIds?.length === 1 ? cursoIds[0] : null;
   const userId = usuario?.id ?? null;
   const { recargar: recargarBadge } = useMensajesCtx();
   const [convs, setConvs] = useState(null);
@@ -974,7 +978,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   }, [convs]);
 
   const abrirDirecta = useCallback(async (f) => {
-    const { data: id, error } = await supabase.rpc("abrir_conversacion_directa", { p_usuario: f.usuario_id });
+    const { data: id, error } = await supabase.rpc("abrir_conversacion_directa", { p_usuario: f.usuario_id, p_curso: cursoPerfil });
     if (error || !id) return false;
     const existente = (convs || []).find((c) => c.id === id);
     setNuevo(false);
@@ -983,7 +987,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
       subtitulo: hijosDeFamilia(f) ? `familia de ${hijosDeFamilia(f)}` : null,
     });
     return true;
-  }, [convs]);
+  }, [convs, cursoPerfil]);
 
   // Hilos institucionales (maestra / Secretaría): se abren por RPC; si todavía
   // no están en la lista (sin mensajes) se muestran con los datos que hay.
@@ -996,6 +1000,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   }, [convs]);
   const hijos = useMemo(() => (items || []).filter((i) => i._tipo === "hijo").map((i) => ({ id: i.id, nombre: i.nombre?.split(" ")[0], curso: i.cursos?.nombre })), [items]);
   const cursosMios = useMemo(() => [...new Map((items || []).filter((i) => i.curso_id && i.cursos?.nombre).map((i) => [i.curso_id, { id: i.curso_id, nombre: i.cursos.nombre }])).values()], [items]);
+  // Curso del perfil elegido (un hijo, o un curso de la docente). null en "Todos".
+  const cursosVistaLista = useMemo(() => (cursoPerfil ? cursosMios.filter((c) => c.id === cursoPerfil) : cursosMios), [cursosMios, cursoPerfil]);
   const onFamilia = (f) => {
     if (normasOk) return abrirDirecta(f);
     setNuevo(false);
@@ -1043,7 +1049,13 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
 
   const lista = convs || [];
   const soporte = lista.find((c) => c.tipo === "soporte") || SOPORTE_VACIO;
-  const otras = lista.filter((c) => c.tipo !== "soporte");
+  // Perfil elegido: la lista muestra solo lo de ese hijo (soporte siempre).
+  const enPerfil = (c) => {
+    if (!cursoPerfil) return true;
+    if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
+    return !c.curso_id || c.curso_id === cursoPerfil;
+  };
+  const otras = lista.filter((c) => c.tipo !== "soporte" && enPerfil(c));
   const activaFresca = activa ? lista.find((c) => c.id === activa.id) || activa : null;
 
   return (
@@ -1059,9 +1071,9 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
         onCrearGrupo={esDocente ? null : () => { setNuevo(false); setTimeout(() => conNormas(() => setGrupoSheet({ grupo: null })), 350); }}
         onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />
-      <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} cursos={cursosMios} onCerrar={() => setGrupoSheet(null)}
+      <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoSheet(null)}
         onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: "grupo", titulo: "Grupo", creado_por: userId }); }} />
-      <DifusionSheet visible={difusion} cursos={cursosMios} onCerrar={() => setDifusion(false)}
+      <DifusionSheet visible={difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setDifusion(false)}
         onListo={(n, omitidos) => { setDifusion(false); onCambio(); Alert.alert("Mensaje enviado", `Le llegó a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       <NormasSheet visible={!!normas} userId={userId} onCerrar={() => setNormas(null)}
         onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn?.(); }} />

@@ -311,14 +311,17 @@ const MAX_GRUPO = 49; // + quien lo crea = 50
  * <curso>". `excluir`: ids que no se ofrecen (ya están en el grupo).
  */
 const SIN_EXCLUIR = [];
-function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR }) {
+// soloDe: ids de cursos a los que se limita la lista (el perfil elegido); null = todos.
+function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR, soloDe = null }) {
   const [familias, setFamilias] = useState(null);
   const [q, setQ] = useState("");
   useEffect(() => {
     let vivo = true;
-    supabase.rpc("familias_para_mensaje").then(({ data }) => { if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id))); });
+    supabase.rpc("familias_para_mensaje").then(({ data }) => {
+      if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id) && (!soloDe || (f.curso_ids || []).some((c) => soloDe.includes(c)))));
+    });
     return () => { vivo = false; };
-  }, [excluir]);
+  }, [excluir, soloDe]);
   const lista = useMemo(() => filtrarFamilias(familias || [], q), [familias, q]);
   const sel = new Set(seleccion);
   const toggle = (id) => {
@@ -366,7 +369,7 @@ function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir 
 }
 
 /** Crear un grupo propio, o editarlo (grupo = { id, titulo }). */
-function GrupoModal({ grupo = null, cursos, onCerrar, onListo }) {
+function GrupoModal({ grupo = null, cursos, cursoId = null, onCerrar, onListo }) {
   const [nombre, setNombre] = useState(grupo?.titulo || "");
   const [seleccion, setSeleccion] = useState([]);
   const [actuales, setActuales] = useState(null); // participantes (solo editar)
@@ -386,7 +389,7 @@ function GrupoModal({ grupo = null, cursos, onCerrar, onListo }) {
     setGuardando(true); setError("");
     const { data, error: e } = grupo
       ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
-      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion });
+      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
     setGuardando(false);
     if (e) { setError(e.message || "No se pudo guardar el grupo."); return; }
     onListo(grupo ? grupo.id : data);
@@ -415,7 +418,7 @@ function GrupoModal({ grupo = null, cursos, onCerrar, onListo }) {
           </div>
         ) : null}
         <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>{grupo ? "Sumar familias" : "Elegí las familias"}</div>
-        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} />
+        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />
         {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
@@ -427,7 +430,7 @@ function GrupoModal({ grupo = null, cursos, onCerrar, onListo }) {
 }
 
 /** Mismo mensaje a varias familias, cada una en su chat privado. */
-function DifusionModal({ cursos, onCerrar, onListo }) {
+function DifusionModal({ cursos, cursoId = null, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -436,7 +439,7 @@ function DifusionModal({ cursos, onCerrar, onListo }) {
     if (!seleccion.length) { setError("Elegí al menos una familia."); return; }
     if (!texto.trim()) { setError("Escribí el mensaje."); return; }
     setEnviando(true); setError("");
-    const { data, error: e } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto) });
+    const { data, error: e } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId });
     setEnviando(false);
     if (e) { setError(e.message || "No se pudo enviar."); return; }
     const r = Array.isArray(data) ? data[0] : data;
@@ -452,7 +455,7 @@ function DifusionModal({ cursos, onCerrar, onListo }) {
         <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</div>
         <textarea value={texto} onChange={(e) => setTexto(e.target.value.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" rows={3} aria-label="Mensaje"
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", resize: "vertical", marginBottom: 10, background: C.surfaceSunken }} />
-        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} />
+        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />
         {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
@@ -1068,7 +1071,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   }, [convs]);
 
   const abrirDirecta = useCallback(async (f) => {
-    const { data: id, error: e } = await supabase.rpc("abrir_conversacion_directa", { p_usuario: f.usuario_id });
+    const { data: id, error: e } = await supabase.rpc("abrir_conversacion_directa", { p_usuario: f.usuario_id, p_curso: cursoIds?.length === 1 ? cursoIds[0] : null });
     if (e || !id) return false;
     const existente = (convs || []).find((c) => c.id === id);
     setActiva(existente || {
@@ -1078,7 +1081,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     });
     setNuevo(false);
     return true;
-  }, [convs]);
+  }, [convs, cursoIds]);
 
   // Abre un hilo institucional por RPC; si todavía no está en la lista (sin
   // mensajes), se muestra con los datos que ya tenemos.
@@ -1093,6 +1096,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   const hijos = useMemo(() => items.filter((i) => i._tipo === "hijo").map((i) => ({ id: i.id, nombre: i.nombre?.split(" ")[0], curso: i.cursos?.nombre })), [items]);
   // Cursos míos (para "Todas las de 4°B" en grupos y difusión).
   const cursosMios = useMemo(() => [...new Map(items.filter((i) => i.curso_id && i.cursos?.nombre).map((i) => [i.curso_id, { id: i.curso_id, nombre: i.cursos.nombre }])).values()], [items]);
+  // Curso del perfil elegido (un hijo, o un curso de la docente). null en "Todos".
+  const cursoPerfil = cursoIds?.length === 1 ? cursoIds[0] : null;
+  const cursosVistaLista = useMemo(() => (cursoPerfil ? cursosMios.filter((c) => c.id === cursoPerfil) : cursosMios), [cursosMios, cursoPerfil]);
   const onFamilia = (f) => {
     if (normasOk) return abrirDirecta(f);
     setNuevo(false);
@@ -1131,7 +1137,14 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
 
   const lista = convs || [];
   const soporte = lista.find((c) => c.tipo === "soporte") || SOPORTE_VACIO;
-  const otras = lista.filter((c) => c.tipo !== "soporte");
+  // Perfil elegido en "Mi acceso": la lista muestra solo lo de ese hijo (sus
+  // cursos; Secretaría/maestras por hijo). Soporte siempre. En "Todos", todo.
+  const enPerfil = (c) => {
+    if (!cursoPerfil) return true;
+    if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
+    return !c.curso_id || c.curso_id === cursoPerfil;
+  };
+  const otras = lista.filter((c) => c.tipo !== "soporte" && enPerfil(c));
 
   const meta = useCallback(() => metaSoporte({
     plataforma: "web",
@@ -1194,11 +1207,11 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
           onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }} />
       ) : null}
       {grupoModal ? (
-        <GrupoModal grupo={grupoModal.grupo} cursos={cursosMios} onCerrar={() => setGrupoModal(null)}
+        <GrupoModal grupo={grupoModal.grupo} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoModal(null)}
           onListo={(id) => { setGrupoModal(null); recargar(); setActiva((a) => (a?.id === id ? a : { id, tipo: "grupo", titulo: "Grupo" })); }} />
       ) : null}
       {difusion ? (
-        <DifusionModal cursos={cursosMios} onCerrar={() => setDifusion(false)}
+        <DifusionModal cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setDifusion(false)}
           onListo={(n, omitidos) => { setDifusion(false); recargar(); setError(""); setAviso(`✓ Enviado a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       ) : null}
       {normas ? <NormasModal userId={userId} onCerrar={() => setNormas(null)} onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn(); }} /> : null}

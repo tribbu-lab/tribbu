@@ -410,3 +410,117 @@ grant execute on function
   public.salir_de_grupo(uuid), public.participantes_grupo(uuid), public.enviar_difusion(uuid[], text),
   public.mis_conversaciones()
 to authenticated;
+
+-- 8) Grupos por hijo (2026-10-12): el grupo queda asociado al curso del hijo
+--    elegido en "Mi acceso" al crearlo (p_curso), así la lista de Mensajes
+--    lo muestra solo en ese perfil. Sin p_curso (vista "Todos"): el curso más
+--    nuevo del creador, como antes.
+drop function if exists public.crear_grupo(text, uuid[]);
+create or replace function public.crear_grupo(p_nombre text, p_usuarios uuid[], p_curso uuid default null)
+returns uuid
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare yo uuid := public.mi_usuario_id(); v_curso uuid; v_id uuid; v_ok uuid[];
+begin
+  if yo is null then raise exception 'Sin usuario'; end if;
+  if not exists (select 1 from public.normas_chat_aceptadas where usuario_id = yo) then
+    raise exception 'Primero aceptá las normas de convivencia';
+  end if;
+  if coalesce(btrim(p_nombre), '') = '' then raise exception 'Poné un nombre al grupo'; end if;
+  v_ok := public.validar_participantes(p_usuarios);
+  if coalesce(array_length(v_ok, 1), 0) = 0 then raise exception 'Elegí al menos una familia de tus cursos'; end if;
+  if array_length(v_ok, 1) > 49 then raise exception 'Un grupo puede tener hasta 50 personas'; end if;
+  if p_curso is not null and p_curso in (select public.cursos_de_usuario(yo)) then
+    v_curso := p_curso;
+  else
+    select cu.id into v_curso from public.cursos cu
+    where cu.id in (select public.cursos_de_usuario(yo)) order by cu."año_lectivo" desc nulls last limit 1;
+  end if;
+  insert into public.conversaciones (tipo, curso_id, colegio_id, nombre, creado_por)
+  values ('grupo', v_curso, public.colegio_de_curso(v_curso), left(btrim(p_nombre), 60), yo)
+  returning id into v_id;
+  insert into public.conversacion_participantes (conversacion_id, usuario_id)
+  select v_id, x from unnest(v_ok || yo) as x on conflict do nothing;
+  return v_id;
+end $$;
+revoke all on function public.crear_grupo(text, uuid[], uuid) from public, anon;
+grant execute on function public.crear_grupo(text, uuid[], uuid) to authenticated;
+
+-- 9) 1 a 1 por hijo: al crearlo desde el perfil de un hijo, se asocia a ese
+--    curso (si los dos lo comparten), así aparece en ese perfil.
+drop function if exists public.abrir_conversacion_directa(uuid);
+create or replace function public.abrir_conversacion_directa(p_usuario uuid, p_curso uuid default null)
+returns uuid
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare
+  yo uuid := public.mi_usuario_id();
+  a uuid; b uuid; v_curso uuid; v_id uuid;
+begin
+  if yo is null or p_usuario is null or p_usuario = yo then
+    raise exception 'Destinatario inválido';
+  end if;
+  a := least(yo, p_usuario); b := greatest(yo, p_usuario);
+  select id into v_id from public.conversaciones where tipo = 'directo' and usuario_a = a and usuario_b = b;
+  if v_id is not null then return v_id; end if;
+  if p_curso is not null
+     and p_curso in (select public.cursos_de_usuario(yo))
+     and p_curso in (select public.cursos_de_usuario(p_usuario)) then
+    v_curso := p_curso;
+  else
+    select cu.id into v_curso
+    from public.cursos cu
+    where cu.id in (select public.cursos_de_usuario(yo))
+      and cu.id in (select public.cursos_de_usuario(p_usuario))
+    order by cu."año_lectivo" desc nulls last
+    limit 1;
+  end if;
+  if v_curso is null then
+    raise exception 'Solo podés escribirle a familias de tus cursos';
+  end if;
+  insert into public.conversaciones (tipo, curso_id, colegio_id, usuario_a, usuario_b)
+  values ('directo', v_curso, public.colegio_de_curso(v_curso), a, b)
+  on conflict (usuario_a, usuario_b) where tipo = 'directo' do nothing
+  returning id into v_id;
+  if v_id is null then
+    select id into v_id from public.conversaciones where tipo = 'directo' and usuario_a = a and usuario_b = b;
+  end if;
+  return v_id;
+end $$;
+revoke all on function public.abrir_conversacion_directa(uuid, uuid) from public, anon;
+grant execute on function public.abrir_conversacion_directa(uuid, uuid) to authenticated;
+
+-- 10) Difusión por hijo: los 1 a 1 nuevos se asocian al curso del perfil.
+drop function if exists public.enviar_difusion(uuid[], text);
+create or replace function public.enviar_difusion(p_usuarios uuid[], p_texto text, p_curso uuid default null)
+returns table (enviados int, omitidos int)
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare
+  yo uuid := public.mi_usuario_id();
+  v_ok uuid[]; u uuid; v_conv uuid; n_ok int := 0; n_total int;
+  t text := left(btrim(coalesce(p_texto, '')), 2000);
+begin
+  if yo is null then raise exception 'Sin usuario'; end if;
+  if t = '' then raise exception 'Escribí el mensaje'; end if;
+  if not exists (select 1 from public.normas_chat_aceptadas where usuario_id = yo) then
+    raise exception 'Primero aceptá las normas de convivencia';
+  end if;
+  n_total := coalesce(array_length(p_usuarios, 1), 0);
+  if n_total > 50 then raise exception 'Podés mandar a hasta 50 familias por vez'; end if;
+  v_ok := public.validar_participantes(p_usuarios);
+  foreach u in array v_ok loop
+    -- tampoco a quien bloqueé yo
+    continue when exists (select 1 from public.usuario_bloqueos where usuario_id = yo and bloqueado_id = u);
+    begin
+      v_conv := public.abrir_conversacion_directa(u, p_curso);
+      insert into public.mensajes (conversacion_id, texto) values (v_conv, t);
+      n_ok := n_ok + 1;
+    exception when others then
+      null; -- se cuenta como omitido
+    end;
+  end loop;
+  return query select n_ok, n_total - n_ok;
+end $$;
+revoke all on function public.enviar_difusion(uuid[], text, uuid) from public, anon;
+grant execute on function public.enviar_difusion(uuid[], text, uuid) to authenticated;
