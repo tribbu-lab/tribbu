@@ -176,7 +176,7 @@ function FilaOpcion({ titulo, sub, avatar, onPress, deshabilitada, abriendo, not
   );
 }
 
-function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, tagDeCurso }) {
+function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null, onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, tagDeCurso }) {
   const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({});
   const [q, setQ] = useState("");
@@ -187,9 +187,19 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia
     const rpc = { familias: "familias_para_mensaje", maestras: "docentes_para_mensaje", alumnos: "alumnos_para_docente" }[pestana];
     if (!rpc || datos[pestana]) return undefined;
     let vivo = true;
-    supabase.rpc(rpc).then(({ data }) => { if (vivo) setDatos((d) => ({ ...d, [pestana]: data || [] })); });
+    // Solo lo del perfil elegido en "Mi acceso" (en "Todos", todo).
+    const ids = new Set(hijos.map((h) => h.id));
+    const enVista = (cid) => !cursosVista || cursosVista.includes(cid);
+    supabase.rpc(rpc).then(({ data }) => {
+      if (!vivo) return;
+      const filas = (data || []).filter((r) =>
+        pestana === "maestras" ? ids.has(r.hijo_id)
+        : pestana === "familias" ? (r.curso_ids || []).some(enVista)
+        : pestana === "alumnos" ? enVista(r.curso_id) : true);
+      setDatos((d) => ({ ...d, [pestana]: filas }));
+    });
     return () => { vivo = false; };
-  }, [visible, pestana, datos]);
+  }, [visible, pestana, datos, hijos, cursosVista]);
 
   const abrir = async (clave, fn) => {
     setAbriendo(clave);
@@ -917,7 +927,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
 });
 
 export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, nonce = null }) {
-  const { usuario, items, tagDeCurso, esDocente } = useSession();
+  const { usuario, items, tagDeCurso, esDocente, hijoActivoId, cursoIds, esVistaTodos } = useSession();
   const userId = usuario?.id ?? null;
   const { recargar: recargarBadge } = useMensajesCtx();
   const [convs, setConvs] = useState(null);
@@ -1044,7 +1054,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         // no se puede presentar un Modal arriba de otro.
         onEditarGrupo={() => { const g = activaFresca; setActiva(null); setGrupoSheet({ grupo: g }); }}
         onSalioGrupo={() => { setActiva(null); onCambio(); }} />
-      <NuevoMensajeSheet key={esDocente ? "doc" : "fam"} visible={nuevo} esDocente={esDocente} hijos={hijos} onCerrar={() => setNuevo(false)} tagDeCurso={tagDeCurso}
+      <NuevoMensajeSheet key={`${esDocente ? "doc" : "fam"}-${hijoActivoId || (esVistaTodos ? "todos" : cursoIds.join(","))}`} visible={nuevo} esDocente={esDocente}
+        hijos={hijoActivoId ? hijos.filter((h) => h.id === hijoActivoId) : hijos} cursosVista={esVistaTodos ? null : cursoIds} onCerrar={() => setNuevo(false)} tagDeCurso={tagDeCurso}
         onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
         onCrearGrupo={esDocente ? null : () => { setNuevo(false); setTimeout(() => conNormas(() => setGrupoSheet({ grupo: null })), 350); }}
         onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />

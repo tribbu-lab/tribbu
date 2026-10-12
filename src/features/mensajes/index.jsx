@@ -171,7 +171,7 @@ const PESTANAS_NUEVO = [
   { k: "secretaria", l: "Secretaría" },
 ];
 
-function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, onCerrar, tagDeCurso }) {
+function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, onCerrar, tagDeCurso }) {
   const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({}); // por pestaña
   const [q, setQ] = useState("");
@@ -185,10 +185,17 @@ function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecr
     supabase.rpc(rpc).then(({ data, error: e }) => {
       if (!vivo) return;
       if (e) setError("No se pudo cargar la lista.");
-      setDatos((d) => ({ ...d, [pestana]: data || [] }));
+      // Solo lo del perfil elegido: maestras de esos hijos, familias y alumnos de esos cursos.
+      const ids = new Set(hijos.map((h) => h.id));
+      const enVista = (cid) => !cursosVista || cursosVista.includes(cid);
+      const filas = (data || []).filter((r) =>
+        pestana === "maestras" ? ids.has(r.hijo_id)
+        : pestana === "familias" ? (r.curso_ids || []).some(enVista)
+        : pestana === "alumnos" ? enVista(r.curso_id) : true);
+      setDatos((d) => ({ ...d, [pestana]: filas }));
     });
     return () => { vivo = false; };
-  }, [pestana, datos]);
+  }, [pestana, datos, hijos, cursosVista]);
 
   const abrir = async (clave, fn) => {
     setAbriendo(clave);
@@ -1010,7 +1017,11 @@ const SOPORTE_VACIO = { id: null, tipo: "soporte", titulo: "Soporte tribbu", ult
  * abrir: { conversacionId?, soporte?, usuarioId?, n } — pedido de navegación
  * (deep link de push, "Ayuda y soporte", "💬 Escribir" en Alumnos).
  */
-export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false }) {
+// hijoActivoId / cursoIds: el perfil elegido en "Mi acceso". "Nuevo mensaje"
+// muestra solo lo de ese hijo (maestras, Secretaría) y de su curso (familias);
+// en "Todos" (hijoActivoId null) muestra todo. La lista de conversaciones no se
+// filtra: un chat no depende del hijo activo.
+export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false, hijoActivoId = null, cursoIds = null }) {
   const [convs, setConvs] = useState(null);
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null); // objeto conversación
@@ -1177,7 +1188,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   return (
     <>
       {nuevo ? (
-        <NuevoMensajeModal esDocente={esDocente} hijos={hijos} tagDeCurso={tagDeCurso} onCerrar={() => setNuevo(false)}
+        <NuevoMensajeModal esDocente={esDocente} hijos={hijoActivoId ? hijos.filter((h) => h.id === hijoActivoId) : hijos} cursosVista={cursoIds} tagDeCurso={tagDeCurso} onCerrar={() => setNuevo(false)}
           onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
           onCrearGrupo={esDocente ? null : () => { setNuevo(false); conNormas(() => setGrupoModal({ grupo: null })); }}
           onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }} />

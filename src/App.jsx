@@ -555,7 +555,7 @@ function App() {
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
-      case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente}/>;
+      case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
       default: return null;
     }
