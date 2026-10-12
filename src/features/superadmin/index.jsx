@@ -18,6 +18,8 @@ import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
+import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
+import { cargarClasesCurso, etiquetaClase, cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { EventosColegio } from "../calendario";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector } from "../../components";
@@ -46,6 +48,7 @@ const SECCIONES = [
   { grupo: "Cursos", items: [
     {id:"cursos",l:"🏫 Cursos"},
     {id:"promocion",l:"🎓 Promoción"},
+    {id:"materias",l:"📚 Materias"},
     {id:"horarios",l:"🕐 Horarios"},
     {id:"uniformes",l:"👕 Uniformes"},
   ]},
@@ -80,6 +83,7 @@ const SECCION_INFO = {
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
   cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
   promocion:      { titulo:"Promoción de curso", descripcion:"Pasá a los alumnos de un curso al año lectivo siguiente, revisando quién no se promueve." },
+  materias:       { titulo:"Materias", descripcion:"La lista de materias del colegio. Las clases de cada curso (y su horario) se arman eligiendo de acá." },
   horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Calendario." },
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
@@ -543,16 +547,24 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // siguiente". Los alumnos NO se copian acá: eso lo hace la Promoción de curso.
   const clonarConfiguracionCurso = async (origenId, destinoId) => {
     const withCurso = (rows) => (rows||[]).map(r=>({...r,curso_id:destinoId}));
-    const [hor,uc,mc,unic,ut,lib] = await Promise.all([
-      supabase.from("horarios").select("dia,hora_inicio,hora_fin,materia,docente,color").eq("curso_id",origenId),
+    // Clases primero (el horario las referencia): ids nuevos generados acá
+    // para remapear horarios.clase_id. maestro_cursos lo deriva la base.
+    const { data: cls } = await supabase.from("clases").select("id,materia_id,maestro_id").eq("curso_id",origenId);
+    const nuevaClase = Object.fromEntries((cls||[]).map(c=>[c.id, uuidLite()]));
+    if(cls?.length) await supabase.from("clases").insert(cls.map(c=>({ id:nuevaClase[c.id], curso_id:destinoId, materia_id:c.materia_id, maestro_id:c.maestro_id })));
+    const conClase = new Set((cls||[]).map(c=>c.maestro_id).filter(Boolean));
+    const [hor,uc,mcTodos,unic,ut,lib] = await Promise.all([
+      supabase.from("horarios").select("dia,hora_inicio,hora_fin,materia,docente,color,clase_id").eq("curso_id",origenId),
       supabase.from("usuario_cursos").select("usuario_id,rol").eq("curso_id",origenId),
       supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",origenId),
       supabase.from("uniforme_cursos").select("uniforme_id").eq("curso_id",origenId),
       supabase.from("utiles").select("item,obligatorio,categoria,cantidad,comentario").eq("curso_id",origenId),
       supabase.from("libros").select("nombre,obligatorio,editorial,materia,imagen_url,url_descarga").eq("curso_id",origenId),
     ]);
+    const mc = { data: (mcTodos.data||[]).filter(r=>!conClase.has(r.maestro_id)) }; // las con clase ya las creó el trigger
+    const horNuevos = (hor.data||[]).map(h=>({ ...h, clase_id: h.clase_id ? nuevaClase[h.clase_id]||null : null }));
     await Promise.all([
-      hor.data?.length  ? supabase.from("horarios").insert(withCurso(hor.data))       : null,
+      horNuevos.length  ? supabase.from("horarios").insert(withCurso(horNuevos))      : null,
       uc.data?.length   ? supabase.from("usuario_cursos").insert(withCurso(uc.data))  : null,
       mc.data?.length   ? supabase.from("maestro_cursos").insert(withCurso(mc.data))  : null,
       unic.data?.length ? supabase.from("uniforme_cursos").insert(withCurso(unic.data)): null,
@@ -700,18 +712,16 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       // no existe) — con .select().single() eso daba "Error al guardar el maestro".
       const id = uuidLite();
       maestroId = id;
-      const { error } = await supabase.from("maestros").insert({id,nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null});
+      const { error } = await supabase.from("maestros").insert({id,nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,email:sanitize(form.email)||null,avatar,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null});
       if(error) { showToast(`Error al guardar el maestro: ${error.message}`, "error"); return; }
-      if(form.cursos?.length) {
-        const { error: e2 } = await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:id,curso_id:cid})));
-        if(e2) { showToast(`Maestro creado, pero falló asignar los cursos: ${e2.message}`, "error"); }
-      }
     } else {
-      const { error } = await supabase.from("maestros").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,materia:sanitize(form.materia)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
+      const { error } = await supabase.from("maestros").update({nombre:sanitize(form.nombre),apellido:sanitize(form.apellido)||null,email:sanitize(form.email)||null,activo:form.activo!==false,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",form.id);
       if(error) { showToast("Error al actualizar el maestro", "error"); return; }
-      await supabase.from("maestro_cursos").delete().eq("maestro_id",form.id);
-      if(form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map(cid=>({maestro_id:form.id,curso_id:cid})));
     }
+    // Clases (materia × curso). maestro_cursos y el texto de materia los
+    // deriva la base. Solo se tocan las clases de los cursos del año vigente.
+    const eClases = await guardarClasesMaestro(maestroId, form.clases||[], form._clasesOrig||[], cursosAnoActual.map(c=>c.id));
+    if(eClases) { showToast(`Maestro guardado, pero falló guardar sus clases: ${eClases.message}`, "error"); return; }
     if(form.darAcceso && !form.usuario_id) {
       const ok = await crearAccesoDocente(maestroId);
       if(!ok) return;
@@ -1105,7 +1115,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
-            {[{label:"Nombre",key:"nombre",ph:"Ej: Carlos"},{label:"Apellido",key:"apellido",ph:"Ej: Gómez"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
+            {[{label:"Nombre",key:"nombre",ph:"Ej: Carlos"},{label:"Apellido",key:"apellido",ph:"Ej: Gómez"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
                 <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
@@ -1117,8 +1127,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cursos asignados</div>
-              <CursoListSelector cursos={cursosAnoActual} seleccionados={form.cursos||[]} onToggle={id=>setForm(p=>{ const sel=(p.cursos||[]).includes(id); return {...p,cursos:sel?p.cursos.filter(x=>x!==id):[...(p.cursos||[]),id]}; })}/>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Clases que da</div>
+              {form.clases===null
+                ? <div style={{fontSize:12.5,color:"#94A3B8"}}>Cargando clases…</div>
+                : <ClasesMaestroEditor colegioId={activeColegioId} cursos={cursosAnoActual} value={(form.clases||[]).filter(c=>cursosAnoActual.some(x=>x.id===c.curso_id))} onChange={v=>setForm(p=>({...p,clases:v}))}/>}
             </div>
             <div style={{marginBottom:12,padding:12,borderRadius:12,border:"1px solid #E2E8F0",background:"#F8FAFC"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso a Mensajes</div>
@@ -1300,7 +1312,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
             {sec==="maestros" && (
-              <button onClick={()=>{ setForm({nombre:"",apellido:"",materia:"",email:"",cursos:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
+              <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",clases:[],_clasesOrig:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
             )}
             {sec==="colegios" && (
               <button onClick={()=>{ setForm({nombre:"",año_lectivo_actual:new Date().getFullYear(),adminNombre:"",adminApellido:"",adminEmail:"",adminPass:""}); setModalColegio("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo colegio</button>
@@ -1653,7 +1665,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:999,background:m.activo?"#F0FDF4":"#F1F5F9",color:m.activo?"#10B981":"#94A3B8"}}>{m.activo?"Activo":"Inactivo"}</span>
                   </div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>{ setForm({...m,cursos:[...(m.cursos||[])]}); setModal("editar_maestro"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                    <button onClick={()=>{ setForm({...m,clases:null,_clasesOrig:[]}); setModal("editar_maestro"); cargarClasesMaestro(m.id).then(cl=>setForm(p=>p.id===m.id?{...p,clases:cl,_clasesOrig:cl}:p)); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                     <button onClick={()=>setConfirm({nombre:fmtNombre(m),msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
                 </div>
@@ -1701,8 +1713,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="adopcion"&&(
         <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>
       )}
+      {sec==="materias"&&(
+        <MateriasAdmin colegioId={activeColegioId} showToast={showToast}/>
+      )}
       {sec==="horarios"&&(
-        <HorariosAdmin cursos={cursosAnoActual}/>
+        <HorariosAdmin cursos={cursosAnoActual} colegioId={activeColegioId} showToast={showToast}/>
       )}
       {sec==="uniformes"&&(
         <UniformesAdmin cursos={cursosAnoActual}/>
@@ -2432,7 +2447,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
 const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
-export function HorariosAdmin({ cursos }) {
+export function HorariosAdmin({ cursos, colegioId, showToast }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
   const [maestros, setMaestros] = useState([]);
@@ -2453,26 +2468,40 @@ export function HorariosAdmin({ cursos }) {
     });
   },[cursos]);
 
+  // Clases del curso (materia + maestra): el horario se arma eligiendo una
+  // de estas, sin texto libre (materia/docente/color los completa la base).
+  const [clases, setClases] = useState([]);
   const cargar = async (cid) => {
     if(!cid) return;
-    const [hor, mae] = await Promise.all([
+    // maestras del colegio (para asignar clases): las que dan clase en algún
+    // curso de este colegio — RLS ya acota a colegio_admin; el filtro por
+    // colegio es para super.
+    const [hor, cls, mc] = await Promise.all([
       supabase.from("horarios").select("*").eq("curso_id",cid).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo",true)
-        .in("id", (await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id",cid)).data?.map(r=>r.maestro_id)||[]),
+      cargarClasesCurso(cid),
+      supabase.from("maestro_cursos").select("maestro_id,cursos!inner(colegio_id)").eq("cursos.colegio_id", colegioId||""),
     ]);
+    const ids = [...new Set((mc.data||[]).map(r=>r.maestro_id))];
+    const { data: mae } = ids.length ? await supabase.from("maestros").select("id,nombre,apellido").eq("activo",true).in("id",ids).order("nombre") : { data: [] };
+    const usos = {};
+    for(const h of (hor.data||[])) if(h.clase_id) usos[h.clase_id] = (usos[h.clase_id]||0)+1;
     setHorarios(hor.data||[]);
-    setMaestros(mae.data||[]);
+    setClases(cls.map(c=>({ ...c, _usos: usos[c.id]||0 })));
+    setMaestros(mae||[]);
   };
 
   const selCurso = (c) => { setCursoSel(c); cargar(c.id); };
 
   const guardar = async () => {
-    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin||!cursoSel) return;
+    if(!horForm?.clase_id||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin||!cursoSel) return;
     setSaving(true);
-    const payload = { materia:horForm.materia.trim(), dia:horForm.dia, hora_inicio:horForm.hora_inicio, hora_fin:horForm.hora_fin, docente:horForm.docente||null, color:horForm.color||"#3B82F6", curso_id:cursoSel.id };
-    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
-    else           await supabase.from("horarios").insert(payload);
-    setSaving(false); setHorForm(null); cargar(cursoSel.id);
+    const payload = { clase_id:horForm.clase_id, dia:horForm.dia, hora_inicio:horForm.hora_inicio, hora_fin:horForm.hora_fin, curso_id:cursoSel.id };
+    const { error } = horForm.id
+      ? await supabase.from("horarios").update(payload).eq("id",horForm.id)
+      : await supabase.from("horarios").insert(payload);
+    setSaving(false);
+    if(error) { showToast?.(`No se pudo guardar: ${error.message}`, "error"); return; }
+    setHorForm(null); cargar(cursoSel.id);
   };
 
   const eliminar = async (id) => {
@@ -2487,7 +2516,7 @@ export function HorariosAdmin({ cursos }) {
       {horForm!==null&&(
         <AdminFormModal
           emoji="🕐"
-          titulo={horForm?.id?"Editar clase":"Nueva clase"}
+          titulo={horForm?.id?"Editar horario":"Agregar al horario"}
           subtitulo={cursoSel?.nombre}
           editing={!!horForm?.id}
           saving={saving}
@@ -2497,9 +2526,8 @@ export function HorariosAdmin({ cursos }) {
             { key:"dia", label:"Día", tipo:"opciones", span:2, opciones: DIAS_SEMANA.map(d=>({value:d,label:d})) },
             { key:"hora_inicio", label:"Hora inicio", tipo:"hora", requerido:true },
             { key:"hora_fin", label:"Hora fin", tipo:"hora", requerido:true },
-            { key:"materia", label:"Materia", tipo:"texto", placeholder:"Ej: Matemáticas", requerido:true, span:2 },
-            { key:"docente", label:"Docente", tipo:"opciones", span:2, opciones:[{value:"",label:"Sin asignar"},...maestros.map(m=>({value:fmtNombre(m),label:fmtNombre(m)}))] },
-            { key:"color", label:"Color", tipo:"color", span:2 },
+            { key:"clase_id", label: horForm?.id && !horForm?.clase_id ? `Clase (antes: “${horForm.materia}”)` : "Clase", tipo:"opciones", requerido:true, span:2,
+              opciones: clases.map(c=>({ value:c.id, label:etiquetaClase(c) })) },
           ]}
           onCancelar={()=>setHorForm(null)}
           onGuardar={guardar}
@@ -2508,9 +2536,9 @@ export function HorariosAdmin({ cursos }) {
 
       {confirmElim&&(
         <ConfirmDestructivoModal
-          titulo="¿Eliminar esta clase?"
+          titulo="¿Quitar del horario?"
           detalle={`${confirmElim.materia} — ${confirmElim.dia} ${confirmElim.hora_inicio?.slice(0,5)} a ${confirmElim.hora_fin?.slice(0,5)}. Esta acción no se puede deshacer.`}
-          textoConfirmar="Eliminar clase"
+          textoConfirmar="Quitar"
           onCancelar={()=>setConfirmElim(null)}
           onConfirmar={()=>eliminar(confirmElim.id)}
         />
@@ -2532,9 +2560,10 @@ export function HorariosAdmin({ cursos }) {
 
       {cursoSel&&(
         <>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-            <div style={{fontSize:14,fontWeight:700}}>{cursoSel.avatar} {cursoSel.nombre}</div>
-            <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva clase</button>
+          <ClasesCurso curso={cursoSel} colegioId={colegioId} clases={clases} maestros={maestros} onCambio={()=>cargar(cursoSel.id)} showToast={showToast}/>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:8}}>
+            <div style={{fontSize:14,fontWeight:700}}>{cursoSel.avatar} Horario de {cursoSel.nombre}</div>
+            <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",clase_id:""})} disabled={!clases.length} title={clases.length?"":"Primero agregá las clases del curso"} style={{padding:"7px 14px",borderRadius:10,border:"none",background:clases.length?"#3B82F6":"#93C5FD",color:"white",cursor:clases.length?"pointer":"default",fontSize:12,fontWeight:700}}>+ Agregar al horario</button>
           </div>
           {horarios.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin clases cargadas para este curso</div>}
           {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map(dia=>{

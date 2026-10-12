@@ -1,0 +1,298 @@
+// Materias del colegio + clases por curso — puerto RN de
+// src/features/superadmin/clases.jsx (specs/docentes-clases-y-grupos.md,
+// Fase A). maestro_cursos y maestros.materia los deriva la base (triggers):
+// acá solo se escribe en `materias` y `clases`.
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet, Modal, KeyboardAvoidingView, ScrollView } from "react-native";
+import { supabase } from "../../lib/supabase";
+import { fmtNombre, sanitize } from "@shared/helpers";
+import { THEMES, SLATE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
+
+const t = THEMES.light;
+export const PALETA_MATERIAS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6", "#6366F1", "#64748B"];
+const sinAcentos = (v) => (v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+export function useMaterias(colegioId) {
+  const [materias, setMaterias] = useState(null);
+  const recargar = useCallback(async () => {
+    if (!colegioId) { setMaterias([]); return; }
+    const { data } = await supabase.from("materias").select("*").eq("colegio_id", colegioId).order("orden").order("nombre");
+    setMaterias(data || []);
+  }, [colegioId]);
+  useEffect(() => { recargar(); }, [recargar]);
+  return { materias, recargar };
+}
+
+export async function cargarClasesCurso(cursoId) {
+  const { data } = await supabase.from("clases")
+    .select("id,curso_id,materia_id,maestro_id,materias(id,nombre,color,activo),maestros(id,nombre,apellido,activo)")
+    .eq("curso_id", cursoId);
+  return (data || []).sort((a, b) => (a.materias?.nombre || "").localeCompare(b.materias?.nombre || "", "es"));
+}
+export const etiquetaClase = (c) => [c.materias?.nombre, c.maestros ? fmtNombre(c.maestros) : null].filter(Boolean).join(" · ");
+
+export async function cargarClasesMaestro(maestroId) {
+  if (!maestroId) return [];
+  const { data } = await supabase.from("clases").select("id,curso_id,materia_id").eq("maestro_id", maestroId);
+  return data || [];
+}
+export async function guardarClasesMaestro(maestroId, borrador, originales, cursosVisibles) {
+  const visibles = new Set(cursosVisibles);
+  const clave = (v) => `${v.curso_id}|${v.materia_id}`;
+  const enBorrador = new Set(borrador.map(clave));
+  const enOriginal = new Set(originales.map(clave));
+  const quitar = originales.filter((o) => visibles.has(o.curso_id) && !enBorrador.has(clave(o))).map((o) => o.id);
+  const agregar = borrador.filter((b) => !enOriginal.has(clave(b))).map((b) => ({ maestro_id: maestroId, curso_id: b.curso_id, materia_id: b.materia_id }));
+  const [del, ins] = await Promise.all([
+    quitar.length ? supabase.from("clases").delete().in("id", quitar) : { error: null },
+    agregar.length ? supabase.from("clases").insert(agregar) : { error: null },
+  ]);
+  return del.error || ins.error || null;
+}
+
+function Chip({ label, on, onPress, color }) {
+  return (
+    <Pressable onPress={onPress} style={[s.chip, on && s.chipOn]} accessibilityRole="button" accessibilityState={{ selected: !!on }}>
+      {color ? <View style={[s.dot, { backgroundColor: color }]} /> : null}
+      <Text style={[s.chipTxt, on && s.chipTxtOn]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// ── Catálogo de materias ─────────────────────────────────────────────────────
+
+export function MateriasAdmin({ colegioId }) {
+  const { materias, recargar } = useMaterias(colegioId);
+  const [usos, setUsos] = useState({});
+  const [nueva, setNueva] = useState("");
+  const [sel, setSel] = useState(null); // materia abierta en el sheet de edición
+  const [nombre, setNombre] = useState("");
+  const [unificarCon, setUnificarCon] = useState(null);
+
+  useEffect(() => {
+    if (!materias?.length) return;
+    supabase.from("clases").select("materia_id").in("materia_id", materias.map((m) => m.id)).then(({ data }) => {
+      const n = {};
+      for (const r of data || []) n[r.materia_id] = (n[r.materia_id] || 0) + 1;
+      setUsos(n);
+    });
+  }, [materias]);
+
+  const duplicada = (n, id) => (materias || []).some((m) => m.id !== id && sinAcentos(m.nombre) === sinAcentos(n));
+  const crear = async () => {
+    const n = sanitize(nueva).trim();
+    if (!n) return;
+    if (duplicada(n)) { Alert.alert("Esa materia ya existe"); return; }
+    const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre: n, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1 });
+    if (error) { Alert.alert("No se pudo crear", error.message); return; }
+    setNueva(""); recargar();
+  };
+  const actualizar = async (cambios) => {
+    const { error } = await supabase.from("materias").update(cambios).eq("id", sel.id);
+    if (error) { Alert.alert("No se pudo guardar", error.message); return false; }
+    recargar(); return true;
+  };
+  const guardar = async () => {
+    const n = sanitize(nombre).trim();
+    if (!n) return;
+    if (duplicada(n, sel.id)) { Alert.alert("Ya hay otra materia con ese nombre", "Usá “Unificar” si son la misma."); return; }
+    if (await actualizar({ nombre: n })) setSel(null);
+  };
+  const unificar = () => {
+    if (!unificarCon) return;
+    Alert.alert(`¿Unificar “${sel.nombre}” en “${unificarCon.nombre}”?`, `Sus clases y horarios pasan a “${unificarCon.nombre}” y “${sel.nombre}” desaparece.`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Unificar", style: "destructive", onPress: async () => {
+        const { error } = await supabase.rpc("fusionar_materias", { p_origen: sel.id, p_destino: unificarCon.id });
+        if (error) { Alert.alert("No se pudo unificar", error.message); return; }
+        setSel(null); setUnificarCon(null); recargar();
+      } },
+    ]);
+  };
+
+  if (!colegioId) return <Text style={s.muted}>Elegí un colegio primero.</Text>;
+  if (materias === null) return <ActivityIndicator color={t.accent} />;
+  return (
+    <View>
+      <Text style={s.intro}>La lista de materias del colegio. Las clases de cada curso se arman eligiendo de acá (en Horarios o en la ficha de cada maestro).</Text>
+      <View style={s.row}>
+        <TextInput value={nueva} onChangeText={setNueva} placeholder="Nueva materia (ej: Inglés)" placeholderTextColor={t.placeholder} style={[s.input, s.flex1]} onSubmitEditing={crear} />
+        <Pressable onPress={crear} style={[s.btnPri, !nueva.trim() && s.off]} disabled={!nueva.trim()}><Text style={s.btnPriTxt}>Agregar</Text></Pressable>
+      </View>
+      <View style={s.card}>
+        {materias.map((m, i) => (
+          <Pressable key={m.id} onPress={() => { setSel(m); setNombre(m.nombre); setUnificarCon(null); }} style={[s.fila, i > 0 && s.borde, !m.activo && s.off]} accessibilityRole="button">
+            <View style={[s.dotGrande, { backgroundColor: m.color }]} />
+            <Text style={[s.filaTxt, s.flex1]}>{m.nombre}{m.activo ? "" : " (oculta)"}</Text>
+            <Text style={s.meta}>{usos[m.id] ? `${usos[m.id]} ${usos[m.id] === 1 ? "clase" : "clases"}` : "sin clases"}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Modal visible={!!sel} transparent animationType="fade" onRequestClose={() => setSel(null)}>
+        <KeyboardAvoidingView style={s.overlay} behavior="padding">
+          <View style={s.modalCard}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.modalTitle}>Materia</Text>
+              <Text style={s.label}>NOMBRE</Text>
+              <TextInput value={nombre} onChangeText={setNombre} style={s.input} />
+              <Text style={s.label}>COLOR</Text>
+              <View style={s.wrap}>
+                {PALETA_MATERIAS.map((c) => (
+                  <Pressable key={c} onPress={() => { actualizar({ color: c }); setSel((p) => ({ ...p, color: c })); }} style={[s.colorDot, { backgroundColor: c }, sel?.color === c && s.colorOn]} accessibilityLabel={`Color ${c}`} />
+                ))}
+              </View>
+              <Text style={s.label}>UNIFICAR CON OTRA (si es la misma materia)</Text>
+              <View style={s.wrap}>
+                {(materias || []).filter((m) => m.id !== sel?.id).map((m) => (
+                  <Chip key={m.id} label={m.nombre} color={m.color} on={unificarCon?.id === m.id} onPress={() => setUnificarCon(unificarCon?.id === m.id ? null : m)} />
+                ))}
+              </View>
+              {unificarCon ? <Pressable onPress={unificar} style={[s.btnSec, { marginTop: SPACE.sm }]}><Text style={s.btnSecTxt}>Unificar en “{unificarCon.nombre}”</Text></Pressable> : null}
+              <Pressable onPress={async () => { if (await actualizar({ activo: !sel.activo })) setSel(null); }} style={[s.btnSec, { marginTop: SPACE.md }]}>
+                <Text style={s.btnSecTxt}>{sel?.activo ? "Ocultar de las listas" : "Volver a mostrar"}</Text>
+              </Pressable>
+              <View style={[s.row, { marginTop: SPACE.lg }]}>
+                <Pressable onPress={() => setSel(null)} style={[s.btnSec, s.flex1]}><Text style={s.btnSecTxt}>Cerrar</Text></Pressable>
+                <Pressable onPress={guardar} style={[s.btnPri, s.flex1]}><Text style={s.btnPriTxt}>Guardar nombre</Text></Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+// ── Clases de un curso (en Horarios) ──────────────────────────────────────────
+
+export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio }) {
+  const { materias } = useMaterias(colegioId);
+  const [abierto, setAbierto] = useState(false);
+  const [materiaId, setMateriaId] = useState(null);
+  const [maestroId, setMaestroId] = useState(null);
+
+  const agregar = async () => {
+    if (!materiaId) return;
+    const { error } = await supabase.from("clases").insert({ curso_id: curso.id, materia_id: materiaId, maestro_id: maestroId || null });
+    if (error) { Alert.alert(error.code === "23505" ? "Esa clase ya existe en el curso" : "No se pudo agregar", error.code === "23505" ? undefined : error.message); return; }
+    setMateriaId(null); setMaestroId(null); setAbierto(false); onCambio?.();
+  };
+  const quitar = (c) => {
+    Alert.alert(`¿Quitar “${etiquetaClase(c)}”?`, c._usos ? `Tiene ${c._usos} ${c._usos === 1 ? "bloque" : "bloques"} en el horario: quedan sin clase (se siguen viendo con su texto).` : undefined, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Quitar", style: "destructive", onPress: async () => {
+        const { error } = await supabase.from("clases").delete().eq("id", c.id);
+        if (error) { Alert.alert("No se pudo quitar la clase"); return; }
+        onCambio?.();
+      } },
+    ]);
+  };
+  const activas = (materias || []).filter((m) => m.activo);
+  return (
+    <View style={[s.card, { padding: SPACE.md, marginBottom: SPACE.md }]}>
+      <Text style={s.label}>CLASES DE {curso.nombre.toUpperCase()}</Text>
+      {!clases.length ? <Text style={s.muted}>Todavía no hay clases. Agregá las materias que se dan y quién las da.</Text> : null}
+      {clases.map((c) => (
+        <View key={c.id} style={s.claseFila}>
+          <View style={[s.dot, { backgroundColor: c.materias?.color || SLATE[400] }]} />
+          <Text style={[s.filaTxt, s.flex1]} numberOfLines={1}>{etiquetaClase(c)}</Text>
+          <Pressable onPress={() => quitar(c)} hitSlop={8} accessibilityLabel={`Quitar ${c.materias?.nombre}`}><Text>🗑</Text></Pressable>
+        </View>
+      ))}
+      {abierto ? (
+        <View style={{ marginTop: SPACE.sm }}>
+          <Text style={s.label}>MATERIA</Text>
+          <View style={s.wrap}>
+            {activas.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={materiaId === m.id} onPress={() => setMateriaId(m.id)} />)}
+          </View>
+          {!activas.length ? <Text style={s.muted}>Primero cargá las materias en 📚 Materias.</Text> : null}
+          <Text style={s.label}>MAESTRA</Text>
+          <View style={s.wrap}>
+            <Chip label="Sin maestra" on={!maestroId} onPress={() => setMaestroId(null)} />
+            {maestros.map((m) => <Chip key={m.id} label={fmtNombre(m)} on={maestroId === m.id} onPress={() => setMaestroId(m.id)} />)}
+          </View>
+          <View style={[s.row, { marginTop: SPACE.sm }]}>
+            <Pressable onPress={() => setAbierto(false)} style={[s.btnSec, s.flex1]}><Text style={s.btnSecTxt}>Cancelar</Text></Pressable>
+            <Pressable onPress={agregar} disabled={!materiaId} style={[s.btnPri, s.flex1, !materiaId && s.off]}><Text style={s.btnPriTxt}>Agregar clase</Text></Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable onPress={() => setAbierto(true)} style={[s.btnSec, { marginTop: SPACE.sm }]}><Text style={s.btnSecTxt}>+ Agregar clase</Text></Pressable>
+      )}
+    </View>
+  );
+}
+
+// ── Clases de una maestra (ficha) ─────────────────────────────────────────────
+
+export function ClasesMaestroEditor({ colegioId, cursos, value, onChange }) {
+  const { materias } = useMaterias(colegioId);
+  const [cursoId, setCursoId] = useState(null);
+  const porId = useMemo(() => Object.fromEntries((materias || []).map((m) => [m.id, m])), [materias]);
+  const nombreCurso = useMemo(() => Object.fromEntries((cursos || []).map((c) => [c.id, c.nombre])), [cursos]);
+  const activas = (materias || []).filter((m) => m.activo);
+  const toggle = (materiaId) => {
+    if (!cursoId) return;
+    const existe = value.find((v) => v.curso_id === cursoId && v.materia_id === materiaId);
+    onChange(existe ? value.filter((v) => v !== existe) : [...value, { curso_id: cursoId, materia_id: materiaId }]);
+  };
+  return (
+    <View>
+      {!value.length ? <Text style={s.muted}>Sin clases asignadas.</Text> : (
+        <View style={s.wrap}>
+          {value.map((v) => (
+            <Chip key={`${v.curso_id}-${v.materia_id}`} label={`${porId[v.materia_id]?.nombre || "…"} · ${nombreCurso[v.curso_id] || "otro año"}  ✕`}
+              color={porId[v.materia_id]?.color} on onPress={() => onChange(value.filter((x) => x !== v))} />
+          ))}
+        </View>
+      )}
+      <Text style={s.label}>AGREGAR: ELEGÍ EL CURSO…</Text>
+      <View style={s.wrap}>
+        {(cursos || []).map((c) => <Chip key={c.id} label={c.nombre} on={cursoId === c.id} onPress={() => setCursoId(c.id)} />)}
+      </View>
+      {cursoId ? (
+        <>
+          <Text style={s.label}>…Y LAS MATERIAS QUE DA AHÍ</Text>
+          <View style={s.wrap}>
+            {activas.map((m) => (
+              <Chip key={m.id} label={m.nombre} color={m.color} on={value.some((v) => v.curso_id === cursoId && v.materia_id === m.id)} onPress={() => toggle(m.id)} />
+            ))}
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  intro: { fontSize: 13, color: t.textMuted, lineHeight: 19, marginBottom: SPACE.md },
+  muted: { fontSize: 13, color: t.textMuted, marginVertical: SPACE.xs },
+  row: { flexDirection: "row", gap: SPACE.sm, alignItems: "center", marginBottom: SPACE.md },
+  flex1: { flex: 1 },
+  off: { opacity: 0.5 },
+  input: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.lg, paddingHorizontal: SPACE.md, paddingVertical: 10, fontSize: 15, color: t.text, backgroundColor: t.surfaceSunken },
+  card: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong },
+  fila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingHorizontal: SPACE.md, minHeight: MIN_TOUCH + 4 },
+  borde: { borderTopWidth: 1, borderTopColor: t.border },
+  filaTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  meta: { fontSize: 12, color: t.textFaint },
+  claseFila: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, minHeight: 36 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
+  dotGrande: { width: 14, height: 14, borderRadius: 7 },
+  label: { fontSize: 11, fontWeight: "800", color: t.textFaint, letterSpacing: 0.6, marginTop: SPACE.md, marginBottom: 6 },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  chipOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  chipTxt: { fontSize: 13, color: SLATE[600], fontWeight: "600" },
+  chipTxtOn: { color: t.accent },
+  colorDot: { width: 32, height: 32, borderRadius: 16 },
+  colorOn: { borderWidth: 3, borderColor: t.textStrong },
+  btnPri: { backgroundColor: t.accent, borderRadius: RADIUS.lg, minHeight: MIN_TOUCH, paddingHorizontal: SPACE.lg, alignItems: "center", justifyContent: "center" },
+  btnPriTxt: { color: "white", fontWeight: "700", fontSize: 14 },
+  btnSec: { borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.lg, minHeight: MIN_TOUCH, paddingHorizontal: SPACE.lg, alignItems: "center", justifyContent: "center", backgroundColor: t.surface },
+  btnSecTxt: { color: SLATE[700], fontWeight: "700", fontSize: 14 },
+  overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "center", padding: SPACE.xl },
+  modalCard: { backgroundColor: t.surface, borderRadius: RADIUS.xl, padding: SPACE.lg, maxHeight: "88%" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: t.textStrong },
+});

@@ -32,6 +32,7 @@ import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { EventosColegio } from "../calendario";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
+import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor, cargarClasesCurso, etiquetaClase, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
@@ -45,6 +46,7 @@ const SECCIONES = [
   ]},
   { grupo: "Cursos", items: [
     { id: "cursos", l: "🏫 Cursos" },
+    { id: "materias", l: "📚 Materias" },
     { id: "horarios", l: "🕐 Horarios" },
     { id: "uniformes", l: "👕 Uniformes" },
   ]},
@@ -385,40 +387,40 @@ export function SuperAdmin() {
     if (!form.nombre) return;
     const apellido = form.apellido || "";
     const avatar = form.avatar || `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase() || form.nombre.slice(0, 2).toUpperCase();
+    let maestroId = form.id;
     if (modal === "nuevo_maestro") {
       // id en el cliente: el colegio_admin no puede leer de vuelta el maestro
       // recién creado (RLS lo ve solo vía maestro_cursos, aún inexistente).
-      const id = uuidLite();
+      maestroId = uuidLite();
       const { error } = await supabase
         .from("maestros")
         .insert({
-          id,
+          id: maestroId,
           nombre: sanitize(form.nombre),
           apellido: sanitize(form.apellido) || null,
-          materia: sanitize(form.materia) || null,
           email: sanitize(form.email) || null,
           avatar,
           activo: form.activo !== false,
           fecha_nacimiento: form.fecha_nacimiento || null,
         });
       if (error) { Alert.alert("Error al guardar el maestro", error.message); return; }
-      if (form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map((cid) => ({ maestro_id: id, curso_id: cid })));
     } else {
       const { error } = await supabase
         .from("maestros")
         .update({
           nombre: sanitize(form.nombre),
           apellido: sanitize(form.apellido) || null,
-          materia: sanitize(form.materia) || null,
           email: sanitize(form.email) || null,
           activo: form.activo !== false,
           fecha_nacimiento: form.fecha_nacimiento || null,
         })
         .eq("id", form.id);
       if (error) { Alert.alert("Error al actualizar el maestro", error.message); return; }
-      await supabase.from("maestro_cursos").delete().eq("maestro_id", form.id);
-      if (form.cursos?.length) await supabase.from("maestro_cursos").insert(form.cursos.map((cid) => ({ maestro_id: form.id, curso_id: cid })));
     }
+    // Clases (materia × curso): maestro_cursos y el texto de materia los
+    // deriva la base. Solo se tocan las clases de los cursos del año vigente.
+    const eClases = await guardarClasesMaestro(maestroId, form.clases || [], form._clasesOrig || [], cursosVigentes.map((c) => c.id));
+    if (eClases) { Alert.alert("Maestro guardado, pero falló guardar sus clases", eClases.message); return; }
     setModal(null);
     cargar();
   };
@@ -791,7 +793,7 @@ export function SuperAdmin() {
         <View>
           <Pressable
             onPress={() => {
-              setForm({ nombre: "", apellido: "", materia: "", email: "", cursos: [], activo: true });
+              setForm({ nombre: "", apellido: "", email: "", clases: [], _clasesOrig: [], activo: true });
               setModal("nuevo_maestro");
             }}
             style={[styles.dashedBtn, { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
@@ -815,7 +817,8 @@ export function SuperAdmin() {
               <View style={styles.itemBtns}>
                 <Pressable
                   onPress={() => {
-                    setForm({ ...m, cursos: [...(m.cursos || [])] });
+                    setForm({ ...m, clases: null, _clasesOrig: [] });
+                    cargarClasesMaestro(m.id).then((cl) => setForm((p) => (p.id === m.id ? { ...p, clases: cl, _clasesOrig: cl } : p)));
                     setModal("editar_maestro");
                   }}
                   style={styles.iconBtn}
@@ -883,7 +886,8 @@ export function SuperAdmin() {
       ) : null}
 
       {sec === "colegio" ? <ColegioAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
-      {sec === "horarios" ? <HorariosAdmin cursos={cursos} /> : null}
+      {sec === "materias" ? <MateriasAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
+      {sec === "horarios" ? <HorariosAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
@@ -951,7 +955,7 @@ export function SuperAdmin() {
         <CursoModal esNuevo={modal === "nuevo_curso"} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={guardarCurso} />
       ) : null}
       {modal === "nuevo_maestro" || modal === "editar_maestro" ? (
-        <MaestroModal esNuevo={modal === "nuevo_maestro"} form={form} setForm={setForm} cursos={cursos} onClose={() => setModal(null)} onSave={guardarMaestro} />
+        <MaestroModal esNuevo={modal === "nuevo_maestro"} form={form} setForm={setForm} cursos={cursosVigentes} colegioId={activeColegioId} onClose={() => setModal(null)} onSave={guardarMaestro} />
       ) : null}
       {modal === "nuevo_alumno" || modal === "editar_alumno" ? (
         <AlumnoModal esNuevo={modal === "nuevo_alumno"} form={form} setForm={setForm} cursos={cursos} onClose={() => setModal(null)} onSave={guardarAlumno} />
@@ -1175,7 +1179,7 @@ function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
   );
 }
 
-function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
+function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
@@ -1185,7 +1189,6 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             {[
               { l: "Nombre", k: "nombre", ph: "Ej: Carlos" },
               { l: "Apellido", k: "apellido", ph: "Ej: Gómez" },
-              { l: "Materia", k: "materia", ph: "Ej: Matemáticas" },
               { l: "Email", k: "email", ph: "carlos@mail.com" },
             ].map((f) => (
               <View key={f.k}>
@@ -1202,12 +1205,17 @@ function MaestroModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             ))}
             <Text style={styles.label}>CUMPLEAÑOS</Text>
             <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
-            <Text style={styles.label}>CURSOS ASIGNADOS</Text>
-            <CursoListSelector
-              cursos={cursos}
-              seleccionados={form.cursos || []}
-              onToggle={(id) => setForm((p) => { const sel = (p.cursos || []).includes(id); return { ...p, cursos: sel ? p.cursos.filter((x) => x !== id) : [...(p.cursos || []), id] }; })}
-            />
+            <Text style={styles.label}>CLASES QUE DA</Text>
+            {form.clases === null ? (
+              <Text style={styles.muted}>Cargando clases…</Text>
+            ) : (
+              <ClasesMaestroEditor
+                colegioId={colegioId}
+                cursos={cursos}
+                value={(form.clases || []).filter((c) => cursos.some((x) => x.id === c.curso_id))}
+                onChange={(v) => setForm((p) => ({ ...p, clases: v }))}
+              />
+            )}
             <Text style={styles.label}>ESTADO</Text>
             <Pressable
               onPress={() => setForm((p) => ({ ...p, activo: p.activo === false }))}
@@ -2017,49 +2025,52 @@ const comStyles = StyleSheet.create({
 
 // ── HorariosAdmin (super: selector de curso) ─────────────────────────────────────
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-function HorariosAdmin({ cursos }) {
+function HorariosAdmin({ cursos, colegioId }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [horarios, setHorarios] = useState([]);
   const [maestros, setMaestros] = useState([]);
+  const [clases, setClases] = useState([]);
   const [horForm, setHorForm] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // El horario se arma eligiendo una clase del curso (materia + maestra);
+  // materia/docente/color los completa la base (supabase/materias-y-clases.sql).
   const cargar = async (cid) => {
     if (!cid) return;
-    const mc = await supabase.from("maestro_cursos").select("maestro_id").eq("curso_id", cid);
-    const ids = (mc.data || []).map((r) => r.maestro_id);
-    const [hor, mae] = await Promise.all([
+    const [hor, cls, mc] = await Promise.all([
       supabase.from("horarios").select("*").eq("curso_id", cid).order("dia").order("hora_inicio"),
-      ids.length ? supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo", true).in("id", ids) : Promise.resolve({ data: [] }),
+      cargarClasesCurso(cid),
+      supabase.from("maestro_cursos").select("maestro_id,cursos!inner(colegio_id)").eq("cursos.colegio_id", colegioId || ""),
     ]);
+    const ids = [...new Set((mc.data || []).map((r) => r.maestro_id))];
+    const { data: mae } = ids.length ? await supabase.from("maestros").select("id,nombre,apellido").eq("activo", true).in("id", ids).order("nombre") : { data: [] };
+    const usos = {};
+    for (const h of hor.data || []) if (h.clase_id) usos[h.clase_id] = (usos[h.clase_id] || 0) + 1;
     setHorarios(hor.data || []);
-    setMaestros(mae.data || []);
+    setClases(cls.map((c) => ({ ...c, _usos: usos[c.id] || 0 })));
+    setMaestros(mae || []);
   };
   const selCurso = (c) => {
     setCursoSel(c);
     cargar(c.id);
   };
   const guardar = async () => {
-    if (!horForm?.materia?.trim() || !horForm?.hora_inicio || !horForm?.hora_fin || !cursoSel) return;
+    if (!horForm?.clase_id || !horForm?.hora_inicio || !horForm?.hora_fin || !cursoSel) return;
     setSaving(true);
-    const payload = {
-      materia: horForm.materia.trim(),
-      dia: horForm.dia,
-      hora_inicio: horForm.hora_inicio,
-      hora_fin: horForm.hora_fin,
-      docente: horForm.docente || null,
-      color: horForm.color || "#3B82F6",
-      curso_id: cursoSel.id,
-    };
-    if (horForm.id) await supabase.from("horarios").update(payload).eq("id", horForm.id);
-    else await supabase.from("horarios").insert(payload);
+    const payload = { clase_id: horForm.clase_id, dia: horForm.dia, hora_inicio: horForm.hora_inicio, hora_fin: horForm.hora_fin, curso_id: cursoSel.id };
+    const { error } = horForm.id
+      ? await supabase.from("horarios").update(payload).eq("id", horForm.id)
+      : await supabase.from("horarios").insert(payload);
     setSaving(false);
+    if (error) { Alert.alert("No se pudo guardar", error.message); return; }
     setHorForm(null);
     cargar(cursoSel.id);
   };
-  const eliminar = async (id) => {
-    await supabase.from("horarios").delete().eq("id", id);
-    cargar(cursoSel.id);
+  const eliminar = (h) => {
+    Alert.alert("¿Quitar del horario?", `${h.materia} — ${h.dia} ${h.hora_inicio?.slice(0, 5)}`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Quitar", style: "destructive", onPress: async () => { await supabase.from("horarios").delete().eq("id", h.id); cargar(cursoSel.id); } },
+    ]);
   };
 
   return (
@@ -2070,15 +2081,16 @@ function HorariosAdmin({ cursos }) {
       {!cursoSel ? <Text style={styles.muted}>Seleccioná un curso para ver su horario</Text> : null}
       {cursoSel ? (
         <>
+          <ClasesCurso curso={cursoSel} colegioId={colegioId} clases={clases} maestros={maestros} onCambio={() => cargar(cursoSel.id)} />
           <View style={styles.horHeaderSuper}>
             <Text style={styles.cardTitle}>
-              {cursoSel.avatar} {cursoSel.nombre}
+              {cursoSel.avatar} Horario
             </Text>
-            <Pressable onPress={() => setHorForm({ dia: "Lunes", hora_inicio: "08:00", hora_fin: "09:00", materia: "", docente: "", color: "#3B82F6" })} style={styles.addBtn}>
-              <Text style={styles.addTxt}>+ Nueva clase</Text>
+            <Pressable onPress={() => setHorForm({ dia: "Lunes", hora_inicio: "08:00", hora_fin: "09:00", clase_id: null })} disabled={!clases.length} style={[styles.addBtn, !clases.length && { opacity: 0.5 }]}>
+              <Text style={styles.addTxt}>+ Agregar al horario</Text>
             </Pressable>
           </View>
-          {horarios.length === 0 ? <Text style={styles.muted}>Sin clases cargadas</Text> : null}
+          {horarios.length === 0 ? <Text style={styles.muted}>Sin horario cargado</Text> : null}
           {DIAS.map((dia) => {
             const items = horarios.filter((h) => h.dia === dia);
             if (!items.length) return null;
@@ -2098,7 +2110,7 @@ function HorariosAdmin({ cursos }) {
                     <Pressable onPress={() => setHorForm({ ...h })} style={styles.iconBtn}>
                       <Text>✏️</Text>
                     </Pressable>
-                    <Pressable onPress={() => eliminar(h.id)} style={styles.iconBtn}>
+                    <Pressable onPress={() => eliminar(h)} style={styles.iconBtn}>
                       <Text>🗑</Text>
                     </Pressable>
                   </View>
@@ -2114,7 +2126,15 @@ function HorariosAdmin({ cursos }) {
           <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>
+                <Text style={styles.modalTitle}>{horForm?.id ? "Editar horario" : "Agregar al horario"}</Text>
+                <Text style={styles.label}>{horForm?.id && !horForm?.clase_id ? `CLASE (antes: ${horForm.materia})` : "CLASE"}</Text>
+                <View style={styles.chipsWrap}>
+                  {clases.map((c) => (
+                    <Pressable key={c.id} onPress={() => setHorForm((p) => ({ ...p, clase_id: c.id }))} style={[styles.chip, horForm.clase_id === c.id && styles.chipOn]}>
+                      <Text style={[styles.chipTxt, horForm.clase_id === c.id && styles.chipTxtOn]}>{etiquetaClase(c)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <Text style={styles.label}>DÍA</Text>
                 <View style={styles.chipsWrap}>
                   {DIAS.map((d) => (
@@ -2126,38 +2146,19 @@ function HorariosAdmin({ cursos }) {
                 <View style={styles.row}>
                   <View style={styles.flex1}>
                     <Text style={styles.label}>INICIO</Text>
-                    <TextInput value={horForm.hora_inicio} onChangeText={(t) => setHorForm((p) => ({ ...p, hora_inicio: t }))} placeholder="08:00" placeholderTextColor="#94A3B8" style={styles.input} />
+                    <TextInput value={horForm.hora_inicio} onChangeText={(v) => setHorForm((p) => ({ ...p, hora_inicio: v }))} placeholder="08:00" placeholderTextColor="#94A3B8" style={styles.input} />
                   </View>
                   <View style={styles.flex1}>
                     <Text style={styles.label}>FIN</Text>
-                    <TextInput value={horForm.hora_fin} onChangeText={(t) => setHorForm((p) => ({ ...p, hora_fin: t }))} placeholder="09:00" placeholderTextColor="#94A3B8" style={styles.input} />
+                    <TextInput value={horForm.hora_fin} onChangeText={(v) => setHorForm((p) => ({ ...p, hora_fin: v }))} placeholder="09:00" placeholderTextColor="#94A3B8" style={styles.input} />
                   </View>
-                </View>
-                <Text style={styles.label}>MATERIA</Text>
-                <TextInput value={horForm.materia} onChangeText={(t) => setHorForm((p) => ({ ...p, materia: t }))} placeholder="Ej: Matemáticas" placeholderTextColor="#94A3B8" style={styles.input} />
-                <Text style={styles.label}>DOCENTE</Text>
-                <View style={styles.chipsWrap}>
-                  <Pressable onPress={() => setHorForm((p) => ({ ...p, docente: "" }))} style={[styles.chip, !horForm.docente && styles.chipOn]}>
-                    <Text style={[styles.chipTxt, !horForm.docente && styles.chipTxtOn]}>Sin asignar</Text>
-                  </Pressable>
-                  {maestros.map((m) => (
-                    <Pressable key={m.id} onPress={() => setHorForm((p) => ({ ...p, docente: fmtNombre(m) }))} style={[styles.chip, horForm.docente === fmtNombre(m) && styles.chipOn]}>
-                      <Text style={[styles.chipTxt, horForm.docente === fmtNombre(m) && styles.chipTxtOn]}>{fmtNombre(m)}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={styles.label}>COLOR</Text>
-                <View style={styles.chipsWrap}>
-                  {COLORES.map((c) => (
-                    <Pressable key={c} onPress={() => setHorForm((p) => ({ ...p, color: c }))} style={[styles.colorDot, { backgroundColor: c }, horForm.color === c && styles.colorDotOn]} />
-                  ))}
                 </View>
                 <View style={styles.modalBtns}>
                   <Pressable onPress={() => setHorForm(null)} style={styles.cancelBtn}>
                     <Text style={styles.cancelTxt}>Cancelar</Text>
                   </Pressable>
-                  <Pressable onPress={guardar} disabled={saving} style={styles.saveBtn}>
-                    <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar clase"}</Text>
+                  <Pressable onPress={guardar} disabled={saving || !horForm.clase_id} style={[styles.saveBtn, !horForm.clase_id && { opacity: 0.5 }]}>
+                    <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
                   </Pressable>
                 </View>
               </ScrollView>
