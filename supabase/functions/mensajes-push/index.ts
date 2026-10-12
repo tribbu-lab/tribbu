@@ -105,7 +105,11 @@ async function pushMensaje(sb: SupabaseClient, mensajeId: string) {
       sb.from("cursos").select("nombre").eq("id", c.curso_id).maybeSingle(),
       nombreConFamilia(sb, m.autor_id, c.curso_id),
     ]);
-    title = `Grupo ${cu?.nombre || "del curso"}`;
+    title = `Grupo ${(cu?.nombre || "del curso").split(" - ")[0]}`;
+    body = recortar(`${autor.nombre.split(" ")[0]}: ${texto}`);
+  } else if (c.tipo === "grupo") {
+    const autor = await nombreConFamilia(sb, m.autor_id, null);
+    title = c.nombre || "Grupo";
     body = recortar(`${autor.nombre.split(" ")[0]}: ${texto}`);
   } else if (c.tipo === "docente") {
     const [{ data: ma }, { data: h }, autor] = await Promise.all([

@@ -176,7 +176,7 @@ function FilaOpcion({ titulo, sub, avatar, onPress, deshabilitada, abriendo, not
   );
 }
 
-function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, tagDeCurso }) {
+function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, tagDeCurso }) {
   const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({});
   const [q, setQ] = useState("");
@@ -241,6 +241,12 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia
         <TextInput value={q} onChangeText={setQ} placeholder={pestana === "alumnos" ? "Buscar alumno" : "Buscar por nombre"} placeholderTextColor={t.placeholder} style={s.input} autoCorrect={false} accessibilityLabel="Buscar" />
       ) : null}
       <Text style={s.nota}>{AYUDA_NUEVO[pestana]}</Text>
+      {pestana === "familias" && onCrearGrupo ? (
+        <View style={s.sheetBotones}>
+          <Button title="Crear un grupo" icon="👥" variant="outline" size="sm" onPress={onCrearGrupo} full={false} style={s.flex1} />
+          <Button title="A varias familias" icon="📣" variant="outline" size="sm" onPress={onDifusion} full={false} style={s.flex1} />
+        </View>
+      ) : null}
       {cargando ? <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} /> : (
         <FlatList
           data={items}
@@ -251,6 +257,167 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], onCerrar, onFamilia
           renderItem={({ item: i }) => <FilaOpcion {...i} abriendo={abriendo === i.key} />}
         />
       )}
+    </Sheet>
+  );
+}
+
+// ── Grupos propios y difusión (specs/docentes-clases-y-grupos.md, Fase C) ──
+
+const MAX_GRUPO = 49; // + quien lo crea = 50
+const SIN_EXCLUIR = [];
+
+function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR }) {
+  const [familias, setFamilias] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc("familias_para_mensaje").then(({ data }) => { if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id))); });
+    return () => { vivo = false; };
+  }, [excluir]);
+  const lista = useMemo(() => filtrarFamilias(familias || [], q), [familias, q]);
+  const sel = new Set(seleccion);
+  const toggle = (id) => {
+    if (sel.has(id)) onChange(seleccion.filter((x) => x !== id));
+    else if (seleccion.length < max) onChange([...seleccion, id]);
+  };
+  const todasDe = (cid) => {
+    const ids = (familias || []).filter((f) => (f.curso_ids || []).includes(cid)).map((f) => f.usuario_id);
+    const todas = ids.every((id) => sel.has(id));
+    onChange(todas ? seleccion.filter((x) => !ids.includes(x)) : [...new Set([...seleccion, ...ids])].slice(0, max));
+  };
+  if (familias === null) return <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} />;
+  return (
+    <View style={s.flexShrink}>
+      {cursos.length ? (
+        <View style={s.chipsRow}>
+          {cursos.map((c) => (
+            <Pressable key={c.id} onPress={() => todasDe(c.id)} style={s.chip} accessibilityRole="button">
+              <Text style={s.chipTxt}>Todas las de {c.nombre?.split(" - ")[0]}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <TextInput value={q} onChangeText={setQ} placeholder="Buscar por nombre o por alumno" placeholderTextColor={t.placeholder} style={s.input} autoCorrect={false} accessibilityLabel="Buscar familia" />
+      <Text style={[s.notaChica, { marginTop: 6 }]}>{seleccion.length} {seleccion.length === 1 ? "elegida" : "elegidas"}{seleccion.length >= max ? ` (máximo ${max})` : ""}</Text>
+      <FlatList
+        data={lista}
+        keyExtractor={(f) => f.usuario_id}
+        keyboardShouldPersistTaps="handled"
+        style={s.flexShrink}
+        ListEmptyComponent={<Text style={s.vacioTxt}>No encontramos a nadie con ese nombre.</Text>}
+        renderItem={({ item: f }) => {
+          const on = sel.has(f.usuario_id);
+          return (
+            <Pressable onPress={() => toggle(f.usuario_id)} style={[s.filaFamilia, on && s.filaOn]} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+              <MaterialCommunityIcons name={on ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={on ? t.accent : SLATE[400]} />
+              <View style={s.flex1}>
+                <Text style={s.filaTitulo} numberOfLines={1}>{f.nombre} {f.apellido || ""}</Text>
+                <Text style={s.filaSub} numberOfLines={1}>{hijosDeFamilia(f) ? `Familia de ${hijosDeFamilia(f)}` : "Room Parent"}</Text>
+              </View>
+            </Pressable>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
+function GrupoSheet({ visible, grupo = null, cursos, onCerrar, onListo }) {
+  const [nombre, setNombre] = useState("");
+  const [seleccion, setSeleccion] = useState([]);
+  const [actuales, setActuales] = useState(null);
+  const [quitar, setQuitar] = useState([]);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    if (!visible) return undefined;
+    setNombre(grupo?.titulo || ""); setSeleccion([]); setQuitar([]); setActuales(null);
+    if (!grupo) return undefined;
+    let vivo = true;
+    supabase.rpc("participantes_grupo", { p_conv: grupo.id }).then(({ data }) => { if (vivo) setActuales(data || []); });
+    return () => { vivo = false; };
+  }, [visible, grupo]);
+  const excluir = useMemo(() => (actuales || []).map((p) => p.usuario_id), [actuales]);
+  const guardar = async () => {
+    if (!nombre.trim()) { Alert.alert("Poné un nombre al grupo"); return; }
+    if (!grupo && !seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
+    setGuardando(true);
+    const { data, error } = grupo
+      ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
+      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion });
+    setGuardando(false);
+    if (error) { Alert.alert("No se pudo guardar el grupo", error.message); return; }
+    onListo(grupo ? grupo.id : data);
+  };
+  const lugar = MAX_GRUPO - Math.max(0, (actuales?.length || 1) - 1 - quitar.length);
+  return (
+    <Sheet visible={visible} onClose={onCerrar} title={grupo ? "Editar grupo" : "Nuevo grupo"} style={s.sheetAlto}>
+      <TextInput value={nombre} onChangeText={(v) => setNombre(v.slice(0, 60))} placeholder="Nombre del grupo (ej: Cumple de Juan)" placeholderTextColor={t.placeholder} style={[s.input, { marginBottom: SPACE.sm }]} accessibilityLabel="Nombre del grupo" />
+      {grupo && actuales ? (
+        <View style={s.chipsRow}>
+          {actuales.filter((p) => !quitar.includes(p.usuario_id)).map((p) => (
+            <Pressable key={p.usuario_id} disabled={p.es_creador} onPress={() => setQuitar((q) => [...q, p.usuario_id])} style={[s.chip, s.chipOn]} accessibilityLabel={p.es_creador ? p.nombre : `Sacar a ${p.nombre}`}>
+              <Text style={[s.chipTxt, s.chipTxtOn]}>{p.nombre}{p.es_creador ? " (vos)" : "  ✕"}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <Text style={s.notaChica}>{grupo ? "Sumar familias:" : "Elegí las familias:"}</Text>
+      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} />
+      <View style={s.sheetBotones}>
+        <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
+        <Button title={grupo ? "Guardar" : "Crear grupo"} onPress={guardar} loading={guardando} full={false} style={s.flex1} />
+      </View>
+    </Sheet>
+  );
+}
+
+function DifusionSheet({ visible, cursos, onCerrar, onListo }) {
+  const [seleccion, setSeleccion] = useState([]);
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => { if (visible) { setSeleccion([]); setTexto(""); } }, [visible]);
+  const enviar = async () => {
+    if (!seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
+    if (!texto.trim()) { Alert.alert("Escribí el mensaje"); return; }
+    setEnviando(true);
+    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto) });
+    setEnviando(false);
+    if (error) { Alert.alert("No se pudo enviar", error.message); return; }
+    const r = Array.isArray(data) ? data[0] : data;
+    onListo(r?.enviados || 0, r?.omitidos || 0);
+  };
+  return (
+    <Sheet visible={visible} onClose={onCerrar} title="Mensaje a varias familias" style={s.sheetAlto}>
+      <Text style={s.sheetIntro}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</Text>
+      <TextInput value={texto} onChangeText={(v) => setTexto(v.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" placeholderTextColor={t.placeholder} multiline style={[s.inputArea, { marginBottom: SPACE.sm }]} accessibilityLabel="Mensaje" />
+      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} />
+      <View style={s.sheetBotones}>
+        <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
+        <Button title={`Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
+      </View>
+    </Sheet>
+  );
+}
+
+function ParticipantesSheet({ conv, onCerrar }) {
+  const [lista, setLista] = useState(null);
+  useEffect(() => {
+    if (!conv) return undefined;
+    let vivo = true;
+    supabase.rpc("participantes_grupo", { p_conv: conv.id }).then(({ data }) => { if (vivo) setLista(data || []); });
+    return () => { vivo = false; };
+  }, [conv]);
+  return (
+    <Sheet visible={!!conv} onClose={onCerrar} title={conv?.titulo || "Participantes"}>
+      {lista === null ? <ActivityIndicator color={t.accent} /> : lista.map((p) => (
+        <View key={p.usuario_id} style={s.filaFamilia}>
+          <Iniciales texto={p.nombre} size={36} />
+          <View style={s.flex1}>
+            <Text style={s.filaTitulo}>{p.nombre}{p.es_creador ? " · creó el grupo" : ""}</Text>
+            {p.familia ? <Text style={s.filaSub}>{p.familia}</Text> : null}
+          </View>
+        </View>
+      ))}
     </Sheet>
   );
 }
@@ -307,7 +474,7 @@ function SignedImagePreview({ uri, lado }) {
  * conv: { id, tipo, titulo, subtitulo, otro_id, silenciado, bloqueado, estado }
  * modo: "familia" | "staff" (super en la bandeja de soporte).
  */
-export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onCerrar, onCambio, meta, encabezadoExtra }) {
+export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onCerrar, onCambio, onEditarGrupo, onSalioGrupo, meta, encabezadoExtra }) {
   const insets = useSafeAreaInsets();
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -328,7 +495,20 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   // Lado institucional: qué rol_autor cuenta como "mío" (soporte / colegio).
   const rolStaff = rolPropio || (staff ? "soporte" : null);
   // Hilos con más de dos personas: cada mensaje lleva quién lo firmó.
-  const multi = conv.tipo === "curso" || conv.tipo === "colegio" || conv.tipo === "docente";
+  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente";
+  // Grupos de familias: bloquear autores (se ocultan sus mensajes); modera la
+  // Room Parent (curso) o quien creó el grupo (conv.modero).
+  const grupal = conv.tipo === "curso" || conv.tipo === "grupo";
+  const [bloqueados, setBloqueados] = useState(() => new Set());
+  const [verParticipantes, setVerParticipantes] = useState(false);
+  useEffect(() => {
+    if (!grupal) return undefined;
+    let vivo = true;
+    supabase.from("usuario_bloqueos").select("bloqueado_id").eq("usuario_id", userId).then(({ data }) => {
+      if (vivo) setBloqueados(new Set((data || []).map((b) => b.bloqueado_id)));
+    });
+    return () => { vivo = false; };
+  }, [grupal, userId]);
   const [nombres, setNombres] = useState({});
   const nombresRef = useRef({});
   const cargarNombres = useCallback(async () => {
@@ -339,7 +519,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   }, [conv.id]);
   useEffect(() => { if (multi) cargarNombres(); }, [multi, cargarNombres]);
   const esSoporte = conv.tipo === "soporte";
-  const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso") && !normasOk;
+  const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso" || conv.tipo === "grupo") && !normasOk;
 
   const marcarLeido = useCallback(async (lista) => {
     const ultimo = lista.length ? new Date(lista[lista.length - 1].creado_en).getTime() : 0;
@@ -508,6 +688,31 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     onCambio?.();
   };
 
+  const bloquearAutor = (m) => {
+    const nombre = nombres[m.autor_id] || "esta persona";
+    Alert.alert(`¿Bloquear a ${nombre}?`, "No vas a ver sus mensajes en grupos y no va a poder escribirte. No se le avisa.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Bloquear", style: "destructive", onPress: async () => {
+        const { error } = await supabase.from("usuario_bloqueos").insert({ usuario_id: userId, bloqueado_id: m.autor_id });
+        if (error && error.code !== "23505") { Alert.alert("No se pudo bloquear"); return; }
+        setBloqueados((b) => new Set([...b, m.autor_id]));
+        onCambio?.();
+      } },
+    ]);
+  };
+
+  const salirDelGrupo = () => {
+    setMenu(false);
+    Alert.alert(`¿Salir de “${conv.titulo}”?`, "Ya no vas a ver sus mensajes.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Salir", style: "destructive", onPress: async () => {
+        const { error } = await supabase.rpc("salir_de_grupo", { p_conv: conv.id });
+        if (error) { Alert.alert("No se pudo salir del grupo"); return; }
+        onSalioGrupo?.();
+      } },
+    ]);
+  };
+
   const tocarMensaje = useCallback((m) => {
     if (m._estado) return;
     const opciones = [];
@@ -516,6 +721,8 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       opciones.push({ text: "Eliminar", style: "destructive", onPress: () => eliminar(m) });
     } else if (!staff && m.rol_autor === "usuario" && conv.tipo !== "soporte") {
       opciones.push({ text: "Denunciar", style: "destructive", onPress: () => setDenunciar(m) });
+      if (grupal && m.autor_id) opciones.push({ text: "Bloquear", onPress: () => bloquearAutor(m) });
+      if (conv.modero) opciones.push({ text: "Eliminar (moderar)", style: "destructive", onPress: () => eliminar(m) });
     }
     if (!opciones.length) return;
     setSeleccionado(m.id);
@@ -523,9 +730,9 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       ...opciones,
       { text: "Cancelar", style: "cancel", onPress: () => setSeleccionado(null) },
     ], { cancelable: true, onDismiss: () => setSeleccionado(null) });
-  // eliminar usa estado fresco vía setters; se recrea con conv/userId
+  // eliminar/bloquearAutor usan estado fresco vía setters; se recrea con conv/userId
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, staff, conv.tipo]);
+  }, [userId, staff, conv.tipo, conv.modero, grupal, nombres]);
 
   // FlatList invertida: datos del más nuevo al más viejo.
   const filas = useMemo(() => agruparPorDia(mensajes).reverse(), [mensajes]);
@@ -536,6 +743,9 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     if (f.tipo === "dia") return <View style={s.diaWrap}><Text style={s.dia}>{f.label}</Text></View>;
     const m = f.m;
     const mio = rolStaff ? m.rol_autor === rolStaff : m.autor_id === userId;
+    if (grupal && !mio && bloqueados.has(m.autor_id)) {
+      return <View style={[s.burbujaWrap, s.izquierda, s.mt8]}><Text style={[s.borradoTxt, s.bloqueadoTxt]}>Mensaje de un usuario bloqueado</Text></View>;
+    }
     const firma = !mio && f.primeroDelGrupo && (multi || (staff && m.rol_autor === "soporte")) ? firmaMensaje(m, { userId, nombres }) : null;
     return (
       <Burbuja m={m} mio={mio} firma={firma} primero={f.primeroDelGrupo} seleccionado={seleccionado === m.id}
@@ -544,11 +754,12 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     );
   // enviar cambia en cada render pero solo se usa en el reintento
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staff, userId, conv.tipo, seleccionado, tocarMensaje, rolStaff, multi, nombres]);
+  }, [staff, userId, conv.tipo, seleccionado, tocarMensaje, rolStaff, multi, nombres, grupal, bloqueados]);
 
   return (
     <View style={[s.chatRoot, { paddingTop: insets.top }]}>
       <VisorFoto path={visor} onClose={() => setVisor(null)} />
+      <ParticipantesSheet conv={verParticipantes ? conv : null} onCerrar={() => setVerParticipantes(false)} />
       <DenunciarSheet mensaje={denunciar} onCerrar={() => { setDenunciar(null); setSeleccionado(null); }}
         onListo={() => { setDenunciar(null); setSeleccionado(null); Alert.alert("Gracias", "El colegio va a revisar el mensaje."); }} />
 
@@ -573,6 +784,9 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       <Sheet visible={menu} onClose={() => setMenu(false)} title="Opciones">
         {!staff ? <MenuFila icono={silenciado ? "bell-outline" : "bell-off-outline"} texto={silenciado ? "Activar notificaciones" : "Silenciar"} onPress={toggleSilencio} /> : null}
         {conv.tipo === "directo" ? <MenuFila icono={bloqueado ? "account-check-outline" : "account-cancel-outline"} texto={bloqueado ? "Desbloquear" : "Bloquear"} peligro={!bloqueado} onPress={toggleBloqueo} /> : null}
+        {conv.tipo === "grupo" ? <MenuFila icono="account-group-outline" texto="Participantes" onPress={() => { setMenu(false); setVerParticipantes(true); }} /> : null}
+        {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuFila icono="pencil-outline" texto="Editar grupo" onPress={() => { setMenu(false); onEditarGrupo(); }} /> : null}
+        {conv.tipo === "grupo" ? <MenuFila icono="exit-run" texto="Salir del grupo" peligro onPress={salirDelGrupo} /> : null}
         {staff && esSoporte ? <MenuFila icono={estado === "resuelta" ? "restore" : "check-circle-outline"} texto={estado === "resuelta" ? "Reabrir" : "Marcar resuelto"} onPress={cambiarEstadoSoporte} /> : null}
       </Sheet>
 
@@ -679,7 +893,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   const esSoporte = c.tipo === "soporte";
   return (
     <Pressable onPress={onPress} style={s.fila} accessibilityRole="button" accessibilityLabel={`${c.titulo}${c.no_leidos ? `, ${c.no_leidos} sin leer` : ""}`}>
-      {esSoporte ? <Iniciales icono="lifebuoy" color={SLATE[700]} /> : c.tipo === "colegio" ? <Iniciales icono="school-outline" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Iniciales icono="human-male-board" color={SLATE[600]} /> : <Iniciales texto={c.titulo} />}
+      {esSoporte ? <Iniciales icono="lifebuoy" color={SLATE[700]} /> : c.tipo === "curso" ? <Iniciales icono="account-group-outline" color={BLUE[600]} /> : c.tipo === "grupo" ? <Iniciales icono="forum-outline" color={SLATE[600]} /> : c.tipo === "colegio" ? <Iniciales icono="school-outline" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Iniciales icono="human-male-board" color={SLATE[600]} /> : <Iniciales texto={c.titulo} />}
       <View style={s.flex1}>
         <View style={s.rowCenter}>
           <Text style={[s.filaTitulo, s.flex1, c.no_leidos ? s.bold : null]} numberOfLines={1}>{c.titulo}{c.silenciado ? " 🔕" : ""}</Text>
@@ -710,6 +924,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null);
   const [nuevo, setNuevo] = useState(false);
+  const [grupoSheet, setGrupoSheet] = useState(null); // { grupo: null | conv }
+  const [difusion, setDifusion] = useState(false);
   const [normas, setNormas] = useState(null); // callback tras aceptar
   const visto = useRef(null);
   const timer = useRef(null);
@@ -769,6 +985,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     return true;
   }, [convs]);
   const hijos = useMemo(() => (items || []).filter((i) => i._tipo === "hijo").map((i) => ({ id: i.id, nombre: i.nombre?.split(" ")[0], curso: i.cursos?.nombre })), [items]);
+  const cursosMios = useMemo(() => [...new Map((items || []).filter((i) => i.curso_id && i.cursos?.nombre).map((i) => [i.curso_id, { id: i.curso_id, nombre: i.cursos.nombre }])).values()], [items]);
   const onFamilia = (f) => {
     if (normasOk) return abrirDirecta(f);
     setNuevo(false);
@@ -822,9 +1039,19 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   return (
     <View style={s.screen}>
       <ChatModal conv={activaFresca} onClose={() => { setActiva(null); onCambio(); }} userId={userId} normasOk={normasOk}
-        onPedirNormas={() => setNormas(() => () => {})} onCambio={onCambio} meta={activaFresca?.tipo === "soporte" ? meta : undefined} />
+        onPedirNormas={() => setNormas(() => () => {})} onCambio={onCambio} meta={activaFresca?.tipo === "soporte" ? meta : undefined}
+        // Editar grupo: el chat (Modal) se cierra y se reabre al guardar — en iOS
+        // no se puede presentar un Modal arriba de otro.
+        onEditarGrupo={() => { const g = activaFresca; setActiva(null); setGrupoSheet({ grupo: g }); }}
+        onSalioGrupo={() => { setActiva(null); onCambio(); }} />
       <NuevoMensajeSheet key={esDocente ? "doc" : "fam"} visible={nuevo} esDocente={esDocente} hijos={hijos} onCerrar={() => setNuevo(false)} tagDeCurso={tagDeCurso}
-        onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} />
+        onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
+        onCrearGrupo={esDocente ? null : () => { setNuevo(false); setTimeout(() => conNormas(() => setGrupoSheet({ grupo: null })), 350); }}
+        onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />
+      <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} cursos={cursosMios} onCerrar={() => setGrupoSheet(null)}
+        onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: "grupo", titulo: "Grupo", creado_por: userId }); }} />
+      <DifusionSheet visible={difusion} cursos={cursosMios} onCerrar={() => setDifusion(false)}
+        onListo={(n, omitidos) => { setDifusion(false); onCambio(); Alert.alert("Mensaje enviado", `Le llegó a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       <NormasSheet visible={!!normas} userId={userId} onCerrar={() => setNormas(null)}
         onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn?.(); }} />
 
@@ -1131,6 +1358,7 @@ const s = StyleSheet.create({
   fila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.sm, minHeight: 64 },
   filaPanel: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, marginBottom: SPACE.sm },
   filaFamilia: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingVertical: SPACE.sm, minHeight: MIN_TOUCH + 8 },
+  filaOn: { backgroundColor: t.accentSoft, borderRadius: RADIUS.md },
   filaTitulo: { fontSize: 15, fontWeight: "700", color: t.textStrong },
   filaSub: { fontSize: 12, color: t.textMuted, flexShrink: 1 },
   bold: { fontWeight: "800" },
@@ -1209,6 +1437,7 @@ const s = StyleSheet.create({
   enviando: { opacity: 0.7 },
   seleccionada: { borderWidth: 2, borderColor: BLUE[300] },
   borradoTxt: { fontSize: 13, fontStyle: "italic", color: t.textFaint },
+  bloqueadoTxt: { borderWidth: 1, borderStyle: "dashed", borderColor: t.borderStrong, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12 },
   msgTxt: { fontSize: 15, lineHeight: 20, color: t.text },
   msgTxtMio: { color: "white" },
   fotosGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },

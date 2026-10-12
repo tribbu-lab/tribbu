@@ -1,6 +1,6 @@
 ---
 title: Docentes con sus cursos, materias y clases, y grupos de mensajes
-status: in-progress (fases A y B implementadas 2026-10-12)
+status: implemented (2026-10-12)
 priority: high
 ---
 
@@ -51,11 +51,11 @@ completa) → C (grupos).
 - [x] Funciona en web (desktop sidebar y mobile web) y en la app, con el mismo patrón de navegación que el apoderado (bottom tabs + Más).
 
 ### Fase C: mensajes a varias familias
-- [ ] **Grupo del curso** (fase 2 de specs/mensajes.md): uno por curso del año, automático, con todas las familias del curso y su Room Parent (sin maestras ni colegio). Lo modera la Room Parent; cada mensaje lleva quién lo escribió; se puede silenciar; requiere aceptar las normas.
-- [ ] **Grupos propios**: un apoderado crea un grupo con nombre (ej. "Cumple de Juan") eligiendo familias de sus cursos (máx. 50). Quien lo crea puede renombrarlo, sumar y sacar gente; cualquiera puede salirse. Los demás ven quién está en el grupo (nombres, nunca teléfonos). Push a los miembros, silenciable.
-- [ ] **Difusión**: "Mensaje a varias familias" permite elegir varias familias (o "todas las de 4°B") y mandar un texto (+ fotos); a cada una le llega en su 1 a 1 con quien lo mandó, y las respuestas son privadas. Máx. 50 destinatarios por envío; respeta bloqueos.
-- [ ] Bloquear a alguien oculta sus mensajes en grupos y lo saca de mis difusiones.
-- [ ] Los grupos propios y del curso se borran al cierre del año lectivo, como el resto de Mensajes.
+- [x] **Grupo del curso** (fase 2 de specs/mensajes.md): uno por curso del año, automático, con todas las familias del curso y su Room Parent (sin maestras ni colegio). Lo modera la Room Parent; cada mensaje lleva quién lo escribió; se puede silenciar; requiere aceptar las normas.
+- [x] **Grupos propios**: un apoderado crea un grupo con nombre (ej. "Cumple de Juan") eligiendo familias de sus cursos (máx. 50). Quien lo crea puede renombrarlo, sumar y sacar gente; cualquiera puede salirse. Los demás ven quién está en el grupo (nombres, nunca teléfonos). Push a los miembros, silenciable.
+- [x] **Difusión**: "Mensaje a varias familias" permite elegir varias familias (o "todas las de 4°B") y mandar un texto (fotos: pendiente, v1 solo texto); a cada una le llega en su 1 a 1 con quien lo mandó, y las respuestas son privadas. Máx. 50 destinatarios por envío; respeta bloqueos.
+- [x] Bloquear a alguien oculta sus mensajes en grupos y lo saca de mis difusiones.
+- [x] Los grupos propios y del curso se borran al cierre del año lectivo, como el resto de Mensajes.
 
 ## Technical Notes
 

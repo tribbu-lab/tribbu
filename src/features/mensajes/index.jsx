@@ -170,7 +170,7 @@ const PESTANAS_NUEVO = [
   { k: "secretaria", l: "Secretaría" },
 ];
 
-function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecretaria, onAlumno, onCerrar, tagDeCurso }) {
+function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, onCerrar, tagDeCurso }) {
   const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({}); // por pestaña
   const [q, setQ] = useState("");
@@ -279,6 +279,12 @@ function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecr
         <div style={{ overflowY: "auto", padding: "0 8px 12px", flex: 1, minHeight: 120 }}>
           {cargando ? <Spinner /> : null}
           {error ? <div role="alert" style={{ fontSize: 13, color: C.danger, padding: 12 }}>{error}</div> : null}
+          {pestana === "familias" && onCrearGrupo ? (
+            <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px", flexWrap: "wrap" }}>
+              <button type="button" onClick={onCrearGrupo} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>👥 Crear un grupo</button>
+              <button type="button" onClick={onDifusion} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>📣 A varias familias</button>
+            </div>
+          ) : null}
           {contenido}
         </div>
       </div>
@@ -287,6 +293,197 @@ function NuevoMensajeModal({ esDocente, hijos = [], onFamilia, onDocente, onSecr
 }
 
 const Vacio = ({ texto }) => <div style={{ fontSize: 13, color: C.textMuted, padding: 16, textAlign: "center" }}>{texto}</div>;
+
+// ── Grupos propios y difusión (specs/docentes-clases-y-grupos.md, Fase C) ──
+
+const MAX_GRUPO = 49; // + quien lo crea = 50
+
+/**
+ * Lista de familias de mis cursos con casillas, búsqueda y "todas las de
+ * <curso>". `excluir`: ids que no se ofrecen (ya están en el grupo).
+ */
+const SIN_EXCLUIR = [];
+function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir = SIN_EXCLUIR }) {
+  const [familias, setFamilias] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc("familias_para_mensaje").then(({ data }) => { if (vivo) setFamilias((data || []).filter((f) => !excluir.includes(f.usuario_id))); });
+    return () => { vivo = false; };
+  }, [excluir]);
+  const lista = useMemo(() => filtrarFamilias(familias || [], q), [familias, q]);
+  const sel = new Set(seleccion);
+  const toggle = (id) => {
+    if (sel.has(id)) onChange(seleccion.filter((x) => x !== id));
+    else if (seleccion.length < max) onChange([...seleccion, id]);
+  };
+  const todasDe = (cid) => {
+    const ids = (familias || []).filter((f) => (f.curso_ids || []).includes(cid)).map((f) => f.usuario_id);
+    const todasMarcadas = ids.every((id) => sel.has(id));
+    const nuevo = todasMarcadas ? seleccion.filter((x) => !ids.includes(x)) : [...new Set([...seleccion, ...ids])].slice(0, max);
+    onChange(nuevo);
+  };
+  if (familias === null) return <Spinner />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+      {cursos.length ? (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {cursos.map((c) => (
+            <button key={c.id} type="button" onClick={() => todasDe(c.id)}
+              style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${C.borderStrong}`, background: C.surface, color: SLATE[600], fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              Todas las de {c.nombre?.split(" - ")[0]}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o por alumno" aria-label="Buscar familia"
+        style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", outline: "none", background: C.surfaceSunken, marginBottom: 6 }} />
+      <div style={{ fontSize: 11.5, color: seleccion.length >= max ? C.warning : C.textFaint, marginBottom: 6 }}>
+        {seleccion.length} {seleccion.length === 1 ? "elegida" : "elegidas"}{seleccion.length >= max ? ` (máximo ${max})` : ""}
+      </div>
+      <div style={{ overflowY: "auto", flex: 1, minHeight: 120 }}>
+        {!lista.length ? <Vacio texto="No encontramos a nadie con ese nombre." /> : null}
+        {lista.map((f) => (
+          <label key={f.usuario_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderRadius: 10, cursor: "pointer", background: sel.has(f.usuario_id) ? C.accentSoft : "transparent" }}>
+            <input type="checkbox" checked={sel.has(f.usuario_id)} onChange={() => toggle(f.usuario_id)} />
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: C.textStrong }}>{f.nombre} {f.apellido || ""}</span>
+              <span style={{ display: "block", fontSize: 12, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hijosDeFamilia(f) ? `Familia de ${hijosDeFamilia(f)}` : "Room Parent"}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Crear un grupo propio, o editarlo (grupo = { id, titulo }). */
+function GrupoModal({ grupo = null, cursos, onCerrar, onListo }) {
+  const [nombre, setNombre] = useState(grupo?.titulo || "");
+  const [seleccion, setSeleccion] = useState([]);
+  const [actuales, setActuales] = useState(null); // participantes (solo editar)
+  const [quitar, setQuitar] = useState([]);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!grupo) return undefined;
+    let vivo = true;
+    supabase.rpc("participantes_grupo", { p_conv: grupo.id }).then(({ data }) => { if (vivo) setActuales(data || []); });
+    return () => { vivo = false; };
+  }, [grupo]);
+  const excluir = useMemo(() => (actuales || []).map((p) => p.usuario_id), [actuales]);
+  const guardar = async () => {
+    if (!nombre.trim()) { setError("Poné un nombre al grupo."); return; }
+    if (!grupo && !seleccion.length) { setError("Elegí al menos una familia."); return; }
+    setGuardando(true); setError("");
+    const { data, error: e } = grupo
+      ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
+      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion });
+    setGuardando(false);
+    if (e) { setError(e.message || "No se pudo guardar el grupo."); return; }
+    onListo(grupo ? grupo.id : data);
+  };
+  const lugar = MAX_GRUPO - Math.max(0, (actuales?.length || 1) - 1 - quitar.length);
+  return (
+    <div style={overlay} onClick={onCerrar}>
+      <div style={{ ...modalCard, display: "flex", flexDirection: "column", height: "min(680px, 88vh)" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="grupo-t">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div id="grupo-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{grupo ? "Editar grupo" : "Nuevo grupo"}</div>
+          <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
+        </div>
+        <input value={nombre} onChange={(e) => setNombre(e.target.value.slice(0, 60))} placeholder="Nombre del grupo (ej: Cumple de Juan)" aria-label="Nombre del grupo"
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", outline: "none", marginBottom: 10 }} />
+        {grupo && actuales ? (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>En el grupo ({actuales.length - quitar.length})</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 96, overflowY: "auto" }}>
+              {actuales.filter((p) => !quitar.includes(p.usuario_id)).map((p) => (
+                <span key={p.usuario_id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 6px 4px 10px", borderRadius: 999, background: C.surface2, fontSize: 12, color: C.text }}>
+                  <span style={{ color: C.text }}>{p.nombre}{p.es_creador ? " (vos)" : ""}</span>
+                  {!p.es_creador ? <button type="button" onClick={() => setQuitar((q) => [...q, p.usuario_id])} aria-label={`Sacar a ${p.nombre}`} style={{ border: "none", background: "transparent", cursor: "pointer", color: SLATE[500], fontSize: 12 }}>✕</button> : null}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>{grupo ? "Sumar familias" : "Elegí las familias"}</div>
+        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} />
+        {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
+          <button onClick={guardar} disabled={guardando} style={{ ...btnPri, flex: 1, opacity: guardando ? 0.6 : 1 }}>{guardando ? "Guardando…" : grupo ? "Guardar" : "Crear grupo"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mismo mensaje a varias familias, cada una en su chat privado. */
+function DifusionModal({ cursos, onCerrar, onListo }) {
+  const [seleccion, setSeleccion] = useState([]);
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+  const enviar = async () => {
+    if (!seleccion.length) { setError("Elegí al menos una familia."); return; }
+    if (!texto.trim()) { setError("Escribí el mensaje."); return; }
+    setEnviando(true); setError("");
+    const { data, error: e } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto) });
+    setEnviando(false);
+    if (e) { setError(e.message || "No se pudo enviar."); return; }
+    const r = Array.isArray(data) ? data[0] : data;
+    onListo(r?.enviados || 0, r?.omitidos || 0);
+  };
+  return (
+    <div style={overlay} onClick={onCerrar}>
+      <div style={{ ...modalCard, display: "flex", flexDirection: "column", height: "min(720px, 90vh)" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="dif-t">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <div id="dif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>Mensaje a varias familias</div>
+          <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</div>
+        <textarea value={texto} onChange={(e) => setTexto(e.target.value.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" rows={3} aria-label="Mensaje"
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", resize: "vertical", marginBottom: 10, background: C.surfaceSunken }} />
+        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} />
+        {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
+          <button onClick={enviar} disabled={enviando} style={{ ...btnPri, flex: 1, opacity: enviando ? 0.6 : 1 }}>{enviando ? "Enviando…" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Participantes de un grupo propio (solo nombres). */
+function ParticipantesModal({ conv, onCerrar }) {
+  const [lista, setLista] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc("participantes_grupo", { p_conv: conv.id }).then(({ data }) => { if (vivo) setLista(data || []); });
+    return () => { vivo = false; };
+  }, [conv.id]);
+  return (
+    <div style={overlay} onClick={onCerrar}>
+      <div style={modalCard} onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="part-t">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div id="part-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{conv.titulo}</div>
+          <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
+        </div>
+        {lista === null ? <Spinner /> : lista.map((p) => (
+          <div key={p.usuario_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+            <Avatar texto={p.nombre} size={34} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.textStrong }}>{p.nombre}{p.es_creador ? " · creó el grupo" : ""}</div>
+              {p.familia ? <div style={{ fontSize: 12, color: C.textMuted }}>{p.familia}</div> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 // ── Chat de una conversación (familia o equipo de soporte) ──────────────────
 
@@ -298,7 +495,7 @@ const Vacio = ({ texto }) => <div style={{ fontSize: 13, color: C.textMuted, pad
 // rolPropio: del lado institucional, qué rol_autor cuenta como "mío" ("soporte"
 // en la bandeja de soporte, "colegio" en la de Secretaría). soloLectura: el
 // colegio leyendo un hilo familia ↔ docente.
-export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onVolver, onCambio, meta, encabezadoExtra, alto }) {
+export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onVolver, onCambio, onEditarGrupo, onSalioGrupo, meta, encabezadoExtra, alto }) {
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [hayMas, setHayMas] = useState(false);
@@ -321,7 +518,20 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const rolStaff = rolPropio || (staff ? "soporte" : null);
   const esSoporte = conv.tipo === "soporte";
   // Hilos con más de dos personas: cada mensaje lleva quién lo firmó.
-  const multi = conv.tipo === "curso" || conv.tipo === "colegio" || conv.tipo === "docente";
+  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente";
+  // Grupos de familias: se pueden bloquear autores (sus mensajes se ocultan) y
+  // modera la Room Parent (curso) o quien creó el grupo.
+  const grupal = conv.tipo === "curso" || conv.tipo === "grupo";
+  const [bloqueados, setBloqueados] = useState(() => new Set());
+  const [verParticipantes, setVerParticipantes] = useState(false);
+  useEffect(() => {
+    if (!grupal) return undefined;
+    let vivo = true;
+    supabase.from("usuario_bloqueos").select("bloqueado_id").eq("usuario_id", userId).then(({ data }) => {
+      if (vivo) setBloqueados(new Set((data || []).map((b) => b.bloqueado_id)));
+    });
+    return () => { vivo = false; };
+  }, [grupal, userId]);
   const [nombres, setNombres] = useState({});
   const cargarNombres = useCallback(async () => {
     const { data } = await supabase.rpc("autores_conversacion", { p_conv: conv.id });
@@ -330,7 +540,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   useEffect(() => { if (multi) Promise.resolve().then(cargarNombres); }, [multi, cargarNombres]);
   const nombresRef = useRef(nombres);
   useEffect(() => { nombresRef.current = nombres; }, [nombres]);
-  const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso") && !normasOk;
+  const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso" || conv.tipo === "grupo") && !normasOk;
 
   const bajar = useCallback((suave) => {
     requestAnimationFrame(() => fondo.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "end" }));
@@ -507,6 +717,25 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     onCambio?.();
   };
 
+  const bloquearAutor = async (m) => {
+    const nombre = nombres[m.autor_id] || "esta persona";
+    if (!window.confirm(`¿Bloquear a ${nombre}? No vas a ver sus mensajes en grupos y no va a poder escribirte. No se le avisa.`)) return;
+    const { error: e } = await supabase.from("usuario_bloqueos").insert({ usuario_id: userId, bloqueado_id: m.autor_id });
+    if (e && e.code !== "23505") { setError("No se pudo bloquear."); return; }
+    setBloqueados((b) => new Set([...b, m.autor_id]));
+    setSeleccionado(null);
+    setAviso(`Bloqueaste a ${nombre}. Lo podés desbloquear desde Usuarios bloqueados.`);
+    onCambio?.();
+  };
+
+  const salirDelGrupo = async () => {
+    setMenu(false);
+    if (!window.confirm(`¿Salir de “${conv.titulo}”? Ya no vas a ver sus mensajes.`)) return;
+    const { error: e } = await supabase.rpc("salir_de_grupo", { p_conv: conv.id });
+    if (e) { setError("No se pudo salir del grupo."); return; }
+    onSalioGrupo?.();
+  };
+
   const cambiarEstadoSoporte = async () => {
     setMenu(false);
     const nuevo = estado === "resuelta" ? "abierta" : "resuelta";
@@ -531,6 +760,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   return (
     <div style={{ display: "flex", flexDirection: "column", height: alto || "100%", minHeight: 0, background: C.bg, position: "relative" }}>
       {visor ? <VisorFoto path={visor} onClose={() => setVisor(null)} /> : null}
+      {verParticipantes ? <ParticipantesModal conv={conv} onCerrar={() => setVerParticipantes(false)} /> : null}
       {denunciar ? <DenunciarModal mensaje={denunciar} onCerrar={() => setDenunciar(null)} onListo={() => { setDenunciar(null); setSeleccionado(null); setAviso("Gracias. El colegio va a revisar el mensaje."); }} /> : null}
 
       {/* Cabecera */}
@@ -552,6 +782,9 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
               <div role="menu" style={{ position: "absolute", right: 0, top: 44, zIndex: 21, background: C.surface, border: `1px solid ${C.borderStrong}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", minWidth: 220, overflow: "hidden" }}>
                 {!staff ? <MenuItem onClick={toggleSilencio}>{silenciado ? "🔔 Activar notificaciones" : "🔕 Silenciar"}</MenuItem> : null}
                 {conv.tipo === "directo" ? <MenuItem onClick={toggleBloqueo} peligro={!bloqueado}>{bloqueado ? "Desbloquear" : "🚫 Bloquear"}</MenuItem> : null}
+                {conv.tipo === "grupo" ? <MenuItem onClick={() => { setMenu(false); setVerParticipantes(true); }}>👥 Participantes</MenuItem> : null}
+                {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuItem onClick={() => { setMenu(false); onEditarGrupo(); }}>✏️ Editar grupo</MenuItem> : null}
+                {conv.tipo === "grupo" ? <MenuItem onClick={salirDelGrupo} peligro>🚪 Salir del grupo</MenuItem> : null}
                 {staff && esSoporte ? <MenuItem onClick={cambiarEstadoSoporte}>{estado === "resuelta" ? "↩︎ Reabrir" : "✓ Marcar resuelto"}</MenuItem> : null}
               </div>
             </>
@@ -578,6 +811,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
           </div>
         ) : (
           <Burbuja key={f.key} m={f.m} userId={userId} staff={staff} rolStaff={rolStaff} multi={multi} nombres={nombres} conv={conv} primero={f.primeroDelGrupo}
+            grupal={grupal} bloqueadoAutor={grupal && bloqueados.has(f.m.autor_id)} moderador={!!conv.modero} onBloquear={() => bloquearAutor(f.m)}
             seleccionado={seleccionado === f.m.id}
             onSeleccionar={() => setSeleccionado((s) => (s === f.m.id ? null : f.m.id))}
             editando={editando?.id === f.m.id ? editando : null}
@@ -652,7 +886,7 @@ function MenuItem({ onClick, children, peligro }) {
   );
 }
 
-function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, seleccionado, onSeleccionar, editando, onEditar, onCambiarEdicion, onGuardarEdicion, onCancelarEdicion, onEliminar, onDenunciar, onReintentar, onVerFoto }) {
+function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, grupal, bloqueadoAutor, moderador, onBloquear, seleccionado, onSeleccionar, editando, onEditar, onCambiarEdicion, onGuardarEdicion, onCancelarEdicion, onEliminar, onDenunciar, onReintentar, onVerFoto }) {
   // En una bandeja institucional, "mío" = lo que escribió ese lado (cualquier
   // super en soporte, cualquier admin del colegio en Secretaría).
   const mio = rolStaff ? m.rol_autor === rolStaff : m.autor_id === userId;
@@ -664,6 +898,15 @@ function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, se
   const previews = m._previews || [];
   const fotos = m.fotos || [];
   const acciones = seleccionado && !borrado && !m._estado;
+
+  // Autor bloqueado (en grupos de familias): no se muestra el contenido.
+  if (bloqueadoAutor && !mio) {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-start", marginTop: primero ? 8 : 2 }}>
+        <span style={{ fontSize: 12, fontStyle: "italic", color: C.textFaint, border: `1px dashed ${C.borderStrong}`, borderRadius: 12, padding: "6px 10px" }}>Mensaje de un usuario bloqueado</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: mio ? "flex-end" : "flex-start", marginTop: primero ? 8 : 2 }}>
@@ -713,7 +956,11 @@ function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, se
               <button onClick={onEliminar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12, color: C.danger }}>🗑 Eliminar</button>
             </>
           ) : !staff && m.rol_autor === "usuario" && conv.tipo !== "soporte" ? (
-            <button onClick={onDenunciar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12, color: C.danger }}>🚩 Denunciar</button>
+            <>
+              <button onClick={onDenunciar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12, color: C.danger }}>🚩 Denunciar</button>
+              {grupal && m.autor_id ? <button onClick={onBloquear} style={{ ...btnSec, padding: "6px 12px", fontSize: 12 }}>🚫 Bloquear</button> : null}
+              {moderador ? <button onClick={onEliminar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12, color: C.danger }}>🗑 Eliminar (moderar)</button> : null}
+            </>
           ) : null}
         </div>
       ) : null}
@@ -729,7 +976,7 @@ function FilaConversacion({ c, activa, userId, onClick, tagDeCurso, esDocente })
   return (
     <button onClick={onClick} aria-current={activa ? "true" : undefined}
       style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "none", background: activa ? C.accentSoft : "transparent", borderRadius: 12, cursor: "pointer", textAlign: "left", minHeight: 64 }}>
-      {esSoporte ? <Avatar emoji="🛟" color={SLATE[700]} /> : c.tipo === "colegio" ? <Avatar emoji="🏫" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Avatar emoji="👩‍🏫" color={SLATE[600]} /> : <Avatar texto={c.titulo} />}
+      {esSoporte ? <Avatar emoji="🛟" color={SLATE[700]} /> : c.tipo === "curso" ? <Avatar emoji="👥" color={BLUE[600]} /> : c.tipo === "grupo" ? <Avatar emoji="💬" color={SLATE[600]} /> : c.tipo === "colegio" ? <Avatar emoji="🏫" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Avatar emoji="👩‍🏫" color={SLATE[600]} /> : <Avatar texto={c.titulo} />}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: c.no_leidos ? 800 : 700, color: C.textStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -765,6 +1012,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null); // objeto conversación
   const [nuevo, setNuevo] = useState(false);
+  const [grupoModal, setGrupoModal] = useState(null); // { grupo: null | conv } — crear/editar grupo propio
+  const [difusion, setDifusion] = useState(false);
+  const [aviso, setAviso] = useState("");
   const [normas, setNormas] = useState(null); // callback tras aceptar
   const [error, setError] = useState("");
   const abrirVisto = useRef(null);
@@ -827,6 +1077,8 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   }, [convs]);
 
   const hijos = useMemo(() => items.filter((i) => i._tipo === "hijo").map((i) => ({ id: i.id, nombre: i.nombre?.split(" ")[0], curso: i.cursos?.nombre })), [items]);
+  // Cursos míos (para "Todas las de 4°B" en grupos y difusión).
+  const cursosMios = useMemo(() => [...new Map(items.filter((i) => i.curso_id && i.cursos?.nombre).map((i) => [i.curso_id, { id: i.curso_id, nombre: i.cursos.nombre }])).values()], [items]);
   const onFamilia = (f) => {
     if (normasOk) return abrirDirecta(f);
     setNuevo(false);
@@ -886,6 +1138,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
         <button onClick={() => setNuevo(true)} style={{ ...btnPri, whiteSpace: "nowrap", minHeight: 40 }}>+ Nuevo</button>
       </div>
       {error ? <div role="alert" style={{ fontSize: 13, color: C.danger, marginBottom: 8 }}>{error}</div> : null}
+      {aviso ? <div role="status" onClick={() => setAviso("")} style={{ fontSize: 13, color: BLUE[700], background: C.accentSoft, borderRadius: 10, padding: "8px 12px", marginBottom: 8, cursor: "pointer" }}>{aviso}</div> : null}
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
         <FilaConversacion c={soporte} activa={activa?.tipo === "soporte"} userId={userId} onClick={abrirSoporte} />
         <div style={{ height: 1, background: C.border, margin: "6px 12px" }} />
@@ -909,6 +1162,8 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     <ChatConversacion key={activaFresca.id} conv={activaFresca} userId={userId} normasOk={normasOk}
       onPedirNormas={() => setNormas(() => () => {})}
       onVolver={isMobile ? () => setActiva(null) : undefined}
+      onEditarGrupo={() => setGrupoModal({ grupo: activaFresca })}
+      onSalioGrupo={() => { setActiva(null); recargar(); }}
       onCambio={recargar} meta={activaFresca.tipo === "soporte" ? meta : undefined} />
   ) : (
     <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 14, textAlign: "center", padding: 24 }}>
@@ -920,7 +1175,17 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     <>
       {nuevo ? (
         <NuevoMensajeModal esDocente={esDocente} hijos={hijos} tagDeCurso={tagDeCurso} onCerrar={() => setNuevo(false)}
-          onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} />
+          onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
+          onCrearGrupo={esDocente ? null : () => { setNuevo(false); conNormas(() => setGrupoModal({ grupo: null })); }}
+          onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }} />
+      ) : null}
+      {grupoModal ? (
+        <GrupoModal grupo={grupoModal.grupo} cursos={cursosMios} onCerrar={() => setGrupoModal(null)}
+          onListo={(id) => { setGrupoModal(null); recargar(); setActiva((a) => (a?.id === id ? a : { id, tipo: "grupo", titulo: "Grupo" })); }} />
+      ) : null}
+      {difusion ? (
+        <DifusionModal cursos={cursosMios} onCerrar={() => setDifusion(false)}
+          onListo={(n, omitidos) => { setDifusion(false); recargar(); setError(""); setAviso(`✓ Enviado a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       ) : null}
       {normas ? <NormasModal userId={userId} onCerrar={() => setNormas(null)} onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn(); }} /> : null}
       {isMobile ? (

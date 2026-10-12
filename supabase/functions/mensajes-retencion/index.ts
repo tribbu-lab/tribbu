@@ -2,7 +2,7 @@
 //
 // Retención de Mensajes (specs/mensajes.md). La corre pg_cron una vez por día
 // (supabase/mensajes.sql → llamar_mensajes_retencion). Borra:
-//   · conversaciones directo/curso/colegio de cursos de años lectivos
+//   · conversaciones directo/curso/colegio/docente/grupo de cursos de años lectivos
 //     cerrados (cursos.año_lectivo < colegios.año_lectivo_actual)
 //   · hilos de soporte sin mensajes hace más de 180 días
 //   · denuncias resueltas hace más de 180 días
@@ -61,7 +61,7 @@ serve(async (req) => {
     const { data } = await sb
       .from("conversaciones")
       .select("id")
-      .in("tipo", ["directo", "curso", "colegio"])
+      .in("tipo", ["directo", "curso", "colegio", "docente", "grupo"])
       .in("curso_id", cursosCerrados.slice(i, i + 100));
     for (const c of data || []) vencidas.push({ id: c.id, motivo: "año lectivo cerrado" });
   }
