@@ -48,9 +48,11 @@ function PuntoColor({ color, onChange, label }) {
 
 // ── Catálogo de materias ─────────────────────────────────────────────────────
 
-export function MateriasAdmin({ colegioId, showToast }) {
+export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
   const { materias, recargar } = useMaterias(colegioId);
   const [usos, setUsos] = useState({}); // materia_id → nº de clases
+  const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
+  const [abierta, setAbierta] = useState(null); // materia con la lista de clases desplegada
   const [nueva, setNueva] = useState("");
   const [editando, setEditando] = useState(null); // {id, nombre}
   const [unificar, setUnificar] = useState(null); // materia origen
@@ -64,12 +66,36 @@ export function MateriasAdmin({ colegioId, showToast }) {
 
   useEffect(() => {
     if (!materias?.length) return;
-    supabase.from("clases").select("materia_id").in("materia_id", materias.map((m) => m.id)).then(({ data }) => {
-      const n = {};
-      for (const r of data || []) n[r.materia_id] = (n[r.materia_id] || 0) + 1;
-      setUsos(n);
+    cargarClases();
+  }, [materias]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Las clases de cada materia con su curso y maestra, para poder ver
+  // quién la da (antes solo se mostraba "2 clases").
+  async function cargarClases() {
+    if (!materias?.length) return;
+    const { data } = await supabase.from("clases")
+      .select("id,materia_id,maestro_id,cursos(nombre,año_lectivo),maestros(nombre,apellido)")
+      .in("materia_id", materias.map((m) => m.id));
+    const n = {}, de = {};
+    for (const r of data || []) {
+      n[r.materia_id] = (n[r.materia_id] || 0) + 1;
+      (de[r.materia_id] ||= []).push(r);
+    }
+    for (const k in de) de[k].sort((a, b) => (b.cursos?.año_lectivo || 0) - (a.cursos?.año_lectivo || 0) || (a.cursos?.nombre || "").localeCompare(b.cursos?.nombre || "", "es"));
+    setUsos(n); setClasesDe(de);
+  }
+  const quitarClase = async (m, c) => {
+    const quien = c.maestros ? fmtNombre(c.maestros) : "sin maestra";
+    const ok = await confirmar({
+      titulo: `¿Quitar ${m.nombre} de ${c.cursos?.nombre || "este curso"}?`,
+      detalle: `Se borra la clase (${quien}). Los bloques de horario que la usaban se siguen viendo con su texto, pero sin clase.`,
+      textoConfirmar: "Quitar clase",
     });
-  }, [materias]);
+    if (!ok) return;
+    const { error } = await supabase.from("clases").delete().eq("id", c.id);
+    if (error) { toast(`No se pudo quitar: ${error.message}`, "error"); return; }
+    cargarClases();
+  };
 
   const duplicada = (nombre, exceptoId) => (materias || []).some((m) => m.id !== exceptoId && sinAcentos(m.nombre) === sinAcentos(nombre));
 
@@ -186,13 +212,37 @@ export function MateriasAdmin({ colegioId, showToast }) {
             ) : (
               <>
                 <span style={{ flex: "1 1 160px", fontSize: 14, fontWeight: 700, color: C.textStrong }}>{m.nombre}{m.activo ? "" : " (oculta)"}</span>
-                <span style={{ fontSize: 12, color: C.textFaint, minWidth: 64 }}>{usos[m.id] ? `${usos[m.id]} ${usos[m.id] === 1 ? "clase" : "clases"}` : "sin clases"}</span>
+                {usos[m.id] ? (
+                  <button onClick={() => setAbierta(abierta === m.id ? null : m.id)} aria-expanded={abierta === m.id} title="Ver en qué cursos y quién la da"
+                    style={{ ...btnMini, minWidth: 64, color: C.accent, borderColor: abierta === m.id ? C.accent : C.borderStrong }}>
+                    {usos[m.id]} {usos[m.id] === 1 ? "clase" : "clases"} {abierta === m.id ? "▴" : "▾"}
+                  </button>
+                ) : <span style={{ fontSize: 12, color: C.textFaint, minWidth: 64 }}>sin clases</span>}
                 <button onClick={() => setEditando({ id: m.id, nombre: m.nombre })} style={btnMini}>✏️ Renombrar</button>
                 <button onClick={() => { setUnificar(m); setDestino(""); setErrorUnificar(""); }} style={btnMini}>Unificar…</button>
                 <button onClick={() => actualizar(m.id, { activo: !m.activo })} style={btnMini}>{m.activo ? "Ocultar" : "Mostrar"}</button>
                 <button onClick={() => eliminar(m)} style={{ ...btnMini, color: C.danger }} aria-label={`Eliminar ${m.nombre}`} title="Eliminar">🗑</button>
               </>
             )}
+            {abierta === m.id && clasesDe[m.id]?.length ? (
+              <div style={{ flexBasis: "100%", margin: "4px 0 2px 32px", display: "flex", flexDirection: "column", gap: 4 }}>
+                {clasesDe[m.id].map((c) => {
+                  const otroAno = anoActual && c.cursos?.año_lectivo && c.cursos.año_lectivo !== anoActual;
+                  return (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "6px 10px", borderRadius: 8, background: C.surfaceSunken }}>
+                      <span style={{ flex: "1 1 auto", color: C.text }}>
+                        <b style={{ color: C.textStrong }}>{c.cursos?.nombre || "Curso eliminado"}</b>
+                        <span style={{ color: C.textMuted }}> · {c.cursos?.año_lectivo || "—"}</span>
+                        {otroAno ? <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: C.warningSoft, color: "#B45309" }}>otro año</span> : null}
+                        <span style={{ color: C.textMuted }}> — </span>
+                        <span style={{ color: c.maestros ? C.text : C.textFaint }}>{c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}</span>
+                      </span>
+                      <button onClick={() => quitarClase(m, c)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${m.nombre} de ${c.cursos?.nombre || "este curso"}`} title="Quitar esta clase">🗑</button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

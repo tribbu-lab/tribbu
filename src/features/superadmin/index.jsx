@@ -1717,7 +1717,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>
       )}
       {sec==="materias"&&(
-        <MateriasAdmin colegioId={activeColegioId} showToast={showToast}/>
+        <MateriasAdmin colegioId={activeColegioId} anoActual={anoActual} showToast={showToast}/>
       )}
       {sec==="horarios"&&(
         <HorariosAdmin cursos={cursosAnoActual} colegioId={activeColegioId} showToast={showToast}/>

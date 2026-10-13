@@ -64,19 +64,39 @@ function Chip({ label, on, onPress, color }) {
 export function MateriasAdmin({ colegioId }) {
   const { materias, recargar } = useMaterias(colegioId);
   const [usos, setUsos] = useState({});
+  const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
   const [nueva, setNueva] = useState("");
   const [sel, setSel] = useState(null); // materia abierta en el sheet de edición
   const [nombre, setNombre] = useState("");
   const [unificarCon, setUnificarCon] = useState(null);
 
-  useEffect(() => {
+  // Las clases de cada materia con su curso y maestra, para ver quién la da.
+  const cargarClases = useCallback(async () => {
     if (!materias?.length) return;
-    supabase.from("clases").select("materia_id").in("materia_id", materias.map((m) => m.id)).then(({ data }) => {
-      const n = {};
-      for (const r of data || []) n[r.materia_id] = (n[r.materia_id] || 0) + 1;
-      setUsos(n);
-    });
+    const { data } = await supabase.from("clases")
+      .select("id,materia_id,maestro_id,cursos(nombre,año_lectivo),maestros(nombre,apellido)")
+      .in("materia_id", materias.map((m) => m.id));
+    const n = {}, de = {};
+    for (const r of data || []) {
+      n[r.materia_id] = (n[r.materia_id] || 0) + 1;
+      (de[r.materia_id] ||= []).push(r);
+    }
+    for (const k in de) de[k].sort((a, b) => (b.cursos?.año_lectivo || 0) - (a.cursos?.año_lectivo || 0) || (a.cursos?.nombre || "").localeCompare(b.cursos?.nombre || "", "es"));
+    setUsos(n); setClasesDe(de);
   }, [materias]);
+  useEffect(() => { Promise.resolve().then(cargarClases); }, [cargarClases]);
+
+  const quitarClase = (c) => {
+    const quien = c.maestros ? fmtNombre(c.maestros) : "sin maestra";
+    Alert.alert(`¿Quitar ${sel.nombre} de ${c.cursos?.nombre || "este curso"}?`, `Se borra la clase (${quien}). Los bloques de horario que la usaban quedan con su texto, sin clase.`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Quitar", style: "destructive", onPress: async () => {
+        const { error } = await supabase.from("clases").delete().eq("id", c.id);
+        if (error) { Alert.alert("No se pudo quitar", error.message); return; }
+        cargarClases();
+      } },
+    ]);
+  };
 
   const duplicada = (n, id) => (materias || []).some((m) => m.id !== id && sinAcentos(m.nombre) === sinAcentos(n));
   const crear = async () => {
@@ -156,6 +176,19 @@ export function MateriasAdmin({ colegioId }) {
                   <Pressable key={c} onPress={() => { actualizar({ color: c }); setSel((p) => ({ ...p, color: c })); }} style={[s.colorDot, { backgroundColor: c }, sel?.color === c && s.colorOn]} accessibilityLabel={`Color ${c}`} />
                 ))}
               </View>
+              <Text style={s.label}>CLASES ({clasesDe[sel?.id]?.length || 0})</Text>
+              {!clasesDe[sel?.id]?.length ? <Text style={s.muted}>Ningún curso la tiene.</Text> : clasesDe[sel.id].map((c) => (
+                <View key={c.id} style={s.claseFila}>
+                  <Text style={[s.flex1, { fontSize: 13.5, color: t.text }]}>
+                    <Text style={{ fontWeight: "700", color: t.textStrong }}>{c.cursos?.nombre || "Curso eliminado"}</Text>
+                    <Text style={{ color: t.textMuted }}> · {c.cursos?.año_lectivo || "—"} — </Text>
+                    <Text style={{ color: c.maestros ? t.text : t.textFaint }}>{c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}</Text>
+                  </Text>
+                  <Pressable onPress={() => quitarClase(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Quitar ${sel?.nombre} de ${c.cursos?.nombre || "este curso"}`}>
+                    <Text style={{ color: t.danger, fontSize: 13, fontWeight: "700" }}>Quitar</Text>
+                  </Pressable>
+                </View>
+              ))}
               <Text style={s.label}>UNIFICAR CON OTRA (si es la misma materia)</Text>
               <View style={s.wrap}>
                 {(materias || []).filter((m) => m.id !== sel?.id).map((m) => (
