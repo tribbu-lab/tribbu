@@ -29,6 +29,7 @@ const AdminPanel       = aLazy(() => import("./features/admin"), "AdminPanel");
 const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmin");
 const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
+const Talleres         = aLazy(() => import("./features/talleres"), "Talleres");
 const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
 const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
 const Mensajes         = aLazy(() => import("./features/mensajes"), "Mensajes");
@@ -51,7 +52,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos"]);
+const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos"]);
 // Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
 // se marca el ítem "comunidad".
 const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","servicios"]);
@@ -70,6 +71,7 @@ const TAB_MAP = {
   festejo:      "cumples",
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
+  taller:       "talleres",
   perdido:      "perdidos",
   marketplace:  "marketplace",
   resumen:      "muro", // resumen semanal (avisos-automaticos)
@@ -159,6 +161,7 @@ function App() {
   const [openColecta,   setOpenColecta]   = useState(null);
   const [openFecha,     setOpenFecha]     = useState(null);
   const [openAviso,     setOpenAviso]     = useState(null); // { id, n } — aviso a resaltar en Avisos
+  const [openTaller,    setOpenTaller]    = useState(null); // { id, n } — taller a resaltar en Talleres
   // Pedido de navegación a Mensajes ({ conversacionId | soporte | usuarioId, n }).
   // `?tab=mensajes&c=<id>` (link de una conversación) abre esa al entrar.
   const [abrirMensajes, setAbrirMensajes] = useState(() => {
@@ -506,6 +509,7 @@ function App() {
     {id:"encuestas",     label:"Encuestas",     emoji:"📊"},
     {id:"finanzas",      label:"Colectas",      emoji:"💳"},
     {id:"autorizaciones",label:"Autorizaciones",emoji:"✍️"},
+    {id:"talleres",      label:"Talleres",      emoji:"🎨"},
     {id:"comunidad",     label:"Comunidad",     emoji:"🤝"},
     {id:"info",          label:"Info Util",     emoji:"📋"},
     {id:"contacto",      label:"Contacto",      emoji:"📞"},
@@ -520,6 +524,7 @@ function App() {
     if(extra?.openColecta) setOpenColecta(extra.openColecta);
     if(extra?.openFecha) setOpenFecha(extra.openFecha);
     if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
+    if(extra?.openTaller) setOpenTaller({ id: extra.openTaller, n: Date.now() });
     if(extra?.conversacionId || extra?.soporte || extra?.usuarioId || extra?.alumnoDocente) {
       setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, alumnoDocente: extra.alumnoDocente, n: Date.now() });
     }
@@ -552,6 +557,7 @@ function App() {
         return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
+      case "talleres":  return <Talleres items={items} esVistaTodos={esVistaTodos} hijoActivo={hijoActivoId} tagDeCurso={tagDeCurso} esDocente={esDocente} openTaller={openTaller}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
