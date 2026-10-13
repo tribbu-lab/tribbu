@@ -17,6 +17,7 @@ import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
+import { TalleresColegio } from "../talleres/colegio";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
@@ -60,6 +61,7 @@ const SECCIONES = [
     {id:"eventos",l:"📅 Eventos"},
     {id:"autorizaciones",l:"✍️ Autorizaciones"},
     {id:"marketplace",l:"🛍️ Marketplace"},
+    {id:"talleres",l:"🎨 Talleres"},
     {id:"perdidos",l:"🧦 Lost & Found"},
     {id:"mensajes_familias",l:"💬 Mensajes de familias",soloColegioAdmin:true},
     {id:"denuncias",l:"🚩 Denuncias"},
@@ -91,6 +93,7 @@ const SECCION_INFO = {
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
   eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para un curso." },
+  talleres:       { titulo:"Talleres", descripcion:"Talleres extraprogramáticos: publicalos para los cursos o edades que elijas, decidí cómo se asignan los lugares (orden de llegada, aprobación o sorteo) y gestioná inscriptos y lista de espera." },
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio también puede publicar (por ejemplo, la feria de uniformes) y borrar lo que no corresponda." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
@@ -1705,6 +1708,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="marketplace"&&(
         <MarketplaceColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
+      )}
+      {sec==="talleres"&&(
+        <TalleresColegio colegioId={activeColegioId} cursos={cursosAnoActual} anoActual={anoActual}/>
       )}
       {sec==="mensajes_familias"&&!esSuper&&(
         <BandejaColegio userId={usuario?.id} isMobile={isMobile}/>

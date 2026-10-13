@@ -14,6 +14,7 @@ export const TAB_MAP = {
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
   autorizacion: "/(tabs)/autorizaciones",
+  taller: "/(tabs)/talleres",
   perdido: "/(tabs)/perdidos",
   marketplace: "/(tabs)/comunidad",
   resumen: "/(tabs)/muro", // resumen semanal (avisos-automaticos)
@@ -32,6 +33,7 @@ const routeForData = (data) => {
     : type === "marketplace" ? { sub: "marketplace" }
     : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
     : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }
+    : type === "taller" && data?.tallerId ? { openTaller: String(data.tallerId), t: String(Date.now()) }
     : type === "perdido" && data?.objetoId ? { openObjeto: String(data.objetoId), t: String(Date.now()) }
     : type === "mensaje" && data?.conversacionId ? { c: String(data.conversacionId), t: String(Date.now()) }
     : {};

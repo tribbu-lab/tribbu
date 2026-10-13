@@ -10,7 +10,7 @@ export function etiquetaDocente(info) {
 }
 
 /** Pestañas que ve una docente (ids de App.jsx). */
-export const TABS_DOCENTE = ["muro", "clases", "cumples", "recordatorios", "mensajes", "alumnos", "encuestas", "autorizaciones"];
+export const TABS_DOCENTE = ["muro", "clases", "cumples", "recordatorios", "mensajes", "alumnos", "encuestas", "autorizaciones", "talleres"];
 
 /** ¿Este curso es de la docente? */
 export const esCursoDocente = (cursosDocente, cursoId) => !!cursoId && (cursosDocente || []).includes(cursoId);

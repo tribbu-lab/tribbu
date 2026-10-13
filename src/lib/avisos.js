@@ -6,6 +6,7 @@ export const TIPOS_AVISO = [
   { k: "evento_manana", titulo: "Eventos de mañana", desc: "A las 19 hs, lo que tenés al día siguiente." },
   { k: "colecta_por_vencer", titulo: "Colectas por vencer", desc: "Dos días antes, si todavía no pagaste." },
   { k: "autorizacion_pendiente", titulo: "Autorizaciones sin responder", desc: "El día antes de la fecha límite." },
+  { k: "taller_cierre", titulo: "Inscripción a talleres por cerrar", desc: "El día antes de que cierre, si tu hijo puede anotarse y todavía no lo hiciste." },
   { k: "resumen_semanal", titulo: "Resumen de la semana", desc: "Los domingos a las 18 hs: eventos, colectas y cumples." },
 ];
 
