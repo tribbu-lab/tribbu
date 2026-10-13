@@ -164,6 +164,10 @@ export default function MasScreen() {
         ))}
       </View>
 
+      {/* Los avisos automáticos son para familias (eventos, colectas, cumples):
+          a una docente no le llega ninguno, así que no hay nada que configurar. */}
+      {esDocente ? null : (
+      <>
       <Text style={styles.label}>Notificaciones</Text>
       <View style={styles.card}>
         {TIPOS_AVISO.map((tipo, i) => (
@@ -182,6 +186,8 @@ export default function MasScreen() {
         ))}
       </View>
       <Text style={styles.nota}>Son avisos automáticos. Los avisos y alertas que publica el curso te llegan siempre.</Text>
+      </>
+      )}
 
       <Text style={styles.label}>Cuenta</Text>
       <View style={styles.card}>
