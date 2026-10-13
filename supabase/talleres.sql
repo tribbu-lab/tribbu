@@ -456,3 +456,25 @@ grant execute on function public.inscribir_en_taller(uuid, uuid), public.baja_de
   public.resolver_inscripcion_taller(uuid, uuid, text, text), public.sortear_taller(uuid),
   public.cupos_talleres(uuid[]), public.inscriptos_taller(uuid), public.elegibles_taller(uuid),
   public.usuarios_taller(uuid, text) to authenticated;
+
+-- 6) Aviso automático "mañana cierra la inscripción" -------------------------
+-- (Edge Function avisos-automaticos, modo diario, con la clave de servicio.)
+-- Familias con algún hijo elegible y sin anotar, por taller que cierra p_fecha.
+create or replace function public.pendientes_cierre_talleres(p_fecha date)
+returns table (taller_id uuid, nombre text, usuario_id uuid)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select distinct t.id, t.nombre, uh.usuario_id
+  from public.talleres t
+  join public.cursos c on public.colegio_de_curso(c.id) = t.colegio_id and (t.año_lectivo is null or c.año_lectivo = t.año_lectivo)
+  join public.hijos h on h.curso_id = c.id
+  join public.usuario_hijos uh on uh.hijo_id = h.id
+  join public.usuarios u on u.id = uh.usuario_id and coalesce(u.activo, true)
+  where t.estado = 'publicado' and t.inscripcion_hasta = p_fecha
+    and public.hijo_elegible_taller(t.id, h.id)
+    and not exists (select 1 from public.taller_inscripciones i where i.taller_id = t.id and i.hijo_id = h.id and i.estado <> 'baja')
+$$;
+revoke all on function public.pendientes_cierre_talleres(date) from public, anon, authenticated;
+grant execute on function public.pendientes_cierre_talleres(date) to service_role;
+
+alter table public.preferencias_avisos add column if not exists taller_cierre boolean not null default true;

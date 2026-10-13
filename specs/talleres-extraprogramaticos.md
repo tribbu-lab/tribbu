@@ -1,6 +1,6 @@
 ---
 title: Talleres extraprogramáticos
-status: draft
+status: implemented (falta redeploy de avisos-automaticos)
 priority: medium
 ---
 

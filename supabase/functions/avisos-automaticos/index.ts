@@ -167,7 +167,7 @@ async function enviar(sb: SupabaseClient, mensajes: Mensaje[]) {
 }
 
 // ── Preferencias ─────────────────────────────────────────────────────────────
-type TipoAviso = "evento_manana" | "colecta_por_vencer" | "autorizacion_pendiente" | "resumen_semanal";
+type TipoAviso = "evento_manana" | "colecta_por_vencer" | "autorizacion_pendiente" | "resumen_semanal" | "taller_cierre";
 type Prefs = Map<string, Record<TipoAviso, boolean>>;
 
 async function cargarPreferencias(sb: SupabaseClient): Promise<Prefs> {
@@ -255,6 +255,20 @@ async function diario(sb: SupabaseClient) {
         });
       }
     }
+  }
+  // Talleres cuya inscripción cierra mañana, a familias con algún hijo elegible
+  // que todavía no se anotó (pendientes_cierre_talleres, supabase/talleres.sql).
+  const { data: cierres, error: eCierre } = await sb.rpc("pendientes_cierre_talleres", { p_fecha: manana });
+  if (eCierre) console.error("avisos-automaticos: talleres", eCierre.message);
+  for (const c of cierres || []) {
+    if (!quiere(prefs, c.usuario_id, "taller_cierre")) continue;
+    if (!(await primeraVez(sb, `taller:${c.taller_id}:${c.usuario_id}`))) continue;
+    mensajes.push({
+      usuario: c.usuario_id,
+      title: "🎨 Mañana cierra la inscripción",
+      body: `${c.nombre?.trim()}: si querés anotar a tu hijo/a, tenés tiempo hasta mañana.`,
+      data: { type: "taller", tallerId: c.taller_id },
+    });
   }
   return { enviados: await enviar(sb, mensajes), avisos: mensajes.length, ...(DRY ? { muestra: muestra(mensajes) } : {}) };
 }
