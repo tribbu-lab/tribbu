@@ -34,6 +34,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
+import { talleresParaAnotarse } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "@shared/perdidos";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
@@ -129,6 +130,8 @@ export function Muro() {
       encuestasData,
       objsData,
       autsData,
+      talleresData,
+      tallerInscData,
     ] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
@@ -165,6 +168,12 @@ export function Muro() {
       misHijosIds.length
         ? supabase.from("autorizaciones").select("id,titulo,curso_id,fecha_limite,fecha_evento").in("curso_id", cursosScope)
         : Promise.resolve({ data: [] }),
+      // Talleres con inscripción abierta (RLS: los que ve la familia) y en qué
+      // ya están anotados mis hijos → tarjeta "Inscripción abierta".
+      misHijosIds.length
+        ? supabase.from("talleres").select("id,nombre,estado,elegibilidad,edad_min,edad_max,inscripcion_desde,inscripcion_hasta,fecha_inicio,taller_cursos(curso_id)").eq("estado", "publicado")
+        : Promise.resolve({ data: [] }),
+      misHijosIds.length ? supabase.from("taller_inscripciones").select("taller_id,hijo_id,estado").in("hijo_id", misHijosIds) : Promise.resolve({ data: [] }),
     ]);
 
     const objs = objsData.data || [];
@@ -237,6 +246,10 @@ export function Muro() {
     // Autorizaciones abiertas con algún hijo mío sin responder.
     const misHijosObj = (hijosData.data || []).filter((h) => misHijosIds.includes(h.id));
     const autorizacionesPend = auts.length ? autorizacionesPendientes(auts, misHijosObj, respData.data || [], fechaHoy) : [];
+    const talleresAbiertos = talleresParaAnotarse(talleresData.data || [], misHijosObj, {
+      cursosPorTaller: Object.fromEntries((talleresData.data || []).map((x) => [x.id, (x.taller_cursos || []).map((c) => c.curso_id)])),
+      inscripciones: tallerInscData.data || [],
+    });
 
     setDatos({
       alertas: alertasUnaPorCurso(alerta.data || []),
@@ -249,6 +262,7 @@ export function Muro() {
       invitaciones,
       encuestasPend,
       autorizacionesPend,
+      talleresAbiertos,
       encontradosSemana,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && e.tipo !== "festejo"),
     });
@@ -412,6 +426,23 @@ export function Muro() {
       onAccion: () => router.push("/(tabs)/autorizaciones"),
       onPress: () => router.push("/(tabs)/autorizaciones"),
       derecha: a.fecha_evento ? { fecha: fmtDiaMesCorto(a.fecha_evento) } : null,
+    })),
+    ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
+      key: `tal-${x.id}`,
+      tipo: "Taller",
+      dot: "#7C3AED",
+      soft: "#F5F3FF",
+      borde: "#DDD6FE",
+      icon: "palette",
+      btnBg: "#F5F3FF",
+      btnFg: "#7C3AED",
+      titulo: `Inscripción abierta: ${x.nombre}`,
+      meta: `Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}${x.inscripcion_hasta ? ` · hasta el ${fmtDiaMesCorto(x.inscripcion_hasta)}` : ""}`,
+      accion: "Ver taller",
+      tag: null,
+      onAccion: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
+      onPress: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
+      derecha: x.inscripcion_hasta ? { fecha: fmtDiaMesCorto(x.inscripcion_hasta) } : null,
     })),
     ...datos.encuestasPend.map((e) => ({
       key: `enc-${e.id}`,

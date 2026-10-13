@@ -30,6 +30,7 @@ import { UploadMenuExcel, Comedor } from "../comedor";
 import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
+import { TalleresColegio } from "../talleres/colegio";
 import { EventosColegio } from "../calendario";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
 import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
@@ -56,6 +57,7 @@ const SECCIONES = [
     { id: "comunicaciones", l: "📢 Comunicaciones" },
     { id: "eventos", l: "📅 Eventos" },
     { id: "autorizaciones", l: "✍️ Autorizaciones" },
+    { id: "talleres", l: "🎨 Talleres" },
     { id: "mensajes_familias", l: "💬 Mensajes de familias", soloColegioAdmin: true },
     { id: "denuncias", l: "🚩 Denuncias" },
     { id: "adopcion", l: "📈 Adopción" },
@@ -894,6 +896,7 @@ export function SuperAdmin() {
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
       {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
+      {sec === "talleres" ? <TalleresColegio key={activeColegioId} colegioId={activeColegioId} anoActual={anoActual} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
       {sec === "denuncias" ? <DenunciasColegio key={activeColegioId} colegioId={activeColegioId} /> : null}
       {sec === "soporte" && !esColegioAdmin ? <BandejaSoporte /> : null}

@@ -30,6 +30,7 @@ const BASE = [
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
   { id: "finanzas", label: "Colectas", emoji: "💳" },
   { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
+  { id: "talleres", label: "Talleres", emoji: "🎨" },
   { id: "comunidad", label: "Comunidad", emoji: "🤝" },
   { id: "info", label: "Info Útil", emoji: "📋" },
   { id: "contacto", label: "Contacto", emoji: "📞" },
@@ -39,6 +40,7 @@ const DOCENTE = [
   { id: "alumnos", label: "Alumnos", emoji: "🎒" },
   { id: "encuestas", label: "Encuestas", emoji: "📊" },
   { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
+  { id: "talleres", label: "Mis talleres", emoji: "🎨" },
 ];
 const ADMIN = [
   { id: "admin", label: "Admin", emoji: "⚙️" },

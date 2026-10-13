@@ -23,6 +23,7 @@ import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
 import { FestejoDetalleModal } from "../cumples";
 import { diasVisibles, normalizarDia } from "@shared/horarios";
+import { bloquesDeTalleres } from "@shared/talleres";
 
 const t = THEMES.light;
 
@@ -52,6 +53,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [cumples, setCumples] = useState([]);
   const [recordatorios, setRecordatorios] = useState([]);
   const [horarios, setHorarios] = useState([]);
+  const [talleresInsc, setTalleresInsc] = useState([]); // inscripciones "inscripto" de mis hijos con su taller
+  const [cursoDeHijo, setCursoDeHijo] = useState({});   // hijo_id → curso_id (de mis hijos)
   const [diaSelec, setDiaSelec] = useState(null);
   const [modal, setModal] = useState(null); // "nuevo" | evento
   const [confirm, setConfirm] = useState(null);
@@ -78,7 +81,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const cargar = useCallback(async () => {
     if (!cursoIds?.length || !rangoEventos) return;
     const hoyStr = fmtLocalDate(new Date());
-    const [ev, al, ma, hor, recs] = await Promise.all([
+    const [ev, al, ma, hor, recs, tal] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase
         .from("eventos")
@@ -103,9 +106,15 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
       )
         .gte("fecha", hoyStr)
         .order("fecha", { ascending: true }),
+      // Talleres extraprogramáticos en los que mis hijos están inscriptos.
+      misHijos.length
+        ? supabase.from("taller_inscripciones").select("taller_id, hijo_id, estado, talleres(id, nombre, estado, fecha_inicio, fecha_fin, profe_texto, taller_horarios(id, taller_id, dia, hora_inicio, hora_fin))").in("hijo_id", misHijos).eq("estado", "inscripto")
+        : { data: [] },
     ]);
     setEventos(ev.data || []);
     setHorarios(hor.data || []);
+    setTalleresInsc(tal.data || []);
+    setCursoDeHijo(Object.fromEntries((al.data || []).filter((a) => misHijos.includes(a.id)).map((a) => [a.id, a.curso_id])));
     setRecordatorios(recs.data || []);
     setCumples([
       ...(al.data || [])
@@ -127,7 +136,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),
     ]);
-  }, [cursoIds, userId, rangoEventos]);
+  }, [cursoIds, userId, rangoEventos, misHijos]);
 
   useEffect(() => {
     cargar();
@@ -238,8 +247,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   // Talleres optativos: los ve quien gestiona el curso (Room Parent, docente)
   // y cada familia solo si su hijo está anotado.
   const hijosFiltro = esVistaTodos || !hijoActivoId ? misHijos : [hijoActivoId];
-  const horariosVisibles = horarios.filter((h) => !h.clases?.optativa || (isAdmin && h.curso_id === cursoId) || cursosDocente.includes(h.curso_id)
-    || (h.clases.clase_alumnos || []).some((a) => hijosFiltro.includes(a.hijo_id)));
+  const talleresVis = talleresInsc.filter((i) => i.talleres && hijosFiltro.includes(i.hijo_id));
+  const bloquesTaller = bloquesDeTalleres([...new Map(talleresVis.map((i) => [i.talleres.id, i.talleres])).values()], {
+    horarios: talleresVis.flatMap((i) => i.talleres.taller_horarios || []),
+    inscripciones: talleresVis, hijos: Object.entries(cursoDeHijo).map(([id, curso_id]) => ({ id, curso_id })),
+  });
+  const horariosVisibles = [...horarios.filter((h) => !h.clases?.optativa || (isAdmin && h.curso_id === cursoId) || cursosDocente.includes(h.curso_id)
+    || (h.clases.clase_alumnos || []).some((a) => hijosFiltro.includes(a.hijo_id))), ...bloquesTaller];
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
