@@ -94,6 +94,35 @@
   .heroPhone{display:flex;justify-content:center}
   .phoneFrame{width:352px;max-width:100%;border-radius:44px 44px 0 0;background:#000;padding:10px 10px 0;box-shadow:0 40px 80px -30px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.12)}
   .phoneFrame img{width:100%;display:block;border-radius:36px 36px 0 0}
+  /* mock Inicio en vista Todos (hero) */
+  .hmScreen{border-radius:36px 36px 0 0;overflow:hidden;background:var(--bg);font-family:'DM Sans',system-ui,sans-serif;text-align:left}
+  .hmStatus{display:flex;justify-content:space-between;align-items:center;padding:14px 26px 0;background:var(--navy2);font-size:13px;font-weight:700;color:#fff}
+  .hmHead{background:var(--navy2);padding:14px 16px 14px}
+  .hmBar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .hmBar .wm{font-size:24px;color:#fff}
+  .hmBarR{display:flex;align-items:center;gap:7px}
+  .hmBell{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:14px;position:relative}
+  .hmBell i{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:999px;background:var(--red)}
+  .hmCtx{padding:16px 16px 0}
+  .hmFecha{font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--label)}
+  .hmHola{font-size:22px;font-weight:800;letter-spacing:-.7px;color:var(--navy);margin-top:3px}
+  .hmLbl{font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--label);margin:16px 0 8px}
+  .hmPends{display:flex;gap:8px;margin-right:-16px;overflow:hidden}
+  .hmPend{flex:none;width:236px;border:1px solid var(--border);border-radius:16px;background:#fff;padding:12px 13px}
+  .hmPendTipo{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+  .hmPendTipo .d{width:7px;height:7px;border-radius:999px;display:block}
+  .hmPend b{display:block;font-size:13.5px;font-weight:700;color:var(--navy);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hmPend small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .hmPendFoot{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+  .hmPendFoot span{font-size:12px;font-weight:800;color:var(--blue-text)}
+  .hmPendFoot em{font-style:normal;font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:var(--sep);color:#334155}
+  .hmDots{display:flex;justify-content:center;gap:4px;margin-top:9px}
+  .hmDots span{width:5px;height:5px;border-radius:999px;background:#CBD5E1;display:block}
+  .hmDots span:first-child{width:16px;background:var(--blue)}
+  .hmComedor{display:flex;gap:11px;align-items:center;border:1px solid var(--border);border-radius:16px;background:#fff;padding:12px 13px;margin-bottom:22px}
+  .hmComedor .ic{width:36px;height:36px;border-radius:10px;background:var(--sep);display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+  .hmComedor b{display:block;font-size:13.5px;font-weight:700;color:var(--navy)}
+  .hmComedor small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
 
   section{padding:96px 0 0}
   /* .wrap pisa el padding de section (misma cara, más especificidad):
@@ -441,7 +470,37 @@
       <a href="/app" class="heroWebLink">🌐 O entrá sin instalar nada desde tribbu.ar/app →</a>
     </div>
     <div class="heroPhone">
-      <div class="phoneFrame"><img src="/store/01-inicio.png" alt="Pantalla de inicio de tribbu"></div>
+      <div class="phoneFrame">
+        <div class="hmScreen" role="img" aria-label="Pantalla de inicio de tribbu en la vista Todos, con los pendientes y la agenda de Emma y Mateo">
+          <div class="hmStatus"><span>12:18</span><span>●●● 🔋</span></div>
+          <div class="hmHead">
+            <div class="hmBar"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span><div class="hmBarR"><span class="hmBell">🔔<i></i></span><span class="mhChipTop">👥 Todos</span></div></div>
+            <div class="mhKids">
+              <span class="mhKid on">👥 Todos</span>
+              <span class="mhKid"><span class="d" style="background:#3B82F6"></span>Emma <small>3°A</small></span>
+              <span class="mhKid"><span class="d" style="background:#EC4899"></span>Mateo <small>5°B</small></span>
+            </div>
+          </div>
+          <div class="hmCtx">
+            <div class="hmFecha">Viernes 14 de agosto</div>
+            <div class="hmHola">Hola, María</div>
+            <div class="hmLbl">Pendientes · 3</div>
+            <div class="hmPends">
+              <div class="hmPend"><div class="hmPendTipo" style="color:#DC2626"><span class="d" style="background:#3B82F6"></span>Aviso · Emma</div><b>Traer pañuelos descartables</b><small>Sin leer · lun 24 de agosto</small><div class="hmPendFoot"><span>Marcar leído</span><em>en 10 días</em></div></div>
+              <div class="hmPend"><div class="hmPendTipo" style="color:#059669"><span class="d" style="background:#EC4899"></span>Autorización · Mateo</div><b>Salida al Planetario 🚌</b><small>Falta tu respuesta · mié 26</small><div class="hmPendFoot"><span>Responder</span><em>12 días</em></div></div>
+            </div>
+            <div class="hmDots"><span></span><span></span><span></span></div>
+            <div class="hmLbl">Próximos 15 días</div>
+            <div class="mhList" style="margin-top:0">
+              <div class="mhRow"><div class="mhDate"><div class="dw">jue</div><div class="dn">20</div></div><div><b>Cumple de Emma 🎂</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · 3°A</span></div></div>
+              <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">21</div></div><div><b>Reunión de apoderados</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Aula de 5°B</span></div></div>
+              <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">28</div></div><div><b>Acto Día del Maestro</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span><span class="d" style="background:#EC4899;margin-left:-3px"></span>Los dos · Patio central</span></div></div>
+            </div>
+            <div class="hmLbl">Comedor</div>
+            <div class="hmComedor"><span class="ic">🍽️</span><div><b>Menú de hoy</b><small>Salad bar · Pizza de muzzarella · Guiso de lentejas</small></div></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
