@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, memo } from "react";
 import {
   View, Text, Pressable, TextInput, FlatList, Modal, KeyboardAvoidingView, Alert,
-  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image, Keyboard,
+  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -19,6 +19,7 @@ import { borrarArchivos } from "../../lib/storageUrl";
 import { pickImages, uploadImage } from "../../lib/media";
 import { EVENTO_MENSAJE, EVENTO_RESYNC, useMensajesCtx } from "../../lib/useMensajesNoLeidos";
 import { useRecarga } from "../../lib/useRecarga";
+import { useTecladoAbierto } from "../../lib/useTecladoAbierto";
 import { uuidLite, safeUrl } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE, MIN_TOUCH, withAlpha } from "@shared/tokens";
 import {
@@ -505,12 +506,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [estado, setEstado] = useState(conv.estado || "abierta");
   const mensajesRef = useRef([]);
   // Teclado abierto (Android): el KAV del chat se activa solo entonces.
-  const [tecladoAbierto, setTecladoAbierto] = useState(false);
-  useEffect(() => {
-    const a = Keyboard.addListener("keyboardDidShow", () => setTecladoAbierto(true));
-    const b = Keyboard.addListener("keyboardDidHide", () => setTecladoAbierto(false));
-    return () => { a.remove(); b.remove(); };
-  }, []);
+  const tecladoAbierto = useTecladoAbierto();
   const staff = modo === "staff";
   // Lado institucional: qué rol_autor cuenta como "mío" (soporte / colegio).
   const rolStaff = rolPropio || (staff ? "soporte" : null);

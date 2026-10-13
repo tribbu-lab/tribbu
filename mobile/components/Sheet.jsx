@@ -5,7 +5,8 @@
 // Un ScrollView de formulario adentro va con flexShrink: 1 (no maxHeight fijo):
 // así se achica con la hoja cuando abre el teclado y se llega al botón final.
 
-import { Modal, View, Text, Pressable, KeyboardAvoidingView } from "react-native";
+import { Modal, View, Text, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { useTecladoAbierto } from "../lib/useTecladoAbierto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TYPE, RADIUS, SPACE, MIN_TOUCH, SHADOW } from "@shared/tokens";
 import { makeThemedStyles } from "../context/Theme";
@@ -35,6 +36,7 @@ export function Sheet({ visible, onClose, title, children, position = "bottom", 
   const s = useStyles();
   const insets = useSafeAreaInsets();
   const bottom = position === "bottom";
+  const tecladoAbierto = useTecladoAbierto();
 
   return (
     <Modal
@@ -49,6 +51,9 @@ export function Sheet({ visible, onClose, title, children, position = "bottom", 
         // la ventana y el teclado tapaba los inputs. KAV mide cuánto tapa de
         // verdad, así que si el sistema sí redimensiona no suma padding de más.
         behavior="padding"
+        // Solo con el teclado abierto: en Android, dentro del Modal, el padding
+        // no volvía a 0 al cerrarlo y la hoja quedaba levantada.
+        enabled={Platform.OS === "ios" || tecladoAbierto}
       >
         <Pressable style={[s.overlay, bottom ? s.bottom : s.center]} onPress={onClose}>
           <Pressable
