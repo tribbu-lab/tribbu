@@ -19,7 +19,7 @@ import { ListToolbar } from "../../components";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 
-export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null }) {
+export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, esDocente=false }) {
   const misHijosUniq = useMemo(()=>[...new Set(misHijos)],[misHijos]);
   const isMobile = useIsMobile();
   // "Tu festejo" (banner verde): una vez cerrado por el usuario no vuelve a
@@ -89,6 +89,24 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length) return;
+    // Docente: solo la lista (nombre + fecha) por RPC — no lee hijos/cumples
+    // por RLS, y festejos, regalos y colectas son cosa de las familias.
+    if(esDocente) {
+      const { data } = await supabase.rpc("cumples_para_docente", { p_cursos: cursoIds });
+      const proximo = (fecha) => {
+        const hoy = new Date(); hoy.setHours(0,0,0,0);
+        const d = new Date(fecha+"T00:00:00");
+        let next = new Date(hoy.getFullYear(), d.getMonth(), d.getDate());
+        if(next < hoy) next.setFullYear(hoy.getFullYear()+1);
+        return next - hoy;
+      };
+      setLista((data||[]).map(r=>({
+        id:`${r.tipo==="alumno"?"a":"m"}-${r.id}`, rawId:r.id, nombre:fmtNombre(r),
+        tipo:r.tipo==="alumno"?"Alumno":"Maestro", fecha_nacimiento:r.fecha_nacimiento,
+        color:r.color||(r.tipo==="alumno"?"#3B82F6":"#8B5CF6"), curso_id:r.curso_id,
+      })).sort((a,b)=>proximo(a.fecha_nacimiento)-proximo(b.fecha_nacimiento)));
+      return;
+    }
     const [al,ma,cu,fest,inv] = await Promise.all([
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds).order("nombre"),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
@@ -175,7 +193,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
     }
     setCumpleMap(map);
     await verificarRecordatoriosRegalo(map, unified);
-  }, [cursoIds, hijoActivo, misHijos, userId, verificarRecordatoriosRegalo]);
+  }, [cursoIds, hijoActivo, misHijos, userId, verificarRecordatoriosRegalo, esDocente]);
   useCargar(cargar);
 
 

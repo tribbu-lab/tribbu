@@ -80,7 +80,7 @@ const fmtDiaMes = (fecha) =>
   new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" });
 
 export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], hijoActivoId = null } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], hijoActivoId = null, esDocente } = useSession();
   const userId = usuario?.id;
   const misHijosUniq = useMemo(() => [...new Set(misHijos)], [misHijos]);
 
@@ -155,6 +155,23 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
+    // Docente: solo la lista (nombre + fecha) por RPC — no lee hijos/cumples
+    // por RLS, y festejos, regalos y colectas son cosa de las familias.
+    if (esDocente) {
+      const { data } = await supabase.rpc("cumples_para_docente", { p_cursos: cursoIds });
+      const items = (data || []).map((r) => ({
+        id: `${r.tipo === "alumno" ? "a" : "m"}-${r.id}`,
+        rawId: r.id,
+        nombre: fmtNombre(r),
+        tipo: r.tipo === "alumno" ? "Alumno" : "Maestro",
+        fecha_nacimiento: r.fecha_nacimiento,
+        color: r.color || (r.tipo === "alumno" ? "#3B82F6" : "#8B5CF6"),
+        curso_id: r.curso_id,
+      }));
+      items.sort((a, b) => nextBday(a.fecha_nacimiento) - nextBday(b.fecha_nacimiento));
+      setLista(items);
+      return;
+    }
     const [al, ma, cu, fest, inv] = await Promise.all([
       supabase
         .from("hijos")
@@ -300,7 +317,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     }
     setCumpleMap(map);
     await verificarRecordatoriosRegalo(map, unified);
-  }, [cursoIds, userId, misHijos, hijoActivoId, verificarRecordatoriosRegalo]);
+  }, [cursoIds, userId, misHijos, hijoActivoId, verificarRecordatoriosRegalo, esDocente]);
 
   useEffect(() => {
     cargar();
