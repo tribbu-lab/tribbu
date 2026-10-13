@@ -21,6 +21,7 @@ import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
 import { diasVisibles, normalizarDia } from "../../lib/horarios";
+import { bloquesDeTalleres } from "../../lib/talleres";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -50,6 +51,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
+  const [talleresInsc, setTalleresInsc] = useState([]); // inscripciones "inscripto" de mis hijos con su taller
+  const [cursoDeHijo, setCursoDeHijo] = useState({});   // hijo_id → curso_id (de mis hijos)
   const [horarioColegio, setHorarioColegio] = useState(null);
   const [filtroTipo,   setFiltroTipo]   = useState("todos");
   const [filtroRango,  setFiltroRango]  = useState("90"); // "7"|"30"|"90"|"custom"
@@ -94,7 +97,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length || !rangoEventos) return;
-    const [ev, al, ma, hor, col] = await Promise.all([
+    const [ev, al, ma, hor, col, tal] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase.from("eventos").select("*").in("curso_id", cursoIds)
         .lte("fecha", rangoEventos.hasta).or(filtroDesdeEventos(rangoEventos.desde)).order("fecha"),
@@ -107,9 +110,16 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       // "colegios", la que se edita en Contacto/panel del colegio — antes se
       // leía de la singleton vieja "colegio", que ya no se actualiza).
       supabase.from("cursos").select("colegios(horario_clases)").in("id", cursoIds),
+      // Talleres extraprogramáticos en los que mis hijos están inscriptos
+      // (supabase/talleres.sql): se suman al horario del hijo.
+      misHijos.length
+        ? supabase.from("taller_inscripciones").select("taller_id, hijo_id, estado, talleres(id, nombre, estado, fecha_inicio, fecha_fin, profe_texto, taller_horarios(id, taller_id, dia, hora_inicio, hora_fin))").in("hijo_id", misHijos).eq("estado", "inscripto")
+        : { data: [] },
     ]);
     setEventos(ev.data||[]);
     setHorarios(hor.data||[]);
+    setTalleresInsc(tal.data||[]);
+    setCursoDeHijo(Object.fromEntries((al.data||[]).filter(a=>misHijos.includes(a.id)).map(a=>[a.id,a.curso_id])));
     setHorarioColegio((col.data||[]).map(c=>c.colegios?.horario_clases).find(Boolean)||null);
     // Armamos cumples como eventos virtuales (próxima ocurrencia)
     const todos = [
@@ -123,7 +133,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       })),
     ];
     setCumples(todos);
-  }, [cursoIds, rangoEventos]);
+  }, [cursoIds, rangoEventos, misHijos]);
   useCargar(cargar);
   useCargar(cargarRecs);
 
@@ -429,8 +439,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         // docente) y cada familia solo si su hijo está anotado.
         const verTodo = (cid) => (isAdmin && cid===cursoId) || cursosDocente.includes(cid);
         const hijosFiltro = esVistaTodos || !hijoActivo ? misHijos : [hijoActivo];
-        const horariosVisibles = horarios.filter(h=>!h.clases?.optativa || verTodo(h.curso_id)
-          || (h.clases.clase_alumnos||[]).some(a=>hijosFiltro.includes(a.hijo_id)));
+        const talleresVis = talleresInsc.filter(i=>i.talleres && hijosFiltro.includes(i.hijo_id));
+        const bloquesTaller = bloquesDeTalleres([...new Map(talleresVis.map(i=>[i.talleres.id,i.talleres])).values()], {
+          horarios: talleresVis.flatMap(i=>i.talleres.taller_horarios||[]),
+          inscripciones: talleresVis, hijos: Object.entries(cursoDeHijo).map(([id,curso_id])=>({id,curso_id})),
+        });
+        const horariosVisibles = [...horarios.filter(h=>!h.clases?.optativa || verTodo(h.curso_id)
+          || (h.clases.clase_alumnos||[]).some(a=>hijosFiltro.includes(a.hijo_id))), ...bloquesTaller];
         const fmtHora = t => t ? t.slice(0,5) : "";
 
         // Parsear horario del colegio para obtener hora de inicio y fin
