@@ -22,6 +22,7 @@ import { AdjuntosInput, AdjuntosList, ImagenAmpliable } from "../../components/A
 import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
 import { FestejoDetalleModal } from "../cumples";
+import { diasVisibles, normalizarDia } from "@shared/horarios";
 
 const t = THEMES.light;
 
@@ -38,7 +39,7 @@ const TIPO_CONFIG = {
 const pad = (n) => String(n).padStart(2, "0");
 
 export function Calendario({ openFecha = null, onClearOpenFecha }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [] } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null } = useSession();
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const userId = usuario?.id ?? null;
@@ -91,7 +92,9 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
         .from("maestros")
         .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
         .in("maestro_cursos.curso_id", cursoIds),
-      supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
+      // clases(optativa, clase_alumnos): talleres optativos — por RLS cada
+      // familia recibe solo las filas de sus hijos (ver horariosVisibles).
+      supabase.from("horarios").select("*, clases(optativa, clase_alumnos(hijo_id))").in("curso_id", cursoIds).order("hora_inicio"),
       // Comunicados: recordatorios con fecha de hoy en adelante, para todos o
       // para mí (filtrado en la consulta; antes se traían todos).
       (userId
@@ -231,6 +234,12 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   };
 
   const evDiaSelec = diaSelec ? eventosDelDia(diaSelec.year, diaSelec.month, diaSelec.day) : [];
+
+  // Talleres optativos: los ve quien gestiona el curso (Room Parent, docente)
+  // y cada familia solo si su hijo está anotado.
+  const hijosFiltro = esVistaTodos || !hijoActivoId ? misHijos : [hijoActivoId];
+  const horariosVisibles = horarios.filter((h) => !h.clases?.optativa || (isAdmin && h.curso_id === cursoId) || cursosDocente.includes(h.curso_id)
+    || (h.clases.clase_alumnos || []).some((a) => hijosFiltro.includes(a.hijo_id)));
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
@@ -454,20 +463,20 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
 
       {vista === "horario" ? (
         esVistaTodos ? (
-          horarios.length === 0 ? (
+          horariosVisibles.length === 0 ? (
             <Text style={styles.muted}>No hay horarios cargados aún.</Text>
           ) : (
             (cursoIds || [])
-              .filter((cid) => horarios.some((h) => h.curso_id === cid))
+              .filter((cid) => horariosVisibles.some((h) => h.curso_id === cid))
               .map((cid) => (
                 <View key={cid} style={styles.horarioSeccion}>
                   <TagHijo tag={tagDeCurso(cid)} />
-                  <HorarioView horarios={horarios.filter((h) => h.curso_id === cid)} isAdmin={false} />
+                  <HorarioView horarios={horariosVisibles.filter((h) => h.curso_id === cid)} isAdmin={false} />
                 </View>
               ))
           )
         ) : (
-          <HorarioView horarios={horarios} isAdmin={isAdmin} />
+          <HorarioView horarios={horariosVisibles} isAdmin={isAdmin} />
         )
       ) : null}
 
@@ -586,8 +595,8 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
 }
 
 function HorarioView({ horarios, isAdmin }) {
-  const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-  const DIA_COLORS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444"];
+  const DIAS = diasVisibles(horarios);
+  const DIA_COLORS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#0EA5E9"];
   const fmtHora = (t) => (t ? t.slice(0, 5) : "");
   const slots = [...new Set(horarios.map((h) => h.hora_inicio))].sort();
 
@@ -616,13 +625,13 @@ function HorarioView({ horarios, isAdmin }) {
               <Text style={styles.horaTxt}>{fmtHora(slot)}</Text>
             </View>
             {DIAS.map((dia, di) => {
-              const clase = horarios.find((h) => h.dia === dia && h.hora_inicio === slot);
+              const clase = horarios.find((h) => normalizarDia(h.dia) === dia && h.hora_inicio === slot);
               const dc = DIA_COLORS[di];
               return (
                 <View key={dia} style={styles.horarioCell}>
                   {clase ? (
                     <View style={[styles.claseBox, { backgroundColor: (clase.color || dc) + "22", borderColor: (clase.color || dc) + "55" }]}>
-                      <Text style={[styles.claseMateria, { color: clase.color || dc }]}>{clase.materia}</Text>
+                      <Text style={[styles.claseMateria, { color: clase.color || dc }]}>{clase.clases?.optativa ? "✦ " : ""}{clase.materia}</Text>
                       {clase.docente ? <Text style={styles.claseDocente}>{clase.docente}</Text> : null}
                       <Text style={styles.claseHora}>
                         {fmtHora(clase.hora_inicio)}–{fmtHora(clase.hora_fin)}

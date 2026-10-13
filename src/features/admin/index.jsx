@@ -13,15 +13,12 @@ import { Paginador } from "../../components/Paginador";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
+import { HorarioCurso } from "../superadmin/horarios";
 
 export function AdminPanel({ cursoId, cursoNombre }) {
   const [tab, setTab]   = useState("general");
   const [form, setForm]   = useState({monto_regalo:"",moneda_regalo:"$"});
   const [saving, setSaving] = useState(false);
-  const [horarios,setHorarios] = useState([]);
-  const [maestros,setMaestros] = useState([]);
-  const [horForm,setHorForm]   = useState(null);
-  const [horSaving,setHorSaving] = useState(false);
   const [alumnosRegalo,setAlumnosRegalo] = useState([]);
   const [cumpleMap,setCumpleMap]         = useState({});
   const [guardandoRegaloId,setGuardandoRegaloId] = useState(null);
@@ -79,16 +76,12 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   };
 
   const cargar = useCallback(async () => {
-    const [c, hor, mae, hijosData, ucData] = await Promise.all([
+    const [c, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id",cursoId).single(),
-      supabase.from("horarios").select("*").eq("curso_id",cursoId).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo",true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
       supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","room"),
     ]);
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
-    setHorarios(hor.data||[]);
-    setMaestros(mae.data||[]);
     setRoomParents((ucData.data||[]).map(r=>r.usuarios).filter(Boolean));
 
     const hijosCurso = hijosData.data||[];
@@ -123,20 +116,6 @@ export function AdminPanel({ cursoId, cursoNombre }) {
     setSaving(true);
     await supabase.from("cursos").update({monto_regalo:form.monto_regalo?Number(form.monto_regalo):null,moneda_regalo:form.moneda_regalo||"$"}).eq("id",cursoId);
     setSaving(false); cargar();
-  };
-
-  const guardarHorario = async () => {
-    if(!horForm?.materia?.trim()||!horForm?.dia||!horForm?.hora_inicio||!horForm?.hora_fin) return;
-    setHorSaving(true);
-    const payload = {materia:horForm.materia.trim(),dia:horForm.dia,hora_inicio:horForm.hora_inicio,hora_fin:horForm.hora_fin,docente:horForm.docente||null,color:horForm.color||"#3B82F6",curso_id:cursoId};
-    if(horForm.id) await supabase.from("horarios").update(payload).eq("id",horForm.id);
-    else           await supabase.from("horarios").insert(payload);
-    setHorSaving(false); setHorForm(null); cargar();
-  };
-
-  const eliminarHorario = async (id) => {
-    await supabase.from("horarios").delete().eq("id",id);
-    cargar();
   };
 
   return (
@@ -188,82 +167,9 @@ export function AdminPanel({ cursoId, cursoNombre }) {
       )}
 
       {tab==="horarios"&&(
-        <div>
-          {horForm!==null&&(
-            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-              <Card style={{padding:24,width:"100%",maxWidth:400}}>
-                <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{horForm?.id?"Editar clase":"Nueva clase"}</div>
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DIA</div>
-                  <select value={horForm.dia||"Lunes"} onChange={e=>setHorForm(p=>({...p,dia:e.target.value}))} style={inp}>
-                    {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(d=><option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div style={{display:"flex",gap:10,marginBottom:10}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO</div>
-                    <input type="time" value={horForm.hora_inicio||""} onChange={e=>setHorForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN</div>
-                    <input type="time" value={horForm.hora_fin||""} onChange={e=>setHorForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
-                  </div>
-                </div>
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MATERIA</div>
-                  <input value={horForm.materia||""} onChange={e=>setHorForm(p=>({...p,materia:e.target.value}))} placeholder="Ej: Matematicas" style={inp}/>
-                </div>
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DOCENTE</div>
-                  <select value={horForm.docente||""} onChange={e=>setHorForm(p=>({...p,docente:e.target.value}))} style={inp}>
-                    <option value="">-- Sin asignar --</option>
-                    {maestros.map(m=><option key={m.id} value={fmtNombre(m)}>{fmtNombre(m)}{m.materia?" - "+m.materia:""}</option>)}
-                  </select>
-                </div>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>COLOR</div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                    {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#06B6D4","#6366F1"].map(c=>(
-                      <button key={c} onClick={()=>setHorForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:horForm.color===c?"3px solid #0F172A":"2px solid transparent",cursor:"pointer"}}/>
-                    ))}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:10}}>
-                  <button onClick={()=>setHorForm(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-                  <button onClick={guardarHorario} disabled={horSaving} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{horSaving?"Guardando...":"Guardar clase"}</button>
-                </div>
-              </Card>
-            </div>
-          )}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-            <div style={{fontSize:14,fontWeight:700}}>Horario de clases</div>
-            <button onClick={()=>setHorForm({dia:"Lunes",hora_inicio:"08:00",hora_fin:"09:00",materia:"",docente:"",color:"#3B82F6"})} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva clase</button>
-          </div>
-          {horarios.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Sin clases cargadas</div>}
-          {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(dia=>{
-            const items = horarios.filter(h=>h.dia===dia);
-            if(!items.length) return null;
-            return (
-              <div key={dia} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{dia}</div>
-                {items.map(h=>(
-                  <div key={h.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F8FAFC",borderRadius:9,marginBottom:5,border:"1px solid #E2E8F0"}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:h.color||"#3B82F6",flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <span style={{fontSize:13,fontWeight:600}}>{h.materia}</span>
-                      {h.docente&&<span style={{fontSize:11,color:"#94A3B8",marginLeft:8}}>{h.docente}</span>}
-                    </div>
-                    <span style={{fontSize:11,color:"#64748B",whiteSpace:"nowrap"}}>{h.hora_inicio?.slice(0,5)} - {h.hora_fin?.slice(0,5)}</span>
-                    <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>setHorForm(h)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
-                      <button onClick={()=>eliminarHorario(h.id)} style={{padding:"3px 8px",borderRadius:6,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+        // El colegio arma las clases (materia + maestra); el Room Parent arma
+        // el horario con ellas. Editor compartido con Super Admin.
+        <HorarioCurso key={cursoId} curso={{id:cursoId,nombre:cursoNombre||"Este curso"}} puedeEditarClases={false}/>
       )}
 
       {tab==="familias"&&(

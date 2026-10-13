@@ -542,7 +542,7 @@ function App() {
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     switch(t) {
       case "muro":     return <Muro cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
-      case "clases":   return <Calendario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
+      case "clases":   return <Calendario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre} onEscribir={escribirA}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;

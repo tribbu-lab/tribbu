@@ -21,7 +21,7 @@ export function useMaterias(colegioId) {
 /** Clases de un curso con su materia y maestra, ordenadas por materia. */
 export async function cargarClasesCurso(cursoId) {
   const { data } = await supabase.from("clases")
-    .select("id,curso_id,materia_id,maestro_id,materias(id,nombre,color,activo),maestros(id,nombre,apellido,activo)")
+    .select("id,curso_id,materia_id,maestro_id,optativa,materias(id,nombre,color,activo),maestros(id,nombre,apellido,activo)")
     .eq("curso_id", cursoId);
   return (data || []).sort((a, b) => (a.materias?.nombre || "").localeCompare(b.materias?.nombre || "", "es"));
 }

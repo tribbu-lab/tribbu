@@ -32,7 +32,8 @@ import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { EventosColegio } from "../calendario";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
-import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor, cargarClasesCurso, etiquetaClase, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
+import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
+import { HorarioCurso, SemanaMaestra } from "../horarios";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
@@ -1216,6 +1217,16 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 onChange={(v) => setForm((p) => ({ ...p, clases: v }))}
               />
             )}
+            {form.id ? (
+              <>
+                <Text style={styles.label}>SU SEMANA</Text>
+                <SemanaMaestra maestroId={form.id} cursos={cursos} />
+                {(() => {
+                  const n = (form.clases || []).filter((c) => c.id && !cursos.some((x) => x.id === c.curso_id)).length;
+                  return n ? <Text style={{ fontSize: 12, color: "#B45309", marginTop: 6 }}>Además tiene {n} {n === 1 ? "clase" : "clases"} en cursos de otros años (se ven y se quitan desde 📚 Materias).</Text> : null;
+                })()}
+              </>
+            ) : null}
             <Text style={styles.label}>ESTADO</Text>
             <Pressable
               onPress={() => setForm((p) => ({ ...p, activo: p.activo === false }))}
@@ -2024,148 +2035,26 @@ const comStyles = StyleSheet.create({
 });
 
 // ── HorariosAdmin (super: selector de curso) ─────────────────────────────────────
-const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+// El editor (clases, talleres, bloque en varios días, copiar) está en
+// features/horarios, compartido con el Admin del Room Parent.
 function HorariosAdmin({ cursos, colegioId }) {
   const [cursoSel, setCursoSel] = useState(null);
-  const [horarios, setHorarios] = useState([]);
   const [maestros, setMaestros] = useState([]);
-  const [clases, setClases] = useState([]);
-  const [horForm, setHorForm] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  // El horario se arma eligiendo una clase del curso (materia + maestra);
-  // materia/docente/color los completa la base (supabase/materias-y-clases.sql).
-  const cargar = async (cid) => {
-    if (!cid) return;
-    const [hor, cls, mc] = await Promise.all([
-      supabase.from("horarios").select("*").eq("curso_id", cid).order("dia").order("hora_inicio"),
-      cargarClasesCurso(cid),
-      supabase.from("maestro_cursos").select("maestro_id,cursos!inner(colegio_id)").eq("cursos.colegio_id", colegioId || ""),
-    ]);
-    const ids = [...new Set((mc.data || []).map((r) => r.maestro_id))];
-    const { data: mae } = ids.length ? await supabase.from("maestros").select("id,nombre,apellido").eq("activo", true).in("id", ids).order("nombre") : { data: [] };
-    const usos = {};
-    for (const h of hor.data || []) if (h.clase_id) usos[h.clase_id] = (usos[h.clase_id] || 0) + 1;
-    setHorarios(hor.data || []);
-    setClases(cls.map((c) => ({ ...c, _usos: usos[c.id] || 0 })));
-    setMaestros(mae || []);
-  };
-  const selCurso = (c) => {
-    setCursoSel(c);
-    cargar(c.id);
-  };
-  const guardar = async () => {
-    if (!horForm?.clase_id || !horForm?.hora_inicio || !horForm?.hora_fin || !cursoSel) return;
-    setSaving(true);
-    const payload = { clase_id: horForm.clase_id, dia: horForm.dia, hora_inicio: horForm.hora_inicio, hora_fin: horForm.hora_fin, curso_id: cursoSel.id };
-    const { error } = horForm.id
-      ? await supabase.from("horarios").update(payload).eq("id", horForm.id)
-      : await supabase.from("horarios").insert(payload);
-    setSaving(false);
-    if (error) { Alert.alert("No se pudo guardar", error.message); return; }
-    setHorForm(null);
-    cargar(cursoSel.id);
-  };
-  const eliminar = (h) => {
-    Alert.alert("¿Quitar del horario?", `${h.materia} — ${h.dia} ${h.hora_inicio?.slice(0, 5)}`, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Quitar", style: "destructive", onPress: async () => { await supabase.from("horarios").delete().eq("id", h.id); cargar(cursoSel.id); } },
-    ]);
-  };
-
+  useEffect(() => {
+    (async () => {
+      const { data: mc } = await supabase.from("maestro_cursos").select("maestro_id,cursos!inner(colegio_id)").eq("cursos.colegio_id", colegioId || "");
+      const ids = [...new Set((mc || []).map((r) => r.maestro_id))];
+      const { data: mae } = ids.length ? await supabase.from("maestros").select("id,nombre,apellido").eq("activo", true).in("id", ids).order("nombre") : { data: [] };
+      setMaestros(mae || []);
+    })();
+  }, [colegioId]);
   return (
     <View>
       <View style={{ marginBottom: 12 }}>
-        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel.id] : []} onToggle={(id) => selCurso(cursos.find((c) => c.id === id))} multi={false} />
+        <CursoListSelector cursos={cursos} seleccionados={cursoSel ? [cursoSel.id] : []} onToggle={(id) => setCursoSel(cursos.find((c) => c.id === id))} multi={false} />
       </View>
       {!cursoSel ? <Text style={styles.muted}>Seleccioná un curso para ver su horario</Text> : null}
-      {cursoSel ? (
-        <>
-          <ClasesCurso curso={cursoSel} colegioId={colegioId} clases={clases} maestros={maestros} onCambio={() => cargar(cursoSel.id)} />
-          <View style={styles.horHeaderSuper}>
-            <Text style={styles.cardTitle}>
-              {cursoSel.avatar} Horario
-            </Text>
-            <Pressable onPress={() => setHorForm({ dia: "Lunes", hora_inicio: "08:00", hora_fin: "09:00", clase_id: null })} disabled={!clases.length} style={[styles.addBtn, !clases.length && { opacity: 0.5 }]}>
-              <Text style={styles.addTxt}>+ Agregar al horario</Text>
-            </Pressable>
-          </View>
-          {horarios.length === 0 ? <Text style={styles.muted}>Sin horario cargado</Text> : null}
-          {DIAS.map((dia) => {
-            const items = horarios.filter((h) => h.dia === dia);
-            if (!items.length) return null;
-            return (
-              <View key={dia} style={styles.diaGroup}>
-                <Text style={styles.diaLabel}>{dia}</Text>
-                {items.map((h) => (
-                  <View key={h.id} style={styles.horRow}>
-                    <View style={[styles.dot, { backgroundColor: h.color || "#3B82F6" }]} />
-                    <View style={styles.flex1}>
-                      <Text style={styles.itemNombre}>{h.materia}</Text>
-                      {h.docente ? <Text style={styles.itemMeta}>{h.docente}</Text> : null}
-                    </View>
-                    <Text style={styles.itemMeta}>
-                      {h.hora_inicio?.slice(0, 5)} – {h.hora_fin?.slice(0, 5)}
-                    </Text>
-                    <Pressable onPress={() => setHorForm({ ...h })} style={styles.iconBtn}>
-                      <Text>✏️</Text>
-                    </Pressable>
-                    <Pressable onPress={() => eliminar(h)} style={styles.iconBtn}>
-                      <Text>🗑</Text>
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-        </>
-      ) : null}
-
-      {horForm !== null ? (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-            <View style={styles.modalCard}>
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.modalTitle}>{horForm?.id ? "Editar horario" : "Agregar al horario"}</Text>
-                <Text style={styles.label}>{horForm?.id && !horForm?.clase_id ? `CLASE (antes: ${horForm.materia})` : "CLASE"}</Text>
-                <View style={styles.chipsWrap}>
-                  {clases.map((c) => (
-                    <Pressable key={c.id} onPress={() => setHorForm((p) => ({ ...p, clase_id: c.id }))} style={[styles.chip, horForm.clase_id === c.id && styles.chipOn]}>
-                      <Text style={[styles.chipTxt, horForm.clase_id === c.id && styles.chipTxtOn]}>{etiquetaClase(c)}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={styles.label}>DÍA</Text>
-                <View style={styles.chipsWrap}>
-                  {DIAS.map((d) => (
-                    <Pressable key={d} onPress={() => setHorForm((p) => ({ ...p, dia: d }))} style={[styles.chip, horForm.dia === d && styles.chipOn]}>
-                      <Text style={[styles.chipTxt, horForm.dia === d && styles.chipTxtOn]}>{d}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <View style={styles.row}>
-                  <View style={styles.flex1}>
-                    <Text style={styles.label}>INICIO</Text>
-                    <TextInput value={horForm.hora_inicio} onChangeText={(v) => setHorForm((p) => ({ ...p, hora_inicio: v }))} placeholder="08:00" placeholderTextColor="#94A3B8" style={styles.input} />
-                  </View>
-                  <View style={styles.flex1}>
-                    <Text style={styles.label}>FIN</Text>
-                    <TextInput value={horForm.hora_fin} onChangeText={(v) => setHorForm((p) => ({ ...p, hora_fin: v }))} placeholder="09:00" placeholderTextColor="#94A3B8" style={styles.input} />
-                  </View>
-                </View>
-                <View style={styles.modalBtns}>
-                  <Pressable onPress={() => setHorForm(null)} style={styles.cancelBtn}>
-                    <Text style={styles.cancelTxt}>Cancelar</Text>
-                  </Pressable>
-                  <Pressable onPress={guardar} disabled={saving || !horForm.clase_id} style={[styles.saveBtn, !horForm.clase_id && { opacity: 0.5 }]}>
-                    <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      ) : null}
+      {cursoSel ? <HorarioCurso key={cursoSel.id} curso={cursoSel} colegioId={colegioId} cursos={cursos} maestros={maestros} /> : null}
     </View>
   );
 }

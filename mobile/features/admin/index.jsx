@@ -2,8 +2,8 @@
 // item activo es Room Parent (rolEfectivo === "room"). Tres pestañas:
 // - General: monto/moneda de regalo del curso (tabla `cursos`) + una línea
 //   calculada ("con N familias, la colecta junta $X").
-// - Horarios: alta/edición/baja de clases (tabla `horarios`) con selector de
-//   docente desde `maestros`.
+// - Horarios: editor compartido (features/horarios) con las clases que cargó
+//   el colegio — bloques en varios días, copiar un día.
 // - Familias (nueva, Parte 3.b del handoff): quiénes son Room Parent del
 //   curso y qué alumnos todavía no tienen ningún apoderado registrado con el
 //   código — el dato que el Room Parent necesita para perseguir altas y hoy
@@ -19,19 +19,14 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
+import { HorarioCurso } from "../horarios";
 
-const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#06B6D4", "#6366F1"];
 
 export function AdminPanel() {
   const { cursoId, cursoNombre } = useSession();
   const [tab, setTab] = useState("general");
   const [form, setForm] = useState({ monto_regalo: "", moneda_regalo: "$" });
   const [saving, setSaving] = useState(false);
-  const [horarios, setHorarios] = useState([]);
-  const [maestros, setMaestros] = useState([]);
-  const [horForm, setHorForm] = useState(null);
-  const [horSaving, setHorSaving] = useState(false);
   const [familias, setFamilias] = useState([]);
   const [roomParents, setRoomParents] = useState([]);
   const [alertaSheet, setAlertaSheet] = useState(false);
@@ -93,16 +88,12 @@ export function AdminPanel() {
 
   const cargar = useCallback(async () => {
     if (!cursoId) return;
-    const [c, hor, mae, hijosData, ucData] = await Promise.all([
+    const [c, hijosData, ucData] = await Promise.all([
       supabase.from("cursos").select("*").eq("id", cursoId).single(),
-      supabase.from("horarios").select("*").eq("curso_id", cursoId).order("dia").order("hora_inicio"),
-      supabase.from("maestros").select("id,nombre,apellido,materia").eq("activo", true),
       supabase.from("hijos").select("id,nombre,apellido").eq("curso_id", cursoId).order("apellido"),
       supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "room"),
     ]);
     setForm({ monto_regalo: c.data?.monto_regalo ? String(c.data.monto_regalo) : "", moneda_regalo: c.data?.moneda_regalo || "$" });
-    setHorarios(hor.data || []);
-    setMaestros(mae.data || []);
     setRoomParents((ucData.data || []).map((r) => r.usuarios).filter(Boolean));
 
     const hijosCurso = hijosData.data || [];
@@ -149,30 +140,6 @@ export function AdminPanel() {
       })
       .eq("id", cursoId);
     setSaving(false);
-    cargar();
-  };
-
-  const guardarHorario = async () => {
-    if (!horForm?.materia?.trim() || !horForm?.dia || !horForm?.hora_inicio || !horForm?.hora_fin) return;
-    setHorSaving(true);
-    const payload = {
-      materia: horForm.materia.trim(),
-      dia: horForm.dia,
-      hora_inicio: horForm.hora_inicio,
-      hora_fin: horForm.hora_fin,
-      docente: horForm.docente || null,
-      color: horForm.color || "#3B82F6",
-      curso_id: cursoId,
-    };
-    if (horForm.id) await supabase.from("horarios").update(payload).eq("id", horForm.id);
-    else await supabase.from("horarios").insert(payload);
-    setHorSaving(false);
-    setHorForm(null);
-    cargar();
-  };
-
-  const eliminarHorario = async (id) => {
-    await supabase.from("horarios").delete().eq("id", id);
     cargar();
   };
 
@@ -235,46 +202,9 @@ export function AdminPanel() {
         </View>
       ) : null}
 
-      {tab === "horarios" ? (
-        <View>
-          <View style={styles.horHeader}>
-            <Text style={styles.cardTitle}>Horario de clases</Text>
-            <Pressable
-              onPress={() => setHorForm({ dia: "Lunes", hora_inicio: "08:00", hora_fin: "09:00", materia: "", docente: "", color: "#3B82F6" })}
-              style={styles.addBtn}
-            >
-              <Text style={styles.addTxt}>+ Nueva clase</Text>
-            </Pressable>
-          </View>
-          {horarios.length === 0 ? <Text style={styles.muted}>Sin clases cargadas</Text> : null}
-          {DIAS.map((dia) => {
-            const items = horarios.filter((h) => h.dia === dia);
-            if (!items.length) return null;
-            return (
-              <View key={dia} style={styles.diaGroup}>
-                <Text style={styles.diaLabel}>{dia}</Text>
-                {items.map((h) => (
-                  <View key={h.id} style={styles.horRow}>
-                    <View style={[styles.dot, { backgroundColor: h.color || "#3B82F6" }]} />
-                    <View style={styles.flex1}>
-                      <Text style={styles.horMateria}>{h.materia}</Text>
-                      {h.docente ? <Text style={styles.horDocente}>{h.docente}</Text> : null}
-                    </View>
-                    <Text style={styles.horHora}>
-                      {h.hora_inicio?.slice(0, 5)} – {h.hora_fin?.slice(0, 5)}
-                    </Text>
-                    <Pressable onPress={() => setHorForm({ ...h })} style={styles.horEdit}>
-                      <Text style={styles.horEditTxt}>✏️</Text>
-                    </Pressable>
-                    <Pressable onPress={() => eliminarHorario(h.id)} style={styles.horDel}>
-                      <Text style={styles.horDelTxt}>🗑</Text>
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-        </View>
+      {tab === "horarios" && cursoId ? (
+        // El colegio arma las clases; el Room Parent arma el horario con ellas.
+        <HorarioCurso key={cursoId} curso={{ id: cursoId, nombre: cursoNombre || "Este curso" }} puedeEditarClases={false} />
       ) : null}
 
       {tab === "familias" ? (
@@ -399,104 +329,6 @@ export function AdminPanel() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {horForm !== null ? (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setHorForm(null)}>
-          <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-            <View style={styles.modalCard}>
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.modalTitle}>{horForm?.id ? "Editar clase" : "Nueva clase"}</Text>
-
-                <Text style={styles.label}>DÍA</Text>
-                <View style={styles.chipsWrap}>
-                  {DIAS.map((d) => (
-                    <Pressable
-                      key={d}
-                      onPress={() => setHorForm((p) => ({ ...p, dia: d }))}
-                      style={[styles.chip, horForm.dia === d && styles.chipOn]}
-                    >
-                      <Text style={[styles.chipTxt, horForm.dia === d && styles.chipTxtOn]}>{d}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View style={styles.row}>
-                  <View style={styles.flex1}>
-                    <Text style={styles.label}>HORA INICIO</Text>
-                    <TextInput
-                      value={horForm.hora_inicio}
-                      onChangeText={(t) => setHorForm((p) => ({ ...p, hora_inicio: t }))}
-                      placeholder="08:00"
-                      placeholderTextColor="#94A3B8"
-                      style={styles.input}
-                    />
-                  </View>
-                  <View style={styles.flex1}>
-                    <Text style={styles.label}>HORA FIN</Text>
-                    <TextInput
-                      value={horForm.hora_fin}
-                      onChangeText={(t) => setHorForm((p) => ({ ...p, hora_fin: t }))}
-                      placeholder="09:00"
-                      placeholderTextColor="#94A3B8"
-                      style={styles.input}
-                    />
-                  </View>
-                </View>
-
-                <Text style={styles.label}>MATERIA</Text>
-                <TextInput
-                  value={horForm.materia}
-                  onChangeText={(t) => setHorForm((p) => ({ ...p, materia: t }))}
-                  placeholder="Ej: Matemáticas"
-                  placeholderTextColor="#94A3B8"
-                  style={styles.input}
-                />
-
-                <Text style={styles.label}>DOCENTE</Text>
-                <View style={styles.chipsWrap}>
-                  <Pressable
-                    onPress={() => setHorForm((p) => ({ ...p, docente: "" }))}
-                    style={[styles.chip, !horForm.docente && styles.chipOn]}
-                  >
-                    <Text style={[styles.chipTxt, !horForm.docente && styles.chipTxtOn]}>Sin asignar</Text>
-                  </Pressable>
-                  {maestros.map((m) => (
-                    <Pressable
-                      key={m.id}
-                      onPress={() => setHorForm((p) => ({ ...p, docente: fmtNombre(m) }))}
-                      style={[styles.chip, horForm.docente === fmtNombre(m) && styles.chipOn]}
-                    >
-                      <Text style={[styles.chipTxt, horForm.docente === fmtNombre(m) && styles.chipTxtOn]}>
-                        {fmtNombre(m)}
-                        {m.materia ? ` · ${m.materia}` : ""}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <Text style={styles.label}>COLOR</Text>
-                <View style={styles.chipsWrap}>
-                  {COLORES.map((c) => (
-                    <Pressable
-                      key={c}
-                      onPress={() => setHorForm((p) => ({ ...p, color: c }))}
-                      style={[styles.colorDot, { backgroundColor: c }, horForm.color === c && styles.colorDotOn]}
-                    />
-                  ))}
-                </View>
-
-                <View style={styles.modalBtns}>
-                  <Pressable onPress={() => setHorForm(null)} style={styles.cancelBtn}>
-                    <Text style={styles.cancelTxt}>Cancelar</Text>
-                  </Pressable>
-                  <Pressable onPress={guardarHorario} disabled={horSaving} style={styles.saveBtn}>
-                    <Text style={styles.saveTxt}>{horSaving ? "Guardando..." : "Guardar clase"}</Text>
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      ) : null}
     </ScrollView>
   );
 }

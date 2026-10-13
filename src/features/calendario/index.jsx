@@ -20,6 +20,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib/calendarioRango";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
+import { diasVisibles, normalizarDia } from "../../lib/horarios";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -44,7 +45,7 @@ function TagHijo({ tag }) {
   );
 }
 
-export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], openFecha=null, onClearOpenFecha, cursosDocente=[] }) {
+export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, openFecha=null, onClearOpenFecha, cursosDocente=[] }) {
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
@@ -99,7 +100,9 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         .lte("fecha", rangoEventos.hasta).or(filtroDesdeEventos(rangoEventos.desde)).order("fecha"),
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
-      supabase.from("horarios").select("*").in("curso_id", cursoIds).order("hora_inicio"),
+      // clases(optativa, clase_alumnos): talleres optativos — por RLS cada
+      // familia recibe solo las filas de sus hijos (ver horariosVisibles abajo).
+      supabase.from("horarios").select("*, clases(optativa, clase_alumnos(hijo_id))").in("curso_id", cursoIds).order("hora_inicio"),
       // Horario de clases del colegio de estos cursos (tabla multi-colegio
       // "colegios", la que se edita en Contacto/panel del colegio — antes se
       // leía de la singleton vieja "colegio", que ya no se actualiza).
@@ -421,8 +424,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
       {/* VISTA HORARIO */}
       {vista==="horario"&&(()=>{
-        const DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
-        const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444"];
+        const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#0EA5E9"];
+        // Talleres optativos: los ve quien gestiona el curso (Room Parent,
+        // docente) y cada familia solo si su hijo está anotado.
+        const verTodo = (cid) => (isAdmin && cid===cursoId) || cursosDocente.includes(cid);
+        const hijosFiltro = esVistaTodos || !hijoActivo ? misHijos : [hijoActivo];
+        const horariosVisibles = horarios.filter(h=>!h.clases?.optativa || verTodo(h.curso_id)
+          || (h.clases.clase_alumnos||[]).some(a=>hijosFiltro.includes(a.hijo_id)));
         const fmtHora = t => t ? t.slice(0,5) : "";
 
         // Parsear horario del colegio para obtener hora de inicio y fin
@@ -438,6 +446,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
         // Render de la tabla semanal para un set de horarios (un curso)
         const renderTabla = (hs) => {
+          const DIAS = diasVisibles(hs);
+          const delDia = (h, dia) => normalizarDia(h.dia)===dia;
           // Slots base: todos los existentes en horarios
           const slotsExistentes = [...new Set(hs.map(h=>h.hora_inicio))].sort();
 
@@ -461,7 +471,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                 <table style={{borderCollapse:"collapse",minWidth:520,width:"100%",tableLayout:"fixed"}}>
                   <colgroup>
                     <col style={{width:68}}/>
-                    {DIAS.map(d=><col key={d} style={{width:"18%"}}/>)}
+                    {DIAS.map(d=><col key={d} style={{width:`${90/DIAS.length}%`}}/>)}
                   </colgroup>
                   <thead>
                     <tr>
@@ -485,13 +495,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                             {maxFin&&<div style={{fontSize:9,color:"#CBD5E1",whiteSpace:"nowrap"}}>{fmtHora(maxFin)}</div>}
                           </td>
                           {DIAS.map((dia,di)=>{
-                            const clase = hs.find(h=>h.dia===dia&&h.hora_inicio===slot);
+                            const clase = hs.find(h=>delDia(h,dia)&&h.hora_inicio===slot);
                             const dc = DIA_COLORS[di];
                             return (
                               <td key={dia} style={{padding:"5px 5px",border:"1px solid #E2E8F0",verticalAlign:"top",background:"white"}}>
                                 {clase ? (
                                   <div style={{background:(clase.color||dc)+"18",border:`1.5px solid ${clase.color||dc}44`,borderRadius:8,padding:"6px 7px",height:"100%",boxSizing:"border-box"}}>
-                                    <div style={{fontSize:11,fontWeight:700,color:clase.color||dc,lineHeight:1.3,marginBottom:clase.docente?2:0}}>{clase.materia}</div>
+                                    <div style={{fontSize:11,fontWeight:700,color:clase.color||dc,lineHeight:1.3,marginBottom:clase.docente?2:0}}>{clase.clases?.optativa?"✦ ":""}{clase.materia}</div>
                                     {clase.docente&&<div style={{fontSize:9,color:"#94A3B8",lineHeight:1.2}}>{clase.docente}</div>}
                                     <div style={{fontSize:9,color:"#CBD5E1",marginTop:2}}>{fmtHora(clase.hora_inicio)}–{fmtHora(clase.hora_fin)}</div>
                                   </div>
@@ -512,7 +522,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
         // En vista "Todos": una sección por curso, encabezada por el tag del hijo
         const cursosConHorario = esVistaTodos
-          ? (cursoIds||[]).filter(cid=>horarios.some(h=>h.curso_id===cid))
+          ? (cursoIds||[]).filter(cid=>horariosVisibles.some(h=>h.curso_id===cid))
           : [];
 
         return (
@@ -520,20 +530,21 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
             <div style={{fontSize:16,fontWeight:900,color:"#0F172A",marginBottom:2}}>Horario de Clases</div>
             <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Vista semanal</div>
 
-            {horarios.length===0&&(
+            {horariosVisibles.length===0&&(
               <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
                 {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
               </div>
             )}
 
-            {horarios.length>0&&(esVistaTodos
+            {horariosVisibles.some(h=>h.clases?.optativa)&&<div style={{fontSize:11.5,color:"#7C3AED",marginBottom:10}}>✦ Taller optativo</div>}
+            {horariosVisibles.length>0&&(esVistaTodos
               ? cursosConHorario.map(cid=>(
                   <div key={cid} style={{marginBottom:24}}>
                     <div style={{marginBottom:8}}><TagHijo tag={tagDeCurso(cid)}/></div>
-                    {renderTabla(horarios.filter(h=>h.curso_id===cid))}
+                    {renderTabla(horariosVisibles.filter(h=>h.curso_id===cid))}
                   </div>
                 ))
-              : renderTabla(horarios)
+              : renderTabla(horariosVisibles)
             )}
           </div>
         );
