@@ -128,6 +128,11 @@ function BloqueSheet({ visible, borrador, setBorrador, curso, horarios, clases, 
         </View>
 
         <Text style={[s.label, { marginTop: SPACE.md }]}>CLASE</Text>
+        {alcance.length && !alcance[0].clase_id ? (
+          <Text style={[s.aviso, { marginTop: 0, marginBottom: 8 }]}>
+            Este bloque es de antes de las clases: dice “{[alcance[0].materia, alcance[0].docente].filter(Boolean).join(" · ")}” pero no está ligado a ninguna clase. Elegí la clase que corresponde (o creala) o tocá Quitar.
+          </Text>
+        ) : null}
         <TextInput value={q} onChangeText={setQ} placeholder="Buscar materia o maestra…" placeholderTextColor={t.placeholder} style={s.input} accessibilityLabel="Buscar clase" />
         <View style={s.lista}>
           {!filtradas.length ? <Text style={s.muted}>No hay clases con “{q}”.</Text> : null}
@@ -488,7 +493,7 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
           <Pressable key={h.id} onPress={() => abrirBloque(h)} style={[s.bloque, { borderLeftColor: col }, opt && { borderStyle: "dashed" }]} accessibilityRole="button">
             <Text style={s.bloqueHora}>{hhmm(h.hora_inicio)}{"\n"}<Text style={s.bloqueHoraFin}>{hhmm(h.hora_fin)}</Text></Text>
             <View style={s.flex1}>
-              <Text style={s.bloqueMat}>{opt ? "✦ " : ""}{h.materia}</Text>
+              <Text style={s.bloqueMat}>{!h.clase_id ? "⚠️ " : opt ? "✦ " : ""}{h.materia}</Text>
               {h.docente ? <Text style={s.muted}>{h.docente}</Text> : null}
             </View>
             <Text style={{ color: t.textFaint }}>›</Text>

@@ -189,6 +189,11 @@ function BloqueModal({ curso, inicial, alcance, horarios, clases, conSabado, onC
       </div>
 
       <div style={{ ...lbl, marginTop: 18 }}>Clase</div>
+      {editando && !alcance[0].clase_id ? (
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: "#92400E", background: C.warningSoft, border: `1px solid ${C.warningBorder}`, borderRadius: 10, padding: "8px 12px", lineHeight: 1.45 }}>
+          Este bloque es de antes de las clases: dice <b>“{[alcance[0].materia, alcance[0].docente].filter(Boolean).join(" · ")}”</b> pero no está ligado a ninguna clase, por eso no aparece en Materias ni en la ficha de la maestra. Elegí la clase que corresponde (o creala) o tocá <b>Quitar</b>.
+        </div>
+      ) : null}
       <BuscadorClase clases={clases} value={claseId} onChange={(id) => { setClaseId(id); setError(""); }}
         onCrear={onCrearClase ? (q) => onCrearClase(q, (nueva) => setClaseId(nueva.id)) : null} />
 
@@ -524,13 +529,14 @@ function Grilla({ horarios, dias, optativas, onHueco, onBloque }) {
               const { carril, carriles: n } = porDia[d].car.get(h.id) || { carril: 0, carriles: 1 };
               const col = h.color || "#3B82F6";
               const opt = h.clase_id && optativas.has(h.clase_id);
+              const sinClase = !h.clase_id;
               const altoB = Math.max((b - a) * PX - 2, 18);
               return (
                 <button key={h.id} type="button" onClick={() => onBloque(h)} title={`${h.materia}${h.docente ? ` · ${h.docente}` : ""} — ${hhmm(h.hora_inicio)} a ${hhmm(h.hora_fin)}`}
                   style={{ position: "absolute", top: (a - desde) * PX + 1, height: altoB, left: `calc(${(carril / n) * 100}% + 3px)`, width: `calc(${100 / n}% - 6px)`,
                     background: col + "1F", border: `1.5px ${opt ? "dashed" : "solid"} ${col}66`, borderLeft: `4px solid ${col}`, borderRadius: 8, padding: "3px 6px",
                     textAlign: "left", cursor: "pointer", overflow: "hidden", boxSizing: "border-box" }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: SLATE[800], lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{opt ? "✦ " : ""}{h.materia}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: SLATE[800], lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sinClase ? "⚠️ " : opt ? "✦ " : ""}{h.materia}</div>
                   {altoB > 34 ? <div style={{ fontSize: 10.5, color: SLATE[600], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{hhmm(h.hora_inicio)}–{hhmm(h.hora_fin)}{h.docente ? ` · ${h.docente}` : ""}</div> : null}
                 </button>
               );
