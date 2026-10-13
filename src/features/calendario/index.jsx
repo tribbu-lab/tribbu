@@ -551,7 +551,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
               </div>
             )}
 
-            {horariosVisibles.some(h=>h.clases?.optativa)&&<div style={{fontSize:11.5,color:"#7C3AED",marginBottom:10}}>✦ Taller optativo</div>}
+            {horariosVisibles.some(h=>h.clases?.optativa)&&<div style={{fontSize:11.5,color:"#7C3AED",marginBottom:10}}>✦ Taller</div>}
             {horariosVisibles.length>0&&(esVistaTodos
               ? cursosConHorario.map(cid=>(
                   <div key={cid} style={{marginBottom:24}}>
