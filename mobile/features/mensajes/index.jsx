@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, memo } from "react";
 import {
   View, Text, Pressable, TextInput, FlatList, Modal, KeyboardAvoidingView, Alert,
-  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image,
+  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image, Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -504,6 +504,13 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [bloqueado, setBloqueado] = useState(!!conv.bloqueado);
   const [estado, setEstado] = useState(conv.estado || "abierta");
   const mensajesRef = useRef([]);
+  // Teclado abierto (Android): el KAV del chat se activa solo entonces.
+  const [tecladoAbierto, setTecladoAbierto] = useState(false);
+  useEffect(() => {
+    const a = Keyboard.addListener("keyboardDidShow", () => setTecladoAbierto(true));
+    const b = Keyboard.addListener("keyboardDidHide", () => setTecladoAbierto(false));
+    return () => { a.remove(); b.remove(); };
+  }, []);
   const staff = modo === "staff";
   // Lado institucional: qué rol_autor cuenta como "mío" (soporte / colegio).
   const rolStaff = rolPropio || (staff ? "soporte" : null);
@@ -803,8 +810,20 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
         {staff && esSoporte ? <MenuFila icono={estado === "resuelta" ? "restore" : "check-circle-outline"} texto={estado === "resuelta" ? "Reabrir" : "Marcar resuelto"} onPress={cambiarEstadoSoporte} /> : null}
       </Sheet>
 
-      <KeyboardAvoidingView style={s.flex1} behavior="padding" keyboardVerticalOffset={0}>
-        {cargando ? <ActivityIndicator style={{ marginTop: SPACE.xl }} color={t.accent} /> : (
+      {/* En Android, dentro de un Modal el KAV no vuelve a 0 al cerrar el
+          teclado (queda un hueco abajo del campo): se activa solo mientras el
+          teclado está abierto. */}
+      <KeyboardAvoidingView style={s.flex1} behavior="padding" keyboardVerticalOffset={0} enabled={Platform.OS === "ios" || tecladoAbierto}>
+        {cargando ? <ActivityIndicator style={{ marginTop: SPACE.xl }} color={t.accent} /> : !filas.length ? (
+          // Vacío fuera de la FlatList invertida: en Android `inverted` gira en
+          // los dos ejes y el texto se veía espejado.
+          <View style={s.vacioChat}>
+            <Text style={s.avisoChat}>{esSoporte ? (staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE) : AVISO_RETENCION}</Text>
+            <Text style={s.vacioTxt}>
+              {esSoporte && !staff ? "Contanos qué te pasa. Si podés, mandá una captura de pantalla." : "Todavía no hay mensajes. ¡Escribí el primero!"}
+            </Text>
+          </View>
+        ) : (
           <FlatList
             inverted
             data={filas}
@@ -816,11 +835,6 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
             keyboardShouldPersistTaps="handled"
             ListFooterComponent={
               <Text style={s.avisoChat}>{esSoporte ? (staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE) : AVISO_RETENCION}</Text>
-            }
-            ListEmptyComponent={
-              <Text style={[s.vacioTxt, s.invertido]}>
-                {esSoporte && !staff ? "Contanos qué te pasa. Si podés, mandá una captura de pantalla." : "Todavía no hay mensajes. ¡Escribí el primero!"}
-              </Text>
             }
           />
         )}
@@ -1412,7 +1426,7 @@ const s = StyleSheet.create({
   notaChica: { fontSize: 11.5, color: t.textMuted, marginBottom: 4 },
   derechaTxt: { textAlign: "right" },
   vacioTxt: { fontSize: 13, color: t.textMuted, textAlign: "center", padding: SPACE.xl },
-  invertido: { transform: [{ scaleY: -1 }] },
+  vacioChat: { flex: 1, justifyContent: "flex-end", paddingBottom: SPACE.lg },
   menuFila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingVertical: SPACE.md, minHeight: MIN_TOUCH },
   menuTxt: { fontSize: 15, color: t.text, fontWeight: "600" },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: SPACE.md },
