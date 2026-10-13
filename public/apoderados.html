@@ -161,6 +161,30 @@
   .bulletRow span.txt{font-size:15px;font-weight:600;color:#334155}
   .multihijo img{width:100%;max-width:340px;display:block;border-radius:26px;border:1px solid #E2E8F0;box-shadow:0 24px 48px -20px rgba(15,23,42,.28)}
   @media (max-width:900px){.multihijo img{max-width:230px;margin:0 auto}}
+  /* mock app multi-hijo (vista Todos) */
+  .mhPhone{width:100%;max-width:340px;justify-self:center;border-radius:30px;overflow:hidden;background:var(--bg);border:1px solid #E2E8F0;box-shadow:0 24px 48px -20px rgba(15,23,42,.28);font-family:'DM Sans',system-ui,sans-serif}
+  @media (max-width:900px){.mhPhone{max-width:320px}}
+  .mhTop{background:var(--navy2);padding:18px 16px 14px}
+  .mhBar{display:flex;align-items:center;justify-content:space-between}
+  .mhBar .wm{font-size:22px;color:#fff}
+  .mhChipTop{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:700;color:#fff}
+  .mhKids{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .mhKid{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;font-weight:700;color:rgba(255,255,255,.75);white-space:nowrap}
+  .mhKid.on{background:#fff;border-color:#fff;color:var(--navy)}
+  .mhKid .d{width:9px;height:9px;border-radius:999px;display:block}
+  .mhKid small{font-weight:600;opacity:.6}
+  .mhBody{padding:16px}
+  .mhTitle{font-size:19px;font-weight:800;letter-spacing:-.5px;color:var(--navy)}
+  .mhSub{font-size:12px;color:var(--muted);margin-top:2px}
+  .mhList{margin-top:12px;border:1px solid var(--border);border-radius:16px;background:#fff;overflow:hidden}
+  .mhRow{display:flex;align-items:center;gap:12px;padding:11px 13px;border-bottom:1px solid var(--sep)}
+  .mhRow:last-child{border-bottom:none}
+  .mhDate{width:34px;text-align:center;flex:none}
+  .mhDate .dw{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--label)}
+  .mhDate .dn{font-size:17px;font-weight:800;color:var(--navy);line-height:1.1}
+  .mhRow b{font-size:13.5px;font-weight:700;color:var(--navy);display:block}
+  .mhTag{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .mhTag .d{width:8px;height:8px;border-radius:999px;display:block;flex:none}
 
   /* versión web */
   .webHead{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;margin-bottom:36px;flex-wrap:wrap}
@@ -502,7 +526,27 @@
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Notificaciones separadas por curso</span></div>
       </div>
     </div>
-    <img src="/store/02-calendario.png" alt="Calendario de tribbu">
+    <div class="mhPhone" role="img" aria-label="tribbu en la vista Todos: la agenda de Emma y Mateo juntos, cada uno con su color">
+      <div class="mhTop">
+        <div class="mhBar"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span><span class="mhChipTop">👥 Todos</span></div>
+        <div class="mhKids">
+          <span class="mhKid on">👥 Todos</span>
+          <span class="mhKid"><span class="d" style="background:#3B82F6"></span>Emma <small>3°A</small></span>
+          <span class="mhKid"><span class="d" style="background:#EC4899"></span>Mateo <small>5°B</small></span>
+        </div>
+      </div>
+      <div class="mhBody">
+        <div class="mhTitle">Próximos</div>
+        <div class="mhSub">Emma y Mateo, en una sola lista</div>
+        <div class="mhList">
+          <div class="mhRow"><div class="mhDate"><div class="dw">jue</div><div class="dn">20</div></div><div><b>Cumple de Emma 🎂</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · 3°A</span></div></div>
+          <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">21</div></div><div><b>Reunión de apoderados</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Aula de 5°B</span></div></div>
+          <div class="mhRow"><div class="mhDate"><div class="dw">lun</div><div class="dn">24</div></div><div><b>Traer pañuelos descartables</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · Aviso</span></div></div>
+          <div class="mhRow"><div class="mhDate"><div class="dw">mié</div><div class="dn">26</div></div><div><b>Salida al Planetario 🚌</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Autorización</span></div></div>
+          <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">28</div></div><div><b>Acto Día del Maestro</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span><span class="d" style="background:#EC4899;margin-left:-3px"></span>Los dos · Patio central</span></div></div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
