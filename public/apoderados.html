@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tribbu — comunidad escolar</title>
-<meta name="description" content="Recordatorios, calendario, cumples, colectas y comedor de cada uno de tus hijos en un solo lugar.">
+<meta name="description" content="Avisos, calendario, mensajes, autorizaciones, cumples, colectas y comedor de cada uno de tus hijos en un solo lugar.">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -246,6 +246,47 @@
   .rolesItem span{font-size:13.5px;line-height:1.55;color:var(--muted);margin-top:3px}
   .rolePanel{display:none}
   .rolePanel.show{display:grid}
+  .rolesTabs{flex-wrap:wrap}
+
+  /* mensajes */
+  .mensajes{background:var(--bg);border:1px solid var(--border2);border-radius:28px;padding:52px;display:grid;grid-template-columns:1fr 380px;gap:56px;align-items:center}
+  @media (max-width:900px){.mensajes{grid-template-columns:1fr;padding:28px 22px}}
+  .msgTipos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:26px}
+  @media (max-width:520px){.msgTipos{grid-template-columns:1fr}}
+  .msgTipo{display:flex;gap:11px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:14px;background:#fff}
+  .msgTipo .ico{font-size:19px;flex:none;line-height:1.2}
+  .msgTipo b{font-size:14px;font-weight:800;display:block;color:var(--navy)}
+  .msgTipo span{font-size:13px;line-height:1.5;color:var(--muted);display:block;margin-top:2px}
+  .chatMock{border-radius:26px;background:#fff;border:1px solid #E2E8F0;box-shadow:0 24px 48px -20px rgba(15,23,42,.28);overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;max-width:380px;width:100%;justify-self:center}
+  .chatHead{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--sep)}
+  .chatAv{width:38px;height:38px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+  .chatHead b{font-size:14.5px;font-weight:800;display:block;color:var(--navy)}
+  .chatHead small{font-size:12px;color:var(--muted)}
+  .chatBody{padding:18px;display:flex;flex-direction:column;gap:9px;background:var(--bg)}
+  .bub{max-width:82%;padding:10px 13px;border-radius:16px;font-size:13.5px;line-height:1.45}
+  .bub .who{font-size:11px;font-weight:800;margin-bottom:3px;display:block}
+  .bub.in{align-self:flex-start;background:#fff;border:1px solid var(--border);color:#334155;border-bottom-left-radius:5px}
+  .bub.out{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:5px}
+  .bub .hr{display:block;text-align:right;font-size:10.5px;margin-top:4px;opacity:.6}
+  .chatFoot{padding:12px 14px;border-top:1px solid var(--sep);display:flex;gap:8px;align-items:center}
+  .chatFoot .inp{flex:1;min-height:38px;border-radius:999px;background:var(--bg);border:1px solid var(--border);font-size:13px;color:var(--label);display:flex;align-items:center;padding:0 14px}
+  .chatFoot .send{width:38px;height:38px;border-radius:999px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px}
+
+  /* novedades */
+  .novGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:36px}
+  @media (max-width:900px){.novGrid{grid-template-columns:1fr 1fr}}
+  @media (max-width:600px){.novGrid{grid-template-columns:1fr}}
+  .novCard{display:flex;gap:14px;align-items:flex-start;padding:20px;border:1px solid var(--border);border-radius:18px;background:#fff}
+  .novCard .ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+  .novCard b{font-size:15.5px;font-weight:800;letter-spacing:-.3px;display:block}
+  .novCard span{font-size:14px;line-height:1.55;color:var(--muted);display:block;margin-top:4px}
+
+  /* lista colegio */
+  .colList{display:flex;flex-direction:column;gap:10px}
+  .colItem{display:flex;gap:12px;align-items:flex-start;padding:15px 16px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.04)}
+  .colItem .ico{font-size:18px;flex:none}
+  .colItem b{font-size:14.5px;font-weight:700;color:#fff;display:block}
+  .colItem span{font-size:13px;line-height:1.5;color:rgba(255,255,255,.55);display:block;margin-top:2px}
 
   /* colegios navy */
   .colegiosSection{margin-top:96px;background:var(--navy);position:relative;overflow:hidden;padding:0}
@@ -322,6 +363,7 @@
     <div class="logo"><img src="/icon-192.png" alt="tribbu"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span></div>
     <nav class="hide-mobile">
       <a href="#producto">Producto</a>
+      <a href="#mensajes">Mensajes</a>
       <a href="#roles">Para quién es</a>
       <a href="#web">Versión web</a>
       <a href="#colegios">Colegios</a>
@@ -345,6 +387,7 @@
   </div>
   <nav>
     <a href="#producto" onclick="toggleMenu(false)">Producto</a>
+    <a href="#mensajes" onclick="toggleMenu(false)">Mensajes</a>
     <a href="#roles" onclick="toggleMenu(false)">Para quién es</a>
     <a href="#web" onclick="toggleMenu(false)">Versión web</a>
     <a href="#colegios" onclick="toggleMenu(false)">Colegios</a>
@@ -363,7 +406,7 @@
     <div>
       <div class="badge-tracc"><span class="dot"></span><span>Comunidad escolar, sin cadenas de WhatsApp</span></div>
       <h1 class="heroTitle">La comunidad<br>del curso, sin<br><span class="accent">200 mensajes</span> sin leer.</h1>
-      <p class="heroP">Recordatorios, calendario, cumples, colectas y comedor de cada uno de tus hijos en un solo lugar. Lo que importa, arriba. Lo demás, en silencio.</p>
+      <p class="heroP">Avisos, calendario, mensajes, autorizaciones, cumples, colectas y comedor de cada uno de tus hijos en un solo lugar. Lo que importa, arriba. Lo demás, en silencio.</p>
       <div class="heroCtas">
         <div class="storeBadges">
           <a href="https://apps.apple.com/ar/app/id6787757386" target="_blank" rel="noopener"><img class="badgeApple" src="/apoderados-media/appstore-badge.svg" alt="Descargar en el App Store"></a>
@@ -396,7 +439,7 @@
         <div class="rowsAntes show"><div class="compRow bad"><span class="ico">✕</span><span class="txt">Nadie sabe con certeza quién ya puso para el regalo.</span></div></div>
         <div class="rowsAntes show"><div class="compRow bad"><span class="ico">✕</span><span class="txt">Dos hijos, dos grupos, dos calendarios en la cabeza.</span></div></div>
         <div class="rowsAntes show"><div class="compRow bad"><span class="ico">✕</span><span class="txt">El menú del comedor era un PDF de marzo.</span></div></div>
-        <div class="rowsCon"><div class="compRow good"><span class="ico">✓</span><span class="txt">Los pendientes de hoy, arriba y con un botón para resolverlos.</span></div></div>
+        <div class="rowsCon"><div class="compRow good"><span class="ico">✓</span><span class="txt">La autorización se firma en un toque, y los pendientes de hoy quedan arriba.</span></div></div>
         <div class="rowsCon"><div class="compRow good"><span class="ico">✓</span><span class="txt">La colecta muestra quién aportó y cuánto falta.</span></div></div>
         <div class="rowsCon"><div class="compRow good"><span class="ico">✓</span><span class="txt">Un calendario con los dos cursos y un color por hijo.</span></div></div>
         <div class="rowsCon"><div class="compRow good"><span class="ico">✓</span><span class="txt">El menú de hoy en la pantalla de inicio, todos los días.</span></div></div>
@@ -415,13 +458,16 @@
 
 <section class="wrap">
   <div class="eyebrow">Qué hay adentro</div>
-  <h2 style="max-width:600px">Cinco cosas que hoy viven en cinco lugares distintos.</h2>
+  <h2 style="max-width:640px">Todo lo que hoy vive en diez lugares distintos.</h2>
   <div class="modGrid">
-    <div class="modCard"><div class="modIcon" style="background:#EFF6FF;color:#2563EB">🏠</div><h3>Inicio</h3><p>El menú de hoy y los pendientes: recordatorios sin leer, colectas por pagar, invitaciones por confirmar.</p></div>
-    <div class="modCard"><div class="modIcon" style="background:#FEF2F2;color:#DC2626">📌</div><h3>Recordatorios</h3><p>Los avisos del curso y las comunicaciones del colegio en una lista, distinguidos con etiqueta.</p></div>
-    <div class="modCard"><div class="modIcon" style="background:#F5F3FF;color:#7C3AED">📅</div><h3>Calendario</h3><p>Actos, salidas, reuniones y vencimientos de todos tus hijos en una sola vista.</p></div>
-    <div class="modCard"><div class="modIcon" style="background:#FDF2F8;color:#DB2777">🎂</div><h3>Cumpleaños</h3><p>Quién cumple, cuándo, y la invitación con RSVP para responder de una vez.</p></div>
-    <div class="modCard"><div class="modIcon" style="background:#FFFBEB;color:#B45309">💳</div><h3>Colectas</h3><p>Monto sugerido, aportes registrados y quién falta. Sin capturas de transferencia.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#EFF6FF;color:#2563EB">🏠</div><h3>Inicio</h3><p>El menú de hoy y los pendientes: avisos sin leer, colectas por pagar, autorizaciones e invitaciones por responder.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#FEF2F2;color:#DC2626">📌</div><h3>Avisos</h3><p>Los avisos del curso, de las maestras y del colegio en una lista, con adjuntos (fotos y PDF) y etiqueta de quién lo manda.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#EFF6FF;color:#2563EB">💬</div><h3>Mensajes</h3><p>Chat con otras familias, el grupo del curso, las maestras y la secretaría. Sin compartir tu número de teléfono.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#F0FDF4;color:#059669">✍️</div><h3>Autorizaciones</h3><p>Salidas y actividades se autorizan desde el celular: quién lo retira, un comentario, y listo. Adiós al papelito en la mochila.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#F5F3FF;color:#7C3AED">📅</div><h3>Calendario</h3><p>Actos, salidas, reuniones y vencimientos de todos tus hijos en una sola vista, sincronizado con Google o Apple Calendar.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#FDF2F8;color:#DB2777">🎂</div><h3>Cumpleaños</h3><p>Quién cumple, cuándo, y la invitación con RSVP (hermanos y adultos incluidos) que solo ven los invitados.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#FFFBEB;color:#B45309">💳</div><h3>Colectas</h3><p>Cualquier familia arma una: monto sugerido, quiénes participan, aportes registrados y quién falta.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#FFF7ED;color:#C2410C">🤝</div><h3>Comunidad</h3><p>Marketplace para pasarse uniformes, libros y disfraces, y un Lost &amp; Found para la campera que nadie encuentra.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F0FDF4;color:#059669">🍽️</div><h3>Comedor</h3><p>El menú del mes, día por día, sin buscar el PDF que mandaron en marzo.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F5F3FF;color:#7C3AED">📊</div><h3>Encuestas</h3><p>Cualquier familia arma una consulta rápida: un voto por familia y resultados en vivo.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F1F5F9;color:#0F172A">📋</div><h3>Info útil</h3><p>Lista de útiles, uniformes y libros del curso, siempre en el mismo lugar.</p></div>
@@ -460,6 +506,50 @@
   </div>
 </section>
 
+<section id="mensajes" class="wrap">
+  <div class="mensajes">
+    <div>
+      <div class="eyebrow">Nuevo · Mensajes</div>
+      <h2 style="font-size:38px;letter-spacing:-1.3px">Hablar con el curso, sin dar tu número.</h2>
+      <p class="lead" style="font-size:16.5px;max-width:500px">Escribile a otra familia, al grupo del curso, a la maestra o a la secretaría desde la misma app. Nadie ve tu teléfono ni tu mail, y el colegio no lee los chats entre familias.</p>
+      <div class="msgTipos">
+        <div class="msgTipo"><span class="ico">👥</span><div><b>Grupo del curso</b><span>Todas las familias, armado solo y que se renueva cada año.</span></div></div>
+        <div class="msgTipo"><span class="ico">💬</span><div><b>1 a 1 y grupos propios</b><span>Para el cumple, el carpool o la salida del sábado.</span></div></div>
+        <div class="msgTipo"><span class="ico">👩‍🏫</span><div><b>Maestras y secretaría</b><span>Un hilo por hijo, con nombre y materia de quien contesta.</span></div></div>
+        <div class="msgTipo"><span class="ico">📣</span><div><b>A varias familias</b><span>El mismo mensaje en privado a cada una, de una sola vez.</span></div></div>
+      </div>
+      <div class="bullets" style="margin-top:20px">
+        <div class="bulletRow"><span class="ico">✓</span><span class="txt">Silenciar, bloquear y denunciar mensajes</span></div>
+        <div class="bulletRow"><span class="ico">✓</span><span class="txt">Notificaciones agrupadas, sin 40 vibraciones seguidas</span></div>
+        <div class="bulletRow"><span class="ico">✓</span><span class="txt">Ayuda y soporte del equipo de tribbu en el mismo lugar</span></div>
+      </div>
+    </div>
+    <div class="chatMock" aria-hidden="true">
+      <div class="chatHead"><div class="chatAv" style="background:#F0FDF4">👩‍🏫</div><div><b>Seño Vale · Matemática</b><small>Familia de Mateo · 4°B</small></div></div>
+      <div class="chatBody">
+        <div class="bub in"><span class="who" style="color:#059669">Seño Vale</span>Hola! Mateo se olvidó la carpeta en el aula, la dejé en secretaría 🙂<span class="hr">10:42</span></div>
+        <div class="bub out">¡Gracias Vale! Paso a buscarla a la salida.<span class="hr" style="color:#fff">10:45</span></div>
+        <div class="bub in"><span class="who" style="color:#059669">Seño Vale</span>Perfecto. Recuerden firmar la autorización del Planetario 🚌<span class="hr">10:46</span></div>
+        <div class="bub out">Ya está firmada ✍️<span class="hr" style="color:#fff">10:47</span></div>
+      </div>
+      <div class="chatFoot"><div class="inp">Escribí un mensaje…</div><div class="send">➤</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="eyebrow">Y además</div>
+  <h2 style="max-width:640px">Los detalles que te ahorran el mensaje de las once de la noche.</h2>
+  <div class="novGrid">
+    <div class="novCard"><span class="ico" style="background:#F5F3FF">🗓️</span><div><b>Tu calendario de siempre</b><span>Los eventos, cumples y citas aparecen solos en Google Calendar, Apple Calendar o el del celular.</span></div></div>
+    <div class="novCard"><span class="ico" style="background:#EFF6FF">🔔</span><div><b>Resumen diario y semanal</b><span>A la noche, lo de mañana; el domingo, la semana que viene. Cada aviso automático se puede apagar.</span></div></div>
+    <div class="novCard"><span class="ico" style="background:#F0FDF4">👁️</span><div><b>Confirmación de lectura</b><span>Quien publica un aviso ve cuántas familias lo leyeron y a quién le falta.</span></div></div>
+    <div class="novCard"><span class="ico" style="background:#FFF7ED">🛍️</span><div><b>Marketplace del cole</b><span>Uniformes que ya no entran, libros del año pasado. Para regalar o vender, en tu curso o todo el colegio.</span></div></div>
+    <div class="novCard"><span class="ico" style="background:#FDF2F8">🧦</span><div><b>Lost &amp; Found</b><span>Publicás lo que perdiste o encontraste con foto; si alguien publica algo parecido, te avisamos.</span></div></div>
+    <div class="novCard"><span class="ico" style="background:#F1F5F9">🔐</span><div><b>Entrás con tu huella</b><span>Desbloqueo con huella o Face ID en el celular, y la misma cuenta en tribbu.ar/app.</span></div></div>
+  </div>
+</section>
+
 <section id="web" class="wrap">
   <div class="webHead">
     <div>
@@ -483,12 +573,14 @@
         <div class="webNavItem"><span class="em">📅</span><span class="lbl">Calendario</span></div>
         <div class="webNavItem"><span class="em">🍽️</span><span class="lbl">Comedor</span></div>
         <div class="webNavItem"><span class="em">🎂</span><span class="lbl">Cumpleaños</span></div>
-        <div class="webNavItem"><span class="em">📌</span><span class="lbl">Recordatorios</span><span class="badge">3</span></div>
+        <div class="webNavItem"><span class="em">📌</span><span class="lbl">Avisos</span><span class="badge">3</span></div>
+        <div class="webNavItem"><span class="em">💬</span><span class="lbl">Mensajes</span><span class="badge">2</span></div>
         <div class="webNavItem"><span class="em">📊</span><span class="lbl">Encuestas</span></div>
         <div class="webNavItem"><span class="em">💳</span><span class="lbl">Colectas</span></div>
+        <div class="webNavItem"><span class="em">✍️</span><span class="lbl">Autorizaciones</span></div>
+        <div class="webNavItem"><span class="em">🤝</span><span class="lbl">Comunidad</span></div>
         <div class="webNavItem"><span class="em">📋</span><span class="lbl">Info Util</span></div>
         <div class="webNavItem"><span class="em">📞</span><span class="lbl">Contacto</span></div>
-        <div class="webNavItem"><span class="em">🔔</span><span class="lbl">Notificaciones</span><span class="badge">2</span></div>
         <div class="webAcceso">
           <div class="tag">Mi acceso</div>
           <div class="webKid active"><span class="em">👥</span><span class="lbl">Todos</span></div>
@@ -519,10 +611,10 @@
               <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#B45309">Colecta · Mateo</div><div class="webPendTitulo">Regalo de fin de año para la Seño Vale</div><div class="webPendMeta">Tu aporte todavía no está registrado</div></div>
               <div class="webPendRight"><span class="webPendAccion">Registrar pago</span><span class="webPendChip" style="background:#F1F5F9;color:#0F172A">$8.000</span></div>
             </div>
-            <div class="webPendCard" style="border-color:#BFDBFE;margin-bottom:0">
-              <div class="webPendIcon" style="background:#EFF6FF;color:#2563EB">📊</div>
-              <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#2563EB">Encuesta · Ambos</div><div class="webPendTitulo">¿Qué día hacemos la reunión de padres?</div><div class="webPendMeta">Cierra el 2 de septiembre</div></div>
-              <div class="webPendRight"><span class="webPendAccion">Votar</span><span class="webPendChip" style="background:#EFF6FF;color:#2563EB">7 días</span></div>
+            <div class="webPendCard" style="border-color:#A7F3D0;margin-bottom:0">
+              <div class="webPendIcon" style="background:#F0FDF4;color:#059669">✍️</div>
+              <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#059669">Autorización · Sofía</div><div class="webPendTitulo">Salida al Planetario — viernes 12</div><div class="webPendMeta">Falta tu respuesta · vence el miércoles</div></div>
+              <div class="webPendRight"><span class="webPendAccion">Responder</span><span class="webPendChip" style="background:#F0FDF4;color:#059669">5 días</span></div>
             </div>
           </div>
           <div>
@@ -541,7 +633,7 @@
 
   <div class="webPlusGrid">
     <div class="webPlusCard"><span class="ico">🔄</span><div><b>Todo sincronizado</b><span>Lo que marcás leído en la web aparece leído en el teléfono.</span></div></div>
-    <div class="webPlusCard"><span class="ico">⌨️</span><div><b>Pensada para escribir</b><span>Los Room Parents redactan recordatorios y cargan colectas con teclado.</span></div></div>
+    <div class="webPlusCard"><span class="ico">⌨️</span><div><b>Pensada para escribir</b><span>Los Room Parents, maestras y el colegio redactan avisos, contestan mensajes y cargan colectas con teclado.</span></div></div>
   </div>
 </section>
 
@@ -549,11 +641,12 @@
   <div class="rolesHead">
     <div>
       <div class="eyebrow">Para quién es</div>
-      <h2>La misma app, tres trabajos distintos.</h2>
+      <h2>La misma app, cuatro trabajos distintos.</h2>
     </div>
     <div class="rolesTabs">
       <button class="togglePill active" id="rolBtn-familia" onclick="setRol('familia')">Familias</button>
       <button class="togglePill" id="rolBtn-rp" onclick="setRol('rp')">Room Parents</button>
+      <button class="togglePill" id="rolBtn-docente" onclick="setRol('docente')">Docentes</button>
       <button class="togglePill" id="rolBtn-colegio" onclick="setRol('colegio')">Colegios</button>
     </div>
   </div>
@@ -562,27 +655,40 @@
     <div class="rolePanel show" id="rolPanel-familia">
       <div>
         <h3>Enterarte sin leer 200 mensajes.</h3>
-        <p>Abrís tribbu y arriba está lo único que tenés que resolver hoy: el recordatorio sin leer, la colecta sin pagar, la invitación sin responder. El resto espera.</p>
+        <p>Abrís tribbu y arriba está lo único que tenés que resolver hoy: el aviso sin leer, la colecta sin pagar, la autorización sin firmar. El resto espera.</p>
         <button class="rolesCta" onclick="document.getElementById('descargar').scrollIntoView({behavior:'smooth'})">Descargar la app</button>
       </div>
       <div class="rolesItems">
-        <div class="rolesItem"><span class="ico">📌</span><div><b>Pendientes accionables</b><span>Marcás leído, pagás o confirmás desde la misma tarjeta.</span></div></div>
-        <div class="rolesItem"><span class="ico">📅</span><div><b>Agenda de todos tus hijos</b><span>Eventos, cumples y vencimientos de cada curso, en una lista.</span></div></div>
-        <div class="rolesItem"><span class="ico">🍽️</span><div><b>Comedor y menú del día</b><span>Sin buscar el PDF que mandaron en marzo.</span></div></div>
-        <div class="rolesItem"><span class="ico">🔔</span><div><b>Solo lo urgente vibra</b><span>Las alertas del colegio suenan; los cumples, no.</span></div></div>
+        <div class="rolesItem"><span class="ico">📌</span><div><b>Pendientes accionables</b><span>Marcás leído, pagás, firmás o confirmás desde la misma tarjeta.</span></div></div>
+        <div class="rolesItem"><span class="ico">💬</span><div><b>Mensajes sin dar tu número</b><span>Con otras familias, la maestra o la secretaría, todo en la app.</span></div></div>
+        <div class="rolesItem"><span class="ico">📅</span><div><b>Agenda de todos tus hijos</b><span>Eventos, cumples y vencimientos de cada curso, también en tu Google Calendar.</span></div></div>
+        <div class="rolesItem"><span class="ico">🔔</span><div><b>Vos elegís qué te avisa</b><span>Resumen diario y semanal que podés apagar cuando quieras.</span></div></div>
       </div>
     </div>
     <div class="rolePanel" id="rolPanel-rp">
       <div>
         <h3>Organizar el curso sin ser secretaria.</h3>
         <p>Publicás una vez y sabés quién leyó. Las colectas se llevan solas: quién puso, quién falta, cuánto queda, sin planillas ni capturas de transferencias.</p>
-        <button class="rolesCta" onclick="document.getElementById('empezar').scrollIntoView({behavior:'smooth'})">Crear mi curso</button>
+        <button class="rolesCta" onclick="document.getElementById('descargar').scrollIntoView({behavior:'smooth'})">Descargar la app</button>
       </div>
       <div class="rolesItems">
-        <div class="rolesItem"><span class="ico">📢</span><div><b>Avisos con confirmación</b><span>Ves las 24 familias y quién todavía no abrió.</span></div></div>
-        <div class="rolesItem"><span class="ico">💳</span><div><b>Colectas sin planilla</b><span>Monto sugerido, aportes registrados y cierre automático.</span></div></div>
+        <div class="rolesItem"><span class="ico">📢</span><div><b>Avisos con confirmación</b><span>Ves cuántas familias leyeron y quién todavía no abrió.</span></div></div>
+        <div class="rolesItem"><span class="ico">💳</span><div><b>Colectas sin planilla</b><span>Monto sugerido, quiénes participan, aportes registrados y aviso para cerrarla.</span></div></div>
+        <div class="rolesItem"><span class="ico">👥</span><div><b>Grupo del curso moderado</b><span>Con todas las familias, sin teléfonos a la vista y con la opción de moderar.</span></div></div>
         <div class="rolesItem"><span class="ico">📊</span><div><b>Encuestas de un toque</b><span>Elegís fecha de reunión sin 40 respuestas cruzadas.</span></div></div>
-        <div class="rolesItem"><span class="ico">🔑</span><div><b>Códigos de invitación</b><span>Un código por curso; las familias se dan de alta solas.</span></div></div>
+      </div>
+    </div>
+    <div class="rolePanel" id="rolPanel-docente">
+      <div>
+        <h3>La maestra, en el mismo lugar que las familias.</h3>
+        <p>Cada docente entra con su cuenta y ve solo sus cursos: publica avisos y eventos, pide autorizaciones y contesta mensajes de las familias sin dar su número personal.</p>
+        <button class="rolesCta" onclick="location.href='mailto:colegios@tribbu.ar?subject=Docentes%20en%20tribbu'">Sumar a las docentes</button>
+      </div>
+      <div class="rolesItems">
+        <div class="rolesItem"><span class="ico">📌</span><div><b>Avisos y eventos de su materia</b><span>Las familias los ven con su nombre y materia: "👩‍🏫 Vale · Matemática".</span></div></div>
+        <div class="rolesItem"><span class="ico">✍️</span><div><b>Autorizaciones digitales</b><span>Pide la firma de la salida y ve qué alumnos faltan.</span></div></div>
+        <div class="rolesItem"><span class="ico">💬</span><div><b>Mensajes con cada familia</b><span>Un hilo por alumno, que el colegio también puede ver.</span></div></div>
+        <div class="rolesItem"><span class="ico">🎂</span><div><b>Cumples de sus alumnos</b><span>El calendario y los cumpleaños de todos sus cursos juntos.</span></div></div>
       </div>
     </div>
     <div class="rolePanel" id="rolPanel-colegio">
@@ -594,8 +700,8 @@
       <div class="rolesItems">
         <div class="rolesItem"><span class="ico">✅</span><div><b>Voz oficial diferenciada</b><span>Los avisos del colegio no se confunden con los del grupo.</span></div></div>
         <div class="rolesItem"><span class="ico">📈</span><div><b>Métricas de lectura</b><span>Sabés qué circular llegó y qué curso hay que empujar.</span></div></div>
-        <div class="rolesItem"><span class="ico">🛡️</span><div><b>Privacidad por diseño</b><span>Sin teléfonos a la vista, sin grupos paralelos.</span></div></div>
-        <div class="rolesItem"><span class="ico">🍽️</span><div><b>Menú y calendario únicos</b><span>Cargás el comedor y el almanaque una sola vez.</span></div></div>
+        <div class="rolesItem"><span class="ico">✍️</span><div><b>Autorizaciones con planilla</b><span>Una salida para varios cursos, respuestas por alumno y exportación a Excel.</span></div></div>
+        <div class="rolesItem"><span class="ico">💬</span><div><b>Secretaría por mensaje</b><span>Las familias escriben a la secretaría desde la app, un hilo por alumno.</span></div></div>
       </div>
     </div>
   </div>
@@ -613,6 +719,13 @@
         <button class="btnOutlineDark" onclick="avisar('Brief institucional enviado por mail')">Descargar el brief</button>
       </div>
     </div>
+    <div class="colList">
+      <div class="colItem"><span class="ico">📢</span><div><b>Comunicaciones y eventos multi-curso</b><span>Un feriado o un acto, cargado una vez para todo el colegio.</span></div></div>
+      <div class="colItem"><span class="ico">✍️</span><div><b>Autorizaciones digitales</b><span>Quién autorizó, quién retira y quién falta, por alumno.</span></div></div>
+      <div class="colItem"><span class="ico">👩‍🏫</span><div><b>Docentes, materias y horarios</b><span>Cada maestra con su cuenta y solo sus cursos.</span></div></div>
+      <div class="colItem"><span class="ico">📈</span><div><b>Adopción por curso</b><span>Cuántas familias tienen la app y cuántas la usan.</span></div></div>
+      <div class="colItem"><span class="ico">🎨</span><div><b>Con la identidad del colegio</b><span>Tu logo y tu color dentro de la app.</span></div></div>
+    </div>
   </div>
 </section>
 
@@ -624,8 +737,8 @@
       <p class="lead" style="font-size:15.5px;color:var(--muted)">Tres pasos, una sola vez. Después entrás con tu mail y contraseña — o con acceso biométrico en el celular.</p>
     </div>
     <div>
-      <div class="pasoCard"><div class="pasoNum">1</div><div><b>Recibís un código de invitación</b><span>El colegio comparte un código por curso, junto con el mail que vas a usar para entrar.</span></div></div>
-      <div class="pasoCard"><div class="pasoNum">2</div><div><b>Te registrás con ese código</b><span>En la pantalla de ingreso elegís "Registrarme con código de invitación" y definís tu contraseña.</span></div></div>
+      <div class="pasoCard"><div class="pasoNum">1</div><div><b>El colegio te da de alta</b><span>Tu cuenta se crea con el mail que tiene registrado el colegio, ya vinculada a tus hijos y sus cursos.</span></div></div>
+      <div class="pasoCard"><div class="pasoNum">2</div><div><b>Elegís tu contraseña</b><span>Descargás la app o entrás a tribbu.ar/app. Si no tenés contraseña, tocá "¿Olvidaste tu contraseña?" y te llega un mail para crearla.</span></div></div>
       <div class="pasoCard" style="margin-bottom:0"><div class="pasoNum">3</div><div><b>Listo, entrás cuando quieras</b><span>Con tu mail y contraseña, en el celular o en tribbu.ar/app. En el teléfono podés usar acceso biométrico (huella o Face ID).</span></div></div>
     </div>
   </div>
@@ -645,7 +758,7 @@
 <section class="wrap" id="descargar">
   <div class="ctaFinal">
     <img src="/icon-192.png" alt="tribbu">
-    <h2>Pedile el código al Room Parent<br>y entrá en dos minutos.</h2>
+    <h2>Descargá la app<br>y entrá en dos minutos.</h2>
     <p>Gratis para las familias, siempre. El colegio paga solo si quiere el panel institucional.</p>
     <div class="ctaFinalBtns">
       <div class="storeBadges" style="justify-content:center">
@@ -664,7 +777,7 @@
       <div class="logo"><img src="/icon-192.png" alt="tribbu" style="width:32px;height:32px"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span></div>
       <p>La comunidad escolar digital. Hecho por familias que también llegan tarde a la reunión de padres.</p>
     </div>
-    <div class="footCol"><div class="lbl">Producto</div><div class="links"><a href="#producto">Muro</a><a href="#producto">Calendario</a><a href="#producto">Colectas</a><a href="#producto">Comedor</a><a href="#web">Versión web</a></div></div>
+    <div class="footCol"><div class="lbl">Producto</div><div class="links"><a href="#producto">Inicio</a><a href="#mensajes">Mensajes</a><a href="#producto">Autorizaciones</a><a href="#producto">Calendario</a><a href="#producto">Colectas</a><a href="#web">Versión web</a></div></div>
     <div class="footCol"><div class="lbl">Roles</div><div class="links"><a href="#roles">Familias</a><a href="#roles">Room Parents</a><a href="#roles">Colegios</a><a href="#roles">Docentes</a></div></div>
     <div class="footCol"><div class="lbl">tribbu</div><div class="links"><a href="#producto">Nosotros</a><a href="/privacidad.html">Privacidad</a><a href="#faq">Términos</a><a href="mailto:info@tribbu.ar?subject=Consulta%20desde%20tribbu.ar">Contacto</a></div></div>
   </div>
@@ -701,19 +814,21 @@
   }
 
   function setRol(which){
-    ['familia','rp','colegio'].forEach(function(k){
+    ['familia','rp','docente','colegio'].forEach(function(k){
       document.getElementById('rolBtn-'+k).classList.toggle('active', k === which);
       document.getElementById('rolPanel-'+k).classList.toggle('show', k === which);
     });
   }
 
   var FAQS = [
-    ["¿Es gratis para las familias?", "Sí, y lo va a seguir siendo. Descargás la app, entrás con el código de tu curso y usás todo sin pagar nada. Cobramos solo el panel institucional a los colegios que lo quieren."],
-    ["¿Reemplaza al grupo de WhatsApp?", "Reemplaza lo que el grupo hace mal: avisos que se pierden, colectas sin registro, autorizaciones que nadie encuentra. El chiste del viernes seguilo mandando por WhatsApp."],
+    ["¿Es gratis para las familias?", "Sí, y lo va a seguir siendo. Descargás la app, entrás con tu mail y usás todo sin pagar nada. Cobramos solo el panel institucional a los colegios que lo quieren."],
+    ["¿Reemplaza al grupo de WhatsApp?", "Reemplaza lo que el grupo hace mal: avisos que se pierden, colectas sin registro, autorizaciones que nadie encuentra. Y con Mensajes tenés el grupo del curso, chats 1 a 1 y grupos propios, sin compartir tu número."],
     ["Tengo dos hijos en cursos distintos.", "Es justamente el caso que nos importa. Una sola cuenta, un selector arriba y un calendario que suma los dos cursos con un color por chico."],
-    ["¿Cómo entro por primera vez?", "El colegio comparte un código de invitación por curso. Desde la pantalla de ingreso elegís “Registrarme con código de invitación”, definís tu contraseña y listo. Después entrás con mail y contraseña, o con acceso biométrico en el celular."],
-    ["¿Quién puede publicar en mi curso?", "Los Room Parents del curso y el colegio, si está habilitado. El resto de las familias lee, responde y confirma, pero no publica recordatorios."],
-    ["¿Qué pasa con los datos de los chicos?", "Se guardan cifrados, no se comparten con terceros y no vendemos publicidad. Los teléfonos de las familias nunca quedan visibles para el resto del curso."],
+    ["¿Cómo entro por primera vez?", "El colegio crea tu cuenta con tu mail. Descargás la app (o entrás a tribbu.ar/app) y, si todavía no tenés contraseña, tocás “¿Olvidaste tu contraseña?” para crearla desde el mail. Después entrás con mail y contraseña, o con huella / Face ID en el celular."],
+    ["¿Quién puede publicar en mi curso?", "Las familias del curso, los Room Parents, las maestras y el colegio. Los avisos del colegio y de las docentes llevan su etiqueta, para que no se confundan con los del grupo."],
+    ["¿El colegio lee nuestros mensajes?", "No. Los chats entre familias y el grupo del curso son privados: el colegio solo ve un mensaje si alguien lo denuncia. Los hilos con maestras y secretaría sí son institucionales y el colegio puede verlos."],
+    ["¿Se sincroniza con mi calendario?", "Sí. Desde Calendario lo conectás con Google Calendar, Apple Calendar o el calendario del celular, y los eventos, cumples y citas aparecen solos."],
+    ["¿Qué pasa con los datos de los chicos?", "Se guardan cifrados, no se comparten con terceros y no vendemos publicidad. Los teléfonos y mails de las familias nunca quedan visibles para el resto del curso."],
   ];
 
   var faqList = document.getElementById('faqList');
