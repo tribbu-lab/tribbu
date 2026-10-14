@@ -589,7 +589,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       setMensajes([]);
       setSeleccionado(null); setEditando(null); setError(""); setTexto(""); setFotos([]);
       const { data, error: e } = await supabase.from("mensajes").select("*")
-        .eq("conversacion_id", conv.id).order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
+        .eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z").order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
       if (!vivo) return;
       if (e) { setError("No se pudieron cargar los mensajes."); setCargando(false); return; }
       const lista = (data || []).reverse();
@@ -600,7 +600,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       marcarLeido(lista);
     })();
     return () => { vivo = false; };
-  }, [conv.id, bajar, marcarLeido]);
+  }, [conv.id, conv.oculto_desde, bajar, marcarLeido]);
 
   useEffect(() => { mensajesRef.current = mensajes; }, [mensajes]);
 
@@ -620,7 +620,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     const onResync = async () => {
       const lista = mensajesRef.current;
       const desde = lista.length ? lista[lista.length - 1].creado_en : null;
-      let q = supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).order("creado_en", { ascending: true }).limit(200);
+      let q = supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z").order("creado_en", { ascending: true }).limit(200);
       if (desde) q = q.gte("creado_en", desde);
       const { data } = await q;
       if (data?.length) setMensajes((prev) => fusionarMensajes(prev, data));
@@ -631,12 +631,12 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       window.removeEventListener(EVENTO_MENSAJE, onMensaje);
       window.removeEventListener(EVENTO_RESYNC, onResync);
     };
-  }, [conv.id, userId, bajar, marcarLeido, multi, cargarNombres]);
+  }, [conv.id, conv.oculto_desde, userId, bajar, marcarLeido, multi, cargarNombres]);
 
   const cargarAnteriores = async () => {
     const primero = mensajes[0];
     if (!primero) return;
-    const { data } = await supabase.from("mensajes").select("*").eq("conversacion_id", conv.id)
+    const { data } = await supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z")
       .lt("creado_en", primero.creado_en).order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
     setHayMas((data || []).length === PAGINA_MENSAJES);
     if (data?.length) setMensajes((prev) => fusionarMensajes(prev, data));
@@ -761,6 +761,25 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     onSalioGrupo?.();
   };
 
+  // "Borrar chat" (1 a 1): lo saca de mi lista, no de la del otro; si me
+  // vuelven a escribir, reaparece solo con lo nuevo (mensajes-borrar.sql).
+  const borrarChat = async () => {
+    setMenu(false);
+    if (!(await confirmar({ titulo: "¿Borrar este chat?", detalle: "Se borra solo para vos. La otra persona lo sigue viendo y, si te vuelve a escribir, el chat reaparece con los mensajes nuevos.", textoConfirmar: "Borrar chat" }))) return;
+    const { error: e } = await supabase.rpc("ocultar_conversacion", { p_conv: conv.id });
+    if (e) { setError("No se pudo borrar el chat."); return; }
+    onSalioGrupo?.();
+  };
+  // "Eliminar grupo": solo quien lo creó; lo borra para todos.
+  const eliminarGrupo = async () => {
+    setMenu(false);
+    if (!(await confirmar({ titulo: `¿Eliminar “${conv.titulo}”?`, detalle: "Se borran el grupo y todos sus mensajes para todos los participantes. No se puede deshacer.", textoConfirmar: "Eliminar grupo" }))) return;
+    const { data: fotos, error: e } = await supabase.rpc("eliminar_grupo", { p_conv: conv.id });
+    if (e) { setError("No se pudo eliminar el grupo."); return; }
+    if (fotos?.length) borrarArchivos(fotos, "adjuntos").catch(() => {});
+    onSalioGrupo?.();
+  };
+
   const cambiarEstadoSoporte = async () => {
     setMenu(false);
     const nuevo = estado === "resuelta" ? "abierta" : "resuelta";
@@ -811,6 +830,8 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
                 {conv.tipo === "grupo" ? <MenuItem onClick={() => { setMenu(false); setVerParticipantes(true); }}>👥 Participantes</MenuItem> : null}
                 {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuItem onClick={() => { setMenu(false); onEditarGrupo(); }}>✏️ Editar grupo</MenuItem> : null}
                 {conv.tipo === "grupo" ? <MenuItem onClick={salirDelGrupo} peligro>🚪 Salir del grupo</MenuItem> : null}
+                {conv.tipo === "grupo" && conv.creado_por === userId ? <MenuItem onClick={eliminarGrupo} peligro>🗑 Eliminar grupo</MenuItem> : null}
+                {conv.tipo === "directo" ? <MenuItem onClick={borrarChat} peligro>🗑 Borrar chat</MenuItem> : null}
                 {staff && esSoporte ? <MenuItem onClick={cambiarEstadoSoporte}>{estado === "resuelta" ? "↩︎ Reabrir" : "✓ Marcar resuelto"}</MenuItem> : null}
               </div>
             </>

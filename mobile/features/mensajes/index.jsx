@@ -568,7 +568,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     let vivo = true;
     (async () => {
       const { data, error } = await supabase.from("mensajes").select("*")
-        .eq("conversacion_id", conv.id).order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
+        .eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z").order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
       if (!vivo) return;
       if (error) { setCargando(false); Alert.alert("No se pudieron cargar los mensajes"); return; }
       const lista = (data || []).reverse();
@@ -593,7 +593,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     const subResync = DeviceEventEmitter.addListener(EVENTO_RESYNC, async () => {
       const lista = mensajesRef.current;
       const desde = lista.length ? lista[lista.length - 1].creado_en : null;
-      let q = supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).order("creado_en", { ascending: true }).limit(200);
+      let q = supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z").order("creado_en", { ascending: true }).limit(200);
       if (desde) q = q.gte("creado_en", desde);
       const { data } = await q;
       if (data?.length) setMensajes((prev) => fusionarMensajes(prev, data));
@@ -604,7 +604,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const cargarAnteriores = useCallback(async () => {
     const primero = mensajesRef.current[0];
     if (!primero || !hayMas) return;
-    const { data } = await supabase.from("mensajes").select("*").eq("conversacion_id", conv.id)
+    const { data } = await supabase.from("mensajes").select("*").eq("conversacion_id", conv.id).gt("creado_en", conv.oculto_desde || "1970-01-01T00:00:00Z")
       .lt("creado_en", primero.creado_en).order("creado_en", { ascending: false }).limit(PAGINA_MENSAJES);
     setHayMas((data || []).length === PAGINA_MENSAJES);
     if (data?.length) setMensajes((prev) => fusionarMensajes(prev, data));
@@ -736,6 +736,32 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     ]);
   };
 
+  // "Borrar chat" (1 a 1): lo saca de mi lista, no de la del otro; si me
+  // vuelven a escribir, reaparece solo con lo nuevo (mensajes-borrar.sql).
+  const borrarChat = () => {
+    setMenu(false);
+    Alert.alert("¿Borrar este chat?", "Se borra solo para vos. La otra persona lo sigue viendo y, si te vuelve a escribir, el chat reaparece con los mensajes nuevos.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Borrar chat", style: "destructive", onPress: async () => {
+        const { error } = await supabase.rpc("ocultar_conversacion", { p_conv: conv.id });
+        if (error) { Alert.alert("No se pudo borrar el chat"); return; }
+        onSalioGrupo?.();
+      } },
+    ]);
+  };
+  // "Eliminar grupo": solo quien lo creó; lo borra para todos.
+  const eliminarGrupo = () => {
+    setMenu(false);
+    Alert.alert(`¿Eliminar “${conv.titulo}”?`, "Se borran el grupo y todos sus mensajes para todos los participantes. No se puede deshacer.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar grupo", style: "destructive", onPress: async () => {
+        const { data: fotos, error } = await supabase.rpc("eliminar_grupo", { p_conv: conv.id });
+        if (error) { Alert.alert("No se pudo eliminar el grupo"); return; }
+        if (fotos?.length) borrarArchivos(fotos, "adjuntos").catch(() => {});
+        onSalioGrupo?.();
+      } },
+    ]);
+  };
   const salirDelGrupo = () => {
     setMenu(false);
     Alert.alert(`¿Salir de “${conv.titulo}”?`, "Ya no vas a ver sus mensajes.", [
@@ -822,6 +848,8 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
         {conv.tipo === "grupo" ? <MenuFila icono="account-group-outline" texto="Participantes" onPress={() => { setMenu(false); setVerParticipantes(true); }} /> : null}
         {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuFila icono="pencil-outline" texto="Editar grupo" onPress={() => { setMenu(false); onEditarGrupo(); }} /> : null}
         {conv.tipo === "grupo" ? <MenuFila icono="exit-run" texto="Salir del grupo" peligro onPress={salirDelGrupo} /> : null}
+        {conv.tipo === "grupo" && conv.creado_por === userId ? <MenuFila icono="trash-can-outline" texto="Eliminar grupo" peligro onPress={eliminarGrupo} /> : null}
+        {conv.tipo === "directo" ? <MenuFila icono="trash-can-outline" texto="Borrar chat" peligro onPress={borrarChat} /> : null}
         {staff && esSoporte ? <MenuFila icono={estado === "resuelta" ? "restore" : "check-circle-outline"} texto={estado === "resuelta" ? "Reabrir" : "Marcar resuelto"} onPress={cambiarEstadoSoporte} /> : null}
       </Sheet>
 
