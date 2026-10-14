@@ -8,7 +8,8 @@
 // reenvía cada cambio como evento de ventana tribbu:mensaje.
 // Privacidad: nunca se muestra teléfono ni email de otra familia; el colegio
 // no lee estos chats (solo lo denunciado, en Super Admin → 🚩 Denuncias).
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useTabActiva } from "../../hooks/useTabActiva";
 import { supabase } from "../../supabase";
 import { safeUrl, uuidLite } from "../../lib/helpers";
 import { THEMES, SLATE, BLUE, withAlpha } from "../../lib/tokens";
@@ -1064,6 +1065,25 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   const [convs, setConvs] = useState(null);
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null); // objeto conversación
+  // Escritorio: la lista + el chat ocupan lo que queda de pantalla desde donde
+  // empiezan (arriba puede haber selector de hijos, pestañas Avisos/Mensajes…).
+  // Antes era un "100vh - 110px" fijo y, con lo que se sumó arriba en el
+  // rediseño, el campo para escribir quedaba fuera de la pantalla.
+  const gridRef = useRef(null);
+  const [altoGrid, setAltoGrid] = useState(null);
+  const tabVisible = useTabActiva();
+  useLayoutEffect(() => {
+    if (isMobile || !tabVisible) return undefined;
+    const medir = () => {
+      const el = gridRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setAltoGrid(Math.max(480, window.innerHeight - top - 24));
+    };
+    const raf = requestAnimationFrame(medir);
+    window.addEventListener("resize", medir);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", medir); };
+  }, [isMobile, tabVisible]);
   const [nuevo, setNuevo] = useState(false);
   const [grupoModal, setGrupoModal] = useState(null); // { grupo: null | conv } — crear/editar grupo propio
   const [difusion, setDifusion] = useState(false);
@@ -1260,7 +1280,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
           <div style={{ position: "fixed", inset: 0, zIndex: 250, paddingTop: "env(safe-area-inset-top)", background: C.bg }}>{chat}</div>
         ) : panelLista
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, height: "calc(100vh - 110px)", minHeight: 480 }}>
+        <div ref={gridRef} style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, height: altoGrid || "calc(100vh - 260px)", minHeight: 480 }}>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 12, minHeight: 0, overflow: "hidden" }}>{panelLista}</div>
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", minHeight: 0 }}>{chat}</div>
         </div>
