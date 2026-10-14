@@ -27,7 +27,7 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage, exportRowsToExcel } from "../../lib/media";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, fmtF, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
-import { ajustarEdades, edadesParaGuardar, fmtEdadesHermanos } from "@shared/festejos";
+import { ajustarEdades, edadesParaGuardar, fmtEdadesHermanos, invitacionesVigentes } from "@shared/festejos";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -208,13 +208,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     setMontoRegalo(montosUniq.length === 1 ? montosUniq[0] : null);
     setMonedaRegalo(monedasUniq.length === 1 ? monedasUniq[0] : "$");
 
-    // Solo festejos: evento_asistencia también se usa para "confirmar
-    // asistencia" en eventos comunes del Calendario (paseo/acto/reunión),
-    // que crean una fila por cada hijo del curso — sin este filtro esos
-    // eventos aparecían acá como si fueran una invitación de cumpleaños.
-    const invFiltradas = (inv.data || []).filter(
-      (i) => i.evento && i.evento.tipo === "festejo" && (hijoActivoId === null || i.alumno_invitado_id === hijoActivoId)
-    );
+    // Solo festejos de hoy en adelante, del hijo en vista (@shared/festejos).
+    const invFiltradas = invitacionesVigentes(inv.data || [], fmtLocalDate(), hijoActivoId);
     setInvitaciones(invFiltradas);
 
     const fmap = {};

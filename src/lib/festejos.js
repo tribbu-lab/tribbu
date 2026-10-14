@@ -33,3 +33,15 @@ export const fmtEdadesHermanos = (edades) => {
   const lista = e.length === 1 ? String(e[0]) : `${e.slice(0, -1).join(", ")} y ${e[e.length - 1]}`;
   return `${lista} ${e.length === 1 && e[0] === 1 ? "año" : "años"}`;
 };
+
+/**
+ * "Mis invitaciones" de Cumpleaños (web + mobile): filas de evento_asistencia
+ * con el join `evento`. Solo festejos (evento_asistencia también se usa para
+ * confirmar asistencia a paseos/actos/reuniones), solo de hoy en adelante (un
+ * festejo que ya pasó no es una invitación pendiente) y del hijo en vista
+ * (`hijoActivo` null = todos), ordenadas por fecha.
+ */
+export const invitacionesVigentes = (filas = [], hoyStr, hijoActivo = null) =>
+  filas
+    .filter((i) => i.evento && i.evento.tipo === "festejo" && i.evento.fecha && i.evento.fecha >= hoyStr && (hijoActivo === null || i.alumno_invitado_id === hijoActivo))
+    .sort((a, b) => (a.evento.fecha + (a.evento.hora || "")).localeCompare(b.evento.fecha + (b.evento.hora || "")));
