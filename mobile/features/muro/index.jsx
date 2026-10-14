@@ -324,7 +324,7 @@ export function Muro() {
         key: `aut-${a.id}`, tipo: "Autorización", tag: tagDeCurso(a.curso_id), titulo: a.titulo,
         dato: unir(a.fecha_evento ? `Salida: ${fechaCorta(a.fecha_evento)}` : null, urgencia ? null : a.fecha_limite ? `Responder hasta el ${fechaCorta(a.fecha_limite)}` : "Falta tu respuesta"),
         detalle: a.descripcion || null, vence: a.fecha_limite || null, urgencia,
-        accion: "Responder autorización", ir: () => router.push("/(tabs)/autorizaciones"),
+        accion: "Responder autorización", ir: () => router.push({ pathname: "/(tabs)/autorizaciones", params: { openAutorizacion: String(a.id), t: String(Date.now()) } }),
       };
     }),
     ...datos.colectasPend.map((c) => ({

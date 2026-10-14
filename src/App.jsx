@@ -177,6 +177,7 @@ function App() {
   const [openFecha,     setOpenFecha]     = useState(null);
   const [openAviso,     setOpenAviso]     = useState(null); // { id, n } — aviso a resaltar en Avisos
   const [openTaller,    setOpenTaller]    = useState(null); // { id, n } — taller a resaltar en Talleres
+  const [openAutorizacion, setOpenAutorizacion] = useState(null); // { id, n } — autorización a responder (desde Hoy)
   // Pedido de navegación a Mensajes ({ conversacionId | soporte | usuarioId, n }).
   // `?tab=mensajes&c=<id>` (link de una conversación) abre esa al entrar.
   const [abrirMensajes, setAbrirMensajes] = useState(() => {
@@ -541,6 +542,7 @@ function App() {
     if(extra?.openFecha) setOpenFecha(extra.openFecha);
     if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
     if(extra?.openTaller) setOpenTaller({ id: extra.openTaller, n: Date.now() });
+    if(extra?.openAutorizacion) setOpenAutorizacion({ id: extra.openAutorizacion, n: Date.now() });
     if(extra?.conversacionId || extra?.soporte || extra?.usuarioId || extra?.alumnoDocente) {
       setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, alumnoDocente: extra.alumnoDocente, n: Date.now() });
     }
@@ -562,7 +564,7 @@ function App() {
       case "comunidad": case "marketplace": case "servicios":
         return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "perdidos": return <Perdidos cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
-      case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos}/>;
+      case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} abrir={openAutorizacion}/>;
       case "talleres":  return <Talleres items={items} esVistaTodos={esVistaTodos} hijoActivo={hijoActivoId} tagDeCurso={tagDeCurso} esDocente={esDocente} openTaller={openTaller}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;

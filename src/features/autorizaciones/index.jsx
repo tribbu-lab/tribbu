@@ -8,7 +8,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { estaAbierta, estadoPorAlumno, resumenRespuestas, hijosSinResponder } from "../../lib/autorizaciones";
+import { estaAbierta, estadoPorAlumno, resumenRespuestas, estadoConvocatoria, limiteCercano, textoConfirmacion, textoRespuesta, fechaAut } from "../../lib/autorizaciones";
+import { Icono } from "../../components/Icono";
+import { useConfirmar } from "../../hooks/useConfirmar";
 import { Card } from "../../components/Card";
 import { useCargar } from "../../hooks/useCargar";
 
@@ -86,6 +88,9 @@ function DetalleRespuestas({ titulo, grupos }) {
   );
 }
 
+// Respuesta de UN hijo (rediseño etapa 3): separada del estado de la
+// convocatoria. Sin responder y abierta → formulario; respondida → "Autorizada"
+// / "No autorizada" con quién retira y "Cambiar" mientras siga abierta.
 function FormRespuesta({ autorizacion, hijo, respuesta, userId, onGuardado }) {
   const [editando, setEditando] = useState(!respuesta);
   const [form, setForm] = useState({ autoriza: respuesta?.autoriza ?? null, retira: respuesta?.retira || "", comentario: respuesta?.comentario || "" });
@@ -103,50 +108,58 @@ function FormRespuesta({ autorizacion, hijo, respuesta, userId, onGuardado }) {
     setGuardando(false);
     if (err) { setError(abierta ? "No se pudo guardar. Probá de nuevo." : "La fecha límite ya pasó."); return; }
     setEditando(false);
-    onGuardado?.();
+    onGuardado?.({ autoriza: form.autoriza, nombre: hijo.nombre });
   };
 
   const nombre = hijo.nombre;
   if (!editando && respuesta) {
     return (
-      <div style={{ padding: "10px 12px", borderRadius: 10, background: respuesta.autoriza ? "#F0FDF4" : "#FEF2F2", marginTop: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: respuesta.autoriza ? "#047857" : "#B91C1C" }}>
-            {respuesta.autoriza ? "✅" : "❌"} {nombre}: {respuesta.autoriza ? "autorizado" : "no autorizado"}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 0", borderTop: "1px solid #F1F5F9" }}>
+        <span style={{ marginTop: 1 }}><Icono nombre={respuesta.autoriza ? "check" : "cerrar"} size={18} color={respuesta.autoriza ? "#047857" : "#B91C1C"} /></span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+            <span style={{ color: "#0F172A" }}>{nombre}: </span>
+            <span style={{ color: respuesta.autoriza ? "#047857" : "#B91C1C" }}>{textoRespuesta(respuesta)}</span>
           </div>
-          {abierta && <button onClick={() => setEditando(true)} style={{ border: "none", background: "none", color: "#3B82F6", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Cambiar</button>}
+          <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 2, lineHeight: 1.45 }}>
+            {[respuesta.retira ? `Retira: ${respuesta.retira}` : null, respuesta.comentario ? `“${respuesta.comentario}”` : null, `Respondido el ${fmtCuando(respuesta.respondido_en)}`].filter(Boolean).join(" · ")}
+          </div>
         </div>
-        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, lineHeight: 1.45 }}>
-          {respuesta.retira && <>Retira: <b>{respuesta.retira}</b> · </>}
-          {respuesta.comentario && <>“{respuesta.comentario}” · </>}
-          Respondido {fmtCuando(respuesta.respondido_en)}
-        </div>
+        {abierta && <button onClick={() => setEditando(true)} style={{ border: "none", background: "none", color: "#2563EB", cursor: "pointer", fontSize: 13, fontWeight: 700, padding: 0, fontFamily: "inherit" }}>Cambiar</button>}
       </div>
     );
   }
-  if (!abierta) return <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 8 }}>{nombre}: sin responder · la fecha límite ya pasó.</div>;
-  const opcion = (valor, txt, color, bg) => {
+  if (!abierta) {
+    return (
+      <div style={{ padding: "12px 0", borderTop: "1px solid #F1F5F9", fontSize: 13, color: "#64748B" }}>
+        <b style={{ color: "#0F172A" }}>{nombre}:</b> sin responder · la fecha límite ya pasó.
+      </div>
+    );
+  }
+  const opcion = (valor, txt) => {
     const act = form.autoriza === valor;
     return (
-      <button onClick={() => setForm((p) => ({ ...p, autoriza: valor }))} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1.5px solid ${act ? color : "#E2E8F0"}`, background: act ? bg : "white", color: act ? color : "#64748B", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-        {txt}
+      <button onClick={() => setForm((p) => ({ ...p, autoriza: valor }))} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${act ? "#0F172A" : "#E2E8F0"}`, background: act ? "#F8FAFC" : "white", cursor: "pointer", fontFamily: "inherit" }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: act ? "#0F172A" : "#64748B" }}>{txt}</span>
       </button>
     );
   };
   return (
-    <div style={{ padding: 12, borderRadius: 12, border: "1px solid #E2E8F0", marginTop: 8 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>{nombre}</div>
+    <div style={{ padding: "12px 0", borderTop: "1px solid #F1F5F9" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>
+        <span style={{ color: "#0F172A" }}>{nombre}: </span><span style={{ color: "#64748B", fontWeight: 600 }}>{respuesta ? "cambiar respuesta" : "falta tu respuesta"}</span>
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-        {opcion(true, "✅ Autorizo", "#047857", "#F0FDF4")}
-        {opcion(false, "❌ No autorizo", "#B91C1C", "#FEF2F2")}
+        {opcion(true, "Autorizo")}
+        {opcion(false, "No autorizo")}
       </div>
       <input value={form.retira} onChange={(e) => setForm((p) => ({ ...p, retira: e.target.value }))} placeholder="¿Quién lo retira? (ej: la mamá, Juana Pérez)" style={{ ...inp, marginBottom: 8 }} />
       <textarea value={form.comentario} onChange={(e) => setForm((p) => ({ ...p, comentario: e.target.value }))} placeholder="Comentario (opcional)" rows={2} style={{ ...inp, resize: "vertical", marginBottom: 8 }} />
-      {error && <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 6 }}>{error}</div>}
+      {error && <div style={{ fontSize: 12, color: "#DC2626", marginBottom: 6 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        {respuesta && <button onClick={() => setEditando(false)} style={{ flex: 1, padding: 9, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, color: "#94A3B8" }}>Cancelar</button>}
-        <button onClick={guardar} disabled={guardando} style={{ flex: 2, padding: 9, borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, opacity: guardando ? 0.6 : 1 }}>
-          {guardando ? "Guardando…" : "Enviar respuesta"}
+        {respuesta && <button onClick={() => setEditando(false)} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, color: "#64748B", fontFamily: "inherit" }}>Cancelar</button>}
+        <button onClick={guardar} disabled={guardando} style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: "#2563EB", cursor: "pointer", opacity: guardando ? 0.6 : 1, fontFamily: "inherit" }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: "white" }}>{guardando ? "Enviando…" : "Enviar respuesta"}</span>
         </button>
       </div>
     </div>
@@ -237,11 +250,27 @@ async function cargarDatos(cursoIds, { soloGestion = false, misHijosIds = [] } =
 }
 
 /** Pestaña de las familias / Room Parent. */
-export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, misHijos = [], cursosDocente = [] }) {
+export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, misHijos = [], cursosDocente = [], abrir = null }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
   const [cursosInfo, setCursosInfo] = useState([]);
+  const [confirmaciones, setConfirmaciones] = useState({}); // autorizacion_id → "Respuesta enviada: …"
+  const [resaltar, setResaltar] = useState(null);
+  const [confirmar, confirmUI] = useConfirmar();
   const hoyStr = fmtLocalDate();
+  // Desde Hoy ("Responder autorización"): llevar a esa tarjeta y resaltarla un
+  // momento (el formulario del hijo sin responder ya está abierto adentro).
+  const listo = !!datos;
+  useEffect(() => {
+    if (!abrir?.id || !listo) return undefined;
+    const id = abrir.id;
+    const t1 = setTimeout(() => {
+      document.getElementById(`aut-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setResaltar(id);
+    }, 60);
+    const t2 = setTimeout(() => setResaltar(null), 3000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [abrir?.id, abrir?.n, listo]);
   // cursoIds y misHijos llegan memoizados desde App.jsx.
   const cargar = useCallback(async () => {
     if (!cursoIds.length) return;
@@ -271,47 +300,67 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
     const tag = tagDeCurso?.(a.curso_id);
     const misDelCurso = datos.misHijos.filter((h) => h.curso_id === a.curso_id);
     const respDe = respuestas.filter((r) => r.autorizacion_id === a.id);
-    const pendientes = hijosSinResponder(a, datos.misHijos, respuestas).length;
-    const abierta = estaAbierta(a, hoyStr);
+    const urgente = limiteCercano(a, hoyStr);
+    const resaltada = resaltar === a.id;
+    const confirm = confirmaciones[a.id];
     return (
-      <Card key={a.id} style={{ padding: 18, marginBottom: 12, borderLeft: `3px solid ${pendientes && abierta ? "#F59E0B" : "#E2E8F0"}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#0F172A", lineHeight: 1.35 }}>✍️ {a.titulo}</div>
-          <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: abierta ? "#F0FDF4" : "#F1F5F9", color: abierta ? "#10B981" : "#94A3B8" }}>{abierta ? "Abierta" : "Cerrada"}</span>
+      <div key={a.id} id={`aut-${a.id}`} style={{ border: `1px solid ${resaltada ? "#93C5FD" : "#E2E8F0"}`, boxShadow: resaltada ? "0 0 0 3px #DBEAFE" : "none", borderRadius: 16, background: "white", padding: "16px 18px", marginBottom: 12, transition: "box-shadow .3s, border-color .3s" }}>
+        {/* Convocatoria: de quién es y hasta cuándo está abierta. */}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 600, color: "#64748B" }}>
+            {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: tag.color }} /><span style={{ color: "#475569" }}>{tag.nombre}</span></span>}
+            {a.grupo_id && <span style={{ color: "#64748B" }}>{tag ? "· " : ""}Del colegio</span>}
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748B", whiteSpace: "nowrap" }}>{estadoConvocatoria(a, hoyStr)}</span>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 5 }}>
-          {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#F1F5F9", color: "#64748B" }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} />{tag.nombre}</span>}
-          {a.grupo_id && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#EEF2FF", color: "#6366F1" }}>🏫 Del colegio</span>}
-          {a.fecha_evento && <span style={{ fontSize: 11.5, color: "#64748B" }}>📅 {fmtFecha(a.fecha_evento)}</span>}
-          {a.fecha_limite && <span style={{ fontSize: 11.5, color: abierta ? "#B45309" : "#94A3B8" }}>⏰ Responder hasta el {fmtFecha(a.fecha_limite)}</span>}
-        </div>
-        {a.descripcion && <div style={{ fontSize: 13, color: "#475569", marginTop: 8, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.descripcion}</div>}
-        {misDelCurso.map((h) => (
-          <FormRespuesta key={`${h.id}-${respDe.find((r) => r.hijo_id === h.id)?.respondido_en || "nueva"}`} autorizacion={a} hijo={h} respuesta={respDe.find((r) => r.hijo_id === h.id) || null} userId={userId} onGuardado={cargar} />
-        ))}
-        {gestiona(a) && (
-          <>
-            <DetalleRespuestas titulo={a.titulo} grupos={[{ nombreCurso: tag?.nombre || "", alumnos: alumnos.filter((h) => h.curso_id === a.curso_id), respuestas: respDe }]} />
-            <button onClick={async () => { if (!confirm("¿Eliminar esta autorización y todas sus respuestas?")) return; await supabase.from("autorizaciones").delete().eq("id", a.id); cargar(); }} style={{ marginTop: 10, border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: 0 }}>Eliminar</button>
-          </>
+        <div style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", lineHeight: 1.35, marginTop: 8 }}>{a.titulo}</div>
+        {/* Fecha de la salida y fecha límite, bien diferenciadas. */}
+        {(a.fecha_evento || a.fecha_limite) && (
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 14, rowGap: 4, fontSize: 13 }}>
+            {a.fecha_evento && <><span style={{ color: "#64748B" }}>Salida</span><span style={{ color: "#0F172A", fontWeight: 600 }}>{fechaAut(a.fecha_evento)}</span></>}
+            {a.fecha_limite && <><span style={{ color: "#64748B" }}>Responder hasta</span><span style={{ color: urgente ? "#B45309" : "#0F172A", fontWeight: 600 }}>{fechaAut(a.fecha_limite)}</span></>}
+          </div>
         )}
-      </Card>
+        {a.descripcion && <div style={{ fontSize: 13, color: "#475569", marginTop: 10, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.descripcion}</div>}
+        {confirm && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, padding: "9px 12px", borderRadius: 10, background: "#F0FDF4" }}>
+            <Icono nombre="check" size={16} color="#047857" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#047857" }}>{confirm}</span>
+          </div>
+        )}
+        {/* Tu respuesta: una por hijo. */}
+        {misDelCurso.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>{misDelCurso.length > 1 ? "Tus respuestas" : "Tu respuesta"}</div>
+            {misDelCurso.map((h) => (
+              <FormRespuesta key={`${h.id}-${respDe.find((r) => r.hijo_id === h.id)?.respondido_en || "nueva"}`} autorizacion={a} hijo={h} respuesta={respDe.find((r) => r.hijo_id === h.id) || null} userId={userId}
+                onGuardado={(r) => { setConfirmaciones((p) => ({ ...p, [a.id]: textoConfirmacion(r.autoriza, r.nombre) })); cargar(); }} />
+            ))}
+          </div>
+        )}
+        {gestiona(a) && (
+          <div style={{ borderTop: "1px solid #F1F5F9", marginTop: 12 }}>
+            <DetalleRespuestas titulo={a.titulo} grupos={[{ nombreCurso: tag?.nombre || "", alumnos: alumnos.filter((h) => h.curso_id === a.curso_id), respuestas: respDe }]} />
+            <button onClick={async () => { if (!(await confirmar({ titulo: "Eliminar autorización", detalle: "Se borran también todas sus respuestas.", textoConfirmar: "Eliminar" }))) return; await supabase.from("autorizaciones").delete().eq("id", a.id); cargar(); }} style={{ marginTop: 10, border: "none", background: "none", color: "#DC2626", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, fontFamily: "inherit" }}>Eliminar</button>
+          </div>
+        )}
+      </div>
     );
   };
 
   return (
     <div style={{ maxWidth: 760 }}>
+      {confirmUI}
       {nueva && <NuevaAutorizacion cursosDestino={cursosInfo} userId={userId} onClose={() => setNueva(false)} onCreada={cargar} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3 }}>Autorizaciones</div>
-          <div style={{ fontSize: 13, color: "#94A3B8" }}>Salidas y actividades que necesitan tu permiso</div>
+          <div style={{ fontSize: 13, color: "#64748B" }}>Salidas y actividades que necesitan tu permiso</div>
         </div>
         {cursosInfo.length > 0 && <button onClick={() => setNueva(true)} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>+ Nueva</button>}
       </div>
       {!autorizaciones.length && (
         <Card style={{ padding: 30, textAlign: "center" }}>
-          <div style={{ fontSize: 28 }}>✍️</div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>No hay autorizaciones</div>
           <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Cuando el colegio o el Room Parent pida permiso para una salida, aparece acá.</div>
         </Card>

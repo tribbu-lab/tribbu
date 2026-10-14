@@ -231,7 +231,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       key:`aut-${a.id}`, tipo:"Autorización", tag:tagDe(a.curso_id), titulo:a.titulo,
       dato:unir(a.fecha_evento?`Salida: ${fechaCorta(a.fecha_evento)}`:null, avisoVencimiento("x", a.fecha_limite, fechaHoy)?null:a.fecha_limite?`Responder hasta el ${fechaCorta(a.fecha_limite)}`:"Falta tu respuesta"),
       detalle:a.descripcion||null, vence:a.fecha_limite||null, urgencia:avisoVencimiento("Respondé hasta", a.fecha_limite, fechaHoy),
-      accion:"Responder autorización", ir:()=>onNavigate?.("autorizaciones"),
+      accion:"Responder autorización", ir:()=>onNavigate?.("autorizaciones",{openAutorizacion:a.id}),
     })),
     ...(datos.colectasPend||[]).map(c=>({
       key:`c-${c.id}`, tipo:"Colecta", tag:tagDe(c.curso_id), titulo:c.titulo,

@@ -78,7 +78,7 @@ ya se carga; si se quiere "Faltan N por aportar" hace falta pedir todos los
 `colecta_pagos` de la colecta + `colecta_participantes` en el lote 2 (se hizo y
 se descartó en el intento anterior; preguntar antes).
 
-## Etapa 3 — Flujo de autorización
+## Etapa 3 — Flujo de autorización ✅ (hecha 2026-10-14)
 
 Archivos: `src/features/autorizaciones/index.jsx`,
 `mobile/features/autorizaciones/index.jsx`, reglas en `src/lib/autorizaciones.js`.

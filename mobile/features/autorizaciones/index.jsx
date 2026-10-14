@@ -4,14 +4,15 @@
 // y ve / exporta las respuestas. AutorizacionesColegio es la sección del Super
 // Admin (varios cursos a la vez, mismo grupo_id). La fecha límite también la
 // hace cumplir la RLS.
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, RefreshControl, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { exportRowsToExcel } from "../../lib/media";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "@shared/helpers";
-import { estaAbierta, estadoPorAlumno, resumenRespuestas, hijosSinResponder } from "@shared/autorizaciones";
+import { estaAbierta, estadoPorAlumno, resumenRespuestas, hijosSinResponder, estadoConvocatoria, limiteCercano, textoConfirmacion, textoRespuesta, fechaAut } from "@shared/autorizaciones";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -25,13 +26,16 @@ const t = THEMES.light;
 const fmtFecha = (s) => new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" });
 const fmtCuando = (iso) => new Date(iso).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-export function Autorizaciones() {
+export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
   const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, items } = useSession();
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
   const [respondiendo, setRespondiendo] = useState(null); // { a, hijo, respuesta }
   const [detalle, setDetalle] = useState(null); // autorización con respuestas abiertas
   const [nueva, setNueva] = useState(false);
+  const [confirmaciones, setConfirmaciones] = useState({}); // autorizacion_id → "Respuesta enviada: …"
+  const [resaltar, setResaltar] = useState(null);
+  const listaRef = useRef(null);
   const hoyStr = fmtLocalDate();
 
   const misHijos = useMemo(() => (items || []).filter((i) => i._tipo === "hijo"), [items]);
@@ -66,6 +70,26 @@ export function Autorizaciones() {
 
   const gestiona = (a) => a.creado_por === userId || cursosRoom.includes(a.curso_id);
 
+  // Desde Hoy ("Responder autorización"): ir a esa tarjeta, resaltarla y abrir
+  // directo el formulario del primer hijo que falta responder.
+  const listo = !!datos;
+  useEffect(() => {
+    if (!openAutorizacion || !listo) return undefined;
+    const auts = datos.autorizaciones;
+    const ordenadas = [...auts.filter((x) => estaAbierta(x, hoyStr)), ...auts.filter((x) => !estaAbierta(x, hoyStr))];
+    const idx = ordenadas.findIndex((x) => String(x.id) === String(openAutorizacion));
+    if (idx < 0) return undefined;
+    const aut = ordenadas[idx];
+    const t1 = setTimeout(() => {
+      try { listaRef.current?.scrollToIndex({ index: idx, viewPosition: 0, animated: true }); } catch { /* sin medir todavía */ }
+      setResaltar(aut.id);
+      const falta = estaAbierta(aut, hoyStr) ? hijosSinResponder(aut, misHijos, datos.respuestas)[0] : null;
+      if (falta) setRespondiendo({ a: aut, hijo: falta, respuesta: null });
+    }, 250);
+    const t2 = setTimeout(() => setResaltar(null), 3000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [openAutorizacion, nonce, listo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;
   const lista = [
     ...datos.autorizaciones.filter((a) => estaAbierta(a, hoyStr)),
@@ -76,41 +100,68 @@ export function Autorizaciones() {
     const abierta = estaAbierta(a, hoyStr);
     const tag = tagDeCurso(a.curso_id);
     const respDe = datos.respuestas.filter((r) => r.autorizacion_id === a.id);
-    const pendientes = hijosSinResponder(a, misHijos, datos.respuestas).length;
+    const misDelCurso = misHijos.filter((h) => h.curso_id === a.curso_id);
+    const urgente = limiteCercano(a, hoyStr);
+    const confirmacion = confirmaciones[a.id];
     return (
-      <Card style={[styles.card, pendientes && abierta ? styles.cardPendiente : null]}>
+      <Card style={[styles.card, resaltar === a.id && styles.cardResaltada]}>
+        {/* Convocatoria: de quién es y hasta cuándo está abierta. */}
         <View style={styles.cardHead}>
-          <Text style={styles.titulo}>✍️ {a.titulo}</Text>
-          <View style={[styles.estado, !abierta && styles.estadoCerrada]}>
-            <Text style={[styles.estadoTxt, !abierta && styles.estadoTxtCerrada]}>{abierta ? "Abierta" : "Cerrada"}</Text>
+          <View style={styles.metaRow}>
+            {tag ? (
+              <View style={styles.tag}>
+                <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                <Text style={styles.tagTxt}>{tag.nombre}</Text>
+              </View>
+            ) : null}
+            {a.grupo_id ? <Text style={styles.colegio}>Del colegio</Text> : null}
           </View>
+          <Text style={styles.convocatoria}>{estadoConvocatoria(a, hoyStr)}</Text>
         </View>
-        <View style={styles.metaRow}>
-          {tag ? (
-            <View style={styles.tag}>
-              <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
-              <Text style={styles.tagTxt}>{tag.nombre}</Text>
-            </View>
-          ) : null}
-          {a.grupo_id ? <Text style={styles.colegio}>🏫 Del colegio</Text> : null}
-        </View>
-        {a.fecha_evento ? <Text style={styles.meta}>📅 {fmtFecha(a.fecha_evento)}</Text> : null}
-        {a.fecha_limite ? <Text style={[styles.meta, abierta && styles.metaLimite]}>⏰ Responder hasta el {fmtFecha(a.fecha_limite)}</Text> : null}
+        <Text style={styles.titulo}>{a.titulo}</Text>
+        {/* Fecha de la salida y fecha límite, bien diferenciadas. */}
+        {a.fecha_evento ? (
+          <View style={styles.fechaFila}>
+            <Text style={styles.fechaLabel}>Salida</Text>
+            <Text style={styles.fechaValor}>{fechaAut(a.fecha_evento)}</Text>
+          </View>
+        ) : null}
+        {a.fecha_limite ? (
+          <View style={styles.fechaFila}>
+            <Text style={styles.fechaLabel}>Responder hasta</Text>
+            <Text style={[styles.fechaValor, urgente && styles.fechaUrgente]}>{fechaAut(a.fecha_limite)}</Text>
+          </View>
+        ) : null}
         {a.descripcion ? <Text style={styles.descripcion}>{a.descripcion}</Text> : null}
 
-        {misHijos.filter((h) => h.curso_id === a.curso_id).map((h) => {
+        {confirmacion ? (
+          <View style={styles.confirmacion}>
+            <MaterialCommunityIcons name="check" size={16} color="#047857" />
+            <Text style={styles.confirmacionTxt}>{confirmacion}</Text>
+          </View>
+        ) : null}
+
+        {/* Tu respuesta: una por hijo. */}
+        {misDelCurso.length ? <Text style={styles.tuRespuesta}>{misDelCurso.length > 1 ? "Tus respuestas" : "Tu respuesta"}</Text> : null}
+        {misDelCurso.map((h) => {
           const r = respDe.find((x) => x.hijo_id === h.id) || null;
           return (
-            <View key={h.id} style={[styles.hijoRow, r ? (r.autoriza ? styles.hijoSi : styles.hijoNo) : null]}>
+            <View key={h.id} style={styles.hijoRow}>
+              {r ? (
+                <MaterialCommunityIcons name={r.autoriza ? "check" : "close"} size={18} color={r.autoriza ? "#047857" : "#B91C1C"} />
+              ) : null}
               <View style={styles.flex1}>
                 <Text style={styles.hijoNombre}>
-                  {r ? (r.autoriza ? "✅ " : "❌ ") : ""}{h.nombre}{r ? (r.autoriza ? ": autorizado" : ": no autorizado") : ""}
+                  {h.nombre}:{" "}
+                  <Text style={r ? (r.autoriza ? styles.si : styles.no) : styles.falta}>
+                    {r ? textoRespuesta(r) : abierta ? "falta tu respuesta" : "sin responder"}
+                  </Text>
                 </Text>
                 {r ? (
                   <Text style={styles.hijoMeta}>
-                    {[r.retira ? `Retira: ${r.retira}` : null, r.comentario ? `“${r.comentario}”` : null, `Respondido ${fmtCuando(r.respondido_en)}`].filter(Boolean).join(" · ")}
+                    {[r.retira ? `Retira: ${r.retira}` : null, r.comentario ? `“${r.comentario}”` : null, `Respondido el ${fmtCuando(r.respondido_en)}`].filter(Boolean).join(" · ")}
                   </Text>
-                ) : !abierta ? <Text style={styles.hijoMeta}>Sin responder · la fecha límite ya pasó</Text> : null}
+                ) : !abierta ? <Text style={styles.hijoMeta}>La fecha límite ya pasó</Text> : null}
               </View>
               {abierta ? (
                 <Pressable onPress={() => setRespondiendo({ a, hijo: h, respuesta: r })} style={r ? styles.btnSec : styles.btnPri} hitSlop={6}>
@@ -126,7 +177,7 @@ export function Autorizaciones() {
             <Text style={styles.resumenTxt}>
               {(() => {
                 const s = resumenRespuestas(datos.alumnos.filter((x) => x.curso_id === a.curso_id), respDe);
-                return `✅ ${s.autorizados} · ❌ ${s.noAutorizados} · ⏳ ${s.sinResponder} sin responder — ver respuestas`;
+                return `${s.autorizados} autorizados · ${s.noAutorizados} no · ${s.sinResponder} sin responder — ver respuestas`;
               })()}
             </Text>
           </Pressable>
@@ -138,6 +189,8 @@ export function Autorizaciones() {
   return (
     <View style={styles.screen}>
       <FlatList
+        ref={listaRef}
+        onScrollToIndexFailed={() => {}}
         data={lista}
         keyExtractor={(a) => a.id}
         renderItem={renderItem}
@@ -157,7 +210,7 @@ export function Autorizaciones() {
         }
       />
       {respondiendo ? (
-        <ResponderSheet {...respondiendo} userId={userId} onClose={() => setRespondiendo(null)} onGuardado={() => { setRespondiendo(null); cargar(); }} />
+        <ResponderSheet {...respondiendo} userId={userId} onClose={() => setRespondiendo(null)} onGuardado={(autoriza) => { setConfirmaciones((p) => ({ ...p, [respondiendo.a.id]: textoConfirmacion(autoriza, respondiendo.hijo.nombre) })); setRespondiendo(null); cargar(); }} />
       ) : null}
       {detalle ? (
         <DetalleSheet
@@ -192,7 +245,7 @@ function ResponderSheet({ a, hijo, respuesta, userId, onClose, onGuardado }) {
     }, { onConflict: "autorizacion_id,hijo_id" });
     setGuardando(false);
     if (error) { Alert.alert("No se pudo guardar", estaAbierta(a, fmtLocalDate()) ? "Probá de nuevo." : "La fecha límite ya pasó."); return; }
-    onGuardado();
+    onGuardado(form.autoriza);
   };
   const opcion = (valor, txt, estilo) => (
     <Pressable onPress={() => setForm((p) => ({ ...p, autoriza: valor }))} style={[styles.opcion, form.autoriza === valor && estilo]}>
@@ -200,11 +253,11 @@ function ResponderSheet({ a, hijo, respuesta, userId, onClose, onGuardado }) {
     </Pressable>
   );
   return (
-    <Sheet visible onClose={onClose} title={`${a.titulo} · ${hijo.nombre}`}>
+    <Sheet visible onClose={onClose} title={`${hijo.nombre}: ${a.titulo}`}>
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         <View style={styles.opcionesRow}>
-          {opcion(true, "✅ Autorizo", styles.opcionSi)}
-          {opcion(false, "❌ No autorizo", styles.opcionNo)}
+          {opcion(true, "Autorizo", styles.opcionOn)}
+          {opcion(false, "No autorizo", styles.opcionOn)}
         </View>
         <Text style={styles.label}>¿Quién lo retira?</Text>
         <TextInput value={form.retira} onChangeText={(v) => setForm((p) => ({ ...p, retira: v }))} placeholder="Ej: la mamá, Juana Pérez" placeholderTextColor={t.placeholder} style={styles.input} />
@@ -423,25 +476,34 @@ const styles = StyleSheet.create({
   sub: { fontSize: 13, color: t.textMuted, marginTop: 2 },
   flex1: { flex: 1, minWidth: 0 },
   card: { marginBottom: SPACE.md },
-  cardPendiente: { borderLeftWidth: 3, borderLeftColor: "#F59E0B" },
-  cardHead: { flexDirection: "row", justifyContent: "space-between", gap: SPACE.sm },
-  titulo: { flex: 1, fontSize: 15, fontWeight: "800", color: t.text },
+  cardResaltada: { borderColor: "#93C5FD", borderWidth: 2 },
+  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: SPACE.sm },
+  convocatoria: { fontSize: 12.5, fontWeight: "600", color: t.textMuted },
+  titulo: { fontSize: 17, fontWeight: "800", color: t.textStrong, marginTop: 8, lineHeight: 22 },
+  fechaFila: { flexDirection: "row", gap: 14, marginTop: 6 },
+  fechaLabel: { width: 118, fontSize: 13, color: t.textMuted },
+  fechaValor: { flex: 1, fontSize: 13, fontWeight: "600", color: t.textStrong },
+  fechaUrgente: { color: "#B45309" },
+  confirmacion: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: SPACE.md, paddingVertical: 9, paddingHorizontal: 12, borderRadius: RADIUS.md, backgroundColor: "#F0FDF4" },
+  confirmacionTxt: { flex: 1, fontSize: 13, fontWeight: "600", color: "#047857" },
+  tuRespuesta: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginTop: SPACE.md },
+  si: { color: "#047857" },
+  no: { color: "#B91C1C" },
+  falta: { color: t.textMuted, fontWeight: "600" },
   estado: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: RADIUS.sm, backgroundColor: "#F0FDF4" },
   estadoCerrada: { backgroundColor: "#F1F5F9" },
   estadoTxt: { fontSize: 10.5, fontWeight: "700", color: "#10B981" },
   estadoTxtCerrada: { color: t.textFaint },
-  metaRow: { flexDirection: "row", gap: SPACE.sm, alignItems: "center", marginTop: 4, flexWrap: "wrap" },
+  metaRow: { flexDirection: "row", gap: SPACE.sm, alignItems: "center", flexWrap: "wrap", flexShrink: 1 },
   tag: { flexDirection: "row", alignItems: "center", gap: 4 },
   tagDot: { width: 8, height: 8, borderRadius: 4 },
-  tagTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
-  colegio: { fontSize: 11, fontWeight: "700", color: "#6366F1" },
+  tagTxt: { fontSize: 12, fontWeight: "600", color: "#475569" },
+  colegio: { fontSize: 12, fontWeight: "600", color: t.textMuted },
   meta: { fontSize: 12, color: t.textMuted, marginTop: 3 },
   metaLimite: { color: "#B45309" },
-  descripcion: { fontSize: 13, color: t.text, marginTop: SPACE.sm, lineHeight: 19 },
-  hijoRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginTop: SPACE.sm, padding: SPACE.sm, borderRadius: RADIUS.md, borderWidth: 1, borderColor: "#E2E8F0" },
-  hijoSi: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  hijoNo: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
-  hijoNombre: { fontSize: 13.5, fontWeight: "700", color: t.text },
+  descripcion: { fontSize: 13, color: "#475569", marginTop: SPACE.sm, lineHeight: 19 },
+  hijoRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E2E8F0" },
+  hijoNombre: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   hijoMeta: { fontSize: 11.5, color: t.textMuted, marginTop: 2, lineHeight: 16 },
   btnPri: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.md, backgroundColor: t.accent },
   btnPriTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "700" },
@@ -452,8 +514,7 @@ const styles = StyleSheet.create({
   sheetScroll: { flexShrink: 1 },
   opcionesRow: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.md },
   opcion: { flex: 1, paddingVertical: 11, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: "#E2E8F0", alignItems: "center" },
-  opcionSi: { borderColor: "#047857", backgroundColor: "#F0FDF4" },
-  opcionNo: { borderColor: "#B91C1C", backgroundColor: "#FEF2F2" },
+  opcionOn: { borderColor: t.textStrong, backgroundColor: "#F8FAFC" },
   opcionTxt: { fontSize: 14, fontWeight: "700", color: t.textMuted },
   opcionTxtOn: { color: t.text },
   label: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 4, marginTop: SPACE.sm },
