@@ -9,7 +9,6 @@ import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { FestejoDetalleModal } from "../cumples";
-import { EventoAsistenciaModal } from "../calendario";
 
 
 const TIPO_CONFIG = {
@@ -27,7 +26,8 @@ const TIPO_CONFIG = {
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { talleresParaAnotarse } from "../../lib/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
-import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "../../lib/muro";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "../../lib/muro";
+import { Icono } from "../../components/Icono";
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
@@ -61,16 +61,41 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, cursoNombre, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
+// Estilos sobrios (prototipo): blanco, bordes finos, grises; azul solo en la acción.
+const card = {border:"1px solid #E2E8F0",borderRadius:16,background:"white"};
+const tituloSeccion = {fontSize:18,fontWeight:800,color:"#0F172A",letterSpacing:-0.2};
+const enlace = {display:"inline-flex",alignItems:"center",gap:6,padding:0,border:"none",background:"none",cursor:"pointer",fontSize:13.5,fontWeight:700,color:"#2563EB",fontFamily:"inherit"};
+function Hijo({tag}) { return tag ? (
+  <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>
+    <span style={{width:8,height:8,borderRadius:999,background:tag.color,flexShrink:0}}/>
+    <span style={{color:"#475569"}}>{tag.nombre}</span>
+  </span>
+) : null;
+}
+const Enlace = ({texto,onClick,style}) => (
+  <button onClick={onClick} style={{...enlace,...style}}>
+    <span style={{color:"#2563EB"}}>{texto}</span>
+    <Icono nombre="flecha" size={15} color="#2563EB"/>
+  </button>
+);
+const Encabezado = ({titulo,cuenta,derecha}) => (
+  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+    <div style={tituloSeccion}>{titulo}</div>
+    {cuenta>0&&<span style={{minWidth:22,height:22,padding:"0 7px",borderRadius:999,background:"#F1F5F9",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#475569",boxSizing:"border-box"}}>{cuenta}</span>}
+    <div style={{flex:1}}/>
+    {derecha}
+  </div>
+);
+
+
+export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
   const [datos,setDatos] = useState(null);
   const [festejoDetalle,setFestejoDetalle] = useState(null);
-  const [eventoDetalle,  setEventoDetalle]  = useState(null);
-  const [leidosMuro,setLeidosMuro] = useState(new Set());
   const [error,setError] = useState(false);
-  const hoy = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+  const hoy = (() => { const t = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"}).replace(",",""); return t.charAt(0).toUpperCase()+t.slice(1); })();
 
   const cursosKey = cursoIds.join(",");
   const tabActiva = useTabActiva(); // oculta: no carga; al volver, recarga en segundo plano
@@ -109,7 +134,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
         .or(filtroAlcance(cursoIds, colegios)).eq("tipo","encontrado").eq("estado","abierto")
         .gte("creado_en", new Date(Date.now()-7*86400000).toISOString()),
-      misHijos.length ? supabase.from("autorizaciones").select("id,titulo,curso_id,fecha_limite,fecha_evento").in("curso_id",cursoIds) : Promise.resolve({data:[]}),
+      misHijos.length ? supabase.from("autorizaciones").select("id,titulo,descripcion,curso_id,fecha_limite,fecha_evento").in("curso_id",cursoIds) : Promise.resolve({data:[]}),
       // Talleres con inscripción abierta (RLS: solo los que ve la familia) y
       // en qué ya están anotados mis hijos → tarjeta "Inscripción abierta".
       misHijos.length ? supabase.from("talleres").select("id,nombre,estado,elegibilidad,edad_min,edad_max,inscripcion_desde,inscripcion_hasta,fecha_inicio,taller_cursos(curso_id)").eq("estado","publicado") : Promise.resolve({data:[]}),
@@ -151,7 +176,6 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     ].filter(a=>a.dias<=15)
      .sort((a,b)=>a.dias-b.dias);
     const { recs: recsVigentes, leidos: leidosIds } = separarLeidos(recordatorios.data);
-    setLeidosMuro(new Set([...leidosIds]));
     const recsNoLeidos = recordatoriosPendientes(recsVigentes, leidosIds, userId, fechaHoy, fecha15);
     // Colectas pendientes: cada colecta se evalúa contra MIS hijos de SU curso
     // (en vista Todos hay colectas de varios cursos; un hijo de otro curso no
@@ -179,319 +203,277 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     }
   };
 
-  const marcarLeidoMuro = async (recId) => {
-    if(!userId) return;
-    const nid = recId;
-    if(leidosMuro.has(nid)) {
-      const {error} = await supabase.from("recordatorio_leidos").delete().eq("recordatorio_id",nid).eq("usuario_id",userId);
-      if(error) { console.error("desmarcarLeido error:", error); return; }
-      setLeidosMuro(p=>{ const n=new Set(p); n.delete(nid); return n; });
-    } else {
-      const {error} = await supabase.from("recordatorio_leidos").upsert({recordatorio_id:nid, usuario_id:userId},{onConflict:"recordatorio_id,usuario_id"});
-      if(error) { console.error("marcarLeido error:", error); return; }
-      setLeidosMuro(p=> new Set([...p, nid]));
-    }
-    onBadgeChange?.();
-  };
-
   const dismissAlerta = async (alerta) => {
     if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
   };
 
   // Sin datos todavía: si ya falló el primer intento, mostrar el error con
-  // reintentar en vez de un Spinner eterno (Tanda 1 del handoff — antes una
-  // falla de red en la primera carga dejaba el muro cargando para siempre).
-  // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" en Pendientes.
+  // reintentar en vez de un Spinner eterno.
+  // Avisos de docentes: "Laura · Inglés" como origen en Comunicaciones.
   const docenteDe = useAutoresDocentesHook((datos?.recordatorios||[]).map(r=>r.creado_por));
   if(!datos) return error ? <ErrorMuro onReintentar={cargar} tieneDatos={false}/> : <Spinner/>;
 
-  // Colecta más próxima a cerrar entre las que YA cerrará; solo para el
-  // resumen de la aside de escritorio (no altera la lógica de colectasPend).
-  const proximoCumple = (datos.bdayList||[])[0];
-
-  // Menú de hoy, en filas estructuradas (ícono + etiqueta + plato) — antes
-  // era un solo string con todo unido por "·", muy distinto del mockup
-  // ("Menú de hoy" en la aside de Tribbu Apoderado Web.dc.html). Mismas
-  // etiquetas que ya usa Comedor (campos, mobile/features/comedor y
-  // src/features/comedor) para no inventar una nomenclatura nueva.
-  const CAMPOS_MENU = [
-    {key:"entrada",        label:"Entrada",           emoji:"🥣"},
-    {key:"plato",          label:"Plato Principal 1", emoji:"🍽️"},
-    {key:"plato2",         label:"Plato Principal 2", emoji:"🍽️"},
-    {key:"acompanamiento", label:"Plato Principal 3", emoji:"🍽️"},
-    {key:"postre",         label:"Postre 1",          emoji:"🍎"},
-    {key:"postre2",        label:"Postre 2",          emoji:"🍊"},
-  ];
-  const menuHoyItems = datos.menu ? CAMPOS_MENU.filter(c=>datos.menu[c.key]).map(c=>({...c, plato:datos.menu[c.key]})) : [];
-
-  // ── Pendientes unificado (handoff Tribbu Apoderado Web, Parte 1/7): antes
-  // cada tipo (recordatorio/colecta/invitación/encuesta) era su propia
-  // sección con su propio estilo de card — el mockup los junta en UNA sola
-  // lista "Pendientes · N", cada card con el mismo patrón (icono + tipo/tag +
-  // título/meta + chip + botón de acción a la derecha). Mismo patrón que ya
-  // tiene mobile/features/muro/index.jsx.
+  const fechaHoy = fmtLocalDate();
   const diasHasta = (fechaStr) => {
     if(!fechaStr) return null;
     const hoyD = new Date(); hoyD.setHours(0,0,0,0);
     return Math.round((new Date(fechaStr+"T00:00:00")-hoyD)/86400000);
   };
-  const fmtDiaMesCorto = (s) => s ? new Date(s+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"}) : null;
-  const chipDias = (dias) => dias==null ? null : dias<=0 ? (dias===0?"Hoy":`hace ${-dias}d`) : dias===1 ? "Mañana" : `${dias}d`;
+  const hora = (h) => h ? `${String(h).slice(0,5)} hs` : null;
+  const montoTxt = (c) => c.monto_sugerido ? `Aporte ${(c.moneda||"$")==="$"?"$":`${c.moneda} `}${Number(c.monto_sugerido).toLocaleString("es-AR")}` : null;
+  const unir = (...partes) => partes.filter(Boolean).join(" · ");
 
-  const pendientes = [
-    ...datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
-      key:`r-${r.id}`, tipo:"Aviso", color:"#DC2626", soft:"#FEF2F2", borde:"#FECACA",
-      icon:"📌", titulo:r.titulo||r.texto,
-      meta:`Sin leer${r.fecha?` · ${new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"long"})}`:""}${fmtRangoHora(r.hora_inicio,r.hora_fin)?` · ${fmtRangoHora(r.hora_inicio,r.hora_fin)}`:""}${r.grupo_id?" · 🏫 Comunicación del colegio":""}${docenteDe(r.creado_por)?` · ${etiquetaDocente(docenteDe(r.creado_por))}`:""}`,
-      accion:"Marcar leído", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
-      onAccion:(e)=>{e.stopPropagation();marcarLeidoMuro(r.id);}, onPress:()=>onNavigate?.("recordatorios"),
-      tag:tagDe(r.curso_id), chip:chipDias(diasHasta(r.fecha)),
+  // ── Respuestas pendientes (prototipo "Hoy"): solo lo que pide una acción de
+  // la familia — los avisos sin leer van aparte, en Comunicaciones. Ordenadas
+  // por vencimiento (@shared/muro); la primera va destacada con botón azul.
+  const pendientes = ordenarPorVencimiento([
+    ...(datos.autorizacionesPend||[]).map(a=>({
+      key:`aut-${a.id}`, tipo:"Autorización", tag:tagDe(a.curso_id), titulo:a.titulo,
+      dato:unir(a.fecha_evento?`Salida: ${fechaCorta(a.fecha_evento)}`:null, avisoVencimiento("x", a.fecha_limite, fechaHoy)?null:a.fecha_limite?`Responder hasta el ${fechaCorta(a.fecha_limite)}`:"Falta tu respuesta"),
+      detalle:a.descripcion||null, vence:a.fecha_limite||null, urgencia:avisoVencimiento("Respondé hasta", a.fecha_limite, fechaHoy),
+      accion:"Responder autorización", ir:()=>onNavigate?.("autorizaciones"),
     })),
     ...(datos.colectasPend||[]).map(c=>({
-      key:`c-${c.id}`, tipo:"Colecta", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
-      icon:"💳", titulo:c.titulo, meta:"Tu aporte todavía no está registrado",
-      accion:"Registrar pago", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
-      onAccion:(e)=>{e.stopPropagation();onNavigate?.("finanzas",{openColecta:c.id});}, onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
-      tag:tagDe(c.curso_id), chip: c.monto_sugerido?`${c.moneda||"$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}`:null,
-    })),
-    ...(datos.porCerrar||[]).map(c=>({
-      key:`pc-${c.id}`, tipo:"Colecta", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
-      icon:"🔒", titulo:c.titulo, meta:`Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿Terminó la colecta?`,
-      accion:"Cerrar", btnBg:"#FFFBEB", btnFg:"#B45309",
-      onAccion:async(e)=>{e.stopPropagation(); await supabase.from("colectas").update({activa:false}).eq("id",c.id); cargar();},
-      onPress:()=>onNavigate?.("finanzas",{openColecta:c.id}),
-      tag:tagDe(c.curso_id), chip:null,
+      key:`c-${c.id}`, tipo:"Colecta", tag:tagDe(c.curso_id), titulo:c.titulo,
+      dato:unir(montoTxt(c), "Todavía no registrado"), detalle:null,
+      vence:c.fecha_limite||c.vencimiento||null, urgencia:avisoVencimiento("Vence", c.fecha_limite||c.vencimiento, fechaHoy),
+      accion:"Registrar mi pago", ir:()=>onNavigate?.("finanzas",{openColecta:c.id}),
     })),
     ...(datos.invitaciones||[]).map(ev=>({
-      key:`i-${ev.id}`, tipo:"Invitación", color:"#047857", soft:"#F0FDF4", borde:"#A7F3D0",
-      icon:"🎉", titulo:ev.titulo, meta:"Falta confirmar asistencia",
-      accion:"Responder", btnBg:"#0F172A", btnFg:"white",
-      onAccion:(e)=>{e.stopPropagation();setFestejoDetalle(ev);}, onPress:()=>setFestejoDetalle(ev),
-      tag:tagDe(ev.curso_id), chip:fmtDiaMesCorto(ev.fecha),
-    })),
-    ...(datos.autorizacionesPend||[]).map(a=>({
-      key:`aut-${a.id}`, tipo:"Autorización", color:"#B45309", soft:"#FFFBEB", borde:"#FDE68A",
-      icon:"✍️", titulo:a.titulo, meta:a.fecha_limite?`Responder hasta el ${fmtDiaMesCorto(a.fecha_limite)}`:"Falta tu respuesta",
-      accion:"Responder", btnBg:"#FFFBEB", btnFg:"#B45309",
-      onAccion:(e2)=>{e2.stopPropagation();onNavigate?.("autorizaciones");}, onPress:()=>onNavigate?.("autorizaciones"),
-      tag:tagDe(a.curso_id), chip:a.fecha_evento?fmtDiaMesCorto(a.fecha_evento):null,
+      key:`i-${ev.id}`, tipo:"Invitación", tag:tagDe(ev.curso_id), titulo:ev.titulo,
+      dato:unir(fechaCorta(ev.fecha), hora(ev.hora), ev.lugar, "Asistencia sin confirmar"), detalle:null,
+      vence:ev.fecha, urgencia:avisoVencimiento("Es", ev.fecha, fechaHoy),
+      accion:"Confirmar asistencia", ir:()=>setFestejoDetalle(ev),
     })),
     ...(datos.talleresAbiertos||[]).map(({taller:t,hijos:hs})=>({
-      key:`tal-${t.id}`, tipo:"Taller", color:"#7C3AED", soft:"#F5F3FF", borde:"#DDD6FE",
-      icon:"🎨", titulo:`Inscripción abierta: ${t.nombre}`,
-      meta:`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}${t.inscripcion_hasta?` · hasta el ${fmtDiaMesCorto(t.inscripcion_hasta)}`:""}`,
-      accion:"Ver taller", btnBg:"#F5F3FF", btnFg:"#7C3AED",
-      onAccion:(e2)=>{e2.stopPropagation();onNavigate?.("talleres",{openTaller:t.id});}, onPress:()=>onNavigate?.("talleres",{openTaller:t.id}),
-      tag:null, chip:t.inscripcion_hasta?fmtDiaMesCorto(t.inscripcion_hasta):null,
+      key:`tal-${t.id}`, tipo:"Inscripción abierta", tag:null, titulo:t.nombre,
+      dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null), detalle:null,
+      vence:t.inscripcion_hasta||null, urgencia:avisoVencimiento("Inscripción hasta", t.inscripcion_hasta, fechaHoy),
+      accion:"Ver el taller", ir:()=>onNavigate?.("talleres",{openTaller:t.id}),
     })),
     ...(datos.encuestasPend||[]).map(e=>({
-      key:`enc-${e.id}`, tipo:"Encuesta", color:"#1D4ED8", soft:"#EFF6FF", borde:"#BFDBFE",
-      icon:"📊", titulo:e.pregunta, meta:"Todavía no votaste",
-      accion:"Votar", btnBg:"#EFF6FF", btnFg:"#1D4ED8",
-      onAccion:(e2)=>{e2.stopPropagation();onNavigate?.("encuestas");}, onPress:()=>onNavigate?.("encuestas"),
-      tag:tagDe(e.curso_id), chip:fmtDiaMesCorto(e.fecha_cierre),
+      key:`enc-${e.id}`, tipo:"Encuesta", tag:tagDe(e.curso_id), titulo:e.pregunta,
+      dato:unir(e.fecha_cierre?`Cierra el ${fechaCorta(e.fecha_cierre)}`:null, "Todavía no votaste"), detalle:null,
+      vence:e.fecha_cierre||null, urgencia:avisoVencimiento("Cierra", e.fecha_cierre, fechaHoy),
+      accion:"Votar en la encuesta", ir:()=>onNavigate?.("encuestas"),
     })),
-  ];
+    ...(datos.porCerrar||[]).map(c=>({
+      key:`pc-${c.id}`, tipo:"Colecta para cerrar", tag:tagDe(c.curso_id), titulo:c.titulo,
+      dato:`Venció hace ${diasVencida(c, fechaHoy)} días · ¿Terminó la colecta?`, detalle:null, vence:null, urgencia:null,
+      accion:"Ver la colecta", ir:()=>onNavigate?.("finanzas",{openColecta:c.id}),
+    })),
+  ]);
+  const [destacado, ...resto] = pendientes;
 
-  // ── Agenda unificada: eventos + cumpleaños por proximidad, "Próximos 15
-  // días" (ambos ya vienen filtrados a esa ventana desde cargar()).
+  // ── Comunicaciones: avisos sin leer (leerlo lo marca como leído en Avisos).
+  const avisos = datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
+    key:`r-${r.id}`, tag:tagDe(r.curso_id), titulo:r.titulo||r.texto,
+    dato:unir(r.grupo_id?"Comunicación del colegio":docenteDe(r.creado_por)?etiquetaDocente(docenteDe(r.creado_por)).replace(/^👩‍🏫\s*/,""):"Aviso del curso", r.fecha?fechaCorta(r.fecha):null, fmtRangoHora(r.hora_inicio,r.hora_fin)||null),
+    ir:()=>onNavigate?.("recordatorios",{openAviso:r.id}),
+  }));
+
+  // ── Próximos días: eventos + cumpleaños de los próximos 15 días.
   const agenda = [
-    ...(datos.eventos||[]).map(e=>{
-      const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
-      return { key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha), emoji:cfg.emoji,
-        titulo:e.titulo, meta:e.lugar?`📍 ${e.lugar}`:"Todo el curso", tag:tagDe(e.curso_id),
-        onPress:()=>onNavigate?.("clases",{openFecha:e.fecha}) };
-    }),
+    ...(datos.eventos||[]).map(e=>({ key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha),
+      titulo:e.titulo, meta:e.lugar||"Todo el curso", tag:tagDe(e.curso_id), ir:()=>onNavigate?.("clases",{openFecha:e.fecha}) })),
     ...(datos.bdayList||[]).map(a=>{
       const { dias, fecha } = calcProximoCumple(a.fecha_nacimiento);
-      return { key:a.id, fecha, dias, emoji:"🎂",
-        titulo:`Cumple de ${a.nombre}`, meta:a.tipo==="Alumno"?"🎒 Alumno":"👨‍🏫 Maestro", tag:tagDe(a.curso_id),
-        onPress:()=>onNavigate?.("cumples") };
+      return { key:a.id, fecha, dias, titulo:`Cumple de ${a.nombre}`, meta:"Cumpleaños", tag:tagDe(a.curso_id), ir:()=>onNavigate?.("cumples") };
     }),
-  ].sort((a,b)=>a.dias-b.dias);
+  ].sort((a,b)=>a.dias-b.dias).slice(0,6);
+  const menuFilas = filasMenu(datos.menu);
+  const colectasAbiertas = (datos.cuotas||[]).filter(c=>c.activa);
 
-  // ── Layout A: original ───────────────────────────────────────────────────
-  return (
-    <div>
-      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>{ setFestejoDetalle(null); cargar(); }} onUpdate={cargar}/>}
-      {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} onClose={()=>setEventoDetalle(null)} misHijos={misHijos} userId={userId}/>}
-      {/* El selector "Todos mis hijos ▾" lo arma App.jsx (prop selector) y va
-          debajo del saludo, como en el prototipo; en las demás secciones App
-          lo pone arriba del contenido. */}
-      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
-      <div>
-      <div style={{marginBottom:18}}>
-        <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Hola{userName?`, ${userName}`:""} 👋</div>
-        <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
-        {selector ? <div style={{marginTop:12}}>{selector}</div> : null}
-      </div>
-      {error&&<ErrorMuro onReintentar={cargar} tieneDatos style={{marginBottom:18}}/>}
-      {(datos.alertas||[]).map(al=>{
-        const tag = tagDe(al.curso_id);
-        return (
-          <div key={al.id} style={{background:"linear-gradient(135deg,#EF4444,#B91C1C)",borderRadius:14,padding:"14px 16px",marginBottom:14}}>
-            <div style={{display:"flex",gap:10}}>
-              <span style={{fontSize:22,flexShrink:0}}>🚨</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",marginBottom:3,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span>{cursoNombre?`${cursoNombre} · `:""}{al.hora}</span>
-                  {tag&&(
-                    <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#64748B",whiteSpace:"nowrap",background:"rgba(255,255,255,0.92)",borderRadius:20,padding:"2px 8px",textTransform:"none"}}>
-                      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
-                      {tag.nombre}
-                    </span>
-                  )}
-                </div>
-                <div style={{fontSize:13,fontWeight:700,color:"white",lineHeight:1.5}}>{al.mensaje}</div>
-              </div>
-              {isAdmin&&<button onClick={()=>dismissAlerta(al)} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:8,width:28,height:28,cursor:"pointer",color:"white",fontSize:14,flexShrink:0}}>✕</button>}
+  const bloquePendientes = (
+    <div style={{marginBottom:28}}>
+      {pendientes.length ? (
+        <>
+          <div style={{...tituloSeccion,marginBottom:12}}>{textoRespuestasPendientes(pendientes.length)}</div>
+          {/* La más urgente, destacada con la acción principal. */}
+          <div style={{...card,padding:"16px 18px",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+              <span style={{fontSize:12.5,fontWeight:600,color:"#64748B"}}>{destacado.tipo}</span>
+              <Hijo tag={destacado.tag}/>
             </div>
-          </div>
-        );
-      })}
-
-      {isMobile&&datos.menu&&(
-        <div style={{background:"#0F172A",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
-          <div style={{fontSize:9.5,fontWeight:800,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🍽️ Menú de hoy</div>
-          <div style={{display:"flex",flexDirection:"column",gap:9}}>
-            {menuHoyItems.map(m=>(
-              <div key={m.key} style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:16}}>{m.emoji}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:9,fontWeight:800,letterSpacing:0.5,textTransform:"uppercase",color:"rgba(255,255,255,0.4)"}}>{m.label}</div>
-                  <div style={{fontSize:13,fontWeight:600,color:"white",marginTop:1}}>{m.plato}</div>
-                </div>
+            {destacado.urgencia&&(
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:8,background:"#FFFBEB"}}>
+                <Icono nombre="reloj" size={14} color="#B45309"/>
+                <span style={{fontSize:12.5,fontWeight:600,color:"#B45309"}}>{destacado.urgencia}</span>
               </div>
-            ))}
+            )}
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginTop:10,lineHeight:1.3}}>{destacado.titulo}</div>
+            {destacado.dato&&<div style={{fontSize:13,color:"#64748B",marginTop:6,lineHeight:1.45}}>{destacado.dato}</div>}
+            {destacado.detalle&&<div style={{fontSize:13,color:"#64748B",marginTop:2,lineHeight:1.45,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{destacado.detalle}</div>}
+            <button onClick={destacado.ir} style={{marginTop:14,minHeight:42,padding:"0 18px",borderRadius:12,border:"none",background:"#2563EB",cursor:"pointer",fontFamily:"inherit"}}>
+              <span style={{fontSize:14,fontWeight:700,color:"white"}}>{destacado.accion}</span>
+            </button>
           </div>
-        </div>
-      )}
-
-      {/* Pendientes: lista única (handoff Tribbu Apoderado Web) — reemplaza
-          las 4 secciones separadas (Invitaciones/Recordatorios/Pendiente de
-          pago/Encuestas) por un solo patrón de card con acción a la derecha. */}
-      <div style={{marginBottom:18}}>
-        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:11}}>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8"}}>Pendientes{pendientes.length?` · ${pendientes.length}`:""}</div>
-          {pendientes.length>0&&<span style={{fontSize:12,fontWeight:600,color:"#94A3B8"}}>Resolvelos desde acá</span>}
-        </div>
-        {pendientes.length>0 ? (
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {pendientes.map(p=>(
-              <div key={p.key} onClick={p.onPress} style={{display:"flex",gap:12,alignItems:"center",padding:"12px 14px",border:`1px solid ${p.borde}`,borderRadius:12,background:"white",cursor:"pointer"}}>
-                <div style={{width:32,height:32,borderRadius:9,background:p.soft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{p.icon}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <span style={{fontSize:9,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:p.color}}>{p.tipo}</span>
-                    {p.tag&&<><span style={{width:3,height:3,borderRadius:999,background:"#CBD5E1",flexShrink:0}}/><TagHijo tag={p.tag}/></>}
+          {/* El resto, en una sola tarjeta con separadores y un enlace cada uno. */}
+          {resto.length>0&&(
+            <div style={card}>
+              {resto.map((p,i)=>(
+                <div key={p.key} style={{padding:"14px 18px",borderTop:i?"1px solid #F1F5F9":"none"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                    <span style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{p.tipo}</span>
+                    <Hijo tag={p.tag}/>
                   </div>
-                  <div style={{fontSize:13.5,fontWeight:600,marginTop:2,lineHeight:1.3}}>{p.titulo}</div>
-                  <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{p.meta}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{p.titulo}</div>
+                  {p.dato&&<div style={{fontSize:12.5,color:"#64748B",marginTop:3,lineHeight:1.45}}>{p.urgencia?<span style={{color:"#B45309",fontWeight:600}}>{p.urgencia} · </span>:null}<span style={{color:"#64748B"}}>{p.dato}</span></div>}
+                  <Enlace texto={p.accion} onClick={p.ir} style={{marginTop:10}}/>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-                  {p.chip&&<span style={{fontSize:11,fontWeight:500,color:"#94A3B8",whiteSpace:"nowrap"}}>{p.chip}</span>}
-                  <button onClick={p.onAccion} style={{padding:0,border:"none",background:"none",color:p.btnFg,fontSize:12.5,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{p.accion}</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{display:"flex",alignItems:"center",gap:13,padding:16,border:"1.5px dashed #E2E8F0",borderRadius:12,background:"white"}}>
-            <div style={{width:38,height:38,borderRadius:999,background:"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>✓</div>
-            <div>
-              <div style={{fontSize:14.5,fontWeight:700}}>Estás al día ✨</div>
-              <div style={{fontSize:12.5,color:"#64748B",marginTop:2,lineHeight:1.45}}>No tenés pendientes. Cuando haya algo para resolver, aparece acá.</div>
+              ))}
             </div>
-          </div>
-        )}
-      </div>
-
-      {datos.encontradosSemana>0&&(
-        <button onClick={()=>onNavigate?.("perdidos")} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"11px 14px",marginBottom:18,borderRadius:14,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",textAlign:"left"}}>
-          <span style={{fontSize:20}}>🧦</span>
-          <span style={{flex:1,fontSize:13,color:"#0F172A"}}><b>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana en tu curso · ¿es de tu hijo?</span>
-          <span style={{fontSize:12,fontWeight:700,color:"#3B82F6"}}>Ver</span>
-        </button>
+          )}
+        </>
+      ) : (
+        <div style={{...card,display:"flex",alignItems:"center",gap:12,padding:"16px 18px"}}>
+          <span style={{width:36,height:36,borderRadius:999,background:"#F1F5F9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icono nombre="check" size={18} color="#475569"/></span>
+          <span style={{display:"block"}}>
+            <span style={{display:"block",fontSize:15,fontWeight:700,color:"#0F172A"}}>Estás al día</span>
+            <span style={{display:"block",fontSize:13,color:"#64748B",marginTop:2}}>No tenés nada para responder. Cuando haya algo, aparece acá.</span>
+          </span>
+        </div>
       )}
+    </div>
+  );
 
-      {/* Próximos 15 días: eventos + cumpleaños unificados por proximidad. */}
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",color:"#94A3B8",marginBottom:11}}>Próximos 15 días</div>
-      {agenda.length>0 ? (
-        <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",overflow:"hidden"}}>
+  const bloqueComunicaciones = (
+    <div style={{marginBottom:28}}>
+      <Encabezado titulo="Comunicaciones" cuenta={avisos.length}
+        derecha={<button onClick={()=>onNavigate?.("mensajes")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Mensajes</span></button>}/>
+      <div style={{fontSize:13,color:"#64748B",margin:"-6px 0 12px"}}>{avisos.length?`Avisos · ${avisos.length} sin leer`:"No tenés avisos sin leer."}</div>
+      {avisos.length>0&&(
+        <div style={card}>
+          {avisos.map((a,i)=>(
+            <div key={a.key} style={{padding:"14px 18px",borderTop:i?"1px solid #F1F5F9":"none"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#2563EB"}}>Sin leer</span>
+                <Hijo tag={a.tag}/>
+              </div>
+              <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{a.titulo}</div>
+              {a.dato&&<div style={{fontSize:12.5,color:"#64748B",marginTop:3}}>{a.dato}</div>}
+              <Enlace texto="Leer aviso" onClick={a.ir} style={{marginTop:10}}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const bloqueAgenda = (
+    <div style={{marginBottom:28}}>
+      <Encabezado titulo="Próximos días" derecha={<button onClick={()=>onNavigate?.("clases")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Agenda</span></button>}/>
+      {agenda.length ? (
+        <div style={card}>
           {agenda.map((e,i)=>{
             const d = new Date(e.fecha+"T00:00:00");
-            const c = {hot:{bg:"#3B82F6",fg:"white"}, soon:{bg:"#EFF6FF",fg:"#1D4ED8"}, later:{bg:"#F1F5F9",fg:"#64748B"}}[nivelUrgencia(e.dias)];
             return (
-              <div key={e.key} onClick={e.onPress} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:i===0?"none":"1px solid #F1F5F9",cursor:"pointer"}}>
-                <div style={{width:40,textAlign:"center",flexShrink:0}}>
-                  <div style={{fontSize:9.5,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
-                  <div style={{fontSize:17,fontWeight:700}}>{d.getDate()}</div>
+              <div key={e.key} onClick={e.ir} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",borderTop:i?"1px solid #F1F5F9":"none",cursor:"pointer"}}>
+                <div style={{width:34,textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:10.5,fontWeight:700,letterSpacing:0.6,textTransform:"uppercase",color:"#64748B"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
+                  <div style={{fontSize:20,fontWeight:800,color:"#0F172A",lineHeight:1.1}}>{d.getDate()}</div>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.titulo} {e.emoji}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2,flexWrap:"wrap"}}>
-                    {e.tag?<TagHijo tag={e.tag}/>:<span style={{fontSize:12,color:"#64748B"}}>{e.meta}</span>}
+                  <div style={{fontSize:14.5,fontWeight:700,color:"#0F172A",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.titulo}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:2,minWidth:0}}>
+                    <Hijo tag={e.tag}/>
+                    <span style={{fontSize:12.5,color:"#64748B",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.meta}</span>
                   </div>
                 </div>
-                <span style={{fontSize:11,fontWeight:600,color:c.fg,background:c.bg,padding:"3px 9px",borderRadius:999,flexShrink:0}}>{chipDias(e.dias)}</span>
               </div>
             );
           })}
         </div>
       ) : (
-        <div style={{fontSize:12,color:"#94A3B8",textAlign:"center",padding:"16px 0"}}>Sin eventos ni cumpleaños en los próximos 15 días</div>
+        <div style={{fontSize:13,color:"#64748B"}}>Sin eventos ni cumpleaños en los próximos 15 días.</div>
       )}
-      </div>
+    </div>
+  );
 
-      {/* Aside de escritorio (handoff Tribbu Apoderado Web, Parte 7): mismo
-          contenido ya cargado arriba, solo reordenado — sin queries nuevas.
-          "Aprovecha el ancho", no agrega funcionalidad. */}
-      {!isMobile&&(
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          {datos.menu&&(
-            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18}}>
-              <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:12}}>Menú de hoy</div>
-              <div style={{display:"flex",flexDirection:"column",gap:11}}>
-                {menuHoyItems.map(m=>(
-                  <div key={m.key} style={{display:"flex",alignItems:"center",gap:11}}>
-                    <span style={{fontSize:17}}>{m.emoji}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{m.label}</div>
-                      <div style={{fontSize:13.5,fontWeight:600,marginTop:2,lineHeight:1.35}}>{m.plato}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+  const bloqueMenu = menuFilas.length>0 && (
+    <div style={{marginBottom:28}}>
+      <Encabezado titulo="Menú de hoy" derecha={<button onClick={()=>onNavigate?.("comedor")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Semana</span></button>}/>
+      <div style={{...card,padding:"6px 18px"}}>
+        {menuFilas.map((m,i)=>(
+          <div key={m.label} style={{display:"flex",gap:14,padding:"9px 0",borderTop:i?"1px solid #F1F5F9":"none"}}>
+            <span style={{width:96,flexShrink:0,fontSize:12.5,color:"#64748B"}}>{m.label}</span>
+            <span style={{flex:1,fontSize:14,fontWeight:600,color:"#0F172A"}}>{m.plato}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Escritorio: colectas abiertas como información complementaria (no repite pendientes).
+  const bloqueColectas = !isMobile && colectasAbiertas.length>0 && (
+    <div style={{marginBottom:28}}>
+      <Encabezado titulo="Colectas abiertas" derecha={<button onClick={()=>onNavigate?.("finanzas")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Ver todas</span></button>}/>
+      <div style={card}>
+        {colectasAbiertas.slice(0,4).map((c,i)=>{
+          const debo = (datos.colectasPend||[]).some(p=>p.id===c.id);
+          return (
+            <div key={c.id} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})} style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,padding:"12px 18px",borderTop:i?"1px solid #F1F5F9":"none",cursor:"pointer"}}>
+              <span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>{c.titulo}</span>
+              <span style={{fontSize:12,fontWeight:600,color:debo?"#0F172A":"#64748B",whiteSpace:"nowrap"}}>{debo?"Falta tu aporte":"Al día"}</span>
             </div>
-          )}
-          {(datos.cuotas||[]).filter(c=>c.activa).length>0&&(
-            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>Colectas abiertas</div>
-                <button onClick={()=>onNavigate?.("finanzas")} style={{border:"none",background:"none",color:"#2563EB",fontSize:12,fontWeight:700,cursor:"pointer"}}>Ver todas</button>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {datos.cuotas.filter(c=>c.activa).slice(0,4).map(c=>{
-                  const debo = (datos.colectasPend||[]).some(p=>p.id===c.id);
-                  return (
-                    <div key={c.id} style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,cursor:"pointer"}} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})}>
-                      <span style={{fontSize:13,fontWeight:600,lineHeight:1.4}}>{c.titulo}</span>
-                      <span style={{fontSize:11,fontWeight:800,color:debo?"#F59E0B":"#10B981",whiteSpace:"nowrap"}}>{debo?"Falta tu aporte":"Al día"}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {proximoCumple&&(
-            <div style={{border:"1px solid #E7ECF3",borderRadius:16,background:"white",padding:18,cursor:"pointer"}} onClick={()=>onNavigate?.("cumples")}>
-              <div style={{fontSize:11,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8",marginBottom:12}}>El próximo cumple</div>
-              <div style={{fontSize:14.5,fontWeight:700}}>{proximoCumple.nombre} 🎂</div>
-              <div style={{fontSize:12,color:"#64748B",marginTop:3}}>{new Date(proximoCumple.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}</div>
-            </div>
-          )}
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // Alertas del curso: lo único que se marca en rojo (son urgencias reales).
+  const bloqueAlertas = (datos.alertas||[]).map(al=>{
+    const tag = tagDe(al.curso_id);
+    return (
+      <div key={al.id} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 16px",marginBottom:16,borderRadius:16,border:"1px solid #FECACA",background:"#FEF2F2"}}>
+        <Icono nombre="alerta" size={20} color="#DC2626" style={{marginTop:1}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:12,fontWeight:700,color:"#B91C1C"}}>Alerta del curso{al.hora?` · ${al.hora}`:""}</span>
+            <Hijo tag={tag}/>
+          </div>
+          <div style={{fontSize:14,fontWeight:600,color:"#0F172A",marginTop:3,lineHeight:1.45}}>{al.mensaje}</div>
         </div>
-      )}
+        {isAdmin&&<button onClick={()=>dismissAlerta(al)} aria-label="Quitar alerta" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#94A3B8",padding:2}}>✕</button>}
+      </div>
+    );
+  });
+
+  const bloqueEncontrados = datos.encontradosSemana>0 && (
+    <button onClick={()=>onNavigate?.("perdidos")} style={{...card,width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 16px",marginBottom:28,cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+      <Icono nombre="lupa" size={19} color="#475569"/>
+      <span style={{flex:1,fontSize:13.5,color:"#0F172A"}}><b style={{color:"#0F172A"}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana · ¿es de tu hijo?</span>
+      <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Ver</span>
+    </button>
+  );
+
+  return (
+    <div>
+      {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>{ setFestejoDetalle(null); cargar(); }} onUpdate={cargar}/>}
+      {/* Encabezado: fecha, saludo y el selector "Todos mis hijos ▾" (lo arma App.jsx). */}
+      <div style={{marginBottom:22}}>
+        <div style={{fontSize:13,color:"#64748B"}}>{hoy}</div>
+        <div style={{fontSize:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginTop:2}}>Hola{userName?`, ${userName}`:""}</div>
+        {selector ? <div style={{marginTop:12}}>{selector}</div> : null}
+      </div>
+      {error&&<ErrorMuro onReintentar={cargar} tieneDatos style={{marginBottom:18}}/>}
+      <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"minmax(0,1fr) 340px",gap:28,alignItems:"start"}}>
+        <div style={{minWidth:0}}>
+          {bloqueAlertas}
+          {bloquePendientes}
+          {bloqueComunicaciones}
+          {bloqueEncontrados}
+          {isMobile&&bloqueAgenda}
+          {isMobile&&bloqueMenu}
+        </div>
+        {!isMobile&&(
+          <div style={{minWidth:0}}>
+            {bloqueAgenda}
+            {bloqueMenu}
+            {bloqueColectas}
+          </div>
+        )}
       </div>
     </div>
   );

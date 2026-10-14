@@ -110,3 +110,59 @@ export const DIAS_PARA_CERRAR = 15;
  */
 export const colectasPorCerrar = (colectas, userId, cursosAdmin, hoyStr) =>
   colectas.filter((c) => c.activa && gestionaColecta(c, userId, cursosAdmin) && (diasVencida(c, hoyStr) ?? -1) >= DIAS_PARA_CERRAR);
+
+// ── Inicio "Hoy" (rediseño según el prototipo de Figma, etapa 2) ──────────
+
+/** "Tenés 1 respuesta pendiente" / "Tenés N respuestas pendientes" ("" con 0). */
+export const textoRespuestasPendientes = (n) =>
+  !n ? "" : n === 1 ? "Tenés 1 respuesta pendiente" : `Tenés ${n} respuestas pendientes`;
+
+/**
+ * Pendientes ordenados por vencimiento: lo que vence antes, primero; lo que no
+ * tiene fecha (`vence` null), al final. Estable: a igual fecha respeta el orden
+ * de entrada.
+ */
+export const ordenarPorVencimiento = (items = []) =>
+  items
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => {
+      const va = a.it.vence || "9999-12-31";
+      const vb = b.it.vence || "9999-12-31";
+      return va < vb ? -1 : va > vb ? 1 : a.i - b.i;
+    })
+    .map((x) => x.it);
+
+const fmtDiaSemanaCorto = (s) =>
+  new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "");
+
+/**
+ * Línea de urgencia de un pendiente cuando vence hoy o mañana (si no, null):
+ * avisoVencimiento("Respondé hasta", "2026-10-15", "2026-10-14") →
+ * "Respondé hasta mañana, jue 15 oct".
+ */
+export const avisoVencimiento = (prefijo, fecha, hoyStr) => {
+  if (!fecha || !hoyStr) return null;
+  const dias = Math.round((new Date(fecha + "T00:00:00") - new Date(hoyStr + "T00:00:00")) / 86400000);
+  if (dias === 0) return `${prefijo} hoy`;
+  if (dias === 1) return `${prefijo} mañana, ${fmtDiaSemanaCorto(fecha)}`;
+  return null;
+};
+
+/** "lun 19 oct" — fecha corta para los renglones de dato de Hoy. */
+export const fechaCorta = (s) => (s ? fmtDiaSemanaCorto(s) : "");
+
+/**
+ * Menú de hoy como tabla (Entrada / Principal / Alternativa / Postre), solo
+ * con las filas que tienen algo. Los dos postres van en una fila ("A o B").
+ */
+export const filasMenu = (menu) => {
+  if (!menu) return [];
+  const postres = [menu.postre, menu.postre2].filter(Boolean).join(" o ");
+  return [
+    ["Entrada", menu.entrada],
+    ["Principal", menu.plato],
+    ["Alternativa", menu.plato2],
+    ["Acompañamiento", menu.acompanamiento],
+    ["Postre", postres],
+  ].filter(([, v]) => v).map(([label, plato]) => ({ label, plato }));
+};

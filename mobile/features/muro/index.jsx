@@ -36,7 +36,7 @@ import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { talleresParaAnotarse } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "@shared/perdidos";
-import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, nivelUrgencia } from "@shared/muro";
+import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "@shared/muro";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -58,29 +58,11 @@ const TIPO_CONFIG = {
   vacaciones: { emoji: "🏖️" },
 };
 
-const fmtFechaCorta = (s) =>
-  new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" });
-
-const fmtDiaMesCorto = (s) =>
-  new Date(s + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }).replace(".", "");
-
 const diasHasta = (fechaStr) => {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   return Math.round((new Date(fechaStr + "T00:00:00") - hoy) / 86400000);
 };
-
-// Countdown con urgencia (firma de la dirección A): <3 días lleno, ≤7 teñido, resto neutro.
-function DiasChip({ dias, prefijo = false }) {
-  const label =
-    dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : prefijo ? `en ${dias} días` : `${dias} días`;
-  const nivel = nivelUrgencia(dias);
-  return (
-    <View style={[styles.chip, styles[`chip_${nivel}`]]}>
-      <Text style={[styles.chipTxt, styles[`chipTxt_${nivel}`]]}>{label}</Text>
-    </View>
-  );
-}
 
 export function Muro() {
   const router = useRouter();
@@ -97,11 +79,10 @@ export function Muro() {
   const [refreshing, setRefreshing] = useState(false);
   const [alertaModal, setAlertaModal] = useState(false);
 
-  const hoyLabel = new Date().toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const hoyLabel = (() => {
+    const txt = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", "");
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  })();
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
@@ -153,7 +134,7 @@ export function Muro() {
       userId && misHijosIds.length
         ? supabase
             .from("evento_asistencia")
-            .select("id, asiste, alumno_invitado_id, evento:evento_id(id,titulo,fecha,tipo,curso_id)")
+            .select("id, asiste, alumno_invitado_id, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,curso_id)")
             .in("alumno_invitado_id", misHijosIds)
             .eq("asiste", "pendiente")
         : Promise.resolve({ data: [] }),
@@ -167,7 +148,7 @@ export function Muro() {
         .eq("estado", "abierto")
         .gte("creado_en", new Date(Date.now() - 7 * 86400000).toISOString()),
       misHijosIds.length
-        ? supabase.from("autorizaciones").select("id,titulo,curso_id,fecha_limite,fecha_evento").in("curso_id", cursosScope)
+        ? supabase.from("autorizaciones").select("id,titulo,descripcion,curso_id,fecha_limite,fecha_evento").in("curso_id", cursosScope)
         : Promise.resolve({ data: [] }),
       // Talleres con inscripción abierta (RLS: los que ve la familia) y en qué
       // ya están anotados mis hijos → tarjeta "Inscripción abierta".
@@ -287,15 +268,6 @@ export function Muro() {
     setRefreshing(false);
   };
 
-  const marcarLeidoMuro = async (recId) => {
-    if (!userId) return;
-    await supabase
-      .from("recordatorio_leidos")
-      .upsert({ recordatorio_id: recId, usuario_id: userId }, { onConflict: "recordatorio_id,usuario_id" });
-    setDatos((d) => (d ? { ...d, recordatorios: d.recordatorios.filter((r) => r.id !== recId) } : d));
-    recargarBadge?.();
-  };
-
   const enviarAlerta = async (msg) => {
     await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
     await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: msg, hora: "Ahora", activa: true });
@@ -318,184 +290,99 @@ export function Muro() {
   if (!datos)
     return (
       <View style={[styles.screen, styles.content]}>
-        <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
-        <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
+        <Text style={styles.fecha}>{hoyLabel}</Text>
+        <Text style={styles.hello}>
+          Hola
+          {userName ? `, ${userName}` : ""}
+        </Text>
         <SelectorHijos style={{ marginTop: SPACE.md }} />
         {error ? (
           <ErrorMuro onReintentar={cargar} tieneDatos={false} />
         ) : (
           <>
-            <Text style={styles.label}>Pendientes</Text>
+            <View style={{ height: SPACE.xl }} />
             <SkeletonList rows={3} />
           </>
         )}
       </View>
     );
 
-  const recsVisibles = datos.recordatorios.filter(
-    (r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general"
-  );
+  const fechaHoy = fmtLocalDate();
+  const hora = (h) => (h ? `${String(h).slice(0, 5)} hs` : null);
+  const montoTxt = (c) =>
+    c.monto_sugerido ? `Aporte ${(c.moneda || "$") === "$" ? "$" : `${c.moneda} `}${Number(c.monto_sugerido).toLocaleString("es-AR")}` : null;
+  const unir = (...partes) => partes.filter(Boolean).join(" · ");
+  const irColecta = (c) => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } });
 
-  // ── Pendientes: cards accionables del carrusel. En vista "Todos" las pantallas
-  // destino también están unificadas, así que se navega sin cambiar de acceso. ──
-  const pendientes = [
-    ...recsVisibles.map((r) => ({
-      key: `r-${r.id}`,
-      tipo: "Aviso",
-      dot: t.danger,
-      soft: t.dangerSoft,
-      borde: t.dangerBorder,
-      icon: "bell-alert-outline",
-      btnBg: t.accentSoft,
-      btnFg: BLUE[600],
-      titulo: r.titulo || r.texto,
-      meta: `Sin leer${r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ""}${fmtRangoHora(r.hora_inicio, r.hora_fin) ? ` · ${fmtRangoHora(r.hora_inicio, r.hora_fin)}` : ""}${r.grupo_id ? " · 🏫 Comunicación del colegio" : ""}`,
-      accion: "Marcar leído",
-      tag: tagDeCurso(r.curso_id),
-      onAccion: () => marcarLeidoMuro(r.id),
-      onPress: () => router.push("/(tabs)/recordatorios"),
-      derecha: r.fecha ? { dias: diasHasta(r.fecha) } : null,
-    })),
+  // ── Respuestas pendientes (prototipo "Hoy"): solo lo que pide una acción de
+  // la familia — los avisos sin leer van aparte, en Comunicaciones. Ordenadas
+  // por vencimiento (@shared/muro); la primera va destacada con botón azul.
+  const pendientes = ordenarPorVencimiento([
+    ...(datos.autorizacionesPend || []).map((a) => {
+      const urgencia = avisoVencimiento("Respondé hasta", a.fecha_limite, fechaHoy);
+      return {
+        key: `aut-${a.id}`, tipo: "Autorización", tag: tagDeCurso(a.curso_id), titulo: a.titulo,
+        dato: unir(a.fecha_evento ? `Salida: ${fechaCorta(a.fecha_evento)}` : null, urgencia ? null : a.fecha_limite ? `Responder hasta el ${fechaCorta(a.fecha_limite)}` : "Falta tu respuesta"),
+        detalle: a.descripcion || null, vence: a.fecha_limite || null, urgencia,
+        accion: "Responder autorización", ir: () => router.push("/(tabs)/autorizaciones"),
+      };
+    }),
     ...datos.colectasPend.map((c) => ({
-      key: `c-${c.id}`,
-      tipo: "Colecta",
-      dot: t.warning,
-      soft: t.warningSoft,
-      borde: t.warningBorder,
-      icon: "cash-multiple",
-      btnBg: t.accentSoft,
-      btnFg: BLUE[600],
-      titulo: c.titulo,
-      meta: "Tu aporte todavía no está registrado",
-      accion: "Registrar pago",
-      tag: tagDeCurso(c.curso_id),
-      onAccion: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
-      onPress: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
-      derecha: c.monto_sugerido
-        ? { monto: `${c.moneda || "$"} ${Number(c.monto_sugerido).toLocaleString("es-AR")}` }
-        : null,
-    })),
-    ...(datos.porCerrar || []).map((c) => ({
-      key: `pc-${c.id}`,
-      tipo: "Colecta",
-      dot: t.warning,
-      soft: t.warningSoft,
-      borde: t.warningBorder,
-      icon: "lock-outline",
-      btnBg: t.warningSoft,
-      btnFg: "#B45309",
-      titulo: c.titulo,
-      meta: `Venció hace ${diasVencida(c, fmtLocalDate())} días · ¿Terminó la colecta?`,
-      accion: "Cerrar",
-      tag: tagDeCurso(c.curso_id),
-      onAccion: async () => {
-        await supabase.from("colectas").update({ activa: false }).eq("id", c.id);
-        cargar();
-      },
-      onPress: () => router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(c.id) } }),
-      derecha: null,
+      key: `c-${c.id}`, tipo: "Colecta", tag: tagDeCurso(c.curso_id), titulo: c.titulo,
+      dato: unir(montoTxt(c), "Todavía no registrado"), detalle: null,
+      vence: c.fecha_limite || c.vencimiento || null, urgencia: avisoVencimiento("Vence", c.fecha_limite || c.vencimiento, fechaHoy),
+      accion: "Registrar mi pago", ir: () => irColecta(c),
     })),
     ...datos.invitaciones.map((ev) => ({
-      key: `i-${ev.id}`,
-      tipo: "Invitación",
-      dot: t.success,
-      soft: t.successSoft,
-      borde: t.successBorder,
-      icon: "party-popper",
-      btnBg: t.textStrong,
-      btnFg: t.onAccent,
-      titulo: ev.titulo,
-      meta: "Falta confirmar asistencia",
-      accion: "Responder",
-      tag: tagDeCurso(ev.curso_id),
-      onAccion: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
-      onPress: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
-      derecha: { fecha: fmtDiaMesCorto(ev.fecha) },
-    })),
-    ...(datos.autorizacionesPend || []).map((a) => ({
-      key: `aut-${a.id}`,
-      tipo: "Autorización",
-      dot: t.warning,
-      soft: t.warningSoft,
-      borde: t.warningBorder,
-      icon: "file-sign",
-      btnBg: t.warningSoft,
-      btnFg: t.warning,
-      titulo: a.titulo,
-      meta: a.fecha_limite ? `Responder hasta el ${fmtDiaMesCorto(a.fecha_limite)}` : "Falta tu respuesta",
-      accion: "Responder",
-      tag: tagDeCurso(a.curso_id),
-      onAccion: () => router.push("/(tabs)/autorizaciones"),
-      onPress: () => router.push("/(tabs)/autorizaciones"),
-      derecha: a.fecha_evento ? { fecha: fmtDiaMesCorto(a.fecha_evento) } : null,
+      key: `i-${ev.id}`, tipo: "Invitación", tag: tagDeCurso(ev.curso_id), titulo: ev.titulo,
+      dato: unir(fechaCorta(ev.fecha), hora(ev.hora), ev.lugar, "Asistencia sin confirmar"), detalle: null,
+      vence: ev.fecha, urgencia: avisoVencimiento("Es", ev.fecha, fechaHoy),
+      accion: "Confirmar asistencia", ir: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
     })),
     ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
-      key: `tal-${x.id}`,
-      tipo: "Taller",
-      dot: "#7C3AED",
-      soft: "#F5F3FF",
-      borde: "#DDD6FE",
-      icon: "palette",
-      btnBg: "#F5F3FF",
-      btnFg: "#7C3AED",
-      titulo: `Inscripción abierta: ${x.nombre}`,
-      meta: `Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}${x.inscripcion_hasta ? ` · hasta el ${fmtDiaMesCorto(x.inscripcion_hasta)}` : ""}`,
-      accion: "Ver taller",
-      tag: null,
-      onAccion: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
-      onPress: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
-      derecha: x.inscripcion_hasta ? { fecha: fmtDiaMesCorto(x.inscripcion_hasta) } : null,
+      key: `tal-${x.id}`, tipo: "Inscripción abierta", tag: null, titulo: x.nombre,
+      dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null), detalle: null,
+      vence: x.inscripcion_hasta || null, urgencia: avisoVencimiento("Inscripción hasta", x.inscripcion_hasta, fechaHoy),
+      accion: "Ver el taller", ir: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
     })),
     ...datos.encuestasPend.map((e) => ({
-      key: `enc-${e.id}`,
-      tipo: "Encuesta",
-      dot: BLUE[600],
-      soft: t.accentSoft,
-      borde: BLUE[200],
-      icon: "poll",
-      btnBg: t.accentSoft,
-      btnFg: BLUE[600],
-      titulo: e.pregunta,
-      meta: "Todavía no votaste",
-      accion: "Votar",
-      tag: tagDeCurso(e.curso_id),
-      onAccion: () => router.push("/(tabs)/encuestas"),
-      onPress: () => router.push("/(tabs)/encuestas"),
-      derecha: e.fecha_cierre ? { fecha: fmtDiaMesCorto(e.fecha_cierre) } : null,
+      key: `enc-${e.id}`, tipo: "Encuesta", tag: tagDeCurso(e.curso_id), titulo: e.pregunta,
+      dato: unir(e.fecha_cierre ? `Cierra el ${fechaCorta(e.fecha_cierre)}` : null, "Todavía no votaste"), detalle: null,
+      vence: e.fecha_cierre || null, urgencia: avisoVencimiento("Cierra", e.fecha_cierre, fechaHoy),
+      accion: "Votar en la encuesta", ir: () => router.push("/(tabs)/encuestas"),
     })),
-  ];
+    ...(datos.porCerrar || []).map((c) => ({
+      key: `pc-${c.id}`, tipo: "Colecta para cerrar", tag: tagDeCurso(c.curso_id), titulo: c.titulo,
+      dato: `Venció hace ${diasVencida(c, fechaHoy)} días · ¿Terminó la colecta?`, detalle: null, vence: null, urgencia: null,
+      accion: "Ver la colecta", ir: () => irColecta(c),
+    })),
+  ]);
+  const [destacado, ...resto] = pendientes;
 
-  // ── Agenda unificada: eventos + cumpleaños por proximidad ──
+  // ── Comunicaciones: avisos sin leer (leerlo en Avisos lo marca como leído).
+  const avisos = datos.recordatorios
+    .filter((r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general")
+    .map((r) => ({
+      key: `r-${r.id}`, tag: tagDeCurso(r.curso_id), titulo: r.titulo || r.texto,
+      dato: unir(r.grupo_id ? "Comunicación del colegio" : "Aviso del curso", r.fecha ? fechaCorta(r.fecha) : null, fmtRangoHora(r.hora_inicio, r.hora_fin) || null),
+      ir: () => router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(r.id), t: String(Date.now()) } }),
+    }));
+
+  // ── Próximos días: eventos + cumpleaños de los próximos 15 días.
   const agenda = [
     ...datos.eventos.map((e) => ({
-      key: `e-${e.id}`,
-      fecha: e.fecha,
-      dias: diasHasta(e.fecha),
-      titulo: `${e.titulo} ${(TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto).emoji}`,
-      meta: e.lugar ? `📍 ${e.lugar}` : "Todo el curso",
-      tag: tagDeCurso(e.curso_id),
-      onPress: () => router.push({ pathname: "/(tabs)/calendario", params: { openFecha: e.fecha } }),
+      key: `e-${e.id}`, fecha: e.fecha, dias: diasHasta(e.fecha), titulo: e.titulo,
+      meta: e.lugar || "Todo el curso", tag: tagDeCurso(e.curso_id),
+      ir: () => router.push({ pathname: "/(tabs)/calendario", params: { openFecha: e.fecha } }),
     })),
     ...datos.bdayList.map((b) => ({
-      key: b.id,
-      fecha: b.fecha,
-      dias: b.dias,
-      titulo: `Cumple de ${b.nombre} 🎂`,
-      meta: b.esMio ? `${b.tipo} · tu hijo/a` : b.tipo,
-      tag: tagDeCurso(b.curso_id),
-      onPress: () => router.push("/(tabs)/cumples"),
+      key: b.id, fecha: b.fecha, dias: b.dias, titulo: `Cumple de ${b.nombre}`, meta: "Cumpleaños",
+      tag: tagDeCurso(b.curso_id), ir: () => router.push("/(tabs)/cumples"),
     })),
   ]
     .sort((a, b) => a.dias - b.dias)
     .slice(0, 6);
-
-  const platoProx =
-    datos.menuProx &&
-    ([datos.menuProx.plato, datos.menuProx.plato2, datos.menuProx.entrada, datos.menuProx.acompanamiento].filter(Boolean)[0] ||
-      "menú publicado");
-  const diaProx =
-    datos.menuProx &&
-    new Date(datos.menuProx.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric" });
+  const menuFilas = filasMenu(datos.menu);
 
   return (
     <ScrollView
@@ -503,143 +390,188 @@ export function Muro() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
-      <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
-        <SelectorHijos style={{ marginTop: SPACE.md }} />
+      <Text style={styles.fecha}>{hoyLabel}</Text>
+      <Text style={styles.hello}>
+        Hola
+        {userName ? `, ${userName}` : ""}
+      </Text>
+      <SelectorHijos style={{ marginTop: SPACE.md }} />
 
       {error ? <ErrorMuro onReintentar={cargar} tieneDatos style={{ marginTop: SPACE.lg }} /> : null}
 
       {isAdmin ? (
         <Pressable onPress={() => setAlertaModal(true)} style={styles.alertaCta}>
-          <Text style={styles.alertaCtaTxt}>🚨 Publicar alerta al curso</Text>
+          <Text style={styles.alertaCtaTxt}>Publicar alerta al curso</Text>
         </Pressable>
       ) : null}
 
-      {(datos.alertas || []).map((a) => {
-        const tag = tagDeCurso(a.curso_id);
-        return (
-          <View key={a.id} style={styles.alerta}>
-            <Text style={styles.alertaEmoji}>🚨</Text>
-            <View style={styles.flex1}>
-              <Text style={styles.alertaMeta}>
-                {tag ? tag.nombre : cursoNombre} · {a.hora}
-              </Text>
-              <Text style={styles.alertaMsg}>{a.mensaje}</Text>
+      {/* Alertas del curso: lo único en rojo (son urgencias reales). */}
+      {(datos.alertas || []).map((a) => (
+        <View key={a.id} style={styles.alerta}>
+          <MaterialCommunityIcons name="alert-outline" size={20} color={t.danger} />
+          <View style={styles.flex1}>
+            <View style={styles.filaTop}>
+              <Text style={styles.alertaMeta}>Alerta del curso{a.hora ? ` · ${a.hora}` : ""}</Text>
+              <Hijo tag={tagDeCurso(a.curso_id)} />
             </View>
-            {isAdmin ? (
-              <Pressable onPress={() => dismissAlerta(a.id)} hitSlop={8} style={styles.alertaClose}>
-                <Text style={styles.alertaCloseTxt}>✕</Text>
-              </Pressable>
-            ) : null}
+            <Text style={styles.alertaMsg}>{a.mensaje}</Text>
           </View>
-        );
-      })}
+          {isAdmin ? (
+            <Pressable onPress={() => dismissAlerta(a.id)} hitSlop={8} style={styles.alertaClose} accessibilityLabel="Quitar alerta">
+              <MaterialCommunityIcons name="close" size={18} color={SLATE[400]} />
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
 
-      {/* ── Pendientes ── */}
-      <Text style={styles.label}>
-        Pendientes{pendientes.length ? ` · ${pendientes.length}` : ""}
-      </Text>
-      {pendientes.length === 0 ? (
-        <View style={styles.alDia}>
+      {/* ── Respuestas pendientes ── */}
+      {pendientes.length ? (
+        <>
+          <Text style={styles.seccion}>{textoRespuestasPendientes(pendientes.length)}</Text>
+          <View style={[styles.card, styles.destacado]}>
+            <View style={styles.filaTop}>
+              <Text style={styles.tipo}>{destacado.tipo}</Text>
+              <Hijo tag={destacado.tag} />
+            </View>
+            {destacado.urgencia ? (
+              <View style={styles.urgencia}>
+                <MaterialCommunityIcons name="clock-outline" size={14} color="#B45309" />
+                <Text style={styles.urgenciaTxt}>{destacado.urgencia}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.destTitulo}>{destacado.titulo}</Text>
+            {destacado.dato ? <Text style={styles.dato}>{destacado.dato}</Text> : null}
+            {destacado.detalle ? <Text style={styles.dato} numberOfLines={2}>{destacado.detalle}</Text> : null}
+            <Pressable onPress={destacado.ir} style={styles.boton} accessibilityRole="button">
+              <Text style={styles.botonTxt}>{destacado.accion}</Text>
+            </Pressable>
+          </View>
+          {resto.length ? (
+            <View style={[styles.card, { marginTop: SPACE.md }]}>
+              {resto.map((p, i) => (
+                <View key={p.key} style={[styles.fila, i > 0 && styles.filaBorde]}>
+                  <View style={styles.filaTop}>
+                    <Text style={styles.tipo}>{p.tipo}</Text>
+                    <Hijo tag={p.tag} />
+                  </View>
+                  <Text style={styles.filaTitulo}>{p.titulo}</Text>
+                  {p.dato ? (
+                    <Text style={styles.dato}>
+                      {p.urgencia ? <Text style={styles.datoUrgente}>{p.urgencia} · </Text> : null}
+                      {p.dato}
+                    </Text>
+                  ) : null}
+                  <Enlace texto={p.accion} onPress={p.ir} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <View style={[styles.card, styles.alDia]}>
           <View style={styles.alDiaIcon}>
-            <MaterialCommunityIcons name="check" size={19} color={t.success} />
+            <MaterialCommunityIcons name="check" size={19} color={SLATE[600]} />
           </View>
           <View style={styles.flex1}>
-            <Text style={styles.alDiaTitulo}>Estás al día ✨</Text>
-            <Text style={styles.alDiaTxt}>
-              No tenés pendientes. Cuando haya algo para resolver, aparece acá.
-            </Text>
+            <Text style={styles.alDiaTitulo}>Estás al día</Text>
+            <Text style={styles.alDiaTxt}>No tenés nada para responder. Cuando haya algo, aparece acá.</Text>
           </View>
-        </View>
-      ) : (
-        <View style={styles.pendientesList}>
-          {pendientes.map((p) => (
-            <PendienteCard key={p.key} p={p} />
-          ))}
         </View>
       )}
 
+      {/* ── Comunicaciones ── */}
+      <View style={styles.encabezado}>
+        <Text style={[styles.seccion, styles.seccionEnFila]}>Comunicaciones</Text>
+        {avisos.length ? (
+          <View style={styles.cuenta}>
+            <Text style={styles.cuentaTxt}>{avisos.length}</Text>
+          </View>
+        ) : null}
+        <View style={styles.flex1} />
+        <Pressable onPress={() => router.push("/(tabs)/mensajes")} hitSlop={8}>
+          <Text style={styles.link}>Mensajes</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.subSeccion}>{avisos.length ? `Avisos · ${avisos.length} sin leer` : "No tenés avisos sin leer."}</Text>
+      {avisos.length ? (
+        <View style={styles.card}>
+          {avisos.map((a, i) => (
+            <View key={a.key} style={[styles.fila, i > 0 && styles.filaBorde]}>
+              <View style={styles.filaTop}>
+                <Text style={styles.sinLeer}>Sin leer</Text>
+                <Hijo tag={a.tag} />
+              </View>
+              <Text style={styles.filaTitulo}>{a.titulo}</Text>
+              {a.dato ? <Text style={styles.dato}>{a.dato}</Text> : null}
+              <Enlace texto="Leer aviso" onPress={a.ir} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {datos.encontradosSemana > 0 ? (
-        <Pressable onPress={() => router.push("/(tabs)/perdidos")} style={styles.perdidosCard}>
-          <Text style={styles.perdidosEmoji}>🧦</Text>
-          <Text style={styles.perdidosTxt}>
-            <Text style={styles.perdidosNum}>
+        <Pressable onPress={() => router.push("/(tabs)/perdidos")} style={[styles.card, styles.encontrados]}>
+          <MaterialCommunityIcons name="magnify" size={20} color={SLATE[600]} />
+          <Text style={styles.encontradosTxt}>
+            <Text style={styles.encontradosNum}>
               {datos.encontradosSemana} {datos.encontradosSemana === 1 ? "objeto encontrado" : "objetos encontrados"}
             </Text>{" "}
             esta semana · ¿es de tu hijo?
           </Text>
-          <Text style={styles.perdidosVer}>Ver</Text>
+          <Text style={styles.link}>Ver</Text>
         </Pressable>
       ) : null}
 
-      {/* ── Próximos 15 días ── */}
-      <Text style={styles.label}>Próximos 15 días</Text>
-      <View style={styles.card}>
-        {agenda.length === 0 ? (
-          <Text style={styles.agendaVacia}>Sin eventos ni cumpleaños en los próximos 15 días</Text>
-        ) : (
-          agenda.map((item, i) => {
+      {/* ── Próximos días ── */}
+      <View style={styles.encabezado}>
+        <Text style={[styles.seccion, styles.seccionEnFila, styles.flex1]}>Próximos días</Text>
+        <Pressable onPress={() => router.push("/(tabs)/calendario")} hitSlop={8}>
+          <Text style={styles.link}>Agenda</Text>
+        </Pressable>
+      </View>
+      {agenda.length ? (
+        <View style={styles.card}>
+          {agenda.map((item, i) => {
             const f = new Date(item.fecha + "T00:00:00");
             const dow = f.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
             return (
-              <Pressable key={item.key} onPress={item.onPress} style={[styles.arow, i > 0 && styles.arowBorde]}>
+              <Pressable key={item.key} onPress={item.ir} style={[styles.arow, i > 0 && styles.filaBorde]}>
                 <View style={styles.fechaCol}>
                   <Text style={styles.fechaDow}>{dow}</Text>
                   <Text style={styles.fechaNum}>{f.getDate()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                  <Text style={styles.arowTitulo} numberOfLines={1}>{item.titulo}</Text>
+                  <Text style={styles.filaTitulo} numberOfLines={1}>{item.titulo}</Text>
                   <View style={styles.arowMetaRow}>
-                    {item.tag ? (
-                      <>
-                        <View style={[styles.ptagDot, { backgroundColor: item.tag.color }]} />
-                        <Text style={styles.ptagTxt} numberOfLines={1}>{item.tag.nombre}</Text>
-                        <Text style={styles.arowMeta}>·</Text>
-                      </>
-                    ) : null}
-                    <Text style={[styles.arowMeta, styles.flex1]} numberOfLines={1}>{item.meta}</Text>
+                    <Hijo tag={item.tag} />
+                    <Text style={[styles.dato, styles.flex1, { marginTop: 0 }]} numberOfLines={1}>{item.meta}</Text>
                   </View>
                 </View>
-                <DiasChip dias={item.dias} />
               </Pressable>
             );
-          })
-        )}
-        <Pressable onPress={() => router.push("/(tabs)/calendario")} style={styles.cardFooter}>
-          <Text style={styles.cardFooterTxt}>Ver calendario completo</Text>
-          <MaterialCommunityIcons name="chevron-right" size={17} color={BLUE[600]} />
-        </Pressable>
-      </View>
+          })}
+        </View>
+      ) : (
+        <Text style={styles.subSeccion}>Sin eventos ni cumpleaños en los próximos 15 días.</Text>
+      )}
 
-      {/* ── Comedor ── */}
-      {datos.menu || datos.menuProx ? (
+      {/* ── Menú de hoy ── */}
+      {menuFilas.length ? (
         <>
-          <Text style={styles.label}>Comedor</Text>
-          <Pressable onPress={() => router.push("/(tabs)/comedor")} style={[styles.card, styles.comedor]}>
-            <View style={styles.tile}>
-              <Text style={styles.tileTxt}>🍽️</Text>
-            </View>
-            <View style={styles.flex1}>
-              {datos.menu ? (
-                <>
-                  <Text style={styles.arowTitulo}>Menú de hoy</Text>
-                  <Text style={styles.arowMeta} numberOfLines={2}>
-                    {[datos.menu.entrada, datos.menu.plato, datos.menu.plato2, datos.menu.acompanamiento, datos.menu.postre, datos.menu.postre2]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.arowTitulo}>Hoy no hay servicio</Text>
-                  <Text style={styles.arowMeta} numberOfLines={1}>
-                    {diaProx ? `${diaProx.charAt(0).toUpperCase()}${diaProx.slice(1)}: ${platoProx}` : ""}
-                  </Text>
-                </>
-              )}
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
-          </Pressable>
+          <View style={styles.encabezado}>
+            <Text style={[styles.seccion, styles.seccionEnFila, styles.flex1]}>Menú de hoy</Text>
+            <Pressable onPress={() => router.push("/(tabs)/comedor")} hitSlop={8}>
+              <Text style={styles.link}>Semana</Text>
+            </Pressable>
+          </View>
+          <View style={[styles.card, styles.menuCard]}>
+            {menuFilas.map((m, i) => (
+              <View key={m.label} style={[styles.menuFila, i > 0 && styles.filaBorde]}>
+                <Text style={styles.menuLabel}>{m.label}</Text>
+                <Text style={styles.menuPlato}>{m.plato}</Text>
+              </View>
+            ))}
+          </View>
         </>
       ) : null}
 
@@ -666,47 +598,23 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-// Card de la lista de pendientes: tipo + título + vencimiento + acción
-// primaria (44px, ver decisión del handoff: la accesibilidad gana sobre la
-// densidad) + "Ver" + chip de urgencia/monto/fecha a la derecha.
-function PendienteCard({ p }) {
+// Punto del color del hijo + nombre (solo en la vista "Todos").
+function Hijo({ tag }) {
+  if (!tag) return null;
   return (
-    <View style={[styles.pcard, { borderColor: p.borde || t.borderStrong }]}>
-      <View style={[styles.picon, { backgroundColor: p.soft || t.surfaceSunken }]}>
-        <MaterialCommunityIcons name={p.icon || "information-outline"} size={19} color={p.dot} />
-      </View>
-      <View style={styles.flex1}>
-        <View style={styles.ptop}>
-          <Text style={[styles.ptipo, { color: p.dot }]}>{p.tipo}</Text>
-          {p.tag ? (
-            <>
-              <View style={styles.pdotSep} />
-              <Text style={styles.ptagTxt} numberOfLines={1}>{p.tag.nombre}</Text>
-            </>
-          ) : null}
-        </View>
-        <Text style={styles.ptitulo} numberOfLines={2}>{p.titulo}</Text>
-        <Text style={styles.pmeta} numberOfLines={1}>{p.meta}</Text>
-        <View style={styles.pact}>
-          <Pressable onPress={p.onAccion} hitSlop={8} style={styles.pbtnPrimary}>
-            <Text style={[styles.pbtnPrimaryTxt, { color: p.btnFg }]}>{p.accion}</Text>
-          </Pressable>
-          <Pressable onPress={p.onPress} hitSlop={8} style={styles.pbtnVer}>
-            <Text style={styles.pbtnVerTxt}>Ver</Text>
-          </Pressable>
-          <View style={styles.flex1} />
-          {p.derecha?.dias != null ? (
-            <DiasChip dias={p.derecha.dias} prefijo />
-          ) : p.derecha?.monto ? (
-            <Text style={styles.pmonto}>{p.derecha.monto}</Text>
-          ) : p.derecha?.fecha ? (
-            <View style={[styles.chip, styles.chip_later]}>
-              <Text style={[styles.chipTxt, styles.chipTxt_later]}>{p.derecha.fecha}</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
+    <View style={styles.hijo}>
+      <View style={[styles.hijoDot, { backgroundColor: tag.color }]} />
+      <Text style={styles.hijoTxt} numberOfLines={1}>{tag.nombre}</Text>
     </View>
+  );
+}
+
+function Enlace({ texto, onPress }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} style={styles.enlace} accessibilityRole="link">
+      <Text style={styles.link}>{texto}</Text>
+      <MaterialCommunityIcons name="arrow-right" size={16} color={BLUE[600]} />
+    </Pressable>
   );
 }
 
@@ -743,163 +651,79 @@ function AlertaModal({ visible, onClose, onEnviar }) {
 }
 
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown protagonista.
+// Estilos sobrios (prototipo "Hoy"): blanco, bordes finos, grises; el azul solo
+// en la acción principal y los enlaces; el color del hijo solo en su punto.
 const styles = StyleSheet.create({
-  perdidosCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, marginTop: SPACE.md, borderRadius: 14, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
-  perdidosEmoji: { fontSize: 20 },
-  perdidosTxt: { flex: 1, fontSize: 13, color: t.text },
-  perdidosNum: { fontWeight: "800" },
-  perdidosVer: { fontSize: 12.5, fontWeight: "700", color: t.accent },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
 
-  eyebrow: { ...TYPE.label, color: t.textFaint },
-  hello: { fontSize: 21, fontWeight: "700", color: t.textStrong, marginTop: 6, letterSpacing: -0.3 },
+  fecha: { fontSize: 13, color: t.textMuted },
+  hello: { fontSize: 26, fontWeight: "800", color: t.textStrong, marginTop: 2, letterSpacing: -0.4 },
 
-  label: { ...TYPE.label, fontWeight: "600", color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
+  seccion: { fontSize: 18, fontWeight: "800", color: t.textStrong, letterSpacing: -0.2, marginTop: SPACE.xl, marginBottom: SPACE.md },
+  seccionEnFila: { marginTop: 0, marginBottom: 0 },
+  encabezado: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: SPACE.xl, marginBottom: SPACE.md },
+  subSeccion: { fontSize: 13, color: t.textMuted, marginTop: -6, marginBottom: SPACE.md },
+  cuenta: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: RADIUS.full, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center" },
+  cuentaTxt: { fontSize: 12, fontWeight: "700", color: SLATE[600] },
+  link: { fontSize: 13.5, fontWeight: "700", color: BLUE[600] },
 
-  // lista vertical de pendientes (antes carrusel horizontal)
-  pendientesList: { gap: SPACE.sm },
-  pcard: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-    backgroundColor: t.surface,
-    borderWidth: 1,
-    borderColor: t.borderStrong,
-    borderRadius: RADIUS.xl,
-    padding: 13,
-  },
-  picon: { width: 36, height: 36, borderRadius: RADIUS.md + 1, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  ptop: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pdotSep: { width: 3, height: 3, borderRadius: RADIUS.full, backgroundColor: SLATE[300] },
-  // tag de hijo en cards de otro curso (modo unificado) — también usado en la fila de agenda
-  ptagDot: { width: 8, height: 8, borderRadius: RADIUS.full },
-  ptagTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
-  ptipo: { fontSize: 9.5, fontWeight: "700", letterSpacing: 1.1, textTransform: "uppercase" },
-  ptitulo: { fontSize: 14, fontWeight: "600", color: t.textStrong, marginTop: 3, lineHeight: 18 },
-  pmeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
-  pact: { flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 },
-  pbtnPrimary: { paddingVertical: 4, alignItems: "center", justifyContent: "center" },
-  pbtnPrimaryTxt: { fontSize: 12.5, fontWeight: "600" },
-  pbtnVer: { paddingVertical: 4, alignItems: "center", justifyContent: "center" },
-  pbtnVerTxt: { fontSize: 12.5, fontWeight: "600", color: t.textMuted },
-  pmonto: { ...TYPE.money, fontSize: 13, color: t.textStrong },
+  card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.xl, overflow: "hidden" },
+  destacado: { padding: 16 },
+  filaTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  tipo: { fontSize: 12.5, fontWeight: "600", color: t.textMuted },
+  sinLeer: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  urgencia: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 4, paddingHorizontal: 10, borderRadius: RADIUS.sm, backgroundColor: "#FFFBEB" },
+  urgenciaTxt: { fontSize: 12.5, fontWeight: "600", color: "#B45309" },
+  destTitulo: { fontSize: 18, fontWeight: "800", color: t.textStrong, marginTop: 10, lineHeight: 23 },
+  dato: { fontSize: 13, color: t.textMuted, marginTop: 4, lineHeight: 18 },
+  datoUrgente: { color: "#B45309", fontWeight: "600" },
+  boton: { alignSelf: "flex-start", marginTop: 14, minHeight: 44, paddingHorizontal: 18, borderRadius: RADIUS.lg, backgroundColor: BLUE[600], alignItems: "center", justifyContent: "center" },
+  botonTxt: { fontSize: 14.5, fontWeight: "700", color: "#FFFFFF" },
+  fila: { paddingHorizontal: 16, paddingVertical: 14 },
+  filaBorde: { borderTopWidth: 1, borderTopColor: t.border },
+  filaTitulo: { fontSize: 15, fontWeight: "700", color: t.textStrong, marginTop: 4, lineHeight: 20 },
+  enlace: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, minHeight: 28 },
+
+  hijo: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  hijoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
+  hijoTxt: { fontSize: 12, fontWeight: "600", color: SLATE[600] },
+
+  alDia: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 16, marginTop: SPACE.xl },
+  alDiaIcon: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center" },
+  alDiaTitulo: { fontSize: 15, fontWeight: "700", color: t.textStrong },
+  alDiaTxt: { fontSize: 13, color: t.textMuted, marginTop: 2, lineHeight: 18 },
+
+  encontrados: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, marginTop: SPACE.xl },
+  encontradosTxt: { flex: 1, fontSize: 13.5, color: t.text },
+  encontradosNum: { fontWeight: "800", color: t.textStrong },
+
+  arow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12 },
+  fechaCol: { width: 36, alignItems: "center" },
+  fechaDow: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", color: t.textMuted },
+  fechaNum: { fontSize: 20, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  arowMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
+
+  menuCard: { paddingHorizontal: 16, paddingVertical: 4 },
+  menuFila: { flexDirection: "row", gap: 14, paddingVertical: 10 },
+  menuLabel: { width: 100, fontSize: 13, color: t.textMuted },
+  menuPlato: { flex: 1, fontSize: 14.5, fontWeight: "600", color: t.textStrong },
+
+  alertaCta: { marginTop: SPACE.lg, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 14, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
+  alertaCtaTxt: { color: t.danger, fontSize: 13, fontWeight: "700" },
+  alerta: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14, marginTop: SPACE.lg, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+  alertaMeta: { fontSize: 12, fontWeight: "700", color: "#B91C1C" },
+  alertaMsg: { fontSize: 14, fontWeight: "600", color: t.textStrong, marginTop: 3, lineHeight: 20 },
+  alertaClose: { padding: 2 },
 
   // error al cargar/actualizar el muro
-  errorCard: {
-    alignItems: "center",
-    textAlign: "center",
-    backgroundColor: t.dangerSoft,
-    borderWidth: 1,
-    borderColor: t.dangerBorder,
-    borderRadius: RADIUS.xl,
-    padding: SPACE.xl,
-  },
+  errorCard: { alignItems: "center", backgroundColor: t.dangerSoft, borderWidth: 1, borderColor: t.dangerBorder, borderRadius: RADIUS.xl, padding: SPACE.xl },
   errorEmoji: { fontSize: 28 },
   errorTitulo: { fontSize: 14.5, fontWeight: "800", color: t.textStrong, marginTop: 8, textAlign: "center" },
   errorTxt: { fontSize: 12.5, color: t.textMuted, marginTop: 4, textAlign: "center", lineHeight: 17 },
   errorBtn: { marginTop: 14, minHeight: 40, paddingHorizontal: 18, borderRadius: RADIUS.md, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
   errorBtnTxt: { color: t.onAccent, fontSize: 13, fontWeight: "800" },
-
-  // empty state de pendientes
-  alDia: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACE.md,
-    backgroundColor: t.surface,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: SLATE[200],
-    borderRadius: RADIUS.xl,
-    padding: SPACE.lg - 2,
-  },
-  alDiaIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.full,
-    backgroundColor: t.successSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  alDiaTitulo: { fontSize: 14, fontWeight: "600", color: t.textStrong },
-  alDiaTxt: { fontSize: 12, color: t.textMuted, marginTop: 2, lineHeight: 17 },
-
-  // agenda unificada
-  card: {
-    backgroundColor: t.surface,
-    borderWidth: 1,
-    borderColor: t.borderStrong,
-    borderRadius: RADIUS.xl,
-    overflow: "hidden",
-  },
-  arow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 13 },
-  arowBorde: { borderTopWidth: 1, borderTopColor: t.border },
-  fechaCol: { width: 42, alignItems: "center" },
-  fechaDow: { fontSize: 10, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase", color: t.textFaint },
-  fechaNum: { fontSize: 17, fontWeight: "700", color: t.textStrong, fontVariant: ["tabular-nums"] },
-  arowTitulo: { fontSize: 14.5, fontWeight: "600", color: t.textStrong },
-  arowMeta: { fontSize: 12, color: t.textMuted },
-  arowMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  agendaVacia: { fontSize: 12.5, color: t.textFaint, textAlign: "center", padding: SPACE.xl },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 13,
-    borderTopWidth: 1,
-    borderTopColor: t.border,
-    minHeight: 44,
-  },
-  cardFooterTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[600] },
-
-  // countdown chips
-  chip: { borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: 9 },
-  chipTxt: { fontSize: 11.5, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  chip_hot: { backgroundColor: t.accent },
-  chipTxt_hot: { color: t.onAccent },
-  chip_soon: { backgroundColor: t.accentSoft },
-  chipTxt_soon: { color: BLUE[600] },
-  chip_later: { backgroundColor: SLATE[100] },
-  chipTxt_later: { color: t.textMuted },
-
-  // comedor
-  comedor: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 13 },
-  tile: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.md + 1,
-    backgroundColor: SLATE[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tileTxt: { fontSize: 18 },
-
-  // alerta del curso (se conserva del muro anterior)
-  alertaCta: {
-    minHeight: 44,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1.5,
-    borderColor: "#FCA5A5",
-    backgroundColor: t.dangerSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: SPACE.lg,
-  },
-  alertaCtaTxt: { color: t.danger, fontSize: 13, fontWeight: "700" },
-  alerta: {
-    flexDirection: "row",
-    gap: 10,
-    backgroundColor: "#DC2626",
-    borderRadius: RADIUS.lg,
-    padding: 14,
-    marginTop: SPACE.lg,
-  },
-  alertaEmoji: { fontSize: 22 },
-  alertaMeta: { fontSize: 10, fontWeight: "800", color: "rgba(255,255,255,0.7)", textTransform: "uppercase", marginBottom: 3 },
-  alertaMsg: { fontSize: 13, fontWeight: "700", color: t.textInverse, lineHeight: 19 },
-  alertaClose: { width: 28, height: 28, borderRadius: RADIUS.sm, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  alertaCloseTxt: { color: t.textInverse, fontSize: 14 },
 
   // modal de alerta
   modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },

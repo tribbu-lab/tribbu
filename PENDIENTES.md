@@ -21,7 +21,7 @@ Plan detallado en `specs/rediseno-etapas-2-3-4.md` (etapa 1, la navegación,
 ya está en `main`). Criterio: **sobrio en colores**, sin dependencias nuevas,
 web y app juntas, mostrar capturas antes de commitear.
 
-- [ ] **Etapa 2 — Inicio "Hoy"** como el prototipo: "Tenés N respuestas
+- [x] **Etapa 2 — Inicio "Hoy"** (hecha 2026-10-14) como el prototipo: "Tenés N respuestas
       pendientes" (la más urgente destacada con botón azul, el resto en una
       tarjeta con enlaces), Comunicaciones aparte con "Leer aviso", Próximos
       días sin chips de color, Menú de hoy en tabla.

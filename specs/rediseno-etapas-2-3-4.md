@@ -24,7 +24,9 @@ secciones".
   descartó**: no volver a eso.
 - Mostrarle capturas antes de commitear.
 
-## Etapa 2 — Inicio "Hoy" como el prototipo
+## Etapa 2 — Inicio "Hoy" como el prototipo ✅ (hecha 2026-10-14)
+
+Decisiones: saludo "Hola, Ana" (Yanina; no "Buen día"); colecta muestra "Aporte $X · Todavía no registrado" (sin "Faltan N"); línea de urgencia con fondo ámbar suave.
 
 Archivos: `src/features/muro/index.jsx` (web), `mobile/features/muro/index.jsx`
 (app), reglas en `src/lib/muro.js`.
