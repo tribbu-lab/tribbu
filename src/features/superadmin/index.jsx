@@ -23,6 +23,7 @@ import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { HorarioCurso, SemanaMaestra } from "./horarios";
+import { InicioColegio } from "./inicio";
 import { EventosColegio } from "../calendario";
 import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector } from "../../components";
@@ -43,6 +44,9 @@ import { useCargar } from "../../hooks/useCargar";
 // Navegación agrupada por categoría (antes: 12 chips en una sola fila que
 // wrappeaba y se volvía inmanejable). Mismo agrupamiento en mobile.
 const SECCIONES = [
+  { grupo: "General", items: [
+    {id:"inicio",l:"🏠 Inicio"},
+  ]},
   { grupo: "Personas", items: [
     {id:"usuarios",l:"👤 Apoderados"},
     {id:"maestros",l:"👨‍🏫 Maestros"},
@@ -141,7 +145,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const miColegioId = usuario?.colegio_id ?? null;
   // colegio "activo": el fijo del colegio_admin, o el que el super entró en
   // "Colegios". Necesario para insertar filas con colegio_id NOT NULL (cursos).
-  const [sec,setSec]           = useState(esSuper?"colegios":"usuarios");
+  const [sec,setSec]           = useState(esSuper?"colegios":"inicio");
+  const [navAbierta,setNavAbierta] = useState(false); // mobile: lista de secciones plegada
   const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
   const [colegios,setColegios]           = useState([]);
@@ -1238,19 +1243,26 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
 
       {isMobile ? (
-        <div style={{marginBottom:16,padding:"20px 16px 0"}}>
-          <nav>
+        <div style={{marginBottom:16,padding:"16px 16px 0"}}>
+          {/* En el celular la lista de secciones va plegada: si no, el
+              contenido (el Inicio incluido) queda una pantalla más abajo. */}
+          <button onClick={()=>setNavAbierta(a=>!a)} aria-expanded={navAbierta} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 14px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",marginBottom:navAbierta?12:0}}>
+            <span style={{fontSize:15,color:"#0F172A"}}>☰</span>
+            <span style={{flex:1,textAlign:"left",fontSize:13.5,fontWeight:800,color:"#0F172A"}}>{seccionesVisibles.flatMap(g=>g.items).find(i=>i.id===sec)?.l || "Secciones"}</span>
+            <span style={{fontSize:12,fontWeight:700,color:"#3B82F6"}}>{navAbierta?"Cerrar":"Secciones"}</span>
+          </button>
+          {navAbierta&&<nav>
             {seccionesVisibles.map(g=>(
               <div key={g.grupo} style={{marginBottom:10}}>
                 <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:"0 0 6px"}}>{g.grupo}</div>
                 <div style={{display:"flex",flexDirection:"row",flexWrap:"wrap",gap:6}}>
                   {g.items.map(t=>(
-                    <button key={t.id} onClick={()=>setSec(t.id)} style={{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
+                    <button key={t.id} onClick={()=>{ setSec(t.id); setNavAbierta(false); }} style={{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
                   ))}
                 </div>
               </div>
             ))}
-          </nav>
+          </nav>}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginTop:14,padding:"10px 12px",borderRadius:12,background:"white",border:"1px solid #E2E8F0"}}>
             <div style={{minWidth:0}}>
               <div style={{fontSize:12.5,fontWeight:700,color:"#0F172A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</div>
@@ -1306,7 +1318,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         </nav>
       )}
         <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"18px 32px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
-      {(() => {
+      {sec!=="inicio"&&(() => {
         const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
         const eyebrow = [SECCION_PLATAFORMA,...SECCIONES].find(g=>g.items.some(i=>i.id===sec))?.grupo;
         return (
@@ -1709,6 +1721,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="marketplace"&&(
         <MarketplaceColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
       )}
+      {sec==="inicio"&&(
+        <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esColegioAdmin} onIr={setSec}/>
+      )}
       {sec==="talleres"&&(
         <TalleresColegio colegioId={activeColegioId} cursos={cursosAnoActual} anoActual={anoActual}/>
       )}
@@ -1747,7 +1762,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           {colegios.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Todavía no hay ningún colegio cargado.</div>}
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
             {colegios.map(c=>(
-              <Card key={c.id} style={{padding:18,cursor:"pointer"}} onClick={()=>{ setColegioId(c.id); setSec("usuarios"); }}>
+              <Card key={c.id} style={{padding:18,cursor:"pointer"}} onClick={()=>{ setColegioId(c.id); setSec("inicio"); }}>
                 <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{c.nombre||"(sin nombre)"}</div>
                 <div style={{fontSize:12,color:"#94A3B8"}}>Año lectivo vigente: {c.año_lectivo_actual}</div>
                 <div style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:10}}>Entrar a administrar →</div>
