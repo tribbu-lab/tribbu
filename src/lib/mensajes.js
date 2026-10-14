@@ -153,3 +153,17 @@ export function metaSoporte({ plataforma, version, sistema, dispositivo, pantall
 
 /** Path de una foto: mensajes/<conversacion>/<ts>-<i> (sin extensión). */
 export const pathFotoMensaje = (conversacionId, i, ts = Date.now()) => `mensajes/${conversacionId}/${ts}-${i}`;
+
+/**
+ * "Escribir por tribbu" en Contacto: Secretaría (un chat por hijo) y las
+ * maestras que usan tribbu en los cursos en vista. `docentes` = filas de
+ * docentes_para_mensaje(); `hijos` = items "hijo" de Mi acceso.
+ */
+export const contactosPorTribbu = (docentes = [], hijos = [], cursoIds = []) => {
+  const enVista = (cid) => !cursoIds.length || cursoIds.includes(cid);
+  const secretaria = hijos.filter((h) => enVista(h.curso_id)).map((h) => ({ id: h.id, nombre: (h.nombre || "").split(" ")[0] }));
+  const maestras = docentes
+    .filter((d) => d.tiene_cuenta && enVista(d.curso_id))
+    .sort((a, b) => `${a.nombre} ${a.apellido || ""}`.localeCompare(`${b.nombre} ${b.apellido || ""}`, "es") || (a.hijo_nombre || "").localeCompare(b.hijo_nombre || "", "es"));
+  return { secretaria, maestras };
+};

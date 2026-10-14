@@ -12,6 +12,8 @@ import { LogoUploadInput } from "../../components/LogoUploadInput";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useToast } from "../../hooks/useToast";
 import { useCargar } from "../../hooks/useCargar";
+import { Icono } from "../../components/Icono";
+import { contactosPorTribbu } from "../../lib/mensajes";
 
 // Mail del apoderado: intenta abrir el cliente de correo (mailto:) y SIEMPRE
 // copia la casilla al portapapeles con un toast — así hace algo visible
@@ -36,7 +38,43 @@ function ContactoDatos({ email, telefono, showToast, style }) {
 }
 
 
-export function Contacto({ isSuperAdmin=false, colegioId=null }) {
+// "Escribir por tribbu": Secretaría (un chat por hijo) y las maestras que
+// usan tribbu, por Mensajes y sin compartir el teléfono. Debajo siguen los
+// teléfonos/mails del colegio.
+function EscribirPorTribbu({ items, cursoIds, onEscribir }) {
+  const [docentes, setDocentes] = useState(null);
+  const cargar = useCallback(async () => {
+    const { data } = await supabase.rpc("docentes_para_mensaje");
+    setDocentes(data || []);
+  }, []);
+  useCargar(cargar);
+  const hijos = (items || []).filter((i) => i._tipo === "hijo");
+  if (!hijos.length || !docentes) return null;
+  const { secretaria, maestras } = contactosPorTribbu(docentes, hijos, cursoIds);
+  const variosHijos = secretaria.length > 1;
+  const fila = (key, titulo, desc, onClick, primera) => (
+    <button key={key} onClick={onClick} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 16px",border:"none",borderTop:primera?"none":"1px solid #F1F5F9",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+      <span style={{width:36,height:36,borderRadius:10,background:"#F1F5F9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icono nombre="comunicaciones" size={18} color="#475569"/></span>
+      <span style={{flex:1,minWidth:0,display:"block"}}>
+        <span style={{display:"block",fontSize:14.5,fontWeight:700,color:"#0F172A"}}>{titulo}</span>
+        {desc&&<span style={{display:"block",fontSize:12.5,color:"#64748B",marginTop:1}}>{desc}</span>}
+      </span>
+      <span style={{fontSize:13,fontWeight:700,color:"#2563EB",whiteSpace:"nowrap"}}>Escribir</span>
+    </button>
+  );
+  return (
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:15,fontWeight:800,color:"#0F172A"}}>Escribir por tribbu</div>
+      <div style={{fontSize:13,color:"#64748B",margin:"2px 0 10px"}}>Por Mensajes, sin compartir tu teléfono.</div>
+      <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
+        {secretaria.map((h,i)=>fila(`s-${h.id}`, variosHijos?`Secretaría · ${h.nombre}`:"Secretaría", "Consultas al colegio", ()=>onEscribir?.({secretaria:h}), i===0))}
+        {maestras.map((d)=>fila(`m-${d.maestro_id}-${d.hijo_id}`, `${d.nombre} ${d.apellido||""}`.trim(), [d.materia, variosHijos?`Sobre ${d.hijo_nombre}`:null].filter(Boolean).join(" · ")||"Maestra", ()=>onEscribir?.({docente:d}), false))}
+      </div>
+    </div>
+  );
+}
+
+export function Contacto({ isSuperAdmin=false, colegioId=null, items=[], cursoIds=[], esDocente=false, onEscribir }) {
   const [colegio,    setColegio]    = useState(null);
   const [contactos,  setContactos]  = useState([]);
   const [editColegio,setEditColegio]= useState(false);
@@ -97,6 +135,7 @@ export function Contacto({ isSuperAdmin=false, colegioId=null }) {
   return (
     <div>
       <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Contacto</div>
+      {!esDocente&&onEscribir&&<EscribirPorTribbu items={items} cursoIds={cursoIds} onEscribir={onEscribir}/>}
 
       {/* Info colegio */}
       <Card style={{padding:18,marginBottom:16}}>

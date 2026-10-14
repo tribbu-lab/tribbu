@@ -76,9 +76,11 @@ function VisorFoto({ path, onClose }) {
 // ── Normas de convivencia (Apple 1.2): aceptar antes de escribir a familias ──
 
 export function NormasModal({ userId, onAceptar, onCerrar }) {
+  const [acepto, setAcepto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const aceptar = async () => {
+    if (!acepto) return;
     setGuardando(true);
     const { error: e } = await supabase.from("normas_chat_aceptadas").upsert({ usuario_id: userId }, { onConflict: "usuario_id" });
     setGuardando(false);
@@ -93,10 +95,14 @@ export function NormasModal({ userId, onAceptar, onCerrar }) {
         <ul style={{ margin: "0 0 16px", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
           {NORMAS_CHAT.map((n) => <li key={n} style={{ fontSize: 13.5, color: C.text, lineHeight: 1.45 }}>{n}</li>)}
         </ul>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", marginBottom: 14, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer" }}>
+          <input type="checkbox" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} style={{ width: 18, height: 18, marginTop: 1, accentColor: C.accent, cursor: "pointer" }} />
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: C.textStrong, lineHeight: 1.4 }}>Leí y acepto las normas de convivencia</span>
+        </label>
         {error ? <div style={{ fontSize: 12.5, color: C.danger, marginBottom: 10 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Ahora no</button>
-          <button onClick={aceptar} disabled={guardando} style={{ ...btnPri, flex: 1, opacity: guardando ? 0.6 : 1 }}>{guardando ? "Guardando…" : "Acepto"}</button>
+          <button onClick={aceptar} disabled={!acepto || guardando} style={{ ...btnPri, flex: 1, opacity: !acepto || guardando ? 0.45 : 1, cursor: acepto ? "pointer" : "not-allowed" }}>{guardando ? "Guardando…" : "Continuar"}</button>
         </div>
       </div>
     </div>
@@ -553,6 +559,13 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const nombresRef = useRef(nombres);
   useEffect(() => { nombresRef.current = nombres; }, [nombres]);
   const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso" || conv.tipo === "grupo") && !normasOk;
+  // Al entrar a un chat que pide las normas, se muestran solas (una vez por chat).
+  const normasPedidas = useRef(false);
+  useEffect(() => {
+    if (!necesitaNormas || normasPedidas.current) return;
+    normasPedidas.current = true;
+    onPedirNormas?.();
+  }, [necesitaNormas, onPedirNormas]);
 
   const bajar = useCallback((suave) => {
     requestAnimationFrame(() => fondo.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "end" }));
@@ -858,9 +871,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
           Bloqueaste a {conv.titulo}. <button onClick={toggleBloqueo} style={{ border: "none", background: "none", color: C.accent, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Desbloquear</button>
         </div>
       ) : necesitaNormas ? (
-        <div style={{ padding: 14, background: C.surface, borderTop: `1px solid ${C.border}`, textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 8 }}>Para escribir, aceptá las normas de convivencia.</div>
-          <button onClick={onPedirNormas} style={btnPri}>Leer normas</button>
+        <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, padding: "10px 10px calc(10px + env(safe-area-inset-bottom))", flexShrink: 0 }}>
+          <button onClick={onPedirNormas} style={{ width: "100%", textAlign: "left", padding: "11px 14px", borderRadius: 20, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ fontSize: 14, color: C.textMuted }}>Escribí un mensaje…</span>
+          </button>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6, textAlign: "center" }}>Para escribir, primero aceptá las normas de convivencia.</div>
         </div>
       ) : (
         <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, padding: "8px 10px calc(8px + env(safe-area-inset-bottom))", flexShrink: 0 }}>
@@ -1119,6 +1134,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     Promise.resolve().then(async () => {
       if (abrir.soporte) { abrirSoporte(); return; }
       if (abrir.alumnoDocente) { onAlumno(abrir.alumnoDocente); return; }
+      // Desde Contacto: chat con una maestra o con Secretaría.
+      if (abrir.docente) { onDocente(abrir.docente); return; }
+      if (abrir.secretaria) { onSecretaria(abrir.secretaria); return; }
       if (abrir.conversacionId) {
         const c = convs.find((x) => x.id === abrir.conversacionId);
         if (c) setActiva(c);

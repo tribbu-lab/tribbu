@@ -551,8 +551,8 @@ function App() {
     if(extra?.openAviso) setOpenAviso({ id: extra.openAviso, n: Date.now() });
     if(extra?.openTaller) setOpenTaller({ id: extra.openTaller, n: Date.now() });
     if(extra?.openAutorizacion) setOpenAutorizacion({ id: extra.openAutorizacion, n: Date.now() });
-    if(extra?.conversacionId || extra?.soporte || extra?.usuarioId || extra?.alumnoDocente) {
-      setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, alumnoDocente: extra.alumnoDocente, n: Date.now() });
+    if(extra?.conversacionId || extra?.soporte || extra?.usuarioId || extra?.alumnoDocente || extra?.docente || extra?.secretaria) {
+      setAbrirMensajes({ conversacionId: extra.conversacionId, soporte: !!extra.soporte, usuarioId: extra.usuarioId, alumnoDocente: extra.alumnoDocente, docente: extra.docente, secretaria: extra.secretaria, n: Date.now() });
     }
   };
   // "💬 Escribir" en Alumnos → abre (o crea) el 1 a 1 con ese apoderado.
@@ -575,7 +575,7 @@ function App() {
       case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} abrir={openAutorizacion}/>;
       case "talleres":  return <Talleres items={items} esVistaTodos={esVistaTodos} hijoActivo={hijoActivoId} tagDeCurso={tagDeCurso} esDocente={esDocente} openTaller={openTaller}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin}/>;
-      case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"}/>;
+      case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"} items={items} esDocente={esDocente} onEscribir={(extra)=>navegarA("mensajes",extra)}/>;
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;

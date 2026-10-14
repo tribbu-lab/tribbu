@@ -9,6 +9,7 @@ import { View, Text, Pressable, ScrollView, TextInput, Linking, StyleSheet } fro
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, safeUrl } from "@shared/helpers";
+import { contactosPorTribbu } from "@shared/mensajes";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -31,6 +32,54 @@ const abrir = async (url) => {
 // carga el colegio/contacto, asumiendo que ya incluye código de país (como
 // se completa hoy para el link tel:).
 const waLink = (telefono) => (telefono ? `https://wa.me/${telefono.replace(/[^0-9]/g, "")}` : null);
+
+// "Escribir por tribbu": Secretaría (un chat por hijo) y las maestras que
+// usan tribbu, por Mensajes y sin compartir el teléfono. Debajo siguen los
+// teléfonos/mails del colegio.
+function EscribirPorTribbu() {
+  const router = useRouter();
+  const { items, cursoIds, esDocente } = useSession();
+  const [docentes, setDocentes] = useState(null);
+  useEffect(() => {
+    if (esDocente) return undefined;
+    let vivo = true;
+    supabase.rpc("docentes_para_mensaje").then(({ data }) => { if (vivo) setDocentes(data || []); });
+    return () => { vivo = false; };
+  }, [esDocente]);
+  const hijos = (items || []).filter((i) => i._tipo === "hijo");
+  if (esDocente || !hijos.length || !docentes) return null;
+  const { secretaria, maestras } = contactosPorTribbu(docentes, hijos, cursoIds || []);
+  const variosHijos = secretaria.length > 1;
+  const ir = (params) => router.push({ pathname: "/(tabs)/mensajes", params: { ...params, t: String(Date.now()) } });
+  const filas = [
+    ...secretaria.map((h) => ({ key: `s-${h.id}`, titulo: variosHijos ? `Secretaría · ${h.nombre}` : "Secretaría", desc: "Consultas al colegio", onPress: () => ir({ secretaria: JSON.stringify(h) }) })),
+    ...maestras.map((d) => ({
+      key: `m-${d.maestro_id}-${d.hijo_id}`, titulo: `${d.nombre} ${d.apellido || ""}`.trim(),
+      desc: [d.materia, variosHijos ? `Sobre ${d.hijo_nombre}` : null].filter(Boolean).join(" · ") || "Maestra",
+      onPress: () => ir({ docente: JSON.stringify(d) }),
+    })),
+  ];
+  return (
+    <View style={styles.tribbuWrap}>
+      <Text style={styles.tribbuTitulo}>Escribir por tribbu</Text>
+      <Text style={styles.tribbuSub}>Por Mensajes, sin compartir tu teléfono.</Text>
+      <View style={styles.tribbuCard}>
+        {filas.map((f, i) => (
+          <Pressable key={f.key} onPress={f.onPress} style={[styles.tribbuFila, i > 0 && styles.tribbuBorde]} accessibilityRole="button" accessibilityLabel={`Escribir a ${f.titulo}`}>
+            <View style={styles.tribbuIcono}>
+              <MaterialCommunityIcons name="message-outline" size={18} color={SLATE[600]} />
+            </View>
+            <View style={styles.flex1}>
+              <Text style={styles.tribbuFilaTitulo}>{f.titulo}</Text>
+              {f.desc ? <Text style={styles.tribbuFilaDesc}>{f.desc}</Text> : null}
+            </View>
+            <Text style={styles.tribbuEscribir}>Escribir</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export function Contacto() {
   // `colegios` (plural) = tabla multi-tenant. El colegio del curso activo, o
@@ -86,6 +135,7 @@ export function Contacto() {
       <Text style={styles.subtitle} numberOfLines={1}>
         {[colegio?.nombre, colegio?.direccion].filter(Boolean).join(" · ")}
       </Text>
+      <EscribirPorTribbu />
 
       {urgencia ? (
         <View style={styles.urgCard}>
@@ -329,6 +379,16 @@ export function Alumnos() {
 }
 
 const styles = StyleSheet.create({
+  tribbuWrap: { marginTop: SPACE.lg },
+  tribbuTitulo: { fontSize: 16, fontWeight: "800", color: t.textStrong },
+  tribbuSub: { fontSize: 13, color: t.textMuted, marginTop: 2, marginBottom: SPACE.sm },
+  tribbuCard: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.xl, overflow: "hidden" },
+  tribbuFila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: 60 },
+  tribbuBorde: { borderTopWidth: 1, borderTopColor: t.border },
+  tribbuIcono: { width: 36, height: 36, borderRadius: RADIUS.md, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center" },
+  tribbuFilaTitulo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  tribbuFilaDesc: { fontSize: 12.5, color: t.textMuted, marginTop: 1 },
+  tribbuEscribir: { fontSize: 13, fontWeight: "700", color: BLUE[600] },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },

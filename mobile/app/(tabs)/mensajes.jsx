@@ -9,13 +9,15 @@ import { ComunicacionesTabs } from "../../components/SubTabs";
 // `t` = nonce para re-disparar el mismo pedido.
 // Comunicaciones = Avisos + Mensajes (pestañas internas).
 export default function MensajesScreen() {
-  const { c, soporte, usuario, hijo, maestro, alumnoNombre, t } = useLocalSearchParams();
+  const { c, soporte, usuario, hijo, maestro, alumnoNombre, docente, secretaria, t } = useLocalSearchParams();
+  // docente / secretaria: JSON desde Contacto (chat con una maestra / con Secretaría).
+  const json = (v) => { try { return typeof v === "string" && v ? JSON.parse(v) : null; } catch { return null; } };
   const str = (v) => (typeof v === "string" && v ? v : null);
   const alumno = str(hijo) && str(maestro) ? { hijo_id: str(hijo), maestro_id: str(maestro), nombre: str(alumnoNombre) || "" } : null;
   return (
     <View style={{ flex: 1 }}>
       <ComunicacionesTabs activo="mensajes" />
-      <Mensajes abrirConv={str(c)} abrirSoporte={soporte === "1"} abrirUsuario={str(usuario)} abrirAlumno={alumno} nonce={str(t)} />
+      <Mensajes abrirConv={str(c)} abrirSoporte={soporte === "1"} abrirUsuario={str(usuario)} abrirAlumno={alumno} abrirDocente={json(docente)} abrirSecretaria={json(secretaria)} nonce={str(t)} />
     </View>
   );
 }

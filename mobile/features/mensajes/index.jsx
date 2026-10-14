@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, memo } from "react";
 import {
   View, Text, Pressable, TextInput, FlatList, Modal, KeyboardAvoidingView, Alert,
-  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image,
+  ActivityIndicator, DeviceEventEmitter, Platform, StyleSheet, RefreshControl, Linking, Image, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -86,9 +86,12 @@ function VisorFoto({ path, onClose }) {
 
 // ── Normas de convivencia ───────────────────────────────────────────────────
 
-export function NormasSheet({ visible, userId, onAceptar, onCerrar }) {
+// Normas + checkbox "Leí y acepto": "Continuar" se habilita recién al tildarlo.
+function NormasContenido({ userId, onAceptar, onCerrar }) {
+  const [acepto, setAcepto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const aceptar = async () => {
+    if (!acepto) return;
     setGuardando(true);
     const { error } = await supabase.from("normas_chat_aceptadas").upsert({ usuario_id: userId }, { onConflict: "usuario_id" });
     setGuardando(false);
@@ -96,7 +99,7 @@ export function NormasSheet({ visible, userId, onAceptar, onCerrar }) {
     onAceptar();
   };
   return (
-    <Sheet visible={visible} onClose={onCerrar} title="Normas de convivencia">
+    <>
       <Text style={s.sheetIntro}>Antes de escribirle a otras familias, leé y aceptá estas reglas.</Text>
       {NORMAS_CHAT.map((n) => (
         <View key={n} style={s.normaRow}>
@@ -104,10 +107,22 @@ export function NormasSheet({ visible, userId, onAceptar, onCerrar }) {
           <Text style={s.normaTxt}>{n}</Text>
         </View>
       ))}
+      <Pressable onPress={() => setAcepto((v) => !v)} style={s.checkRow} accessibilityRole="checkbox" accessibilityState={{ checked: acepto }}>
+        <MaterialCommunityIcons name={acepto ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={acepto ? t.accent : SLATE[400]} />
+        <Text style={s.checkTxt}>Leí y acepto las normas de convivencia</Text>
+      </Pressable>
       <View style={s.sheetBotones}>
         <Button title="Ahora no" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
-        <Button title="Acepto" onPress={aceptar} loading={guardando} full={false} style={s.flex1} />
+        <Button title="Continuar" onPress={aceptar} loading={guardando} disabled={!acepto} full={false} style={s.flex1} />
       </View>
+    </>
+  );
+}
+
+export function NormasSheet({ visible, userId, onAceptar, onCerrar }) {
+  return (
+    <Sheet visible={visible} onClose={onCerrar} title="Normas de convivencia">
+      {visible ? <NormasContenido userId={userId} onAceptar={onAceptar} onCerrar={onCerrar} /> : null}
     </Sheet>
   );
 }
@@ -488,7 +503,7 @@ function SignedImagePreview({ uri, lado }) {
  * conv: { id, tipo, titulo, subtitulo, otro_id, silenciado, bloqueado, estado }
  * modo: "familia" | "staff" (super en la bandeja de soporte).
  */
-export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onCerrar, onCambio, onEditarGrupo, onSalioGrupo, meta, encabezadoExtra }) {
+export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = null, soloLectura = false, normasOk = true, onPedirNormas, onNormasAceptadas, onCerrar, onCambio, onEditarGrupo, onSalioGrupo, meta, encabezadoExtra }) {
   const insets = useSafeAreaInsets();
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -536,6 +551,10 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   useEffect(() => { if (multi) cargarNombres(); }, [multi, cargarNombres]);
   const esSoporte = conv.tipo === "soporte";
   const necesitaNormas = !staff && (conv.tipo === "directo" || conv.tipo === "curso" || conv.tipo === "grupo") && !normasOk;
+  // Las normas se muestran adentro del chat (en iPhone no se puede abrir otra
+  // ventana arriba del chat) y aparecen solas al entrar a uno que las pide.
+  const [verNormas, setVerNormas] = useState(necesitaNormas);
+  const pedirNormas = () => setVerNormas(true);
 
   const marcarLeido = useCallback(async (lista) => {
     const ultimo = lista.length ? new Date(lista[lista.length - 1].creado_en).getTime() : 0;
@@ -625,7 +644,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     const tx = reintento ? reintento.texto : limpiarTexto(texto);
     const assets = reintento ? reintento.assets : fotos;
     if (!tx && !assets.length) return;
-    if (necesitaNormas) { onPedirNormas?.(); return; }
+    if (necesitaNormas) { pedirNormas(); return; }
     const id = reintento?.id || uuidLite();
     const optimista = {
       id, conversacion_id: conv.id, autor_id: userId, rol_autor: rolStaff || "usuario", texto: tx || null, fotos: [],
@@ -845,9 +864,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
             <Button title="Desbloquear" variant="secondary" size="sm" onPress={toggleBloqueo} />
           </View>
         ) : necesitaNormas ? (
-          <View style={[s.composerBloq, { paddingBottom: insets.bottom + SPACE.md }]}>
-            <Text style={s.nota}>Para escribir, aceptá las normas de convivencia.</Text>
-            <Button title="Leer normas" size="sm" onPress={onPedirNormas} />
+          <View style={[s.composer, { paddingBottom: insets.bottom + SPACE.sm }]}>
+            <Pressable onPress={pedirNormas} style={s.falsoInput} accessibilityRole="button" accessibilityLabel="Escribir un mensaje: primero aceptá las normas">
+              <Text style={s.falsoInputTxt}>Escribí un mensaje…</Text>
+            </Pressable>
+            <Text style={s.notaChica}>Para escribir, primero aceptá las normas de convivencia.</Text>
           </View>
         ) : editando ? (
           <View style={[s.composer, { paddingBottom: insets.bottom + SPACE.sm }]}>
@@ -887,6 +908,18 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
           </View>
         )}
       </KeyboardAvoidingView>
+      {verNormas && necesitaNormas ? (
+        <View style={s.normasCapa}>
+          <Pressable style={s.normasFondo} onPress={() => setVerNormas(false)} accessibilityLabel="Cerrar" />
+          <View style={[s.normasCard, { paddingBottom: insets.bottom + SPACE.lg }]}>
+            <Text style={s.normasTitulo}>Normas de convivencia</Text>
+            <ScrollView style={s.flexShrink}>
+              <NormasContenido userId={userId} onCerrar={() => setVerNormas(false)}
+                onAceptar={() => { setVerNormas(false); onNormasAceptadas?.(); }} />
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -939,7 +972,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   );
 });
 
-export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, nonce = null }) {
+export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, abrirDocente = null, abrirSecretaria = null, nonce = null }) {
   const { usuario, items, tagDeCurso, esDocente, hijoActivoId, cursoIds, esVistaTodos } = useSession();
   const cursoPerfil = !esVistaTodos && cursoIds?.length === 1 ? cursoIds[0] : null;
   const userId = usuario?.id ?? null;
@@ -1028,11 +1061,14 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   // Deep links: push (c), "Ayuda y soporte" (soporte), Alumnos (usuario). Una vez por nonce.
   useEffect(() => {
     if (!convs) return;
-    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}|${abrirAlumno?.hijo_id}`;
-    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario && !abrirAlumno)) return;
+    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}|${abrirAlumno?.hijo_id}|${abrirDocente?.maestro_id}|${abrirSecretaria?.id}`;
+    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario && !abrirAlumno && !abrirDocente && !abrirSecretaria)) return;
     visto.current = clave;
     if (pedirSoporte) { abrirSoporte(); return; }
     if (abrirAlumno) { onAlumno(abrirAlumno); return; }
+    // Desde Contacto: chat con una maestra o con Secretaría.
+    if (abrirDocente) { onDocente(abrirDocente); return; }
+    if (abrirSecretaria) { onSecretaria(abrirSecretaria); return; }
     if (abrirConv) {
       const c = convs.find((x) => x.id === abrirConv);
       if (c) setActiva(c);
@@ -1071,7 +1107,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   return (
     <View style={s.screen}>
       <ChatModal conv={activaFresca} onClose={() => { setActiva(null); onCambio(); }} userId={userId} normasOk={normasOk}
-        onPedirNormas={() => setNormas(() => () => {})} onCambio={onCambio} meta={activaFresca?.tipo === "soporte" ? meta : undefined}
+        onPedirNormas={() => setNormas(() => () => {})} onNormasAceptadas={() => setNormasOk(true)} onCambio={onCambio} meta={activaFresca?.tipo === "soporte" ? meta : undefined}
         // Editar grupo: el chat (Modal) se cierra y se reabre al guardar — en iOS
         // no se puede presentar un Modal arriba de otro.
         onEditarGrupo={() => { const g = activaFresca; setActiva(null); setGrupoSheet({ grupo: g }); }}
@@ -1404,7 +1440,6 @@ const s = StyleSheet.create({
   rowCenter: { flexDirection: "row", alignItems: "center", gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   flex1: { flex: 1 },
-  flexShrink: { flexShrink: 1 },
   avatar: { alignItems: "center", justifyContent: "center" },
   avatarTxt: { fontWeight: "800" },
   sheetIntro: { fontSize: 13.5, color: t.textMuted, lineHeight: 19, marginBottom: SPACE.md },
@@ -1413,6 +1448,15 @@ const s = StyleSheet.create({
   normaRow: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.sm },
   normaPunto: { fontSize: 14, color: t.accent, lineHeight: 20 },
   normaTxt: { flex: 1, fontSize: 14, color: t.text, lineHeight: 20 },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginTop: SPACE.md, padding: SPACE.md, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.border },
+  checkTxt: { flex: 1, fontSize: 14, fontWeight: "600", color: t.textStrong },
+  falsoInput: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, borderColor: t.border, backgroundColor: t.bg },
+  falsoInputTxt: { fontSize: 15, color: t.textMuted },
+  normasCapa: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end" },
+  normasFondo: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  normasCard: { maxHeight: "85%", backgroundColor: t.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, paddingHorizontal: SPACE.lg, paddingTop: SPACE.lg },
+  normasTitulo: { fontSize: 18, fontWeight: "800", color: t.textStrong, marginBottom: SPACE.sm },
+  flexShrink: { flexShrink: 1 },
   opcion: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: t.borderStrong, marginBottom: SPACE.sm, minHeight: MIN_TOUCH },
   opcionOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
   opcionTxt: { fontSize: 14, color: t.text },
