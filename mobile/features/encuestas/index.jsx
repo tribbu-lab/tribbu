@@ -6,7 +6,7 @@
 // curso, o Super Admin.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, StyleSheet, RefreshControl } from "react-native";
 import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -222,13 +222,13 @@ export function Encuestas() {
             <Text style={styles.h1}>Encuestas</Text>
             <Text style={styles.sub}>Sondeos rápidos del curso — un voto por apoderado</Text>
             <View style={styles.toolbar}>
-              <View style={styles.chips}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={styles.chips}>
                 {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }, { id: "eliminadas", l: "Eliminadas" }].map((ch) => (
                   <Pressable key={ch.id} onPress={() => setFiltro(ch.id)} style={[styles.chip, filtro === ch.id && styles.chipOn]}>
                     <Text style={[styles.chipTxt, filtro === ch.id && styles.chipTxtOn]}>{ch.l}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </ScrollView>
               <Button title="+ Nueva" onPress={abrirModal} size="sm" />
             </View>
             {error && !modal ? <Text style={styles.errorTxt}>⚠️ {error}</Text> : null}
@@ -437,6 +437,7 @@ const styles = StyleSheet.create({
   h1: { ...TYPE.h1, color: t.textStrong, marginBottom: 2 },
   sub: { ...TYPE.body, color: t.textMuted, marginBottom: SPACE.lg },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg, gap: SPACE.sm },
+  chipsScroll: { flexShrink: 1 },
   chips: { flexDirection: "row", gap: SPACE.xs },
   chip: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },
   chipOn: { backgroundColor: t.textStrong, borderColor: t.textStrong },

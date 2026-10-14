@@ -153,7 +153,7 @@ export function AdminPanel() {
         <Text style={styles.alertaBannerTxt}>Publicar alerta urgente al curso</Text>
       </Pressable>
 
-      <View style={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
         {[
           { id: "general", l: "General" },
           { id: "horarios", l: "Horarios" },
@@ -164,7 +164,7 @@ export function AdminPanel() {
             <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.l}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       {tab === "general" ? (
         <View style={styles.card}>
@@ -340,7 +340,8 @@ const styles = StyleSheet.create({
   h1: { fontSize: 22, fontWeight: "900", color: T.text },
   subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
   muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 24 },
-  tabs: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  tabsScroll: { flexGrow: 0, marginBottom: 16 },
+  tabs: { flexDirection: "row", gap: 8 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, backgroundColor: "#F1F5F9", minHeight: 38, justifyContent: "center" },
   tabActive: { backgroundColor: T.primary },
   tabTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
