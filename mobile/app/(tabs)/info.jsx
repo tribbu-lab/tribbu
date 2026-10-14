@@ -1,4 +1,9 @@
 import { InfoUtil } from "../../features/info";
+import { ConVolverCurso } from "../../components/VolverCurso";
 export default function InfoScreen() {
-  return <InfoUtil />;
+  return (
+    <ConVolverCurso>
+      <InfoUtil />
+    </ConVolverCurso>
+  );
 }

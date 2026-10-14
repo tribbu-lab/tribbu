@@ -530,6 +530,14 @@ function App() {
     <SelectorHijos items={items} cursoIdx={cursoIdx} onElegir={(i)=>{ setCursoIdx(i); setColorPickerIdx(null); }}
       colorDe={getHijoColorEfectivo} colorCustomDe={getHijoColorCustom} onColor={cambiarColorHijo} esDocente={esDocente}/>
   );
+  // "‹ Curso" arriba de las pantallas de esa sección (Comedor, Colectas…): sin
+  // esto la única forma de volver era la barra. Siempre va a Curso.
+  const renderVolverCurso = () => (seccionActiva!=="curso"||tab==="curso") ? null : (
+    <button onClick={()=>setTab("curso")} style={{display:"inline-flex",alignItems:"center",gap:2,marginBottom:10,padding:"4px 8px 4px 0",border:"none",background:"none",cursor:"pointer",fontFamily:"inherit"}}>
+      <Icono nombre="atras" size={18} color="#2563EB"/>
+      <span style={{fontSize:14,fontWeight:700,color:"#2563EB"}}>Curso</span>
+    </button>
+  );
   const renderSelectorSeccion = () => (tab==="muro"||tab==="cuenta"||items.length<2) ? null : <div style={{marginBottom:14}}>{selectorHijos}</div>;
   const cerrarSesion = async () => { await supabase.auth.signOut(); setUsuario(null); };
 
@@ -660,6 +668,7 @@ function App() {
 
       {/* Contenido */}
       <div style={{flex:1,padding:"16px 16px 80px",boxSizing:"border-box",overflowY:"auto"}}>
+        {renderVolverCurso()}
         {renderSelectorSeccion()}
         {renderSubSeccion()}
         {renderTabs()}
@@ -759,7 +768,7 @@ function App() {
               <BusquedaGlobal query={busquedaGlobal} cursoIds={cursoIds} tagDeCurso={tagDeCurso} onNavigate={navegarA} onLimpiar={()=>setBusquedaGlobal("")}/>
             </Suspense>
           ) : null}
-          <div style={busquedaGlobal.trim() ? {display:"none"} : undefined}>{renderSelectorSeccion()}{renderSubSeccion()}{renderTabs()}</div>
+          <div style={busquedaGlobal.trim() ? {display:"none"} : undefined}>{renderVolverCurso()}{renderSelectorSeccion()}{renderSubSeccion()}{renderTabs()}</div>
         </div>
       </div>
     </div>

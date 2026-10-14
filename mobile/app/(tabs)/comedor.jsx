@@ -1,4 +1,9 @@
 import { Comedor } from "../../features/comedor";
+import { ConVolverCurso } from "../../components/VolverCurso";
 export default function ComedorScreen() {
-  return <Comedor />;
+  return (
+    <ConVolverCurso>
+      <Comedor />
+    </ConVolverCurso>
+  );
 }

@@ -1,5 +1,10 @@
 import { AdminPanel } from "../../features/admin";
+import { ConVolverCurso } from "../../components/VolverCurso";
 
 export default function AdminScreen() {
-  return <AdminPanel />;
+  return (
+    <ConVolverCurso>
+      <AdminPanel />
+    </ConVolverCurso>
+  );
 }

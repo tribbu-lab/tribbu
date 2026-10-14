@@ -28,7 +28,7 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] **Etapa 3 — Autorización** (hecha 2026-10-14): abrir directo el formulario desde Hoy,
       fecha de salida vs. fecha límite, "Respuesta enviada: autorizaste a
       Emma", separar "Abierta" de "Tu respuesta".
-- [ ] **Etapa 4 — "‹ Curso"** para volver desde las pantallas de esa sección.
+- [x] **Etapa 4 — "‹ Curso"** (hecha 2026-10-14) para volver desde las pantallas de esa sección.
 
 ## Publicar lo nuevo (Mensajes, docentes, materias y clases, talleres, navegación)
 

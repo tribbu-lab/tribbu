@@ -1,6 +1,6 @@
 # Rediseño según los prototipos de Figma — etapas 2, 3 y 4
 
-**Estado:** planificado (2026-10-14). La etapa 1 (navegación Hoy · Agenda ·
+**Estado:** etapas 1 a 4 hechas y publicadas (2026-10-14). La etapa 1 (navegación Hoy · Agenda ·
 Comunicaciones · Curso + Mi cuenta + selector "Todos mis hijos ▾" + íconos de
 línea en la web) ya está en `main` — ver CLAUDE.md → "Navegación en 4
 secciones".
@@ -97,7 +97,7 @@ Archivos: `src/features/autorizaciones/index.jsx`,
 - Sobrio: sin el borde ámbar a la izquierda de la tarjeta ni emojis en los
   renglones de fecha.
 
-## Etapa 4 — Volver a "Curso"
+## Etapa 4 — Volver a "Curso" ✅ (hecha 2026-10-14)
 
 Las pantallas que se abren desde Curso (Autorizaciones, Comedor, Talleres, Info
 útil, Contacto, Colectas, Encuestas, Marketplace, Lost & Found, Administrar el
