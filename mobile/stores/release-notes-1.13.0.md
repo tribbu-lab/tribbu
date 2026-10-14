@@ -1,34 +1,44 @@
 # Release notes 1.13.0 (es-419)
 
-Android vc43 · iOS build 37 · commits `a91bf4d..a58ef6d` (desde 1.12.0)
+Android vc44 · iOS build 38 · commits `a91bf4d..49bc1e0` (desde 1.12.0)
+
+> **Reemplaza a vc43 / build 37** (2026-10-13, `a91bf4d..a58ef6d`), que se subió pero nunca se promovió:
+> le faltaba la navegación nueva y el resto de los commits del 2026-10-14. Promover **solo vc44 / build 38**.
+> Subidos el 2026-10-14: Android vc44 → Play interno (submission `ace7ea10`, Firebase ×2 en `base/resources.pb`); iOS build 38 → ASC (submission `f6e5514f`, `DTSDKName=iphoneos26.2`).
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
 ```
-• Nuevo: Mensajes. Chateá con otras familias del curso, con las maestras y con Secretaría, sin compartir tu teléfono.
-• Grupo del curso, grupos propios y mensajes a varias familias a la vez.
-• Nuevo: Talleres. Anotá a tus hijos en los talleres del colegio y miralos en su horario.
-• Las maestras tienen su cuenta: publican avisos, eventos y encuestas en sus cursos.
-• "Más", ordenado y sin repetidos. Sacamos la campana: los avisos están en Avisos.
+• Nueva navegación: Hoy, Agenda, Comunicaciones y Curso. Tu cuenta, en el círculo con tus iniciales.
+• Hoy te muestra primero lo que espera tu respuesta.
+• Nuevo: Mensajes. Chateá con familias del curso, maestras y Secretaría sin compartir tu teléfono. Grupos y mensajes a varias familias.
+• Nuevo: Talleres. Anotá a tus hijos y miralos en su horario.
+• Las maestras tienen su cuenta en tribbu.
 • Arreglos del teclado en Android.
 ```
 
 ## App Store Connect — "Novedades de esta versión"
 
 ```
-Llegan los Mensajes y los Talleres a tribbu, y las maestras se suman a la app.
+Llegan los Mensajes y los Talleres, las maestras se suman a tribbu y estrenamos una navegación más simple.
 
+• Nueva navegación en cuatro secciones: Hoy, Agenda (calendario y cumpleaños), Comunicaciones (avisos y mensajes) y Curso (lo del colegio y lo que organizan las familias). Tu cuenta, las notificaciones y la ayuda están en el círculo con tus iniciales, arriba a la derecha.
+• Se fueron el menú "Más" y la campana: lo que estaba en "Más" ahora está en Curso o en tu cuenta, y los avisos están en Comunicaciones, con su contador.
+• Hoy: arranca con lo que espera tu respuesta (autorizaciones, colectas, invitaciones, encuestas), con lo más urgente primero. Después, los avisos sin leer, los próximos días y el menú del comedor.
+• Elegí a qué hijo mirar desde "Todos mis hijos", arriba de cada sección.
+• Autorizaciones: respondé directo desde Hoy. Ves hasta cuándo podés responder, la fecha de la salida y lo que respondiste por cada hijo.
 • Mensajes: escribile a otra familia del curso sin compartir tu teléfono ni tu email.
 • Grupo del curso: cada curso tiene su grupo con todas las familias. También podés armar tus propios grupos (para un cumple, una salida) o mandarle el mismo mensaje a varias familias, que lo reciben cada una por separado.
-• Maestras y Secretaría: chateá con las maestras de tus hijos y con la secretaría del colegio, un chat por cada hijo.
-• Por hijo: si elegís a uno de tus hijos arriba, ves solo sus chats y grupos.
-• Cuidamos la convivencia: podés silenciar un chat, bloquear a un usuario y denunciar un mensaje. Los chats entre familias son privados: el colegio solo ve los mensajes denunciados.
+• Maestras y Secretaría: chateá con las maestras de tus hijos y con la secretaría del colegio, un chat por cada hijo. También desde Contacto, con "Escribir por tribbu".
+• Por hijo: si elegís a uno de tus hijos, ves solo sus chats y grupos.
+• Borrá un chat de tu lista, o eliminá un grupo que creaste.
+• Cuidamos la convivencia: antes de escribirle a otra familia aceptás las normas del chat, y podés silenciar un chat, bloquear a un usuario y denunciar un mensaje. Los chats entre familias son privados: el colegio solo ve los mensajes denunciados.
 • Talleres: mirá los talleres extraprogramáticos que ofrece el colegio y anotá a tus hijos desde la app. Si no hay cupo quedás en lista de espera, y te avisamos el día antes de que cierre la inscripción.
 • Horario: los talleres de tus hijos aparecen en su horario, también los del sábado.
 • Las maestras en tribbu: ven sus cursos, publican avisos, eventos, encuestas y autorizaciones, y ven los cumpleaños de sus alumnos.
 • Room Parents: nuevo editor del horario del curso, que carga un bloque en varios días a la vez.
-• Menú "Más" ordenado en grupos y sin accesos repetidos. Sacamos la campana del encabezado: los avisos siguen en la pestaña Avisos, con su contador.
-• Ayuda y soporte: si algo no anda, escribile directamente al equipo de tribbu desde la app.
+• Cumpleaños: "Mis invitaciones" ya no muestra festejos que ya pasaron.
+• Ayuda y soporte: si algo no anda, escribile directamente al equipo de tribbu desde tu cuenta.
 • Arreglamos el teclado en Android, que dejaba un espacio vacío al cerrarse en el chat y en los formularios.
 ```
 
@@ -50,7 +60,42 @@ Sólo commits que tocan `mobile/` o `src/lib/`.
 - `c8b6eed` + `4ed3b7d` + `5251e01` — Talleres extraprogramáticos: `(tabs)/talleres` (tile en Más, push `taller` → `openTaller`), inscripción/baja/espera vía RPC con lock de cupo, modos orden de llegada/aprobación/sorteo; panel del colegio módulo "🎨 Talleres" (gestionar; crear/editar es web); Calendario → Horario suma los talleres del hijo; Muro: "🎨 Inscripción abierta". Nuevo switch `taller_cierre` en Notificaciones (`@shared/avisos`). El aviso automático "Mañana cierra la inscripción" vive en `avisos-automaticos`, redesplegada el 2026-10-13 19:24 (v8, después del commit) — la viñeta de ASC que lo menciona ya es cierta.
 - `62030d2` — Admin del Room Parent: las 4 pestañas se deslizan; Encuestas: filtros deslizables con "+ Nueva" fijo (no entraban en pantallas angostas).
 - `a58ef6d` — `AppHeader` sin campana (duplicaba Avisos, que conserva el badge vía `useNotificaciones`); "Más" agrupado Del día a día / Del colegio / Room Parent, sin los tiles repetidos de Mensajes y Lost & Found.
+- **Agregados en vc44 / build 38** (2026-10-14, `a58ef6d..49bc1e0`):
+- `1b433fb` — navegación en 4 secciones Hoy · Agenda · Comunicaciones · Curso (`FloatingTabBar` con `rutas` por sección, `SubTabs` en calendario/cumples/recordatorios/mensajes). "Curso" (`app/(tabs)/curso.jsx`) reemplaza a "Más", con contador de autorizaciones/colectas/encuestas pendientes (`@shared/gestiones`); vuelve Lost & Found, que se había perdido al limpiar "Más" en `a58ef6d`. "Mi cuenta" (`cuenta.jsx`, ex `mas.jsx`) desde el círculo con las iniciales del `AppHeader`; Notificaciones en su propia `Sheet`. Selector "Todos mis hijos ▾" (`SelectorHijos`) arriba de cada sección en vez de la fila del header. Sale el ícono de Mensajes del header.
+- `ac6ff09` — Cumpleaños → "Mis invitaciones" filtraba solo por tipo festejo + hijo, sin fecha, así que listaba festejos pasados y desordenados → `invitacionesVigentes` (`@shared/festejos`).
+- `7a9f4cf` — Inicio "Hoy": "Tenés N respuestas pendientes" (solo lo que pide acción, `ordenarPorVencimiento`, la primera destacada con `avisoVencimiento`), avisos sin leer aparte con "Leer aviso" (sale "Marcar leído" del Inicio), Próximos días sin chips, Menú de hoy en tabla (`filasMenu`). Sigue en 2 lotes.
+- `721e0c1` — Autorizaciones: "Responder" desde Hoy abre directo la `ResponderSheet` del primer hijo sin responder (`openAutorizacion` + `t`); `estadoConvocatoria`, "Salida" / "Responder hasta" (ámbar con `limiteCercano`), `textoConfirmacion`, `textoRespuesta`.
+- `cb91afa` — "‹ Curso" (`VolverCurso`/`ConVolverCurso`) arriba de las 11 pantallas de la sección Curso.
+- `a743d03` — normas del chat con checkbox, dibujadas DENTRO del chat (antes "Leer normas" abría una `Sheet` encima del Modal del chat, que iOS no apila); Contacto → "Escribir por tribbu" (Secretaría por hijo + maestras con cuenta, `contactosPorTribbu`).
+- `49bc1e0` — "Borrar chat" 1 a 1 (`ocultar_conversacion`, solo de mi lista) y "Eliminar grupo" (`eliminar_grupo`, solo el creador). SQL `mensajes-borrar.sql` ya aplicado en prod.
 - QA 2026-10-13 en emulador Android: grupo, difusión, Secretaría, soporte y vista docente (cuenta real de una maestra) — todo OK; los datos de prueba se borraron.
-- **Falta** probar en un iPhone real (nunca se probó el chat en iOS: teclado, Modal del chat, `Sheet` encadenados) — hacerlo desde TestFlight antes de enviar a review.
+- **Falta** probar en un iPhone real desde TestFlight (build 38) antes de enviar a review: el chat (teclado, Modal del chat, `Sheet` encadenados, normas dentro del chat) y la navegación nueva (Hoy, "Todos mis hijos", Mi cuenta → Eliminar mi cuenta, "‹ Curso"). Nada de vc44 / build 38 se probó en un dispositivo todavía.
 
-**Review Notes de ASC**: este release agrega **contenido generado por usuarios** (chat). Apple 1.2 lo exige y ya está: normas que se aceptan antes de escribir a otras familias, **denunciar** mensaje, **bloquear** usuario, y el colegio/tribbu revisa las denuncias. Conviene sumarlo a las Review Notes: "El chat entre familias tiene normas de uso, botón para denunciar mensajes y bloquear usuarios (tocá un mensaje). Las denuncias las revisa el colegio." La cuenta demo (demo@tribbu.app) tiene otra familia en su curso (verificado 2026-10-13), así que el revisor puede abrir un chat y ver el grupo del curso. No cambia login ni alta de cuentas: las Review Notes actuales (cuenta demo, sin código) siguen siendo válidas.
+**Review Notes de ASC — HAY QUE ACTUALIZARLAS antes de `/store-promote`.** `promover-release.mjs` reusa las de 1.12.0, que quedaron **inválidas con la navegación nueva**: describen pestañas Inicio / Calendario / Cumpleaños / Avisos / Más, y dicen que la baja de cuenta está en **"Más → Eliminar mi cuenta"** — "Más" ya no existe (ahora es Mi cuenta, desde el círculo con las iniciales). Un revisor que no encuentra la baja de cuenta rechaza por 5.1.1(v). No cambia el login ni el alta de cuentas: la cuenta demo (demo@tribbu.app, sin código) sigue siendo válida. Además este release agrega **contenido generado por usuarios** (chat, Apple 1.2): normas que se aceptan antes de escribir a otras familias, denunciar mensaje, bloquear usuario, y las denuncias las revisa el colegio. La cuenta demo tiene otra familia en su curso (verificado 2026-10-13), así que el revisor puede abrir un chat y ver el grupo del curso.
+
+Texto propuesto (reemplaza las Review Notes completas):
+
+```
+tribbu is a school-community app for parents and guardians of school-age children. Any school can adopt it; it is not built for or restricted to a single organization.
+
+HOW TO REVIEW
+Sign in with the demo account provided above. It belongs to "María", parent of Sofía in the demo classroom "3°A - Primaria" of "Colegio Demo tribbu" (a sample school with no real families). María is also that classroom's Room Parent (the volunteer parent who coordinates the class), so she can create content too. The app has four sections in the bottom bar, pre-loaded with sample data:
+• Hoy (Today): what is waiting for the family's answer (a permission slip, a class fundraiser, a birthday party invitation, a poll), unread notices, the next days and today's lunch menu.
+• Agenda: Calendario (class events and the weekly class timetable) and Cumpleaños (classmates' birthdays and party invitations).
+• Comunicaciones: Avisos (class and school notices, with read receipts) and Mensajes (chat).
+• Curso: Autorizaciones (permission slips), Comedor (lunch menu), Talleres (after-school workshops), Info útil, Contacto, Colectas (fundraisers), Encuestas (polls), Marketplace (used items among families of the same school) and Lost & Found.
+The account menu (Mi cuenta) opens from the circle with the user's initials, top right.
+
+USER-GENERATED CONTENT (Mensajes)
+Families of the same classroom can message each other, the classroom group, the teachers and the school office. Before writing to other families, users must accept the chat rules (no offensive content, no spam). Any message can be reported (tap a message → Denunciar) and any user can be blocked (from the chat menu in a one-to-one chat, or by tapping their message in a group → Bloquear); reports are reviewed by the school, and blocked users can be managed in Mi cuenta → Usuarios bloqueados. Phone numbers and emails are never shown in the chat. The demo classroom has another family, so a chat can be opened from Comunicaciones → Mensajes → new message.
+
+HOW USERS GET AN ACCOUNT
+Accounts are created by the school: the school's administrator adds each family from the school's admin panel (one by one or by importing a spreadsheet) and gives the family its login. There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
+
+PAYMENTS
+The app is free: no in-app purchases, subscriptions or ads. "Colectas" only records which families have already contributed to a class gift; no money is processed through the app. In "Marketplace", families of the same school can list used items (uniforms, books); buyer and seller arrange the exchange directly, outside the app.
+
+Account deletion is available in-app under Mi cuenta (circle with the initials, top right) → Eliminar mi cuenta (guideline 5.1.1(v)). Push notifications are scoped to the user's own classrooms. Web version: https://www.tribbu.ar/app · Website: https://www.tribbu.ar
+```
+
+Antes de pegarlo, verificar en la app con la cuenta demo: (1) Denunciar al tocar un mensaje y Bloquear desde el menú del chat 1 a 1 (verificado en el código: `tocarMensaje` / `cambiarBloqueo`; "Usuarios bloqueados" está en `cuenta.jsx`), (2) que Hoy de la cuenta demo tenga lo que dice el texto (los datos demo tienen fechas oct–nov 2026).
