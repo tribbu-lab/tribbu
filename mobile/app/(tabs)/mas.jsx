@@ -23,27 +23,30 @@ import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/av
 
 const t = THEMES.light;
 
-const BASE = [
-  { id: "mensajes", label: "Mensajes", emoji: "💬" },
-  { id: "comedor", label: "Comedor", emoji: "🍽️" },
-  { id: "perdidos", label: "Lost & Found", emoji: "🧦" },
-  { id: "encuestas", label: "Encuestas", emoji: "📊" },
-  { id: "finanzas", label: "Colectas", emoji: "💳" },
-  { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
-  { id: "talleres", label: "Talleres", emoji: "🎨" },
-  { id: "comunidad", label: "Comunidad", emoji: "🤝" },
-  { id: "info", label: "Info Útil", emoji: "📋" },
-  { id: "contacto", label: "Contacto", emoji: "📞" },
+// Agrupado por uso. Mensajes no va acá (está en el ícono de arriba) y Lost &
+// Found tampoco (está dentro de Comunidad): antes aparecían dos veces.
+const GRUPOS_FAMILIA = [
+  { titulo: "Del día a día", items: [
+    { id: "finanzas", label: "Colectas", emoji: "💳" },
+    { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
+    { id: "encuestas", label: "Encuestas", emoji: "📊" },
+    { id: "comedor", label: "Comedor", emoji: "🍽️" },
+  ] },
+  { titulo: "Del colegio", items: [
+    { id: "talleres", label: "Talleres", emoji: "🎨" },
+    { id: "comunidad", label: "Comunidad", emoji: "🤝" },
+    { id: "info", label: "Info Útil", emoji: "📋" },
+    { id: "contacto", label: "Contacto", emoji: "📞" },
+  ] },
 ];
-const DOCENTE = [
-  { id: "mensajes", label: "Mensajes", emoji: "💬" },
-  { id: "alumnos", label: "Alumnos", emoji: "🎒" },
-  { id: "encuestas", label: "Encuestas", emoji: "📊" },
-  { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
-  { id: "talleres", label: "Mis talleres", emoji: "🎨" },
-];
-const ADMIN = [
-  { id: "admin", label: "Admin", emoji: "⚙️" },
+const GRUPO_ADMIN = { titulo: "Room Parent", items: [{ id: "admin", label: "Admin del curso", emoji: "⚙️" }] };
+const GRUPOS_DOCENTE = [
+  { titulo: "Mis cursos", items: [
+    { id: "alumnos", label: "Alumnos", emoji: "🎒" },
+    { id: "encuestas", label: "Encuestas", emoji: "📊" },
+    { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
+    { id: "talleres", label: "Mis talleres", emoji: "🎨" },
+  ] },
 ];
 
 export default function MasScreen() {
@@ -83,7 +86,7 @@ export default function MasScreen() {
     }
   };
   // Docente: solo lo de sus cursos (specs/docentes-clases-y-grupos.md, Fase B).
-  const opciones = esDocente ? DOCENTE : isAdmin ? [...BASE, ...ADMIN] : BASE;
+  const grupos = esDocente ? GRUPOS_DOCENTE : isAdmin ? [...GRUPOS_FAMILIA, GRUPO_ADMIN] : GRUPOS_FAMILIA;
 
   useEffect(() => {
     if (!usuario?.id) return;
@@ -157,14 +160,19 @@ export default function MasScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Más</Text>
-      <View style={styles.grid}>
-        {opciones.map((o) => (
-          <Pressable key={o.id} onPress={() => router.push(`/(tabs)/${o.id}`)} style={styles.tile}>
-            <Text style={styles.tileEmoji}>{o.emoji}</Text>
-            <Text style={styles.tileLabel}>{o.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {grupos.map((g, gi) => (
+        <View key={g.titulo}>
+          <Text style={[styles.label, gi === 0 && { marginTop: SPACE.md }]}>{g.titulo}</Text>
+          <View style={styles.grid}>
+            {g.items.map((o) => (
+              <Pressable key={o.id} onPress={() => router.push(`/(tabs)/${o.id}`)} style={styles.tile}>
+                <Text style={styles.tileEmoji}>{o.emoji}</Text>
+                <Text style={styles.tileLabel}>{o.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
 
       {/* Los avisos automáticos son para familias (eventos, colectas, cumples):
           a una docente no le llega ninguno, así que no hay nada que configurar. */}

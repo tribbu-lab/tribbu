@@ -1,5 +1,5 @@
-// Header persistente de la app (sobre las tabs), patrón A3: logo, campana con
-// punto de no-leídas y chip del hijo activo (dot de color + nombre; tocar abre
+// Header persistente de la app (sobre las tabs), patrón A3: logo, buscar,
+// mensajes y chip del hijo activo (dot de color + nombre; tocar abre
 // el selector de color). Con múltiples hijos/cursos, el selector horizontal se
 // mantiene debajo. Las acciones de cuenta (contraseña / salir) viven en "Más".
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
@@ -11,7 +11,6 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
-import { NotificacionesPanel } from "../features/notificaciones";
 import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
@@ -20,10 +19,10 @@ import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
-// `notif` viene levantado desde app/(tabs)/_layout.jsx (mismo hook que ya
-// necesita el badge de la tab de Recordatorios) para no pedir dos veces
-// recordatorios + recordatorio_leidos + alertas en cada cambio de hijo/curso.
-export function AppHeader({ notif }) {
+// Sin campana (2026-10-13): mostraba los mismos avisos que la pestaña Avisos
+// (que ya lleva el globito de no leídos) más las alertas, que están en el
+// Inicio. Era un botón más que repetía lo de otra pantalla.
+export function AppHeader() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -32,22 +31,14 @@ export function AppHeader({ notif }) {
     setCursoIdx,
     itemActual,
     colegioActivo,
-    tagDeCurso,
     colorDeItem,
     colorCustomDeItem,
     setColorHijo,
   } = useSession();
 
   const { noLeidos: mensajesSinLeer } = useMensajesCtx();
-  const [panelNotifs, setPanelNotifs] = useState(false);
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
-  const { notifs, leidos, cargando, noLeidos, marcarLeido, marcarTodoLeido, recargar } = notif;
-
-  const abrirNotifs = () => {
-    recargar();
-    setPanelNotifs(true);
-  };
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
@@ -82,10 +73,6 @@ export function AppHeader({ notif }) {
           <Pressable onPress={() => router.push("/(tabs)/mensajes")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={mensajesSinLeer > 0 ? `Mensajes: ${mensajesSinLeer} sin leer` : "Mensajes"}>
             <MaterialCommunityIcons name="message-outline" size={18} color="rgba(255,255,255,0.85)" />
             {mensajesSinLeer > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
-          </Pressable>
-          <Pressable onPress={abrirNotifs} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Notificaciones">
-            <MaterialCommunityIcons name="bell-outline" size={18} color="rgba(255,255,255,0.85)" />
-            {noLeidos > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
           </Pressable>
           {unicoHijo ? (
             <>
@@ -157,25 +144,6 @@ export function AppHeader({ notif }) {
         </ScrollView>
       ) : null}
 
-      <NotificacionesPanel
-        visible={panelNotifs}
-        notifs={notifs}
-        leidos={leidos}
-        cargando={cargando}
-        tagDeCurso={tagDeCurso}
-        onAbrir={(n) => {
-          // Tocar una notificación lleva a lo que la originó (antes solo la
-          // marcaba leída). `t` fuerza el salto aunque sea el mismo aviso.
-          setPanelNotifs(false);
-          if (n._tipo === "alerta") { router.push("/(tabs)/muro"); return; }
-          marcarLeido(n.id);
-          if (n.tipo === "colecta_vence" && n.ref_id) router.push({ pathname: "/(tabs)/finanzas", params: { openColecta: String(n.ref_id) } });
-          else if (n.tipo === "regalo_cumple") router.push("/(tabs)/cumples");
-          else router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(n.id), t: String(Date.now()) } });
-        }}
-        onMarcarTodoLeido={marcarTodoLeido}
-        onCerrar={() => setPanelNotifs(false)}
-      />
       <ColorPicker
         item={colorPickerItem}
         currentColor={colorPickerItem ? colorDeItem(colorPickerItem) : null}

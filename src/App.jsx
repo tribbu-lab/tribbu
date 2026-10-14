@@ -682,11 +682,7 @@ function App() {
               💬
               {mensajesSinLeer>0&&<span style={{position:"absolute",top:0,right:0,background:"#EF4444",color:"white",borderRadius:20,fontSize:8,fontWeight:600,padding:"0 3px",minWidth:14,textAlign:"center",lineHeight:"14px",transform:"translate(4px,-4px)"}}>{mensajesSinLeer>9?"9+":mensajesSinLeer}</span>}
             </button>
-            {/* Campana de notificaciones */}
-            <button onClick={()=>setPanelNotifs(p=>!p)} style={{position:"relative",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16}}>
-              🔔
-              {noLeidos>0&&<span style={{position:"absolute",top:0,right:0,background:"#EF4444",color:"white",borderRadius:20,fontSize:8,fontWeight:600,padding:"0 3px",minWidth:14,textAlign:"center",lineHeight:"14px",transform:"translate(4px,-4px)"}}>{noLeidos>9?"9+":noLeidos}</span>}
-            </button>
+            {/* Sin campana en el celular: repetía los avisos de la pestaña Avisos (con su globito) y las alertas, que están en el Inicio. */}
             <button onClick={()=>setCambiarPass(true)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>🔑</button>
             <button onClick={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,padding:"4px 8px",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:10}}>Salir</button>
           </div>
@@ -734,22 +730,40 @@ function App() {
           <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200}}>
             {menuMas&&(
               <div style={{background:headerBg,borderTop:"1px solid rgba(255,255,255,0.15)",padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:4}} onClick={()=>setMenuMas(false)}>
-                {tabsExtra.map(t=>(
-                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10,position:"relative"}}>
+                {(()=>{
+                  // Agrupado por uso y sin repetidos: Mensajes ya está arriba y
+                  // Lost & Found está dentro de Comunidad.
+                  const GRUPOS = [
+                    ["Del día a día", ["finanzas","autorizaciones","encuestas","comedor"]],
+                    ["Del colegio", ["talleres","comunidad","info","contacto"]],
+                    ["Room Parent", ["admin"]],
+                  ];
+                  const visibles = tabsExtra.filter(t=>t.id!=="mensajes"&&t.id!=="perdidos");
+                  const usados = new Set(GRUPOS.flatMap(g=>g[1]));
+                  const grupos = [...GRUPOS.map(([titulo,ids])=>[titulo, visibles.filter(t=>ids.includes(t.id))]), [esDocente?"Mis cursos":"Otros", visibles.filter(t=>!usados.has(t.id))]].filter(g=>g[1].length);
+                  return grupos.map(([titulo,lista])=>(
+                    <div key={titulo} style={{flexBasis:"100%",display:"flex",flexWrap:"wrap",gap:4}}>
+                      <div style={{flexBasis:"100%",fontSize:9.5,fontWeight:800,letterSpacing:0.8,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",padding:"6px 4px 2px"}}>{titulo}</div>
+                      {lista.map(t=>(
+                  <button key={t.id} onClick={()=>{ setTab(t.id); if(t.id==="recordatorios") setBadgeVisto(avisosVersion); }} style={{flex:"1 0 calc(25% - 4px)",padding:"10px 4px",border:"none",background:tabMenu===t.id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10,position:"relative"}}>
                     <span style={{fontSize:20}}>{t.emoji}</span>
                     <span style={{fontSize:10,fontWeight:tabMenu===t.id?700:400,color:"white"}}>{t.label}</span>
                     {t.id==="mensajes"&&mensajesSinLeer>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 22px)",background:"#EF4444",color:"white",borderRadius:20,fontSize:9,fontWeight:600,padding:"0 4px",minWidth:16,textAlign:"center",lineHeight:"16px"}}>{mensajesSinLeer>99?"99+":mensajesSinLeer}</span>}
                   </button>
-                ))}
-                <button onClick={()=>navegarA("mensajes",{soporte:true})} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                      ))}
+                    </div>
+                  ));
+                })()}
+                <div style={{flexBasis:"100%",fontSize:9.5,fontWeight:800,letterSpacing:0.8,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",padding:"6px 4px 2px"}}>Cuenta</div>
+                <button onClick={()=>navegarA("mensajes",{soporte:true})} style={{flex:"1 0 calc(25% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>🛟</span>
                   <span style={{fontSize:10,fontWeight:400,color:"white"}}>Ayuda y soporte</span>
                 </button>
-                {!esDocente&&<button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                {!esDocente&&<button onClick={()=>setPrefsAvisos(true)} style={{flex:"1 0 calc(25% - 4px)",padding:"10px 4px",border:"none",background:"rgba(255,255,255,0.06)",cursor:"pointer",color:"white",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>⚙️</span>
                   <span style={{fontSize:10,fontWeight:400,color:"white"}}>Configurar notificaciones</span>
                 </button>}
-                <button onClick={()=>setEliminarCuenta(true)} style={{flex:"1 0 calc(33% - 4px)",padding:"10px 4px",border:"none",background:"rgba(239,68,68,0.15)",cursor:"pointer",color:"#FCA5A5",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
+                <button onClick={()=>setEliminarCuenta(true)} style={{flex:"1 0 calc(25% - 4px)",padding:"10px 4px",border:"none",background:"rgba(239,68,68,0.15)",cursor:"pointer",color:"#FCA5A5",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderRadius:10}}>
                   <span style={{fontSize:20}}>🗑️</span>
                   <span style={{fontSize:10,fontWeight:400,color:"#FCA5A5"}}>Eliminar cuenta</span>
                 </button>
