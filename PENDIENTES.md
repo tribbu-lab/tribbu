@@ -1,6 +1,6 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-12).
+Lista viva de lo que queda por hacer (última actualización: 2026-10-14).
 Tachá o borrá cada ítem cuando se resuelva.
 
 ## ⚠️ Urgente
@@ -15,7 +15,22 @@ Tachá o borrá cada ítem cuando se resuelva.
       actualizar `VITE_SUPABASE_ANON_KEY` en Vercel y en `.env` / `mobile/.env`
       (el build de tiendas usa la `sb_publishable_…` de `eas.json`).
 
-## Publicar lo nuevo (Mensajes, docentes, materias y clases)
+## Rediseño según los prototipos de Figma (siguiente)
+
+Plan detallado en `specs/rediseno-etapas-2-3-4.md` (etapa 1, la navegación,
+ya está en `main`). Criterio: **sobrio en colores**, sin dependencias nuevas,
+web y app juntas, mostrar capturas antes de commitear.
+
+- [ ] **Etapa 2 — Inicio "Hoy"** como el prototipo: "Tenés N respuestas
+      pendientes" (la más urgente destacada con botón azul, el resto en una
+      tarjeta con enlaces), Comunicaciones aparte con "Leer aviso", Próximos
+      días sin chips de color, Menú de hoy en tabla.
+- [ ] **Etapa 3 — Autorización**: abrir directo el formulario desde Hoy,
+      fecha de salida vs. fecha límite, "Respuesta enviada: autorizaste a
+      Emma", separar "Abierta" de "Tu respuesta".
+- [ ] **Etapa 4 — "‹ Curso"** para volver desde las pantallas de esa sección.
+
+## Publicar lo nuevo (Mensajes, docentes, materias y clases, talleres, navegación)
 
 Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 **los usuarios todavía no lo ven** hasta publicar:
@@ -24,7 +39,9 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 - [ ] **App 1.13.0**: la 1.12.0 se armó antes de Mensajes. Subir
       `expo.version` y correr `/store-release` + `/store-promote` (iOS desde la
       Mac). Novedades: Mensajes (1 a 1, grupo del curso, grupos, difusión,
-      Secretaría, maestras, soporte), vista docente, materias y clases.
+      Secretaría, maestras, soporte), vista docente, materias y clases,
+      talleres extraprogramáticos, editor de horarios y la navegación nueva
+      (Hoy · Agenda · Comunicaciones · Curso).
 - [ ] **Antes de publicar, probar en un celular** (Android e iPhone): chat
       (enviar, fotos, editar, borrar), notificación de mensaje → abre el chat,
       crear y editar un grupo, difusión, teclado en el chat, vista docente.

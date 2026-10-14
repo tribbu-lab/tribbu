@@ -1,8 +1,7 @@
-// Layout de tabs: header persistente (selector de hijo/curso + notificaciones)
-// sobre un bottom-tab navigator nativo. La tab de admin (Admin) solo se
-// ofrece cuando el item activo tiene rolEfectivo "room" — Alumnos vive en
-// Info Útil > Alumnos, sin ruta propia (antes estaba duplicada acá). El
-// deep-link de push se engancha acá.
+// Layout de tabs: header persistente (selector de hijo/curso + Mi cuenta)
+// sobre un bottom-tab navigator con 4 secciones: Hoy · Agenda ·
+// Comunicaciones · Curso. Administrar el curso (Room Parent) vive en
+// Curso. El deep-link de push se engancha acá.
 
 import { View, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
@@ -11,7 +10,7 @@ import { useSession } from "../../context/Session";
 import { AppHeader } from "../../components/AppHeader";
 import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
-import { useNotificaciones, NotificacionesProvider } from "../../features/notificaciones";
+import { useNotificaciones, NotificacionesProvider, avisosSinLeer } from "../../features/notificaciones";
 import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
 
 export default function TabsLayout() {
@@ -20,9 +19,10 @@ export default function TabsLayout() {
   // tab de Recordatorios reuse el mismo fetch de recordatorios+leídos en vez
   // de pedirlo de nuevo por separado en cada cambio de hijo/curso.
   const notif = useNotificaciones({ cursoIds, userId: usuario?.id ?? null, active: true });
-  const badge = notif.notifs.filter((n) => n._tipo === "recordatorio" && !notif.leidos.has(n.id)).length;
   // Badge de Mensajes + la única suscripción Realtime (ver lib/useMensajesNoLeidos).
   const mensajes = useMensajesNoLeidos(usuario?.id ?? null);
+  // Comunicaciones = avisos sin leer + mensajes sin leer.
+  const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0);
   useNotificationRouting(true);
 
   // Oculta del bottom-bar las secundarias (se alcanzan desde "Más").
@@ -42,13 +42,16 @@ export default function TabsLayout() {
         screenOptions={{ headerShown: false, freezeOnBlur: true }}
         tabBar={(props) => <FloatingTabBar {...props} badge={badge} />}
       >
-        <Tabs.Screen name="muro" options={{ title: "Inicio" }} />
-        <Tabs.Screen name="calendario" options={{ title: "Calendario" }} />
-        <Tabs.Screen name="cumples" options={{ title: "Cumpleaños" }} />
-        <Tabs.Screen name="recordatorios" options={{ title: "Avisos" }} />
-        <Tabs.Screen name="mas" options={{ title: "Más" }} />
+        {/* Hoy · Agenda (Calendario + Cumpleaños) · Comunicaciones (Avisos +
+            Mensajes) · Curso. El resto son pantallas de esas secciones,
+            fuera del bottom-bar (FloatingTabBar marca la sección de cada una). */}
+        <Tabs.Screen name="muro" options={{ title: "Hoy" }} />
+        <Tabs.Screen name="calendario" options={{ title: "Agenda" }} />
+        <Tabs.Screen name="recordatorios" options={{ title: "Comunicaciones" }} />
+        <Tabs.Screen name="curso" options={{ title: "Curso" }} />
 
-        {/* Secundarias: navegables desde "Más", fuera del bottom-bar */}
+        <Tabs.Screen name="cumples" options={hidden} />
+        <Tabs.Screen name="cuenta" options={hidden} />
         <Tabs.Screen name="buscar" options={hidden} />
         <Tabs.Screen name="comedor" options={hidden} />
         <Tabs.Screen name="encuestas" options={hidden} />

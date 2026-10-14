@@ -18,15 +18,20 @@ const ACTIVE = BLUE[600];
 // (alto de la píldora + safe area + respiro). Usar en contentContainerStyle.
 export const TAB_BAR_SPACE = 112;
 
-// La feature interna sigue llamándose "recordatorios" (tabla, rutas, tab id)
-// pero el nombre visible para el usuario es "Avisos" en todos lados — acá,
-// en el título de la pantalla y en el buscador.
+// Cuatro secciones (Hoy · Agenda · Comunicaciones · Curso). Cada una agrupa
+// varias rutas: la sección queda marcada en cualquiera de ellas y tocarla va
+// a la primera. "recordatorios" se muestra como "Avisos" (pestaña interna de
+// Comunicaciones). Las pantallas de Curso son todas las secundarias.
 const TABS = [
-  { name: "muro", label: "Inicio", icon: "home-outline" },
-  { name: "calendario", label: "Calendario", icon: "calendar-month-outline" },
-  { name: "cumples", label: "Cumpleaños", icon: "cake-variant-outline" },
-  { name: "recordatorios", label: "Avisos", icon: "pin-outline" },
-  { name: "mas", label: "Más", icon: "menu" },
+  { name: "muro", label: "Hoy", icon: "home-outline", rutas: ["muro"] },
+  { name: "calendario", label: "Agenda", icon: "calendar-month-outline", rutas: ["calendario", "cumples"] },
+  { name: "recordatorios", label: "Comunicaciones", icon: "email-outline", rutas: ["recordatorios", "mensajes"] },
+  {
+    name: "curso",
+    label: "Curso",
+    icon: "bag-personal-outline",
+    rutas: ["curso", "finanzas", "autorizaciones", "encuestas", "comedor", "talleres", "comunidad", "perdidos", "info", "contacto", "admin", "alumnos"],
+  },
 ];
 
 export function FloatingTabBar({ state, navigation, badge = 0 }) {
@@ -39,7 +44,7 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
           const idx = state.routes.findIndex((r) => r.name === tab.name);
           if (idx === -1) return null;
           const route = state.routes[idx];
-          const focused = state.index === idx;
+          const focused = tab.rutas.includes(state.routes[state.index]?.name);
 
           const onPress = () => {
             const ev = navigation.emit({
@@ -47,7 +52,7 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
               target: route.key,
               canPreventDefault: true,
             });
-            if (!focused && !ev.defaultPrevented) navigation.navigate(route.name);
+            if (state.index !== idx && !ev.defaultPrevented) navigation.navigate(route.name);
           };
 
           return (

@@ -1,17 +1,15 @@
-// "Más" — accesos a las features secundarias y a la cuenta. La de admin
-// (Admin) solo aparece si el item activo es Room Parent (rolEfectivo ===
-// rolEfectivo "room") — Alumnos ya no tiene entrada propia acá, vive en Info Útil >
-// Alumnos para los dos roles (antes estaba duplicada). Las acciones de
-// cuenta (cambiar contraseña / cerrar sesión) viven acá desde el patrón A3
-// (el header quedó solo con notificaciones + chip del hijo).
-
+// "Mi cuenta" — se abre desde el círculo con las iniciales del header. Antes
+// era el final de "Más"; las funciones del colegio pasaron a la pestaña
+// Curso. Los avisos automáticos tienen su propia hoja (Notificaciones).
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
 import { useRouter } from "expo-router";
+import { Sheet } from "../../components/Sheet";
 import * as LocalAuthentication from "expo-local-authentication";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
+import { iniciales } from "@shared/helpers";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
@@ -23,35 +21,10 @@ import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/av
 
 const t = THEMES.light;
 
-// Agrupado por uso. Mensajes no va acá (está en el ícono de arriba) y Lost &
-// Found tampoco (está dentro de Comunidad): antes aparecían dos veces.
-const GRUPOS_FAMILIA = [
-  { titulo: "Del día a día", items: [
-    { id: "finanzas", label: "Colectas", emoji: "💳" },
-    { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
-    { id: "encuestas", label: "Encuestas", emoji: "📊" },
-    { id: "comedor", label: "Comedor", emoji: "🍽️" },
-  ] },
-  { titulo: "Del colegio", items: [
-    { id: "talleres", label: "Talleres", emoji: "🎨" },
-    { id: "comunidad", label: "Comunidad", emoji: "🤝" },
-    { id: "info", label: "Info Útil", emoji: "📋" },
-    { id: "contacto", label: "Contacto", emoji: "📞" },
-  ] },
-];
-const GRUPO_ADMIN = { titulo: "Room Parent", items: [{ id: "admin", label: "Admin del curso", emoji: "⚙️" }] };
-const GRUPOS_DOCENTE = [
-  { titulo: "Mis cursos", items: [
-    { id: "alumnos", label: "Alumnos", emoji: "🎒" },
-    { id: "encuestas", label: "Encuestas", emoji: "📊" },
-    { id: "autorizaciones", label: "Autorizaciones", emoji: "✍️" },
-    { id: "talleres", label: "Mis talleres", emoji: "🎨" },
-  ] },
-];
-
-export default function MasScreen() {
+export default function CuentaScreen() {
   const router = useRouter();
-  const { isAdmin, esDocente, usuario, logout } = useSession();
+  const { esDocente, usuario, logout } = useSession();
+  const [notifAbierto, setNotifAbierto] = useState(false);
   const [cambiarPass, setCambiarPass] = useState(false);
   const [bloqueados, setBloqueados] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -85,8 +58,6 @@ export default function MasScreen() {
       Alert.alert("No se pudo guardar", "Probá de nuevo en unos minutos.");
     }
   };
-  // Docente: solo lo de sus cursos (specs/docentes-clases-y-grupos.md, Fase B).
-  const grupos = esDocente ? GRUPOS_DOCENTE : isAdmin ? [...GRUPOS_FAMILIA, GRUPO_ADMIN] : GRUPOS_FAMILIA;
 
   useEffect(() => {
     if (!usuario?.id) return;
@@ -159,44 +130,33 @@ export default function MasScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>Más</Text>
-      {grupos.map((g, gi) => (
-        <View key={g.titulo}>
-          <Text style={[styles.label, gi === 0 && { marginTop: SPACE.md }]}>{g.titulo}</Text>
-          <View style={styles.grid}>
-            {g.items.map((o) => (
-              <Pressable key={o.id} onPress={() => router.push(`/(tabs)/${o.id}`)} style={styles.tile}>
-                <Text style={styles.tileEmoji}>{o.emoji}</Text>
-                <Text style={styles.tileLabel}>{o.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+      <Text style={styles.h1}>Mi cuenta</Text>
+      <View style={styles.perfil}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarTxt}>{iniciales(usuario)}</Text>
         </View>
-      ))}
+        <View style={styles.flex1}>
+          <Text style={styles.perfilNombre}>{[usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")}</Text>
+          {usuario?.email ? <Text style={styles.crowMeta}>{usuario.email}</Text> : null}
+        </View>
+      </View>
 
       {/* Los avisos automáticos son para familias (eventos, colectas, cumples):
           a una docente no le llega ninguno, así que no hay nada que configurar. */}
       {esDocente ? null : (
-      <>
-      <Text style={styles.label}>Notificaciones</Text>
-      <View style={styles.card}>
-        {TIPOS_AVISO.map((tipo, i) => (
-          <View key={tipo.k} style={[styles.crow, i > 0 && styles.crowBorde]}>
-            <View style={styles.flex1}>
-              <Text style={styles.crowTitulo}>{tipo.titulo}</Text>
-              <Text style={styles.crowMeta}>{tipo.desc}</Text>
-            </View>
-            <Switch
-              value={prefsAvisos ? prefsAvisos[tipo.k] : true}
-              disabled={!prefsAvisos}
-              onValueChange={() => cambiarAviso(tipo.k)}
-              trackColor={{ true: t.accent }}
-            />
+        <>
+          <Text style={styles.label}>Preferencias</Text>
+          <View style={styles.card}>
+            <Pressable onPress={() => setNotifAbierto(true)} style={styles.crow}>
+              <MaterialCommunityIcons name="bell-outline" size={19} color={t.textMuted} />
+              <View style={styles.flex1}>
+                <Text style={styles.crowTitulo}>Notificaciones</Text>
+                <Text style={styles.crowMeta}>Qué avisos automáticos querés recibir</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
+            </Pressable>
           </View>
-        ))}
-      </View>
-      <Text style={styles.nota}>Son avisos automáticos. Los avisos y alertas que publica el curso te llegan siempre.</Text>
-      </>
+        </>
       )}
 
       <Text style={styles.label}>Cuenta</Text>
@@ -248,6 +208,27 @@ export default function MasScreen() {
         </Pressable>
       </View>
 
+      <Sheet visible={notifAbierto} onClose={() => setNotifAbierto(false)} title="Notificaciones">
+        <ScrollView style={styles.sheetScroll}>
+          <View style={styles.card}>
+            {TIPOS_AVISO.map((tipo, i) => (
+              <View key={tipo.k} style={[styles.crow, i > 0 && styles.crowBorde]}>
+                <View style={styles.flex1}>
+                  <Text style={styles.crowTitulo}>{tipo.titulo}</Text>
+                  <Text style={styles.crowMeta}>{tipo.desc}</Text>
+                </View>
+                <Switch
+                  value={prefsAvisos ? prefsAvisos[tipo.k] : true}
+                  disabled={!prefsAvisos}
+                  onValueChange={() => cambiarAviso(tipo.k)}
+                  trackColor={{ true: t.accent }}
+                />
+              </View>
+            ))}
+          </View>
+          <Text style={styles.nota}>Son avisos automáticos. Los avisos y alertas que publica el curso te llegan siempre.</Text>
+        </ScrollView>
+      </Sheet>
       <CambiarPasswordModal visible={cambiarPass} onClose={() => setCambiarPass(false)} />
       <BloqueadosSheet visible={bloqueados} onCerrar={() => setBloqueados(false)} />
     </ScrollView>
@@ -259,21 +240,11 @@ const styles = StyleSheet.create({
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  tile: {
-    width: "47%",
-    minHeight: 96,
-    backgroundColor: t.surface,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: t.borderStrong,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: SPACE.lg,
-  },
-  tileEmoji: { fontSize: 30 },
-  tileLabel: { fontSize: 13, fontWeight: "700", color: t.text },
+  perfil: { flexDirection: "row", alignItems: "center", gap: SPACE.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.xl, padding: 14 },
+  avatar: { width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: SLATE[800], alignItems: "center", justifyContent: "center" },
+  avatarTxt: { fontSize: 15, fontWeight: "800", color: "#FFFFFF" },
+  perfilNombre: { fontSize: 15, fontWeight: "800", color: t.textStrong },
+  sheetScroll: { flexShrink: 1 },
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
   card: {
     backgroundColor: t.surface,

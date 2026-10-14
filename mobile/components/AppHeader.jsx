@@ -1,11 +1,12 @@
 // Header persistente de la app (sobre las tabs), patrón A3: logo, buscar,
-// mensajes y chip del hijo activo (dot de color + nombre; tocar abre
-// el selector de color). Con múltiples hijos/cursos, el selector horizontal se
-// mantiene debajo. Las acciones de cuenta (contraseña / salir) viven en "Más".
+// chip del hijo activo (dot de color + nombre; tocar abre el selector de
+// color) y el círculo con las iniciales que abre Mi cuenta. Con múltiples
+// hijos/cursos, el selector horizontal se mantiene debajo. Los mensajes
+// están en la sección Comunicaciones.
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, Modal, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -14,8 +15,7 @@ import { useSession } from "../context/Session";
 import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
-import { colorColegio } from "@shared/helpers";
-import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
+import { colorColegio, iniciales } from "@shared/helpers";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -26,17 +26,15 @@ export function AppHeader() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    items,
-    cursoIdx,
-    setCursoIdx,
+    items,
     itemActual,
     colegioActivo,
     colorDeItem,
     colorCustomDeItem,
     setColorHijo,
+    usuario,
   } = useSession();
 
-  const { noLeidos: mensajesSinLeer } = useMensajesCtx();
   const [colorPickerItem, setColorPickerItem] = useState(null);
 
 
@@ -70,10 +68,6 @@ export function AppHeader() {
           <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
             <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
           </Pressable>
-          <Pressable onPress={() => router.push("/(tabs)/mensajes")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={mensajesSinLeer > 0 ? `Mensajes: ${mensajesSinLeer} sin leer` : "Mensajes"}>
-            <MaterialCommunityIcons name="message-outline" size={18} color="rgba(255,255,255,0.85)" />
-            {mensajesSinLeer > 0 ? <View style={[styles.notifDot, { borderColor: headerBg }]} /> : null}
-          </Pressable>
           {unicoHijo ? (
             <>
               {rolConSenal(unicoHijo.rolEfectivo) ? <RoleBadge rol={unicoHijo.rolEfectivo} size="xs" /> : null}
@@ -90,60 +84,15 @@ export function AppHeader() {
               </Pressable>
             </>
           ) : null}
+          {/* Mi cuenta (antes al final de "Más"). Los mensajes pasaron a Comunicaciones. */}
+          <Pressable onPress={() => router.push("/(tabs)/cuenta")} style={styles.avatarBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Mi cuenta">
+            <Text style={styles.avatarTxt}>{iniciales(usuario)}</Text>
+          </Pressable>
         </View>
       </View>
 
-      {/* Selector de hijos/cursos (solo con más de un acceso) */}
-      {items.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.selector}
-        >
-          {items.map((item, i) => {
-            const active = i === cursoIdx;
-            const dot = colorDeItem(item);
-            return (
-              <View key={item.id ?? i} style={styles.selItemWrap}>
-                <Pressable
-                  onPress={() => setCursoIdx(i)}
-                  style={[styles.chip, active && styles.chipActive]}
-                >
-                  {item._tipo === "todos" ? (
-                    <MaterialCommunityIcons
-                      name="account-group"
-                      size={14}
-                      color={active ? dk.textStrong : dk.textFaint}
-                    />
-                  ) : item._tipo === "hijo" ? (
-                    <View
-                      style={[
-                        styles.dot,
-                        { backgroundColor: active ? dot : dk.textFaint },
-                      ]}
-                    />
-                  ) : null}
-                  <Text style={styles.chipTxt}>
-                    {item._tipo === "todos" || item._tipo === "hijo" ? item.nombre : `${item.avatar || ""} ${item.nombre}`}
-                  </Text>
-                  {/* Rol efectivo por item: un apoderado puede ser Room Parent
-                      en un curso y solo apoderado en otro (ver App.jsx web,
-                      mismo criterio) — se ve de un vistazo sin cambiar de hijo.
-                      Solo se marca el rol con señal (Room Parent, etc.); el
-                      apoderado por defecto no lleva badge. */}
-                  {item._tipo === "hijo" && rolConSenal(item.rolEfectivo) ? <RoleBadge rol={item.rolEfectivo} size="xs" /> : null}
-                </Pressable>
-                {item._tipo === "hijo" && active ? (
-                  <Pressable onPress={() => setColorPickerItem(item)} style={styles.paintBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Color de ${item.nombre}`}>
-                    <MaterialCommunityIcons name="palette-outline" size={14} color="rgba(255,255,255,0.7)" />
-                  </Pressable>
-                ) : null}
-              </View>
-            );
-          })}
-        </ScrollView>
-      ) : null}
-
+      {/* El selector de hijos/cursos ya no va acá: está arriba de cada sección
+          (components/SelectorHijos), como en el prototipo. */}
       <ColorPicker
         item={colorPickerItem}
         currentColor={colorPickerItem ? colorDeItem(colorPickerItem) : null}
@@ -216,6 +165,17 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: dk.bg,
   },
+  avatarBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.full,
+    backgroundColor: dk.surface2,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarTxt: { fontSize: 12.5, fontWeight: "800", color: dk.textStrong, letterSpacing: 0.3 },
   kidChip: {
     flexDirection: "row",
     alignItems: "center",

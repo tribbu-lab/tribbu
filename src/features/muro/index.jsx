@@ -61,7 +61,7 @@ function ErrorMuro({ onReintentar, tieneDatos, style }) {
   );
 }
 
-export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, cursoNombre, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
+export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, cursoNombre, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, onBadgeChange, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -315,14 +315,15 @@ export function Muro({ cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, curso
     <div>
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>{ setFestejoDetalle(null); cargar(); }} onUpdate={cargar}/>}
       {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} onClose={()=>setEventoDetalle(null)} misHijos={misHijos} userId={userId}/>}
-      {/* El selector de hijos/Todos vive en la navegación (sidebar en desktop,
-          header en mobile) — App.jsx —, no acá: se puede cambiar de vista desde
-          cualquier pantalla, igual que en la app mobile. */}
+      {/* El selector "Todos mis hijos ▾" lo arma App.jsx (prop selector) y va
+          debajo del saludo, como en el prototipo; en las demás secciones App
+          lo pone arriba del contenido. */}
       <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:"1fr 320px",gap:20,alignItems:"start"}}>
       <div>
       <div style={{marginBottom:18}}>
         <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Hola{userName?`, ${userName}`:""} 👋</div>
         <div style={{fontSize:13,color:"#94A3B8",textTransform:"capitalize"}}>{hoy}</div>
+        {selector ? <div style={{marginTop:12}}>{selector}</div> : null}
       </div>
       {error&&<ErrorMuro onReintentar={cargar} tieneDatos style={{marginBottom:18}}/>}
       {(datos.alertas||[]).map(al=>{

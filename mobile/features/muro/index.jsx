@@ -43,6 +43,7 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { useNotificacionesCtx } from "../notificaciones";
 import { SkeletonList } from "../../components/Skeleton";
+import { SelectorHijos } from "../../components/SelectorHijos";
 
 const t = THEMES.light;
 
@@ -319,6 +320,7 @@ export function Muro() {
       <View style={[styles.screen, styles.content]}>
         <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
         <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
+        <SelectorHijos style={{ marginTop: SPACE.md }} />
         {error ? (
           <ErrorMuro onReintentar={cargar} tieneDatos={false} />
         ) : (
@@ -503,6 +505,7 @@ export function Muro() {
     >
       <Text style={styles.eyebrow}>{hoyLabel.replace(",", "")}</Text>
       <Text style={styles.hello}>Hola{userName ? `, ${userName}` : ""}</Text>
+        <SelectorHijos style={{ marginTop: SPACE.md }} />
 
       {error ? <ErrorMuro onReintentar={cargar} tieneDatos style={{ marginTop: SPACE.lg }} /> : null}
 

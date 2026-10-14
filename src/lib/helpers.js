@@ -181,3 +181,7 @@ export const cerrarBannerFestejo = (userId, festejoId) => {
     backend.setItem(`festejo_cerrado_${userId}_${festejoId}`, "1");
   } catch { /* noop */ }
 };
+
+// Iniciales para el círculo de "Mi cuenta" (header web + mobile): "Ana Demo" → "AD".
+export const iniciales = (u) =>
+  [u?.nombre, u?.apellido].filter(Boolean).map((x) => String(x).trim()[0] || "").join("").toUpperCase().slice(0, 2) || "?";

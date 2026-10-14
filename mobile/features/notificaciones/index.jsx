@@ -21,6 +21,9 @@ export function NotificacionesProvider({ value, children }) {
 export function useNotificacionesCtx() {
   return useContext(NotificacionesCtx);
 }
+// Avisos sin leer (badge de Comunicaciones y de su pestaña Avisos).
+export const avisosSinLeer = (notif) =>
+  notif ? notif.notifs.filter((n) => n._tipo === "recordatorio" && !notif.leidos.has(n.id)).length : 0;
 
 export function useNotificaciones({ cursoIds, userId, active }) {
   const [notifs, setNotifs] = useState([]);
