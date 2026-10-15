@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // ── Módulos extraídos ────────────────────────────────────────────────────────
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
-import { getHijoColor, setHijoColor, colorColegio, iniciales } from "./lib/helpers";
+import { getHijoColor, setHijoColor, colorColegio } from "./lib/helpers";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -39,6 +39,7 @@ const MiCuenta         = aLazy(() => import("./features/curso"), "MiCuenta");
 import { SubSeccion } from "./components/SubSeccion";
 import { SelectorHijos } from "./components/SelectorHijos";
 import { Icono } from "./components/Icono";
+import { AvatarPerfil } from "./components/AvatarPerfil";
 import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones } from "./features/notificaciones";
@@ -169,6 +170,9 @@ const TabCacheada = memo(function TabCacheada({ activa, children }) {
 
 function App() {
   const [usuario,       setUsuario]       = useState(null);
+  // Foto de perfil cambiada en esta sesión (undefined = la del usuario). Aparte
+  // de `usuario` para no recargar "Mi acceso" al cambiarla.
+  const [fotoLocal,     setFotoLocal]     = useState(undefined);
   const [authLoading,   setAuthLoading]   = useState(true);
   const [tab,           setTab]           = useState(() => tabDeUrl() || "muro");
   // Pestañas ya visitadas que quedan montadas (ocultas) — ver renderTabs.
@@ -428,6 +432,7 @@ function App() {
   const cerrarSesionTrasEliminar = async () => {
     try { await supabase.auth.signOut(); } catch { /* sesión ya invalidada */ }
     setUsuario(null);
+    setFotoLocal(undefined);
   };
 
   // Tras crear la contraseña nueva la sesión ya es válida: limpiamos el hash de
@@ -478,6 +483,7 @@ function App() {
     : cursoNombre;
   // Cursos donde el usuario es Room Parent — para permisos por fila en Todos.
   const cursosAdmin = items.filter(i=>i.rolEfectivo==="room").map(i=>i.curso_id);
+  const fotoPerfil = fotoLocal !== undefined ? fotoLocal : usuario?.foto_url || null;
 
   // colegio_admin (multi-colegio): mismo panel que super, acotado a su
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
@@ -582,7 +588,7 @@ function App() {
       case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
       case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA}/>;
-      case "cuenta":   return <MiCuenta usuario={usuario} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
+      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
       default: return null;
     }
   };
@@ -660,8 +666,8 @@ function App() {
               {mensajesSinLeer>0&&<span style={{position:"absolute",top:-5,right:-6,minWidth:17,height:17,padding:"0 4px",borderRadius:999,background:"#EF4444",border:"1.5px solid #0F172A",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box"}}><span style={{fontSize:9.5,fontWeight:800,color:"white"}}>{mensajesSinLeer>9?"9+":mensajesSinLeer}</span></span>}
             </button>
             {/* Mi cuenta (contraseña, notificaciones, salir…). */}
-            <button onClick={()=>setTab("cuenta")} aria-label="Mi cuenta" style={{width:34,height:34,borderRadius:999,border:"1px solid rgba(255,255,255,0.2)",background:tab==="cuenta"?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-              <span style={{fontSize:12.5,fontWeight:800,color:"white",letterSpacing:0.3}}>{iniciales(usuario)}</span>
+            <button onClick={()=>setTab("cuenta")} aria-label="Mi cuenta" style={{width:34,height:34,borderRadius:999,border:"none",background:"none",cursor:"pointer",padding:0}}>
+              <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={34} oscuro/>
             </button>
           </div>
         </div>
@@ -739,7 +745,7 @@ function App() {
 
         <div style={{padding:"0 12px 16px"}}>
           <button onClick={()=>setTab("cuenta")} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:tab==="cuenta"?"rgba(255,255,255,0.14)":"rgba(255,255,255,0.06)",textAlign:"left",fontFamily:"inherit"}}>
-            <span style={{width:32,height:32,borderRadius:999,background:"rgba(255,255,255,0.14)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{iniciales(usuario)}</span>
+            <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={32} oscuro/>
             <span style={{flex:1,minWidth:0,display:"block"}}>
               <span style={{display:"block",fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario.nombre} {usuario.apellido||""}</span>
               <span style={{display:"block",fontSize:10,opacity:0.55,marginTop:1}}>Mi cuenta</span>

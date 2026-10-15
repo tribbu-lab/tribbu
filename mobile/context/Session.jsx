@@ -23,6 +23,9 @@ export function SessionProvider({ children }) {
   const [cursoIdx, setCursoIdx] = useState(0);
   const [colegiosPorId, setColegiosPorId] = useState({});
   const [hijoColorsVer, setHijoColorsVer] = useState(0); // fuerza recálculo al cambiar color
+  // Foto de perfil cambiada en esta sesión (undefined = la del usuario cargado).
+  // Aparte de `usuario`: actualizarlo recargaría "Mi acceso" y volvería al primer hijo.
+  const [fotoLocal, setFotoLocal] = useState(undefined);
 
   const cargarUsuario = useCallback(async (authUser) => {
     const { data } = await supabase
@@ -125,6 +128,7 @@ export function SessionProvider({ children }) {
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUsuario(null);
+    setFotoLocal(undefined);
     setItems([]);
     setCursoIdx(0);
   }, []);
@@ -235,12 +239,14 @@ export function SessionProvider({ children }) {
       colorCustomDeItem,
       setColorHijo,
       logout,
+      fotoPerfil: fotoLocal !== undefined ? fotoLocal : usuario?.foto_url || null,
+      setFotoPerfil: setFotoLocal,
       reloadUsuario: () =>
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario]);
+  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario, fotoLocal]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

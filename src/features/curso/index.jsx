@@ -2,12 +2,14 @@
 // (las acciones de cuenta que estaban al pie del menú). Mismo contenido que la
 // pantalla Curso de mobile (mobile/app/(tabs)/curso.jsx): filas agrupadas
 // con un contador de lo que espera algo de la familia (@shared/gestiones).
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "../../supabase";
 import { useCargar } from "../../hooks/useCargar";
-import { fmtLocalDate, iniciales } from "../../lib/helpers";
+import { fmtLocalDate } from "../../lib/helpers";
 import { cargarGestiones } from "../../lib/gestiones";
 import { Icono } from "../../components/Icono";
+import { AvatarPerfil } from "../../components/AvatarPerfil";
+import { ponerFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfilWeb";
 
 // Agrupado por quién lo organiza: el colegio (autorizaciones, comedor,
 // talleres, info, contacto) o las familias del curso (colectas, encuestas,
@@ -97,19 +99,53 @@ export function Curso({ cursoIds, items, userId, isAdmin, esDocente, onNavigate 
   );
 }
 
-export function MiCuenta({ usuario, esDocente, onNotificaciones, onSoporte, onCambiarPass, onCerrarSesion, onEliminar }) {
+// Tarjeta del perfil: foto (poner / cambiar / quitar), nombre, mail y
+// "Room Parent de 4°B" como dato (antes era un cartel en el header).
+function PerfilFoto({ usuario, foto, onFoto, cursosRoom }) {
+  const input = useRef(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+  const elegir = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSubiendo(true); setError("");
+    try { onFoto?.(await ponerFotoPerfil(supabase, usuario.id, file)); }
+    catch (err) { setError(err?.message || "No se pudo cambiar la foto."); }
+    setSubiendo(false);
+  };
+  const quitar = async () => {
+    setError("");
+    try { await quitarFotoPerfil(supabase); onFoto?.(null); }
+    catch { setError("No se pudo quitar la foto."); }
+  };
+  const link = { border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" };
+  return (
+    <div style={{ ...tarjeta, display: "flex", alignItems: "center", gap: 14, padding: 14, marginTop: 16 }}>
+      <input ref={input} type="file" accept="image/*" onChange={elegir} style={{ display: "none" }} />
+      <button onClick={() => input.current?.click()} aria-label={foto ? "Cambiar la foto de perfil" : "Poner una foto de perfil"} style={{ ...link, position: "relative", borderRadius: 999 }}>
+        <AvatarPerfil usuario={usuario} foto={foto} size={56} />
+        {subiendo ? <span style={{ position: "absolute", inset: 0, borderRadius: 999, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>…</span></span> : null}
+      </button>
+      <span style={{ display: "block", minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: "#0F172A" }}>{[usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")}</span>
+        {usuario?.email ? <span style={{ display: "block", fontSize: 12.5, color: "#64748B", marginTop: 1 }}>{usuario.email}</span> : null}
+        {cursosRoom.length ? <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#047857", marginTop: 3 }}>Room Parent de {cursosRoom.join(" y ")}</span> : null}
+        <span style={{ display: "flex", gap: 14, marginTop: 6 }}>
+          <button onClick={() => input.current?.click()} disabled={subiendo} style={link}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB" }}>{subiendo ? "Subiendo…" : foto ? "Cambiar foto" : "Poner una foto"}</span></button>
+          {foto && !subiendo ? <button onClick={quitar} style={link}><span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748B" }}>Quitar</span></button> : null}
+        </span>
+        {error ? <span role="alert" style={{ display: "block", fontSize: 12, color: "#DC2626", marginTop: 4 }}>{error}</span> : null}
+      </span>
+    </div>
+  );
+}
+
+export function MiCuenta({ usuario, foto, onFoto, cursosRoom = [], esDocente, onNotificaciones, onSoporte, onCambiarPass, onCerrarSesion, onEliminar }) {
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3, color: "#0F172A" }}>Mi cuenta</div>
-      <div style={{ ...tarjeta, display: "flex", alignItems: "center", gap: 12, padding: 14, marginTop: 16 }}>
-        <span style={{ width: 44, height: 44, borderRadius: 999, background: "#1E293B", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, flexShrink: 0 }}>
-          <span style={{ color: "white" }}>{iniciales(usuario)}</span>
-        </span>
-        <span style={{ display: "block", minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: "#0F172A" }}>{[usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")}</span>
-          {usuario?.email ? <span style={{ display: "block", fontSize: 12.5, color: "#64748B", marginTop: 1 }}>{usuario.email}</span> : null}
-        </span>
-      </div>
+      <PerfilFoto usuario={usuario} foto={foto} onFoto={onFoto} cursosRoom={cursosRoom} />
       {/* Los avisos automáticos son para familias: a una docente no le llega ninguno. */}
       {esDocente ? null : (
         <>

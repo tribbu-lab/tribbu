@@ -14,9 +14,9 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, STATUS, TYPE, RADIUS, SPACE, MIN_TOUCH, HIJO_COLORS_CUSTOM } from "@shared/tokens";
 import { useSession } from "../context/Session";
 import { Wordmark } from "./Wordmark";
-import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
-import { colorColegio, iniciales } from "@shared/helpers";
+import { colorColegio } from "@shared/helpers";
+import { AvatarPerfil } from "./AvatarPerfil";
 import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
@@ -35,6 +35,7 @@ export function AppHeader() {
     colorCustomDeItem,
     setColorHijo,
     usuario,
+    fotoPerfil,
   } = useSession();
 
   const [colorPickerItem, setColorPickerItem] = useState(null);
@@ -43,10 +44,7 @@ export function AppHeader() {
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
 
-  // El rol solo se muestra cuando aporta información: "Apoderado" es el caso por
-  // defecto de casi todos y llenaba el header de píldoras redundantes (reportado
-  // por el usuario). Solo Room Parent / roles especiales llevan badge.
-  const rolConSenal = (rol) => rol && rol !== "padre";
+  // El rol (Room Parent) ya no va en el header: es un dato del perfil, en Mi cuenta.
 
   // El color del hijo activo tiñe el header SOLO si eligió uno personalizado —
   // sin custom, cae al neutro (mismo que "Todos"), para que "Restablecer
@@ -87,7 +85,6 @@ export function AppHeader() {
           </Pressable>
           {unicoHijo ? (
             <>
-              {rolConSenal(unicoHijo.rolEfectivo) ? <RoleBadge rol={unicoHijo.rolEfectivo} size="xs" /> : null}
               <Pressable
                 onPress={() => setColorPickerItem(unicoHijo)}
                 style={styles.kidChip}
@@ -102,8 +99,8 @@ export function AppHeader() {
             </>
           ) : null}
           {/* Mi cuenta (antes al final de "Más"). */}
-          <Pressable onPress={() => router.push("/(tabs)/cuenta")} style={styles.avatarBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Mi cuenta">
-            <Text style={styles.avatarTxt}>{iniciales(usuario)}</Text>
+          <Pressable onPress={() => router.push("/(tabs)/cuenta")} hitSlop={6} accessibilityRole="button" accessibilityLabel="Mi cuenta">
+            <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={34} oscuro />
           </Pressable>
         </View>
       </View>

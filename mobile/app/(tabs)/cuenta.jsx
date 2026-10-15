@@ -9,7 +9,6 @@ import * as LocalAuthentication from "expo-local-authentication";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
-import { iniciales } from "@shared/helpers";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { CambiarPasswordModal } from "../../features/auth";
@@ -18,12 +17,39 @@ import { deleteMyAccount } from "../../lib/authAdmin";
 import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
 import { supabase } from "../../lib/supabase";
 import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/avisos";
+import { AvatarPerfil } from "../../components/AvatarPerfil";
+import { elegirFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfil";
 
 const t = THEMES.light;
 
 export default function CuentaScreen() {
   const router = useRouter();
-  const { esDocente, usuario, logout } = useSession();
+  const { esDocente, usuario, logout, items, fotoPerfil, setFotoPerfil } = useSession();
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  // Room Parent: dato del perfil (antes era un cartel en el header).
+  const cursosRoom = [...new Set((items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.cursos?.nombre).filter(Boolean))];
+
+  const cambiarFoto = async () => {
+    if (subiendoFoto) return;
+    setSubiendoFoto(true);
+    try {
+      const nueva = await elegirFotoPerfil(usuario.id);
+      if (nueva) setFotoPerfil(nueva);
+    } catch (e) {
+      Alert.alert("No se pudo cambiar la foto", e?.message || "Probá de nuevo en unos minutos.");
+    }
+    setSubiendoFoto(false);
+  };
+  const menuFoto = () => {
+    if (!fotoPerfil) { cambiarFoto(); return; }
+    Alert.alert("Foto de perfil", null, [
+      { text: "Elegir otra foto", onPress: cambiarFoto },
+      { text: "Quitar foto", style: "destructive", onPress: async () => {
+        try { await quitarFotoPerfil(); setFotoPerfil(null); } catch { Alert.alert("No se pudo quitar la foto"); }
+      } },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
   const [notifAbierto, setNotifAbierto] = useState(false);
   const [cambiarPass, setCambiarPass] = useState(false);
   const [bloqueados, setBloqueados] = useState(false);
@@ -132,12 +158,17 @@ export default function CuentaScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Mi cuenta</Text>
       <View style={styles.perfil}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarTxt}>{iniciales(usuario)}</Text>
-        </View>
+        <Pressable onPress={menuFoto} accessibilityRole="button" accessibilityLabel={fotoPerfil ? "Cambiar o quitar la foto de perfil" : "Poner una foto de perfil"}>
+          <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={56} />
+          <View style={styles.camara}>
+            {subiendoFoto ? <ActivityIndicator size="small" color="#fff" /> : <MaterialCommunityIcons name="camera-outline" size={13} color="#fff" />}
+          </View>
+        </Pressable>
         <View style={styles.flex1}>
           <Text style={styles.perfilNombre}>{[usuario?.nombre, usuario?.apellido].filter(Boolean).join(" ")}</Text>
           {usuario?.email ? <Text style={styles.crowMeta}>{usuario.email}</Text> : null}
+          {cursosRoom.length ? <Text style={styles.rolPerfil}>Room Parent de {cursosRoom.join(" y ")}</Text> : null}
+          <Pressable onPress={menuFoto} hitSlop={6}><Text style={styles.linkFoto}>{fotoPerfil ? "Cambiar foto" : "Poner una foto"}</Text></Pressable>
         </View>
       </View>
 
@@ -241,8 +272,9 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3, marginBottom: SPACE.lg },
   perfil: { flexDirection: "row", alignItems: "center", gap: SPACE.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.xl, padding: 14 },
-  avatar: { width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: SLATE[800], alignItems: "center", justifyContent: "center" },
-  avatarTxt: { fontSize: 15, fontWeight: "800", color: "#FFFFFF" },
+  camara: { position: "absolute", right: -2, bottom: -2, width: 22, height: 22, borderRadius: RADIUS.full, backgroundColor: SLATE[700], borderWidth: 2, borderColor: "#fff", alignItems: "center", justifyContent: "center" },
+  rolPerfil: { fontSize: 12.5, fontWeight: "700", color: "#047857", marginTop: 3 },
+  linkFoto: { fontSize: 12.5, fontWeight: "700", color: t.accent, marginTop: 5 },
   perfilNombre: { fontSize: 15, fontWeight: "800", color: t.textStrong },
   sheetScroll: { flexShrink: 1 },
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.xl, marginBottom: SPACE.sm },
