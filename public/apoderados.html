@@ -174,8 +174,10 @@
   .capGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   @media (max-width:900px){.capGrid{grid-template-columns:1fr}}
   .capCard{border:1px solid var(--border);border-radius:20px;overflow:hidden;background:#fff}
+  .shotPhone{display:block;width:100%;height:auto;border-radius:34px 34px 0 0}
+  .shotFull{display:block;width:100%;height:auto}
   .capImgWrap{background:var(--navy2);padding:8px}
-  .capImgWrap img{width:100%;display:block;border-radius:12px}
+  .capImgWrap img{width:100%;height:auto;display:block;border-radius:12px}
   .capBody{padding:18px 20px 20px}
   .capMod{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
   .capTitle{font-size:17px;font-weight:800;letter-spacing:-.5px;margin-top:7px}
@@ -471,35 +473,7 @@
     </div>
     <div class="heroPhone">
       <div class="phoneFrame">
-        <div class="hmScreen" role="img" aria-label="Pantalla de inicio de tribbu en la vista Todos, con los pendientes y la agenda de Emma y Mateo">
-          <div class="hmStatus"><span>12:18</span><span>●●● 🔋</span></div>
-          <div class="hmHead">
-            <div class="hmBar"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span><div class="hmBarR"><span class="hmBell">🔔<i></i></span><span class="mhChipTop">👥 Todos</span></div></div>
-            <div class="mhKids">
-              <span class="mhKid on">👥 Todos</span>
-              <span class="mhKid"><span class="d" style="background:#3B82F6"></span>Emma <small>3°A</small></span>
-              <span class="mhKid"><span class="d" style="background:#EC4899"></span>Mateo <small>5°B</small></span>
-            </div>
-          </div>
-          <div class="hmCtx">
-            <div class="hmFecha">Viernes 14 de agosto</div>
-            <div class="hmHola">Hola, María</div>
-            <div class="hmLbl">Pendientes · 3</div>
-            <div class="hmPends">
-              <div class="hmPend"><div class="hmPendTipo" style="color:#DC2626"><span class="d" style="background:#3B82F6"></span>Aviso · Emma</div><b>Traer pañuelos descartables</b><small>Sin leer · lun 24 de agosto</small><div class="hmPendFoot"><span>Marcar leído</span><em>en 10 días</em></div></div>
-              <div class="hmPend"><div class="hmPendTipo" style="color:#059669"><span class="d" style="background:#EC4899"></span>Autorización · Mateo</div><b>Salida al Planetario 🚌</b><small>Falta tu respuesta · mié 26</small><div class="hmPendFoot"><span>Responder</span><em>12 días</em></div></div>
-            </div>
-            <div class="hmDots"><span></span><span></span><span></span></div>
-            <div class="hmLbl">Próximos 15 días</div>
-            <div class="mhList" style="margin-top:0">
-              <div class="mhRow"><div class="mhDate"><div class="dw">jue</div><div class="dn">20</div></div><div><b>Cumple de Emma 🎂</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · 3°A</span></div></div>
-              <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">21</div></div><div><b>Reunión de apoderados</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Aula de 5°B</span></div></div>
-              <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">28</div></div><div><b>Acto Día del Maestro</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span><span class="d" style="background:#EC4899;margin-left:-3px"></span>Los dos · Patio central</span></div></div>
-            </div>
-            <div class="hmLbl">Comedor</div>
-            <div class="hmComedor"><span class="ic">🍽️</span><div><b>Menú de hoy</b><small>Salad bar · Pizza de muzzarella · Guiso de lentejas</small></div></div>
-          </div>
-        </div>
+        <img class="shotPhone" src="/apoderados-media/app-hoy.jpg" width="680" height="1467" alt="Pantalla Hoy de tribbu: saludo, selector Todos mis hijos y las respuestas pendientes (una autorización que vence mañana, una colecta y una invitación)">
       </div>
     </div>
   </div>
@@ -559,15 +533,15 @@
   <div class="capturasLbl">Las que más vas a usar</div>
   <div class="capGrid">
     <div class="capCard">
-      <div class="capImgWrap"><img src="/apoderados-media/tribbu-inicio-mi-acceso.gif" alt="Pantalla de Inicio cambiando entre los hijos con el selector Mi acceso"></div>
-      <div class="capBody"><div class="capMod" style="color:#2563EB">Inicio</div><div class="capTitle">Lo importante, arriba de todo</div><div class="capDesc">El menú de hoy y los pendientes. Con más de un hijo, cambiás entre ellos o los ves todos juntos.</div></div>
+      <div class="capImgWrap"><img src="/apoderados-media/web-cap-inicio.jpg" width="984" height="600" loading="lazy" alt="Inicio de tribbu con las respuestas pendientes, los próximos días y el menú de hoy"></div>
+      <div class="capBody"><div class="capMod" style="color:#2563EB">Inicio</div><div class="capTitle">Lo importante, arriba de todo</div><div class="capDesc">Lo que tenés que responder, ordenado por vencimiento, los próximos días y el menú de hoy. Con más de un hijo, los ves todos juntos o de a uno.</div></div>
     </div>
     <div class="capCard">
-      <div class="capImgWrap"><img src="/apoderados-media/tribbu-calendario.gif" alt="Calendario en vista de mes y en vista de lista"></div>
-      <div class="capBody"><div class="capMod" style="color:#7C3AED">Calendario</div><div class="capTitle">Todo el año, de un vistazo</div><div class="capDesc">Vista por mes o en lista, con la fecha de cada evento y cuánto falta para que llegue.</div></div>
+      <div class="capImgWrap"><img src="/apoderados-media/web-cap-calendario.jpg" width="984" height="600" loading="lazy" alt="Agenda de tribbu: calendario del mes con los eventos de cada hijo"></div>
+      <div class="capBody"><div class="capMod" style="color:#7C3AED">Calendario</div><div class="capTitle">Todo el año, de un vistazo</div><div class="capDesc">Calendario, horario de clases y cumpleaños juntos en Agenda, con un color por hijo.</div></div>
     </div>
     <div class="capCard">
-      <div class="capImgWrap"><img src="/apoderados-media/tribbu-colectas.gif" alt="Colectas del curso con el monto recaudado y el estado de pago"></div>
+      <div class="capImgWrap"><img src="/apoderados-media/web-cap-colectas.jpg" width="984" height="600" loading="lazy" alt="Colectas del curso con el monto recaudado y el estado de pago"></div>
       <div class="capBody"><div class="capMod" style="color:#B45309">Colectas</div><div class="capTitle">Sin planillas ni "¿ya pagaste?"</div><div class="capDesc">Cuánto se juntó y cuánto falta. Registrás tu aporte una vez y queda a la vista del curso.</div></div>
     </div>
   </div>
@@ -578,34 +552,14 @@
     <div>
       <div class="eyebrow">Multi-hijo</div>
       <h2 style="font-size:38px;letter-spacing:-1.3px">Todos tus hijos, una sola agenda.</h2>
-      <p class="lead" style="font-size:16.5px;max-width:480px">El calendario suma los eventos de todos tus hijos y te deja filtrar por chico con un toque. Cada uno con su color, para saber de quién es cada cosa de un vistazo.</p>
+      <p class="lead" style="font-size:16.5px;max-width:480px">Con "Todos mis hijos" ves lo de cada curso junto, o elegís a uno con un toque. Cada chico tiene su color, para saber de quién es cada cosa de un vistazo.</p>
       <div class="bullets">
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Un color por hijo en toda la app</span></div>
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Filtro por chico en un toque</span></div>
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Notificaciones separadas por curso</span></div>
       </div>
     </div>
-    <div class="mhPhone" role="img" aria-label="tribbu en la vista Todos: la agenda de Emma y Mateo juntos, cada uno con su color">
-      <div class="mhTop">
-        <div class="mhBar"><span class="wm">tribbu<span style="color:#3B82F6">.</span></span><span class="mhChipTop">👥 Todos</span></div>
-        <div class="mhKids">
-          <span class="mhKid on">👥 Todos</span>
-          <span class="mhKid"><span class="d" style="background:#3B82F6"></span>Emma <small>3°A</small></span>
-          <span class="mhKid"><span class="d" style="background:#EC4899"></span>Mateo <small>5°B</small></span>
-        </div>
-      </div>
-      <div class="mhBody">
-        <div class="mhTitle">Próximos</div>
-        <div class="mhSub">Emma y Mateo, en una sola lista</div>
-        <div class="mhList">
-          <div class="mhRow"><div class="mhDate"><div class="dw">jue</div><div class="dn">20</div></div><div><b>Cumple de Emma 🎂</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · 3°A</span></div></div>
-          <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">21</div></div><div><b>Reunión de apoderados</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Aula de 5°B</span></div></div>
-          <div class="mhRow"><div class="mhDate"><div class="dw">lun</div><div class="dn">24</div></div><div><b>Traer pañuelos descartables</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span>Emma · Aviso</span></div></div>
-          <div class="mhRow"><div class="mhDate"><div class="dw">mié</div><div class="dn">26</div></div><div><b>Salida al Planetario 🚌</b><span class="mhTag"><span class="d" style="background:#EC4899"></span>Mateo · Autorización</span></div></div>
-          <div class="mhRow"><div class="mhDate"><div class="dw">vie</div><div class="dn">28</div></div><div><b>Acto Día del Maestro</b><span class="mhTag"><span class="d" style="background:#3B82F6"></span><span class="d" style="background:#EC4899;margin-left:-3px"></span>Los dos · Patio central</span></div></div>
-        </div>
-      </div>
-    </div>
+    <div class="mhPhone"><img class="shotFull" src="/apoderados-media/app-agenda.jpg" width="680" height="1467" loading="lazy" alt="Agenda de tribbu en Todos mis hijos: los próximos eventos de Emma y Mateo, cada uno con su color"></div>
   </div>
 </section>
 
@@ -624,19 +578,10 @@
       <div class="bullets" style="margin-top:20px">
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Silenciar, bloquear y denunciar mensajes</span></div>
         <div class="bulletRow"><span class="ico">✓</span><span class="txt">Notificaciones agrupadas, sin 40 vibraciones seguidas</span></div>
-        <div class="bulletRow"><span class="ico">✓</span><span class="txt">Ayuda y soporte del equipo de tribbu en el mismo lugar</span></div>
+        <div class="bulletRow"><span class="ico">✓</span><span class="txt">Buscador para encontrar cualquier conversación</span></div>
       </div>
     </div>
-    <div class="chatMock" aria-hidden="true">
-      <div class="chatHead"><div class="chatAv" style="background:#F0FDF4">👩‍🏫</div><div><b>Seño Vale · Matemática</b><small>Familia de Mateo · 4°B</small></div></div>
-      <div class="chatBody">
-        <div class="bub in"><span class="who" style="color:#059669">Seño Vale</span>Hola! Mateo se olvidó la carpeta en el aula, la dejé en secretaría 🙂<span class="hr">10:42</span></div>
-        <div class="bub out">¡Gracias Vale! Paso a buscarla a la salida.<span class="hr" style="color:#fff">10:45</span></div>
-        <div class="bub in"><span class="who" style="color:#059669">Seño Vale</span>Perfecto. Recuerden firmar la autorización del Planetario 🚌<span class="hr">10:46</span></div>
-        <div class="bub out">Ya está firmada ✍️<span class="hr" style="color:#fff">10:47</span></div>
-      </div>
-      <div class="chatFoot"><div class="inp">Escribí un mensaje…</div><div class="send">➤</div></div>
-    </div>
+    <div class="chatMock"><img class="shotFull" src="/apoderados-media/app-chat.jpg" width="760" height="1133" loading="lazy" alt="Chat de tribbu entre dos familias del curso, sin teléfonos a la vista"></div>
   </div>
 </section>
 
@@ -668,70 +613,7 @@
       <div class="dots3"><span style="background:#FB7185"></span><span style="background:#FCD34D"></span><span style="background:#6EE7B7"></span></div>
       <div class="urlBar">🔒 <span>tribbu.ar/app</span></div>
     </div>
-    <div class="webBody">
-      <div class="webSidebar">
-        <div class="wm">tribbu<span style="color:#3B82F6">.</span></div>
-        <div class="tag">Comunidad escolar</div>
-        <div class="webNavItem active"><span class="em">🏠</span><span class="lbl">Inicio</span></div>
-        <div class="webNavItem"><span class="em">📅</span><span class="lbl">Calendario</span></div>
-        <div class="webNavItem"><span class="em">🍽️</span><span class="lbl">Comedor</span></div>
-        <div class="webNavItem"><span class="em">🎂</span><span class="lbl">Cumpleaños</span></div>
-        <div class="webNavItem"><span class="em">📌</span><span class="lbl">Avisos</span><span class="badge">3</span></div>
-        <div class="webNavItem"><span class="em">💬</span><span class="lbl">Mensajes</span><span class="badge">2</span></div>
-        <div class="webNavItem"><span class="em">📊</span><span class="lbl">Encuestas</span></div>
-        <div class="webNavItem"><span class="em">💳</span><span class="lbl">Colectas</span></div>
-        <div class="webNavItem"><span class="em">✍️</span><span class="lbl">Autorizaciones</span></div>
-        <div class="webNavItem"><span class="em">🤝</span><span class="lbl">Comunidad</span></div>
-        <div class="webNavItem"><span class="em">📋</span><span class="lbl">Info Util</span></div>
-        <div class="webNavItem"><span class="em">📞</span><span class="lbl">Contacto</span></div>
-        <div class="webAcceso">
-          <div class="tag">Mi acceso</div>
-          <div class="webKid active"><span class="em">👥</span><span class="lbl">Todos</span></div>
-          <div class="webKid"><span class="kdot" style="background:#3B82F6"></span><span class="lbl">Mateo</span></div>
-          <div class="webKid"><span class="kdot" style="background:#EC4899"></span><span class="lbl">Sofía</span></div>
-        </div>
-        <div class="webUser">
-          <div class="card1"><b>Carolina Méndez</b><small>Room Parent</small></div>
-          <div class="ghost">🔑 Cambiar contraseña</div>
-          <div class="ghost">← Cerrar sesión</div>
-        </div>
-      </div>
-      <div class="webContent">
-        <div class="webContentInner">
-          <div>
-            <div class="webDate">Miércoles 26 de agosto</div>
-            <h3 class="webHello">Hola, Caro</h3>
-          </div>
-          <div>
-            <div class="webSectLbl">Pendientes · 3</div>
-            <div class="webPendCard" style="border-color:#FECACA">
-              <div class="webPendIcon" style="background:#FEF2F2;color:#DC2626">📌</div>
-              <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#DC2626">Aviso · Mateo</div><div class="webPendTitulo">Traer delantal y gorro para el taller de cocina</div><div class="webPendMeta">Sin leer · jueves 27, 10:30</div></div>
-              <div class="webPendRight"><span class="webPendAccion">Marcar leído</span><span class="webPendChip" style="background:#3B82F6;color:#fff">Mañana</span></div>
-            </div>
-            <div class="webPendCard" style="border-color:#FDE68A">
-              <div class="webPendIcon" style="background:#FFFBEB;color:#B45309">💳</div>
-              <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#B45309">Colecta · Mateo</div><div class="webPendTitulo">Regalo de fin de año para la Seño Vale</div><div class="webPendMeta">Tu aporte todavía no está registrado</div></div>
-              <div class="webPendRight"><span class="webPendAccion">Registrar pago</span><span class="webPendChip" style="background:#F1F5F9;color:#0F172A">$8.000</span></div>
-            </div>
-            <div class="webPendCard" style="border-color:#A7F3D0;margin-bottom:0">
-              <div class="webPendIcon" style="background:#F0FDF4;color:#059669">✍️</div>
-              <div style="flex:1;min-width:0"><div class="webPendTipo" style="color:#059669">Autorización · Sofía</div><div class="webPendTitulo">Salida al Planetario — viernes 12</div><div class="webPendMeta">Falta tu respuesta · vence el miércoles</div></div>
-              <div class="webPendRight"><span class="webPendAccion">Responder</span><span class="webPendChip" style="background:#F0FDF4;color:#059669">5 días</span></div>
-            </div>
-          </div>
-          <div>
-            <div class="webSectLbl">Próximos 15 días</div>
-            <div class="webAgendaCard">
-              <div class="webAgendaRow"><div class="webAgendaDate"><div class="webAgendaDow">jue</div><div class="webAgendaNum">27</div></div><div style="flex:1;min-width:0"><div class="webAgendaTitle">Taller de cocina 🍞</div><div class="webAgendaMeta"><span class="kdotsm" style="background:#3B82F6"></span><span class="t">Cocina del cole · 4°B</span></div></div></div>
-              <div class="webAgendaRow"><div class="webAgendaDate"><div class="webAgendaDow">vie</div><div class="webAgendaNum">29</div></div><div style="flex:1;min-width:0"><div class="webAgendaTitle">Cumple de Benja 🎂</div><div class="webAgendaMeta"><span class="kdotsm" style="background:#3B82F6"></span><span class="t">Alumno · 4°B</span></div></div></div>
-              <div class="webAgendaRow"><div class="webAgendaDate"><div class="webAgendaDow">lun</div><div class="webAgendaNum">1</div></div><div style="flex:1;min-width:0"><div class="webAgendaTitle">Acto Día del Maestro</div><div class="webAgendaMeta"><span class="kdotsm" style="background:#94A3B8"></span><span class="t">Patio central · todo el cole</span></div></div></div>
-              <div class="webAgendaRow"><div class="webAgendaDate"><div class="webAgendaDow">vie</div><div class="webAgendaNum">12</div></div><div style="flex:1;min-width:0"><div class="webAgendaTitle">Salida al Planetario 🚌</div><div class="webAgendaMeta"><span class="kdotsm" style="background:#EC4899"></span><span class="t">Autorización · 6°A</span></div></div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <img class="shotFull" src="/apoderados-media/web-hoy.jpg" width="1440" height="900" loading="lazy" alt="tribbu.ar/app en la compu: menú Hoy, Agenda, Comunicaciones y Curso, las respuestas pendientes, los próximos días y el menú de hoy">
   </div>
 
   <div class="webPlusGrid">
@@ -758,11 +640,11 @@
     <div class="rolePanel show" id="rolPanel-familia">
       <div>
         <h3>Enterarte sin leer 200 mensajes.</h3>
-        <p>Abrís tribbu y arriba está lo único que tenés que resolver hoy: el aviso sin leer, la colecta sin pagar, la autorización sin firmar. El resto espera.</p>
+        <p>Abrís tribbu y arriba está lo único que tenés que responder: la autorización sin firmar, la colecta sin pagar, la invitación sin confirmar. Lo que vence en dos días, en rojo. El resto espera.</p>
         <button class="rolesCta" onclick="document.getElementById('descargar').scrollIntoView({behavior:'smooth'})">Descargar la app</button>
       </div>
       <div class="rolesItems">
-        <div class="rolesItem"><span class="ico">📌</span><div><b>Pendientes accionables</b><span>Marcás leído, pagás, firmás o confirmás desde la misma tarjeta.</span></div></div>
+        <div class="rolesItem"><span class="ico">📌</span><div><b>Respuestas pendientes</b><span>Firmás, registrás tu pago o confirmás el cumple desde el Inicio.</span></div></div>
         <div class="rolesItem"><span class="ico">💬</span><div><b>Mensajes sin dar tu número</b><span>Con otras familias, la maestra o la secretaría, todo en la app.</span></div></div>
         <div class="rolesItem"><span class="ico">📅</span><div><b>Agenda de todos tus hijos</b><span>Eventos, cumples y vencimientos de cada curso, también en tu Google Calendar.</span></div></div>
         <div class="rolesItem"><span class="ico">🔔</span><div><b>Vos elegís qué te avisa</b><span>Resumen diario y semanal que podés apagar cuando quieras.</span></div></div>

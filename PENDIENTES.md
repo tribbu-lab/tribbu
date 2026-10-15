@@ -25,7 +25,7 @@ Tachá o borrá cada ítem cuando se resuelva.
    - Puede que algunos usuarios tengan que volver a iniciar sesión una vez.
      Deja de andar la app Android vieja de Capacitor (`android/`), si alguien
      todavía la usa.
-2. **Actualizar la landing tribbu.ar** (`public/*.html`) con el diseño nuevo de
+2. ~~**Actualizar la landing tribbu.ar**~~ (hecho 2026-10-15: capturas reales del diseño nuevo, familia ficticia) (`public/*.html`) con el diseño nuevo de
    la app: capturas de Hoy · Agenda · Comunicaciones · Curso, el Inicio
    "Tenés N respuestas pendientes", autorizaciones y "Escribir por tribbu".
    Usar la familia ficticia (`~/.claude/projects/C--Tribbu/demo-mock/`) para
