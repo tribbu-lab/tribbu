@@ -25,13 +25,14 @@ import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE, MIN_TOUCH, withAlpha } from "
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
-  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias,
+  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje,
 } from "@shared/mensajes";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Button } from "../../components/Button";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { Buscador } from "../../components/Buscador";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
@@ -1007,6 +1008,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const userId = usuario?.id ?? null;
   const { recargar: recargarBadge } = useMensajesCtx();
   const [convs, setConvs] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null);
   const [nuevo, setNuevo] = useState(false);
@@ -1130,7 +1132,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
     return !c.curso_id || c.curso_id === cursoPerfil;
   };
-  const otras = lista.filter((c) => c.tipo !== "soporte" && enPerfil(c));
+  const otras = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
   const activaFresca = activa ? lista.find((c) => c.id === activa.id) || activa : null;
 
   return (
@@ -1167,9 +1169,14 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
               </View>
               <BotonNuevo onPress={() => setNuevo(true)} accessibilityLabel="Nuevo mensaje" />
             </View>
-            <View style={s.card}>
-              <FilaConversacion c={soporte} userId={userId} onPress={abrirSoporte} />
-            </View>
+            <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar en mensajes…" />
+            {/* Soporte tribbu se abre desde Mi cuenta → Ayuda y soporte; acá solo
+                aparece cuando el equipo respondió y está sin leer. */}
+            {soporte.no_leidos > 0 ? (
+              <View style={s.card}>
+                <FilaConversacion c={soporte} userId={userId} onPress={abrirSoporte} />
+              </View>
+            ) : null}
             {convs === null ? <ActivityIndicator style={{ marginTop: SPACE.xl }} color={t.accent} /> : null}
             {otras.length ? <Text style={s.label}>Conversaciones</Text> : null}
           </View>

@@ -9,15 +9,14 @@ import { Marketplace } from "../marketplace";
 
 const t = THEMES.light;
 const SUBSECCIONES = [
-  { id: "marketplace", label: "🛍️ Marketplace" },
-  { id: "servicios", label: "🧑‍🏫 Servicios" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "servicios", label: "Servicios" },
 ];
 
 function Proximamente() {
   return (
     <ScrollView contentContainerStyle={styles.proxWrap}>
       <View style={styles.proxCard}>
-        <Text style={styles.proxEmoji}>🧑‍🏫</Text>
         <Text style={styles.proxBadge}>PRÓXIMAMENTE</Text>
         <Text style={styles.proxTitulo}>Servicios de la comunidad</Text>
         <Text style={styles.proxTxt}>En breve vas a poder ofrecer tus servicios en Tribbu: clases particulares, apoyo escolar, animación de cumpleaños, fotografía y más.</Text>
@@ -74,7 +73,6 @@ const styles = StyleSheet.create({
   prontoOn: { color: "white", backgroundColor: "rgba(255,255,255,0.18)" },
   proxWrap: { padding: SPACE.lg },
   proxCard: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: 16, padding: 28, alignItems: "center" },
-  proxEmoji: { fontSize: 38 },
   proxBadge: { marginTop: 10, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, color: "#92400E", backgroundColor: "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: "hidden" },
   proxTitulo: { fontSize: 17, fontWeight: "800", color: t.textStrong, marginTop: 12 },
   proxTxt: { fontSize: 13.5, color: t.textMuted, textAlign: "center", lineHeight: 20, marginTop: 6 },

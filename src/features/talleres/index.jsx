@@ -216,7 +216,7 @@ export function Talleres({ items = [], esVistaTodos = false, hijoActivo = null, 
     <div>
       {confirmUI}
       <Toast />
-      <div style={{ fontSize: 26, fontWeight: 900, color: C.textStrong, letterSpacing: -0.3 }}>🎨 Talleres</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: C.textStrong, letterSpacing: -0.3 }}>Talleres</div>
       <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 18 }}>Los talleres que ofrece el colegio fuera del horario de clase.</div>
 
       {esDocente ? (

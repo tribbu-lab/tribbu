@@ -1,3 +1,4 @@
+import { coincideTexto } from "./helpers";
 // src/lib/mensajes.js — reglas puras de Mensajes (specs/mensajes.md),
 // compartidas web/mobile (@shared/mensajes). Sin supabase: cada pantalla hace
 // sus queries (RPC mis_conversaciones, tabla mensajes) y pasa las filas.
@@ -167,3 +168,7 @@ export const contactosPorTribbu = (docentes = [], hijos = [], cursoIds = []) => 
     .sort((a, b) => `${a.nombre} ${a.apellido || ""}`.localeCompare(`${b.nombre} ${b.apellido || ""}`, "es") || (a.hijo_nombre || "").localeCompare(b.hijo_nombre || "", "es"));
   return { secretaria, maestras };
 };
+
+/** Buscador de la lista de Mensajes: por nombre, descripción o último mensaje. */
+export const filtrarConversaciones = (convs, q) =>
+  (convs || []).filter((c) => coincideTexto(q, c.titulo, c.subtitulo, c.ultimo_texto));

@@ -12,6 +12,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } fr
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { Buscador } from "../../components/Buscador";
 import { safeUrl, uuidLite } from "../../lib/helpers";
 import { THEMES, SLATE, BLUE, withAlpha } from "../../lib/tokens";
 import { borrarArchivos } from "../../lib/storageUrl";
@@ -24,7 +25,7 @@ import { useConfirmar } from "../../hooks/useConfirmar";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
-  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias,
+  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje,
 } from "../../lib/mensajes";
 
@@ -1026,7 +1027,7 @@ function FilaConversacion({ c, activa, userId, onClick, tagDeCurso, esDocente })
   const tag = c.tipo === "directo" ? tagDeCurso?.(c.curso_id) : null;
   return (
     <button onClick={onClick} aria-current={activa ? "true" : undefined}
-      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "none", background: activa ? C.accentSoft : "transparent", borderRadius: 12, cursor: "pointer", textAlign: "left", minHeight: 64 }}>
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "none", background: activa ? C.accentSoft : "transparent", borderRadius: 12, cursor: "pointer", textAlign: "left", minHeight: 64, fontFamily: "inherit" }}>
       {esSoporte ? <Avatar emoji="🛟" color={SLATE[700]} /> : c.tipo === "curso" ? <Avatar emoji="👥" color={BLUE[600]} /> : c.tipo === "grupo" ? <Avatar emoji="💬" color={SLATE[600]} /> : c.tipo === "colegio" ? <Avatar emoji="🏫" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Avatar emoji="👩‍🏫" color={SLATE[600]} /> : <Avatar texto={c.titulo} />}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -1064,6 +1065,7 @@ const SOPORTE_VACIO = { id: null, tipo: "soporte", titulo: "Soporte tribbu", ult
 // filtra: un chat no depende del hijo activo.
 export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false, hijoActivoId = null, cursoIds = null }) {
   const [convs, setConvs] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null); // objeto conversación
   // Escritorio: la lista + el chat ocupan lo que queda de pantalla desde donde
@@ -1204,7 +1206,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
     return !c.curso_id || c.curso_id === cursoPerfil;
   };
-  const otras = lista.filter((c) => c.tipo !== "soporte" && enPerfil(c));
+  const otras = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
 
   const meta = useCallback(() => metaSoporte({
     plataforma: "web",
@@ -1222,11 +1224,18 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
         <div style={{ fontSize: 13.5, fontWeight: 600, color: C.textMuted }}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</div>
         <BotonNuevo onClick={() => setNuevo(true)} ariaLabel="Nuevo mensaje" />
       </div>
+      <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar en mensajes…" style={{ marginBottom: 8 }} />
       {error ? <div role="alert" style={{ fontSize: 13, color: C.danger, marginBottom: 8 }}>{error}</div> : null}
       {aviso ? <div role="status" onClick={() => setAviso("")} style={{ fontSize: 13, color: BLUE[700], background: C.accentSoft, borderRadius: 10, padding: "8px 12px", marginBottom: 8, cursor: "pointer" }}>{aviso}</div> : null}
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        <FilaConversacion c={soporte} activa={activa?.tipo === "soporte"} userId={userId} onClick={abrirSoporte} />
-        <div style={{ height: 1, background: C.border, margin: "6px 12px" }} />
+        {/* Soporte tribbu se abre desde Mi cuenta → Ayuda y soporte; acá solo
+            aparece cuando el equipo respondió y está sin leer (o está abierto). */}
+        {soporte.no_leidos > 0 || activa?.tipo === "soporte" ? (
+          <>
+            <FilaConversacion c={soporte} activa={activa?.tipo === "soporte"} userId={userId} onClick={abrirSoporte} />
+            <div style={{ height: 1, background: C.border, margin: "6px 12px" }} />
+          </>
+        ) : null}
         {convs === null ? <Spinner /> : null}
         {convs && !otras.length ? (
           <div style={{ border: `1.5px dashed ${C.borderStrong}`, borderRadius: 16, padding: "24px 16px", textAlign: "center", margin: "8px 4px" }}>

@@ -10,14 +10,13 @@ import { Spinner } from "../../components/Spinner";
 const Marketplace = lazy(() => import("../marketplace").then((m) => ({ default: m.Marketplace })));
 
 const SUBSECCIONES = [
-  { id: "marketplace", label: "Marketplace", emoji: "🛍️" },
-  { id: "servicios", label: "Servicios", emoji: "🧑‍🏫" },
+  { id: "marketplace", label: "Marketplace" },
+  { id: "servicios", label: "Servicios" },
 ];
 
 function Proximamente() {
   return (
     <div style={{ background: "white", border: "1px solid #E7ECF3", borderRadius: 16, padding: "32px 24px", textAlign: "center" }}>
-      <div style={{ fontSize: 36 }}>🧑‍🏫</div>
       <div style={{ display: "inline-block", marginTop: 10, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>PRÓXIMAMENTE</div>
       <div style={{ fontSize: 17, fontWeight: 800, marginTop: 12, color: "#0F172A" }}>Servicios de la comunidad</div>
       <div style={{ fontSize: 13.5, color: "#64748B", marginTop: 6, lineHeight: 1.55, maxWidth: 420, marginInline: "auto" }}>
@@ -37,7 +36,7 @@ export function Comunidad({ sub = "marketplace", onSub, ...props }) {
           const on = sub === s.id;
           return (
             <button key={s.id} role="tab" aria-selected={on} onClick={() => onSub?.(s.id)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, background: on ? "#0F172A" : "white", color: on ? "white" : "#64748B", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-              {s.emoji} {s.label}{s.id === "servicios" ? <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, padding: "1px 6px", borderRadius: 999, background: on ? "rgba(255,255,255,0.18)" : "#FEF3C7", color: on ? "white" : "#92400E" }}>PRONTO</span> : null}
+              {s.label}{s.id === "servicios" ? <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, padding: "1px 6px", borderRadius: 999, background: on ? "rgba(255,255,255,0.18)" : "#FEF3C7", color: on ? "white" : "#92400E" }}>PRONTO</span> : null}
             </button>
           );
         })}

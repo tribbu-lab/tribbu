@@ -106,7 +106,7 @@ function ContactoCard({ c }) {
   return (
     <div style={{ padding: 12, borderRadius: 12, background: "#F8FAFC", marginBottom: 8 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{c.nombre}</div>
-      {c.telefono && <a href={`tel:${c.telefono}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 4 }}>📞 {c.telefono}</a>}
+      {c.telefono && <a href={`tel:${c.telefono}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 4 }}>{c.telefono}</a>}
       {c.telefono && <a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: "#16A34A", marginTop: 2 }}>💬 WhatsApp</a>}
       {c.email && <a href={`mailto:${c.email}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 2 }}>✉️ {c.email}</a>}
       {!c.telefono && !c.email && <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>No cargó teléfono ni email.</div>}
@@ -181,23 +181,23 @@ function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose
       </div>
 
       {!propio && !vendido && !yaMeInteresa && estaDisponible(a) && (
-        <button onClick={() => onMeInteresa(a)} style={{ ...btnPri, width: "100%" }}>🙋 Me interesa</button>
+        <button onClick={() => onMeInteresa(a)} style={{ ...btnPri, width: "100%" }}>Me interesa</button>
       )}
       {!propio && yaMeInteresa && (
-        <button onClick={() => onVerContacto(a)} style={{ ...btnSec, width: "100%", color: "#1D4ED8", borderColor: "#BFDBFE", background: "#EFF6FF" }}>📞 Ver contacto del vendedor</button>
+        <button onClick={() => onVerContacto(a)} style={{ ...btnSec, width: "100%", color: "#1D4ED8", borderColor: "#BFDBFE", background: "#EFF6FF" }}>Ver contacto del vendedor</button>
       )}
       {!propio && !yaMeInteresa && nInteresados > 0 && !vendido && (
-        <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, textAlign: "center" }}>🙋 {nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</div>
+        <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, textAlign: "center" }}>{nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</div>
       )}
 
       {gestiona && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
-          {nInteresados > 0 && <button onClick={() => onVerInteresados(a)} style={{ ...btnSec, color: "#047857", borderColor: "#BBF7D0", background: "#F0FDF4" }}>🙋 {nInteresados} {nInteresados === 1 ? "interesado" : "interesados"}</button>}
-          {!vendido && <button onClick={() => onVendido(a)} style={btnSec}>✓ Vendido</button>}
+          {nInteresados > 0 && <button onClick={() => onVerInteresados(a)} style={{ ...btnSec, color: "#047857", borderColor: "#BBF7D0", background: "#F0FDF4" }}>{nInteresados} {nInteresados === 1 ? "interesado" : "interesados"}</button>}
+          {!vendido && <button onClick={() => onVendido(a)} style={btnSec}>Vendido</button>}
           {!vendido && dias <= 10 && <button onClick={() => onRenovar(a)} style={btnSec}>↻ Renovar {DIAS_VIGENCIA} días</button>}
-          <button onClick={() => onEditar(a)} style={btnSec}>✏️ Editar</button>
+          <button onClick={() => onEditar(a)} style={btnSec}>Editar</button>
           <div style={{ flex: 1 }} />
-          <button onClick={() => onBorrar(a)} style={{ ...btnSec, color: "#EF4444", borderColor: "#FEE2E2" }}>🗑 Borrar</button>
+          <button onClick={() => onBorrar(a)} style={{ ...btnSec, color: "#EF4444", borderColor: "#FEE2E2" }}>Borrar</button>
         </div>
       )}
     </Modal>
@@ -319,7 +319,7 @@ function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioPr
             <span style={{ fontSize: 14, color: "#64748B" }}>$</span>
             <input value={form.precio} onChange={(e) => set("precio", e.target.value)} disabled={form.es_regalo} inputMode="decimal" placeholder="15000" style={inp} />
           </div>
-          <button onClick={() => set("es_regalo", !form.es_regalo)} style={{ ...chip(form.es_regalo), padding: "8px 12px" }}>{form.es_regalo ? "✓ " : ""}🎁 Lo regalo</button>
+          <button onClick={() => set("es_regalo", !form.es_regalo)} style={{ ...chip(form.es_regalo), padding: "8px 12px" }}>{form.es_regalo ? "✓ " : ""}Lo regalo</button>
         </div>
       </div>
       <div style={{ marginBottom: 10 }}>
@@ -437,26 +437,26 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
         />
       )}
       {interesando && (
-        <Modal titulo="🙋 Me interesa" onClose={() => setInteresando(null)}>
+        <Modal titulo="Me interesa" onClose={() => setInteresando(null)}>
           <div style={{ fontSize: 13, color: "#475569", marginBottom: 10, lineHeight: 1.5 }}>Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.</div>
           <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={2} placeholder="Mensaje (opcional): ej. ¿sigue disponible? Lo puedo retirar el viernes" style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
           <button onClick={meInteresa} style={{ ...btnPri, width: "100%" }}>Avisar y ver el contacto</button>
         </Modal>
       )}
       {contacto && (
-        <Modal titulo="📞 Contacto del vendedor" onClose={() => setContacto(null)} ancho={380}>
+        <Modal titulo="Contacto del vendedor" onClose={() => setContacto(null)} ancho={380}>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{contacto.articulo.titulo} · {fmtPrecio(contacto.articulo)}</div>
           <ContactoCard c={contacto.c} />
         </Modal>
       )}
       {interesados && (
-        <Modal titulo="🙋 Interesados" onClose={() => setInteresados(null)} ancho={400}>
+        <Modal titulo="Interesados" onClose={() => setInteresados(null)} ancho={400}>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{interesados.articulo.titulo}</div>
           {!interesados.lista ? <ContactoCard c={null} /> : interesados.lista.map((x) => <ContactoCard key={x.usuario_id} c={x} />)}
         </Modal>
       )}
       {vendiendo && (
-        <Modal titulo="✓ Marcar como vendido" onClose={() => setVendiendo(null)} ancho={400}>
+        <Modal titulo="Marcar como vendido" onClose={() => setVendiendo(null)} ancho={400}>
           <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>{vendiendo.articulo.titulo}</div>
           {vendiendo.lista?.length > 0 && (
             <div style={{ marginBottom: 12 }}>
@@ -473,7 +473,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-        <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: buzo, talle 10, libro de inglés…" aria-label="Buscar en el Marketplace" style={{ ...inp, flex: "1 1 200px", background: "white" }} />
+        <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: buzo, talle 10, libro de inglés…" aria-label="Buscar en el Marketplace" style={{ ...inp, flex: "1 1 120px", minWidth: 0, background: "white" }} />
         <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
         <BotonNuevo onClick={() => setEditor({ articulo: null })} ariaLabel="Publicar un artículo" />
       </div>

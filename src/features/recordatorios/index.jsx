@@ -5,7 +5,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtRangoHora, fmtLocalDate, sanitize, fmtEnviado, ordenPorEnviado } from "../../lib/helpers";
+import { fmtRangoHora, fmtLocalDate, sanitize, fmtEnviado, ordenPorEnviado, coincideTexto } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
@@ -14,6 +14,7 @@ import { useLecturas } from "../../hooks/useLecturas";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
+import { Buscador } from "../../components/Buscador";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -45,6 +46,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [filtroLeido,   setFiltroLeido]   = useState("all");
   const [filtroOrigen,  setFiltroOrigen]  = useState("all");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" y filtro por origen.
   const docenteDe = useAutoresDocentes(recordatorios.map(r=>r.creado_por));
   const [expandidos,    setExpandidos]    = useState(()=>new Set());
@@ -173,6 +175,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const filtrados = recordatorios.filter(r=>{
     // Ocultar recordatorios de regalo (se manejan aparte). Los de colecta (colecta_vence) sí se muestran.
     if(r.tipo==="regalo_cumple") return false;
+    if(!coincideTexto(busqueda, r.titulo, r.texto)) return false;
     if(filtroRango==="proximos" && r.fecha && r.fecha < hoyStr) return false;
     if(filtroRango==="pasados"  && (!r.fecha || r.fecha >= hoyStr)) return false;
     if(filtroRango==="personalizado"){
@@ -224,6 +227,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
       {verLecturas&&lecturas[verLecturas.id]&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={lecturas[verLecturas.id]} onClose={()=>setVerLecturas(null)}/>}
       {/* El título lo da la pestaña "Avisos" de Comunicaciones. */}
       {filtrosAbiertos&&<FiltrosModal grupos={gruposFiltro} onClose={()=>setFiltrosAbiertos(false)} onLimpiar={limpiarFiltros}/>}
+      <Buscador value={busqueda} onChange={(v)=>{setBusqueda(v);setPagina(1);}} placeholder="Buscar en avisos…"/>
 
       {isSuper&&(
         <div style={{marginBottom:16}}>

@@ -366,9 +366,6 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         return (
           <Card key={c.id} style={[styles.colectaCard, !c.activa && styles.cerrada]}>
             <View style={styles.colectaHeader}>
-              <View style={styles.colectaIconBox}>
-                <Text style={styles.colectaIcon}>🎁</Text>
-              </View>
               <View style={styles.flex1}>
                 <View style={styles.titleRow}>
                   <Text style={styles.colectaTitulo}>{c.titulo}</Text>
@@ -832,8 +829,6 @@ const styles = StyleSheet.create({
   colectaCard: { padding: 0, marginBottom: 14, overflow: "hidden", borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, shadowOpacity: 0, elevation: 0 },
   cerrada: { opacity: 0.6 },
   colectaHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.border, flexDirection: "row", gap: 12 },
-  colectaIconBox: { width: 38, height: 38, borderRadius: RADIUS.md, backgroundColor: t.warningSoft, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  colectaIcon: { fontSize: 17 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   tagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 },
   tagDot: { width: 8, height: 8, borderRadius: RADIUS.full },

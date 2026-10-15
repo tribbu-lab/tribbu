@@ -187,7 +187,7 @@ export function Marketplace() {
         />
       ) : null}
       {contactos ? (
-        <Sheet visible onClose={() => setContactos(null)} title={contactos.interesados ? "🙋 Interesados" : "📞 Contacto del vendedor"}>
+        <Sheet visible onClose={() => setContactos(null)} title={contactos.interesados ? "Interesados" : "Contacto del vendedor"}>
           <Text style={styles.contactoTitulo}>{contactos.titulo}</Text>
           <ScrollView style={styles.sheetScroll}>
             {!contactos.lista ? <Text style={styles.cargando}>Cargando…</Text> : contactos.lista.map((c, i) => <ContactoCard key={c.usuario_id || i} c={c} />)}
@@ -195,7 +195,7 @@ export function Marketplace() {
         </Sheet>
       ) : null}
       {vendiendo ? (
-        <Sheet visible onClose={() => setVendiendo(null)} title="✓ Marcar como vendido">
+        <Sheet visible onClose={() => setVendiendo(null)} title="Marcar como vendido">
           <ScrollView style={styles.sheetScroll}>
             <Text style={styles.contactoTitulo}>{vendiendo.articulo.titulo}</Text>
             {!vendiendo.lista ? <Text style={styles.cargando}>Cargando…</Text> : (
@@ -313,19 +313,19 @@ function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onM
           {[tag?.nombre, a.alcance === "colegio" ? "todo el colegio" : "su curso", `publicado ${hace(a.creado_en)}`, propio && !vendido ? (dias > 0 ? `vence en ${dias} días` : "venció") : null].filter(Boolean).join(" · ")}
         </Text>
 
-        {!propio && !vendido && !yaMeInteresa && estaDisponible(a) ? <Button title="🙋 Me interesa" onPress={onMeInteresa} style={styles.mtMd} /> : null}
-        {!propio && yaMeInteresa ? <Button title="📞 Ver contacto del vendedor" variant="secondary" onPress={onVerContacto} style={styles.mtMd} /> : null}
+        {!propio && !vendido && !yaMeInteresa && estaDisponible(a) ? <Button title="Me interesa" onPress={onMeInteresa} style={styles.mtMd} /> : null}
+        {!propio && yaMeInteresa ? <Button title="Ver contacto del vendedor" variant="secondary" onPress={onVerContacto} style={styles.mtMd} /> : null}
         {!propio && !yaMeInteresa && nInteresados > 0 && !vendido ? (
-          <Text style={styles.yaHay}>🙋 {nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</Text>
+          <Text style={styles.yaHay}>{nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</Text>
         ) : null}
 
         {propio ? (
           <View style={styles.gestion}>
-            {nInteresados > 0 ? <Button title={`🙋 ${nInteresados} ${nInteresados === 1 ? "interesado" : "interesados"}`} variant="secondary" size="sm" onPress={onVerInteresados} /> : null}
-            {!vendido ? <Button title="✓ Vendido" variant="secondary" size="sm" onPress={onVendido} /> : null}
+            {nInteresados > 0 ? <Button title={`${nInteresados} ${nInteresados === 1 ? "interesado" : "interesados"}`} variant="secondary" size="sm" onPress={onVerInteresados} /> : null}
+            {!vendido ? <Button title="Vendido" variant="secondary" size="sm" onPress={onVendido} /> : null}
             {!vendido && dias <= 10 ? <Button title={`↻ Renovar ${DIAS_VIGENCIA} días`} variant="secondary" size="sm" onPress={onRenovar} /> : null}
-            <Button title="✏️ Editar" variant="secondary" size="sm" onPress={onEditar} />
-            <Pressable onPress={onBorrar} hitSlop={8} style={styles.borrar} accessibilityRole="button"><Text style={styles.borrarTxt}>🗑 Borrar</Text></Pressable>
+            <Button title="Editar" variant="secondary" size="sm" onPress={onEditar} />
+            <Pressable onPress={onBorrar} hitSlop={8} style={styles.borrar} accessibilityRole="button"><Text style={styles.borrarTxt}>Borrar</Text></Pressable>
           </View>
         ) : null}
       </ScrollView>
@@ -340,7 +340,7 @@ function ContactoCard({ c }) {
       <Text style={styles.contactoNombre}>{c.nombre}</Text>
       {c.telefono ? (
         <View style={styles.contactoRow}>
-          <Pressable onPress={() => abrir(`tel:${c.telefono}`)}><Text style={styles.contactoLink}>📞 {c.telefono}</Text></Pressable>
+          <Pressable onPress={() => abrir(`tel:${c.telefono}`)}><Text style={styles.contactoLink}>{c.telefono}</Text></Pressable>
           <Pressable onPress={() => abrir(`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`)}><Text style={styles.contactoWa}>💬 WhatsApp</Text></Pressable>
         </View>
       ) : null}
@@ -363,7 +363,7 @@ function InteresSheet({ a, userId, onClose, onListo }) {
     onListo();
   };
   return (
-    <Sheet visible onClose={onClose} title="🙋 Me interesa">
+    <Sheet visible onClose={onClose} title="Me interesa">
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         <Text style={styles.hint}>Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.</Text>
         <TextInput value={mensaje} onChangeText={setMensaje} placeholder="Mensaje (opcional): ¿sigue disponible?" placeholderTextColor={t.placeholder} multiline style={[styles.input, styles.textarea, styles.mtMd]} />
@@ -483,7 +483,7 @@ function ArticuloSheet({ articulo, cursos, colegioDe, userId, onClose, onGuardad
         <Text style={styles.label}>Precio</Text>
         <View style={styles.precioRow}>
           <TextInput value={form.precio} onChangeText={(v) => set("precio", v)} editable={!form.es_regalo} keyboardType="decimal-pad" placeholder="$ 15000" placeholderTextColor={t.placeholder} style={[styles.input, styles.flex1, form.es_regalo && styles.deshabilitado]} />
-          {chip(form.es_regalo, `${form.es_regalo ? "✓ " : ""}🎁 Lo regalo`, () => set("es_regalo", !form.es_regalo))}
+          {chip(form.es_regalo, `${form.es_regalo ? "✓ " : ""}Lo regalo`, () => set("es_regalo", !form.es_regalo))}
         </View>
         <Text style={styles.label}>Detalle (opcional)</Text>
         <TextInput value={form.descripcion} onChangeText={(v) => set("descripcion", v)} placeholder="Marca, cómo está, dónde se retira…" placeholderTextColor={t.placeholder} multiline style={[styles.input, styles.textarea]} />

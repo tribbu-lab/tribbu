@@ -197,7 +197,7 @@ export function Talleres({ openTaller = null, nonce = null }) {
   return (
     <View style={s.screen}>
       <ScrollView ref={scrollRef} contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
-        <Text style={s.h1}>🎨 Talleres</Text>
+        <Text style={s.h1}>Talleres</Text>
         <Text style={[s.muted, { marginBottom: SPACE.lg }]}>Los talleres que ofrece el colegio fuera del horario de clase.</Text>
         {esDocente ? (
           <>

@@ -22,7 +22,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize, fmtRangoHora, fmtLocalDate, fmtEnviado, ordenPorEnviado } from "@shared/helpers";
+import { sanitize, fmtRangoHora, fmtLocalDate, fmtEnviado, ordenPorEnviado, coincideTexto } from "@shared/helpers";
 import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -30,6 +30,7 @@ import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
 import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { Buscador } from "../../components/Buscador";
 import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
@@ -170,6 +171,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   const [filtroLeido, setFiltroLeido] = useState("all");
   const [filtroOrigen, setFiltroOrigen] = useState("all");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   // Deep-link desde una notificación: aviso a resaltar y a llevar a la vista.
   const [resaltado, setResaltado] = useState(null);
@@ -357,6 +359,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
 
   const filtrados = visiblesTipo
     .filter((r) => {
+      if (!coincideTexto(busqueda, r.titulo, r.texto)) return false;
       if (filtroRango === "proximos" && r.fecha && r.fecha < hoyStr) return false;
       if (filtroRango === "pasados" && (!r.fecha || r.fecha >= hoyStr)) return false;
       if (filtroPrio !== "all" && r.prioridad !== filtroPrio) return false;
@@ -427,6 +430,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
           // El título lo da la pestaña "Avisos" de Comunicaciones; los filtros van
           // juntos en un botón (FiltrosSheet) en vez de una fila de chips.
           <View style={styles.headerWrap}>
+            <Buscador value={busqueda} onChange={(v) => { setBusqueda(v); setPagina(1); }} placeholder="Buscar en avisos…" />
             <View style={styles.titleRow}>
               <Text style={styles.subtitle}>
                 {sinLeer === 0 ? "Todo leído" : sinLeer === 1 ? "1 sin leer" : `${sinLeer} sin leer`}

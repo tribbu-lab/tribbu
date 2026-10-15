@@ -185,3 +185,13 @@ export const cerrarBannerFestejo = (userId, festejoId) => {
 // Iniciales para el círculo de "Mi cuenta" (header web + mobile): "Ana Demo" → "AD".
 export const iniciales = (u) =>
   [u?.nombre, u?.apellido].filter(Boolean).map((x) => String(x).trim()[0] || "").join("").toUpperCase().slice(0, 2) || "?";
+
+/**
+ * Búsqueda de texto sin acentos ni mayúsculas: ¿algún campo contiene `q`?
+ * (vacío = todo coincide). Para los buscadores de Avisos, Mensajes, etc.
+ */
+const sinAcentosBusqueda = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+export const coincideTexto = (q, ...campos) => {
+  const t = sinAcentosBusqueda(q).trim();
+  return !t || sinAcentosBusqueda(campos.filter(Boolean).join(" ")).includes(t);
+};
