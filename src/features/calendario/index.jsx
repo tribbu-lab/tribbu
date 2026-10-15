@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -46,7 +48,7 @@ function TagHijo({ tag }) {
   );
 }
 
-export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, openFecha=null, onClearOpenFecha, cursosDocente=[] }) {
+export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, openFecha=null, onClearOpenFecha, cursosDocente=[], soloHorario=false }) {
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
@@ -56,9 +58,11 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const [horarioColegio, setHorarioColegio] = useState(null);
   const [filtroTipo,   setFiltroTipo]   = useState("todos");
   const [filtroRango,  setFiltroRango]  = useState("90"); // "7"|"30"|"90"|"custom"
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtroDesde,  setFiltroDesde]  = useState("");
   const [filtroHasta,  setFiltroHasta]  = useState("");
-  const [vista,   setVista]   = useState("mes");
+  // soloHorario: la pestaña "Horario" de Agenda (App.jsx, tab "horario").
+  const [vista,   setVista]   = useState(soloHorario ? "horario" : "mes");
   const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
   // Eventos publicados por docentes: etiqueta "👩‍🏫 Laura · Inglés".
@@ -247,20 +251,22 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
         </div>
       )}
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
-        <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Calendario 📅</div>
-        {puedeCrear&&<button onClick={()=>setModal("nuevo")} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Evento</button>}
-      </div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:14}}>Clases, eventos y cumpleaños</div>
-
-      <BotonAgregarCalendario supabase={supabase} userId={userId}/>
-
-      {/* Tabs vista */}
-      <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
-        {[{id:"mes",l:"📆 Mes"},{id:"lista",l:"📋 Próximos eventos"},{id:"horario",l:"🕐 Horario de Clases"}].map(t=>(
-          <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:vista===t.id?"#0F172A":"white",color:vista===t.id?"white":"#94A3B8",boxShadow:vista===t.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
-        ))}
-      </div>
+      {/* Una sola fila arriba del contenido (el título lo da la pestaña de
+          Agenda): Mes / Próximos + sincronizar + nuevo evento. El Horario es
+          su propia pestaña (soloHorario). */}
+      {!soloHorario&&(
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:20,flex:1}}>
+            {[{id:"mes",l:"Mes"},{id:"lista",l:"Próximos"}].map(t=>(
+              <button key={t.id} onClick={()=>setVista(t.id)} style={{padding:"8px 0",border:"none",borderBottom:`2px solid ${vista===t.id?"#0F172A":"transparent"}`,background:"none",cursor:"pointer",fontFamily:"inherit"}}>
+                <span style={{fontSize:14,fontWeight:vista===t.id?800:600,color:vista===t.id?"#0F172A":"#64748B"}}>{t.l}</span>
+              </button>
+            ))}
+          </div>
+          <BotonAgregarCalendario supabase={supabase} userId={userId} compacto/>
+          {puedeCrear&&<BotonNuevo onClick={()=>setModal("nuevo")} ariaLabel="Nuevo evento"/>}
+        </div>
+      )}
 
       {/* VISTA MES */}
       {vista==="mes"&&(
@@ -343,44 +349,34 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       {/* VISTA LISTA */}
       {vista==="lista"&&(
         <div style={{maxWidth:560}}>
-          {/* ── Filtros ── */}
-          <div style={{marginBottom:14,display:"flex",flexDirection:"column",gap:10}}>
-
-            {/* Rango rápido */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[{k:"7",l:"Esta semana"},{k:"30",l:"Este mes"},{k:"90",l:"Próx. 3 meses"},{k:"custom",l:"📅 Personalizado"}].map(r=>(
-                <button key={r.k} onClick={()=>setFiltroRango(r.k)} style={{padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,background:filtroRango===r.k?"#0F172A":"white",color:filtroRango===r.k?"white":"#94A3B8",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",transition:"all 0.15s"}}>
-                  {r.l}
-                </button>
-              ))}
-            </div>
-
-            {/* Picker desde/hasta */}
-            {filtroRango==="custom"&&(
-              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#94A3B8"}}>Desde</span>
-                  <input type="date" value={filtroDesde} onChange={e=>setFiltroDesde(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
+          {/* ── Filtros: un botón que abre el modal (mismo criterio en toda la app) ── */}
+          {(()=>{
+            const grupos = [
+              { key:"rango", label:"Período", defecto:"90", value:filtroRango, onChange:setFiltroRango, options:[{value:"7",label:"Esta semana"},{value:"30",label:"Este mes"},{value:"90",label:"Próximos 3 meses"},{value:"custom",label:"Elegir fechas"}] },
+              { key:"tipo", label:"Tipo de evento", value:filtroTipo, onChange:setFiltroTipo, options:[{value:"todos",label:"Todos"},...Object.entries(TIPO_CONFIG).filter(([k])=>k!=="festejo").map(([k,v])=>({value:k,label:v.label}))] },
+            ];
+            const n = listaEventos().length;
+            return (
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                  <span style={{flex:1,fontSize:13.5,fontWeight:600,color:"#64748B"}}>{n===1?"1 evento":`${n} eventos`}</span>
+                  <BotonFiltros grupos={grupos} onClick={()=>setFiltrosAbiertos(true)}/>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#94A3B8"}}>Hasta</span>
-                  <input type="date" value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
-                </div>
-                {(filtroDesde||filtroHasta)&&<button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{fontSize:11,color:"#94A3B8",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>✕ Limpiar</button>}
-              </div>
-            )}
-
-            {/* Filtro por tipo */}
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:11,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>Tipo</span>
-              <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,color:"#0F172A",background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-                <option value="todos">Todos los tipos</option>
-                {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="festejo").map(([k,v])=>(
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+                {filtrosAbiertos&&(
+                  <FiltrosModal grupos={grupos} onClose={()=>setFiltrosAbiertos(false)} onLimpiar={()=>{setFiltroRango("90");setFiltroTipo("todos");setFiltroDesde("");setFiltroHasta("");}}>
+                    {filtroRango==="custom"&&(
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"-6px 0 18px"}}>
+                        <span style={{fontSize:12,fontWeight:700,color:"#64748B"}}>Desde</span>
+                        <input type="date" value={filtroDesde} onChange={e=>setFiltroDesde(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
+                        <span style={{fontSize:12,fontWeight:700,color:"#64748B"}}>Hasta</span>
+                        <input type="date" value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,outline:"none",background:"white",fontFamily:"inherit"}}/>
+                      </div>
+                    )}
+                  </FiltrosModal>
+                )}
+              </>
+            );
+          })()}
 
           {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos para este filtro</div>}
           {listaEventos().map((e,i)=>{
@@ -542,8 +538,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
         return (
           <div>
-            <div style={{fontSize:16,fontWeight:900,color:"#0F172A",marginBottom:2}}>Horario de Clases</div>
-            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Vista semanal</div>
+            {/* El título lo da la pestaña "Horario" de Agenda. */}
 
             {horariosVisibles.length===0&&(
               <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>

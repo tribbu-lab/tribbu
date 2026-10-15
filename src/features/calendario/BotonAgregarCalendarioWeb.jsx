@@ -26,7 +26,8 @@ import { fmtHace } from "../../lib/helpers";
 
 const claveSincronizado = (userId) => `calsync_${userId}`;
 
-export default function BotonAgregarCalendario({ supabase, userId }) {
+// `compacto`: va en la fila de vistas del Calendario (sin margen, texto corto).
+export default function BotonAgregarCalendario({ supabase, userId, compacto = false }) {
   const [token, setToken] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [copiado, setCopiado] = useState(false);
@@ -141,7 +142,7 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
   if (cargando || !feedUrl) return null;
 
   return (
-    <div style={{ margin: "0 0 14px" }}>
+    <div style={{ margin: compacto ? 0 : "0 0 14px" }}>
       <button
         onClick={() => setAbierto(true)}
         style={{
@@ -153,7 +154,9 @@ export default function BotonAgregarCalendario({ supabase, userId }) {
           cursor: "pointer", fontSize: 12, fontWeight: 700,
         }}
       >
-        {sincronizado ? "✓ Calendario sincronizado" : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario"}
+        {compacto
+          ? (sincronizado ? "✓ Sincronizado" : soloCopiado ? "Enlace copiado" : "Sincronizar calendario")
+          : (sincronizado ? "✓ Calendario sincronizado" : soloCopiado ? "🔗 Enlace copiado — pegalo en tu calendario" : "📅 Agregar a tu calendario")}
       </button>
 
       {abierto && (

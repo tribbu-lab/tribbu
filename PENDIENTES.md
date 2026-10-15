@@ -3,17 +3,41 @@
 Lista viva de lo que queda por hacer (última actualización: 2026-10-14).
 Tachá o borrá cada ítem cuando se resuelva.
 
+## 📅 Para mañana (2026-10-15)
+
+1. **Rotar la clave vieja de Supabase** (ver "Urgente" abajo), en este orden:
+   1. *Yanina* — Vercel → proyecto tribbu → Settings → Environment Variables:
+      `VITE_SUPABASE_ANON_KEY` = `sb_publishable_RyHBhftWKg2zuXr479tNrw_BSPgBLM3`
+      (la publishable que ya usa la app de tiendas en `mobile/eas.json`; es
+      pública) en Production y Preview → **Redeploy**.
+   2. Verificar que tribbu.ar/app cargue e inicie sesión.
+   3. *Yanina* — Supabase Dashboard → proyecto `gctymjhblvocvaenmdhr` →
+      Project Settings → JWT Keys → cambiar/rotar el **Legacy JWT secret**
+      (invalida la anon y la service_role viejas). **No** "desactivar las
+      claves legacy" sin revisar antes: las Edge Functions usan las claves que
+      Supabase les inyecta.
+   4. *Claude* — cambiar `.env`, `mobile/.env` y `.env.example` a la
+      publishable; verificar web, push y avisos automáticos, y que la clave
+      vieja ya no funcione.
+   - No hay que tocar: app de tiendas (ya usa la publishable), Edge Functions
+     (claves inyectadas, se actualizan solas), cron/push de mensajes (usan
+     `avisos_cron_secret`), CI (placeholders), backup (pide la clave al CLI).
+   - Puede que algunos usuarios tengan que volver a iniciar sesión una vez.
+     Deja de andar la app Android vieja de Capacitor (`android/`), si alguien
+     todavía la usa.
+2. **Actualizar la landing tribbu.ar** (`public/*.html`) con el diseño nuevo de
+   la app: capturas de Hoy · Agenda · Comunicaciones · Curso, el Inicio
+   "Tenés N respuestas pendientes", autorizaciones y "Escribir por tribbu".
+   Usar la familia ficticia (`~/.claude/projects/C--Tribbu/demo-mock/`) para
+   las capturas, sin datos reales.
+
 ## ⚠️ Urgente
 
 - [ ] **Invalidar la service-role key vieja de Supabase** (sin cambios desde
       2026-09-23 — verificar si ya se rotó). Está en commits viejos del repo
       (que es **público**) y ese día **todavía funcionaba** (lee datos
       saltándose la RLS). Borrar el historial de git no alcanza: hay que rotarla.
-      Supabase Dashboard → Project Settings → JWT Keys / API: rotar el JWT
-      secret legacy (invalida anon y service-role viejas y desloguea a todos una
-      vez) **o** pasar a las API keys nuevas y deshabilitar las legacy. Después:
-      actualizar `VITE_SUPABASE_ANON_KEY` en Vercel y en `.env` / `mobile/.env`
-      (el build de tiendas usa la `sb_publishable_…` de `eas.json`).
+      Pasos concretos en "Para mañana" arriba.
 
 ## Rediseño según los prototipos de Figma (siguiente)
 

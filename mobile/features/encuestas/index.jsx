@@ -6,7 +6,7 @@
 // curso, o Super Admin.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, StyleSheet, RefreshControl } from "react-native";
 import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -16,6 +16,8 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
@@ -33,6 +35,8 @@ export function Encuestas() {
   const [votos, setVotos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState("activas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const gruposFiltro = [{ key: "estado", label: "Estado", value: filtro, onChange: setFiltro, options: [{ value: "activas", label: "Activas" }, { value: "cerradas", label: "Cerradas" }, { value: "eliminadas", label: "Eliminadas" }] }];
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null); // id de la encuesta en edición, o null si es alta
   const [form, setForm] = useState(FORM_VACIO);
@@ -222,15 +226,11 @@ export function Encuestas() {
             <Text style={styles.h1}>Encuestas</Text>
             <Text style={styles.sub}>Sondeos rápidos del curso — un voto por apoderado</Text>
             <View style={styles.toolbar}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={styles.chips}>
-                {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }, { id: "eliminadas", l: "Eliminadas" }].map((ch) => (
-                  <Pressable key={ch.id} onPress={() => setFiltro(ch.id)} style={[styles.chip, filtro === ch.id && styles.chipOn]}>
-                    <Text style={[styles.chipTxt, filtro === ch.id && styles.chipTxtOn]}>{ch.l}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Button title="+ Nueva" onPress={abrirModal} size="sm" />
+              <Text style={styles.filaFiltrosTxt}>{{ activas: "Activas", cerradas: "Cerradas", eliminadas: "Eliminadas" }[filtro]} · {(filtro === "eliminadas" ? eliminadas : visibles).length}</Text>
+              <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+              <BotonNuevo onPress={abrirModal} accessibilityLabel="Nueva encuesta" />
             </View>
+            <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
             {error && !modal ? <Text style={styles.errorTxt}>⚠️ {error}</Text> : null}
           </>
         }
@@ -437,12 +437,7 @@ const styles = StyleSheet.create({
   h1: { ...TYPE.h1, color: t.textStrong, marginBottom: 2 },
   sub: { ...TYPE.body, color: t.textMuted, marginBottom: SPACE.lg },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.lg, gap: SPACE.sm },
-  chipsScroll: { flexShrink: 1 },
-  chips: { flexDirection: "row", gap: SPACE.xs },
-  chip: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },
-  chipOn: { backgroundColor: t.textStrong, borderColor: t.textStrong },
-  chipTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
-  chipTxtOn: { color: t.surface },
+  filaFiltrosTxt: { flex: 1, fontSize: 14, fontWeight: "600", color: t.textMuted },
 
   cardCerrada: { opacity: 0.72 },
   pieTxt: { fontSize: 11.5, color: t.textFaint, marginTop: SPACE.sm },

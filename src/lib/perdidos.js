@@ -84,11 +84,21 @@ export const filtroAlcance = (cursoIds, colegioIds) =>
  * Encontrados de la última semana que no publicó el usuario y que nadie
  * reclamó todavía (tarjeta del Muro). `reclamados` = Set de ids con algún
  * "¡Es mío!" (RPC objetos_reclamados): si el dueño ya apareció, no tiene
- * sentido seguir preguntando "¿es de tu hijo?".
+ * sentido seguir preguntando "¿es de tu hijo?". `vistosHasta` = cuándo el
+ * usuario respondió "No" (ver claveEncontradosVistos): solo cuentan los
+ * publicados después.
  */
-export const encontradosDeLaSemana = (objetos, userId, { reclamados = new Set(), ahora = new Date() } = {}) =>
+export const encontradosDeLaSemana = (objetos, userId, { reclamados = new Set(), ahora = new Date(), vistosHasta = null } = {}) =>
   objetos.filter((o) => o.tipo === "encontrado" && estaVigente(o, ahora) && o.publicado_por !== userId
-    && !reclamados.has(o.id) && ahora - new Date(o.creado_en) <= 7 * 86400000).length;
+    && !reclamados.has(o.id) && ahora - new Date(o.creado_en) <= 7 * 86400000
+    && (!vistosHasta || new Date(o.creado_en) > new Date(vistosHasta))).length;
+
+/**
+ * Clave (por usuario, guardada en el dispositivo) de "No es de mi hijo" en la
+ * tarjeta del Inicio: guarda cuándo se respondió y la tarjeta deja de contar
+ * esos objetos; solo vuelve a aparecer si después se publica uno nuevo.
+ */
+export const claveEncontradosVistos = (userId) => `perdidos_no_es_mio_${userId}`;
 
 /**
  * ¿Publicar este objeto avisa por push a todo su curso? Solo lo que una

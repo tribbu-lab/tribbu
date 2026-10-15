@@ -1,8 +1,9 @@
 // Header persistente de la app (sobre las tabs), patrón A3: logo, buscar,
 // chip del hijo activo (dot de color + nombre; tocar abre el selector de
 // color) y el círculo con las iniciales que abre Mi cuenta. Con múltiples
-// hijos/cursos, el selector horizontal se mantiene debajo. Los mensajes
-// están en la sección Comunicaciones.
+// hijos/cursos, el selector horizontal se mantiene debajo. Al lado de buscar,
+// un acceso directo a Mensajes (con el globito de no leídos), además de la
+// pestaña dentro de Comunicaciones.
 // Superficie de marca fija en dark: se estila con THEMES.dark (igual que el login).
 
 import { useState } from "react";
@@ -16,6 +17,7 @@ import { Wordmark } from "./Wordmark";
 import { RoleBadge } from "./Badge";
 import { SignedImage } from "./SignedImage";
 import { colorColegio, iniciales } from "@shared/helpers";
+import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -26,7 +28,7 @@ export function AppHeader() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    items,
+    items,
     itemActual,
     colegioActivo,
     colorDeItem,
@@ -36,6 +38,7 @@ export function AppHeader() {
   } = useSession();
 
   const [colorPickerItem, setColorPickerItem] = useState(null);
+  const { noLeidos = 0 } = useMensajesCtx() || {};
 
 
   const unicoHijo = items.length === 1 && items[0]?._tipo === "hijo" ? items[0] : null;
@@ -68,6 +71,20 @@ export function AppHeader() {
           <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
             <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
           </Pressable>
+          <Pressable
+            onPress={() => router.navigate("/(tabs)/mensajes")}
+            style={styles.iconBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={noLeidos ? `Mensajes, ${noLeidos} sin leer` : "Mensajes"}
+          >
+            <MaterialCommunityIcons name="message-text-outline" size={18} color="rgba(255,255,255,0.85)" />
+            {noLeidos > 0 ? (
+              <View style={styles.msjBadge}>
+                <Text style={styles.msjBadgeTxt}>{noLeidos > 9 ? "9+" : noLeidos}</Text>
+              </View>
+            ) : null}
+          </Pressable>
           {unicoHijo ? (
             <>
               {rolConSenal(unicoHijo.rolEfectivo) ? <RoleBadge rol={unicoHijo.rolEfectivo} size="xs" /> : null}
@@ -84,7 +101,7 @@ export function AppHeader() {
               </Pressable>
             </>
           ) : null}
-          {/* Mi cuenta (antes al final de "Más"). Los mensajes pasaron a Comunicaciones. */}
+          {/* Mi cuenta (antes al final de "Más"). */}
           <Pressable onPress={() => router.push("/(tabs)/cuenta")} style={styles.avatarBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="Mi cuenta">
             <Text style={styles.avatarTxt}>{iniciales(usuario)}</Text>
           </Pressable>
@@ -154,6 +171,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  msjBadge: {
+    position: "absolute",
+    top: -5,
+    right: -6,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: "#EF4444",
+    borderWidth: 1.5,
+    borderColor: dk.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  msjBadgeTxt: { fontSize: 9.5, fontWeight: "800", color: "white" },
   notifDot: {
     position: "absolute",
     top: 7,

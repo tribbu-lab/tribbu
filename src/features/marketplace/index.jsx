@@ -8,6 +8,8 @@
 // se sigue viendo una semana, marcado.
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
@@ -353,6 +355,12 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const [cat, setCat] = useState("todas");
   const [soloRegalos, setSoloRegalos] = useState(false);
   const [mios, setMios] = useState(false);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const gruposFiltro = [
+    { key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todo" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] },
+    { key: "precio", label: "Precio", value: soloRegalos ? "regalos" : "todos", onChange: (v) => setSoloRegalos(v === "regalos"), options: [{ value: "todos", label: "Todos" }, { value: "regalos", label: "Solo regalos" }] },
+    { key: "mios", label: "Publicaciones", value: mios ? "mias" : "todas", onChange: (v) => setMios(v === "mias"), options: [{ value: "todas", label: "Todas" }, { value: "mias", label: "Mis publicaciones" }] },
+  ];
   const [busqueda, setBusqueda] = useState("");
   const [editor, setEditor] = useState(null); // { articulo } — articulo null = nueva publicación
   const [abierto, setAbierto] = useState(null);
@@ -466,13 +474,10 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
         <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: buzo, talle 10, libro de inglés…" aria-label="Buscar en el Marketplace" style={{ ...inp, flex: "1 1 200px", background: "white" }} />
-        <button onClick={() => setEditor({ articulo: null })} style={btnPri}>+ Publicar</button>
+        <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
+        <BotonNuevo onClick={() => setEditor({ articulo: null })} ariaLabel="Publicar un artículo" />
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {[{ k: "todas", l: "Todo", e: "" }, ...CATEGORIAS].map((c) => <button key={c.k} onClick={() => setCat(c.k)} style={chip(cat === c.k)}>{c.e} {c.l}</button>)}
-        <button onClick={() => setSoloRegalos(!soloRegalos)} style={chip(soloRegalos)}>🎁 Regalos</button>
-        <button onClick={() => setMios(!mios)} style={chip(mios)}>Mis publicaciones</button>
-      </div>
+      {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
       {!lista.length ? (
         <Card style={{ padding: 28, textAlign: "center" }}>
           <div style={{ fontSize: 30 }}>🛍️</div>

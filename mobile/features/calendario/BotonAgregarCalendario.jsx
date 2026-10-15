@@ -60,6 +60,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, Platform, Linking, AppState, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Clipboard from "expo-clipboard";
 import { T } from "@shared/theme";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
@@ -106,7 +107,9 @@ const OPCIONES = [
   },
 ];
 
-export default function BotonAgregarCalendario({ userId }) {
+// `compacto`: solo un ícono (para la fila de vistas del Calendario), sin el
+// chip de texto — menos niveles arriba del mes.
+export default function BotonAgregarCalendario({ userId, compacto = false }) {
   const [token, setToken] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [copiado, setCopiado] = useState(false);
@@ -387,15 +390,22 @@ export default function BotonAgregarCalendario({ userId }) {
   };
 
   return (
-    <View style={styles.wrap}>
+    <View style={compacto ? null : styles.wrap}>
       <Pressable
         onPress={() => {
           // Si Google ya lo está leyendo, abrir directo en ese panel.
           if (googleLeidoEn && !destino) setDestino("google");
           setAbierto(true);
         }}
-        style={[styles.trigger, metodo && styles.triggerHecho]}>
-        <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>{labelTrigger}</Text>
+        accessibilityRole="button"
+        accessibilityLabel={labelTrigger}
+        hitSlop={4}
+        style={compacto ? styles.triggerIcono : [styles.trigger, metodo && styles.triggerHecho]}>
+        {compacto ? (
+          <MaterialCommunityIcons name={sincronizado ? "calendar-check-outline" : "calendar-sync-outline"} size={20} color={sincronizado ? t.textMuted : t.accent} />
+        ) : (
+          <Text style={[styles.triggerTxt, metodo && styles.triggerTxtHecho]}>{labelTrigger}</Text>
+        )}
       </Pressable>
 
       <Sheet visible={abierto} onClose={() => setAbierto(false)} title="Sincronizar calendario">
@@ -487,6 +497,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: t.accent, backgroundColor: t.accentSoft || "#EFF6FF",
   },
   triggerHecho: { borderColor: t.border, backgroundColor: t.surface },
+  triggerIcono: { width: 40, height: 40, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
   triggerTxt: { fontSize: 12, fontWeight: "700", color: t.accent },
   triggerTxtHecho: { color: t.textMuted },
   label: { fontSize: 12, fontWeight: "700", color: t.text, marginTop: SPACE.md },

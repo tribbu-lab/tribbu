@@ -69,6 +69,20 @@ export const festejosPendientes = (filas, hoyStr) => {
   return festejos;
 };
 
+/**
+ * Festejos a los que dijimos que no (todos mis hijos invitados respondieron
+ * "no") → no van a "Próximos días". `filas` = evento_asistencia de mis hijos.
+ */
+export const festejosRechazados = (filas = []) => {
+  const estado = new Map();
+  for (const f of filas) {
+    const id = f.evento?.id || f.evento_id;
+    if (!id) continue;
+    estado.set(id, (estado.get(id) ?? true) && f.asiste === "no");
+  }
+  return new Set([...estado].filter(([, no]) => no).map(([id]) => id));
+};
+
 /** Encuestas abiertas (ni cerradas ni eliminadas) — candidatas a Pendientes. */
 export const encuestasAbiertas = (encuestas, hoyStr) => encuestas.filter((e) => estaActiva(e, hoyStr));
 
@@ -92,6 +106,45 @@ export const nivelUrgencia = (dias) => (dias < 3 ? "hot" : dias <= 7 ? "soon" : 
  */
 export const gestionaColecta = (c, userId, cursosAdmin = []) =>
   !!c && !!userId && (cursosAdmin.includes(c.curso_id) || c.responsable_id === userId || c.creado_por === userId);
+
+/**
+ * Apoderados de los cursos en vista con sus cursos e hijos, a partir de
+ * usuario_hijos (usuario_id, hijo_id) y los alumnos (id, nombre, curso_id).
+ * → Map<usuario_id, { cursos: curso_id[], hijos: { nombre, curso_id }[] }>
+ */
+export const familiasPorUsuario = (usuarioHijos = [], alumnos = []) => {
+  const alumno = new Map(alumnos.map((a) => [a.id, a]));
+  const porUsuario = new Map();
+  for (const r of usuarioHijos) {
+    const a = alumno.get(r.hijo_id);
+    if (!r.usuario_id || !a) continue;
+    const f = porUsuario.get(r.usuario_id) || { cursos: [], hijos: [] };
+    if (!f.cursos.includes(a.curso_id)) f.cursos.push(a.curso_id);
+    const nombre = (a.nombre || "").split(" ")[0];
+    if (nombre && !f.hijos.some((h) => h.nombre === nombre && h.curso_id === a.curso_id)) f.hijos.push({ nombre, curso_id: a.curso_id });
+    porUsuario.set(r.usuario_id, f);
+  }
+  return porUsuario;
+};
+
+/**
+ * Opciones de "Responsable" de una colecta: solo las familias del curso de esa
+ * colecta (en la vista Todos venían las de todos los cursos), en orden
+ * alfabético. `incluir` = ids que van igual (yo, el responsable actual).
+ */
+export const responsablesParaCurso = (usuarios = [], cursoId, incluir = []) =>
+  usuarios
+    .filter((u) => !cursoId || (u.cursos || []).includes(cursoId) || incluir.includes(u.id))
+    .sort((a, b) => `${a.nombre || ""} ${a.apellido || ""}`.localeCompare(`${b.nombre || ""} ${b.apellido || ""}`, "es", { sensitivity: "base" }));
+
+/** "Ana Pérez (Juan y Sofi)" — el apoderado con sus hijos de ese curso. */
+export const etiquetaResponsable = (u, cursoId) => {
+  const hijos = (u.hijos || []).filter((h) => !cursoId || h.curso_id === cursoId).map((h) => h.nombre);
+  return `${u.nombre || ""}${u.apellido ? ` ${u.apellido}` : ""}${hijos.length ? ` (${hijos.join(" y ")})` : ""}`;
+};
+
+/** Colectas para listar: las abiertas primero y las cerradas al final (cada grupo en el orden que vino). */
+export const ordenarColectas = (colectas = []) => [...colectas.filter((c) => c.activa), ...colectas.filter((c) => !c.activa)];
 
 /** Días que pasaron desde la fecha límite (null si no tiene o no venció). */
 export const diasVencida = (c, hoyStr) => {
@@ -135,8 +188,12 @@ export const ordenarPorVencimiento = (items = []) =>
 const fmtDiaSemanaCorto = (s) =>
   new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "");
 
+/** Hasta cuántos días antes un pendiente se marca como urgente (en rojo). */
+export const DIAS_URGENTE = 2;
+
 /**
- * Línea de urgencia de un pendiente cuando vence hoy o mañana (si no, null):
+ * Línea de urgencia de un pendiente cuando vence en DIAS_URGENTE días o menos
+ * (si no, null) — en Hoy va en rojo:
  * avisoVencimiento("Respondé hasta", "2026-10-15", "2026-10-14") →
  * "Respondé hasta mañana, jue 15 oct".
  */
@@ -145,24 +202,12 @@ export const avisoVencimiento = (prefijo, fecha, hoyStr) => {
   const dias = Math.round((new Date(fecha + "T00:00:00") - new Date(hoyStr + "T00:00:00")) / 86400000);
   if (dias === 0) return `${prefijo} hoy`;
   if (dias === 1) return `${prefijo} mañana, ${fmtDiaSemanaCorto(fecha)}`;
+  if (dias > 1 && dias <= DIAS_URGENTE) return `${prefijo} el ${fmtDiaSemanaCorto(fecha)}`;
   return null;
 };
 
 /** "lun 19 oct" — fecha corta para los renglones de dato de Hoy. */
 export const fechaCorta = (s) => (s ? fmtDiaSemanaCorto(s) : "");
 
-/**
- * Menú de hoy como tabla (Entrada / Principal / Alternativa / Postre), solo
- * con las filas que tienen algo. Los dos postres van en una fila ("A o B").
- */
-export const filasMenu = (menu) => {
-  if (!menu) return [];
-  const postres = [menu.postre, menu.postre2].filter(Boolean).join(" o ");
-  return [
-    ["Entrada", menu.entrada],
-    ["Principal", menu.plato],
-    ["Alternativa", menu.plato2],
-    ["Acompañamiento", menu.acompanamiento],
-    ["Postre", postres],
-  ].filter(([, v]) => v).map(([label, plato]) => ({ label, plato }));
-};
+/** Menú de hoy como tabla — mismas categorías que Comedor (@shared/menu). */
+export { filasMenu } from "./menu";

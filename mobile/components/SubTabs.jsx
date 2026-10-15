@@ -14,6 +14,7 @@ const t = THEMES.light;
 
 export const SECCION_AGENDA = [
   { route: "calendario", label: "Calendario" },
+  { route: "horario", label: "Horario" },
   { route: "cumples", label: "Cumpleaños" },
 ];
 export const SECCION_COMUNICACIONES = [

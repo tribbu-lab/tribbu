@@ -6,6 +6,7 @@
 // (opcional) también la hace cumplir la RLS (supabase/autorizaciones.sql).
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { estaAbierta, estadoPorAlumno, resumenRespuestas, estadoConvocatoria, limiteCercano, textoConfirmacion, textoRespuesta, fechaAut } from "../../lib/autorizaciones";
@@ -357,7 +358,7 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
           <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3 }}>Autorizaciones</div>
           <div style={{ fontSize: 13, color: "#64748B" }}>Salidas y actividades que necesitan tu permiso</div>
         </div>
-        {cursosInfo.length > 0 && <button onClick={() => setNueva(true)} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>+ Nueva</button>}
+        {cursosInfo.length > 0 && <BotonNuevo onClick={() => setNueva(true)} ariaLabel="Nueva autorización" />}
       </div>
       {!autorizaciones.length && (
         <Card style={{ padding: 30, textAlign: "center" }}>

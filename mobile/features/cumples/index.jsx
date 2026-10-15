@@ -32,7 +32,7 @@ import { T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
-import { SelectChip } from "../../components/SelectChip";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { Paginador } from "../../components/Paginador";
 import { Avatar } from "../../components/Avatar";
 import { DateField } from "../../components/DateField";
@@ -100,6 +100,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   // el mismo backend de storage que getHijoColor); este estado solo fuerza
   // el re-render al cerrar.
   const [bannerCerrados, setBannerCerrados] = useState({});
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const cerrarBanner = (festId) => { cerrarBannerFestejo(userId, festId); setBannerCerrados((p) => ({ ...p, [festId]: true })); };
 
   const verificarRecordatoriosRegalo = useCallback(
@@ -385,6 +386,10 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     ],
     pageSize: 20,
   });
+  const gruposFiltro = [
+    { key: "mes", label: "Mes", value: ctrl.filtros.mes || "all", onChange: (v) => ctrl.setFiltro("mes", v), options: MES_OPTS },
+    { key: "tipo", label: "Quiénes", value: ctrl.filtros.tipo || "all", onChange: (v) => ctrl.setFiltro("tipo", v), options: TIPO_OPTS },
+  ];
 
   const hijosConCumple = lista.filter(
     (a) => a.tipo === "Alumno" && misHijosUniq.includes(a.rawId)
@@ -518,20 +523,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             style={styles.searchInput}
           />
         </View>
-        <SelectChip
-          label="Mes"
-          prefix={false}
-          value={ctrl.filtros.mes || "all"}
-          options={MES_OPTS}
-          onChange={(v) => ctrl.setFiltro("mes", v)}
-        />
-        <SelectChip
-          label="Tipo"
-          prefix={false}
-          value={ctrl.filtros.tipo || "all"}
-          options={TIPO_OPTS}
-          onChange={(v) => ctrl.setFiltro("tipo", v)}
-        />
+        <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+        <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
       </View>
       <Text style={styles.cnt}>
         {ctrl.total} resultado{ctrl.total !== 1 ? "s" : ""}

@@ -17,16 +17,10 @@ import { MESES, T } from "@shared/theme";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
+import { TablaMenu } from "../../components/TablaMenu";
 
 const t = THEMES.light;
 
-// Los 6 campos de `menu`, agrupados por momento de la comida. Cada grupo se
-// pinta como una sección con sus platos en tarjetas.
-const GRUPOS = [
-  { label: "Entrada", icon: "bowl-mix-outline", color: "#8B5CF6", campos: [{ key: "entrada" }] },
-  { label: "Plato principal", icon: "silverware-fork-knife", color: "#3B82F6", campos: [{ key: "plato" }, { key: "plato2" }, { key: "acompanamiento" }] },
-  { label: "Postre", icon: "food-apple-outline", color: "#10B981", campos: [{ key: "postre" }, { key: "postre2" }] },
-];
 const CAMPOS_ORDEN = ["entrada", "plato", "plato2", "acompanamiento", "postre", "postre2"];
 
 // Vocabulario fijo de etiquetas rápidas (nivel día). El admin las tilda en el
@@ -302,23 +296,8 @@ function DiaDetalle({ m, puedeEditar, onEditar }) {
         </View>
       ) : null}
 
-      {GRUPOS.map((g) => {
-        const platos = g.campos.map((c) => m[c.key]).filter(Boolean);
-        if (!platos.length) return null;
-        return (
-          <View key={g.label} style={styles.grupo}>
-            <View style={styles.grupoHead}>
-              <MaterialCommunityIcons name={g.icon} size={14} color={g.color} />
-              <Text style={[styles.grupoLabel, { color: g.color }]}>{g.label.toUpperCase()}</Text>
-            </View>
-            {platos.map((p, i) => (
-              <View key={i} style={styles.platoCard}>
-                <Text style={styles.platoNombre}>{p}</Text>
-              </View>
-            ))}
-          </View>
-        );
-      })}
+      {/* Misma tabla que "Menú de hoy" en el Inicio (@shared/menu). */}
+      <TablaMenu menu={m} style={styles.tablaMenu} />
 
       {puedeEditar ? (
         <Pressable onPress={onEditar} style={styles.editarDiaBtnFull}>
@@ -630,14 +609,10 @@ const styles = StyleSheet.create({
   badge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: RADIUS.full },
   badgeTxt: { fontSize: 11, fontWeight: "800", letterSpacing: 0.2 },
 
+  tablaMenu: { marginTop: SPACE.md },
   notasCard: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", borderRadius: RADIUS.lg, padding: SPACE.md, marginTop: SPACE.sm },
   notasTxt: { flex: 1, fontSize: 12.5, color: "#92400E", lineHeight: 18, fontWeight: "600" },
 
-  grupo: { marginTop: SPACE.lg },
-  grupoHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: SPACE.sm },
-  grupoLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  platoCard: { backgroundColor: t.surface, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, paddingVertical: 14, paddingHorizontal: SPACE.md, marginBottom: SPACE.sm },
-  platoNombre: { fontSize: 15, fontWeight: "700", color: t.textStrong, lineHeight: 21 },
 
   emptyBox: { alignItems: "center", gap: 6, paddingVertical: 40, paddingHorizontal: SPACE.lg },
   emptyTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginTop: 4 },

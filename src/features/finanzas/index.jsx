@@ -1,10 +1,11 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtF, dHasta, fmtLocalDate } from "../../lib/helpers";
-import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR } from "../../lib/muro";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas } from "../../lib/muro";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -78,18 +79,22 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
     setParticipantes(partMap);
     const alumnosIds = (alum.data||[]).map(a=>a.id);
     const uidsSet = new Set();
+    let uhData = [];
     // Siempre incluir al usuario logueado (room parent puede asignarse a sí mismo)
     if(userId) uidsSet.add(userId);
     if(alumnosIds.length) {
-      const { data: uhData } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", alumnosIds);
+      ({ data: uhData } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id", alumnosIds));
       (uhData||[]).forEach(r=>{ if(r.usuario_id) uidsSet.add(r.usuario_id); });
     }
     const uids = [...uidsSet];
     if(uids.length) {
       const { data: usData } = await supabase.from("usuarios").select("id,nombre,apellido,activo").in("id", uids);
-      setUsuarios(usData||[]);
+      // Curso(s) e hijos de cada apoderado: el "Responsable" se elige entre
+      // las familias del curso de la colecta.
+      const familias = familiasPorUsuario(uhData||[], alum.data||[]);
+      setUsuarios((usData||[]).map(u=>({...u, ...(familias.get(u.id)||{cursos:[],hijos:[]})})));
     }
-    setColectas(colData||[]);
+    setColectas(ordenarColectas(colData||[]));
     setAlumnos(alum.data||[]);
     setPagos(pag.data||[]);
   }, [cursoIds, userId]);
@@ -248,7 +253,11 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
   return (
     <div>
       <Toast />
-      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Colectas</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:4}}>
+        <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.3}}>Colectas</div>
+        {/* Cualquier apoderado del curso puede crear una colecta. */}
+        <BotonNuevo ariaLabel="Nueva colecta" onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",alias_cbu:"",responsable_id:"",fecha_limite:"",curso_id:cursoId||cursoIds[0]||null,participantesIds:null});}}/>
+      </div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{esVistaTodos?"Colectas de todos tus cursos":"Colectas del curso"}</div>
 
       {/* Modal nueva/editar colecta */}
@@ -309,7 +318,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>RESPONSABLE</div>
               <select value={form.responsable_id||""} onChange={e=>setForm(p=>({...p,responsable_id:e.target.value}))} style={inp}>
                 <option value="">— Sin asignar —</option>
-                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</option>)}
+                {responsablesParaCurso(usuarios, cursoDestinoModal, [userId, form.responsable_id]).map(u=><option key={u.id} value={u.id}>{etiquetaResponsable(u, cursoDestinoModal)}</option>)}
               </select>
             </div>
             {alumnosCursoModal.length>0&&(
@@ -380,10 +389,6 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
 
       <div style={isMobile ? undefined : {display:"grid",gridTemplateColumns:(!isAdmin&&deudaTotal>0)?"1fr 320px":"1fr",gap:20,alignItems:"start"}}>
       <div>
-      {/* Botón nueva colecta — cualquier apoderado del curso puede crear una */}
-      <div style={{marginBottom:16}}>
-        <button onClick={()=>{setModal({});setForm({titulo:"",descripcion:"",monto_sugerido:"",moneda:"$",alias_cbu:"",responsable_id:"",fecha_limite:"",curso_id:cursoId||cursoIds[0]||null,participantesIds:null});}} style={{padding:"8px 18px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nueva colecta</button>
-      </div>
 
       {colectas.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>No hay colectas activas</div>}
 

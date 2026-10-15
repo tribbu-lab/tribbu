@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -12,6 +13,7 @@ import { ChipLecturas, LecturasModal } from "../../components/Lecturas";
 import { useLecturas } from "../../hooks/useLecturas";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -42,6 +44,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   const [filtroPrio,    setFiltroPrio]    = useState("all");
   const [filtroLeido,   setFiltroLeido]   = useState("all");
   const [filtroOrigen,  setFiltroOrigen]  = useState("all");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" y filtro por origen.
   const docenteDe = useAutoresDocentes(recordatorios.map(r=>r.creado_por));
   const [expandidos,    setExpandidos]    = useState(()=>new Set());
@@ -206,11 +209,21 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
   // puede auditar (propios, de su curso como Room Parent, o como colegio).
   const lecturas = useLecturas(visible.map(r=>r.id));
 
+  // Filtros juntos en un botón (FiltrosModal) en vez de cuatro selects.
+  const conPagina1 = (set) => (v) => { set(v); setPagina(1); };
+  const gruposFiltro = [
+    { key:"leido",  label:"Estado",           value:filtroLeido,  onChange:conPagina1(setFiltroLeido),  options:[{value:"all",label:"Todos"},{value:"noleidos",label:"Sin leer"},{value:"leidos",label:"Leídos"}] },
+    { key:"rango",  label:"Fecha",            value:filtroRango,  onChange:conPagina1(setFiltroRango),  options:[{value:"all",label:"Todos"},{value:"proximos",label:"Próximos"},{value:"pasados",label:"Pasados"},{value:"personalizado",label:"Elegir fechas"}] },
+    { key:"prio",   label:"Prioridad",        value:filtroPrio,   onChange:conPagina1(setFiltroPrio),   options:[{value:"all",label:"Todas"},{value:"alta",label:"Alta"},{value:"media",label:"Media"},{value:"baja",label:"Baja"}] },
+    { key:"origen", label:"Quién lo publicó", value:filtroOrigen, onChange:conPagina1(setFiltroOrigen), options:[{value:"all",label:"Todos"},{value:"colegio",label:"El colegio"},{value:"docente",label:"Docentes"},{value:"normal",label:"Apoderados"}] },
+  ];
+  const limpiarFiltros = () => { setFiltroLeido("all"); setFiltroRango("all"); setFiltroPrio("all"); setFiltroOrigen("all"); setFiltroDesde(""); setFiltroHasta(""); setPagina(1); };
+
   return (
     <div style={{maxWidth:900}}>
       {verLecturas&&lecturas[verLecturas.id]&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={lecturas[verLecturas.id]} onClose={()=>setVerLecturas(null)}/>}
-      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Avisos</div>
-      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Avisos del curso</div>
+      {/* El título lo da la pestaña "Avisos" de Comunicaciones. */}
+      {filtrosAbiertos&&<FiltrosModal grupos={gruposFiltro} onClose={()=>setFiltrosAbiertos(false)} onLimpiar={limpiarFiltros}/>}
 
       {isSuper&&(
         <div style={{marginBottom:16}}>
@@ -310,34 +323,12 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
       )}
 
       <div style={{display:"flex",gap:8,marginBottom:filtroRango==="personalizado"?8:12,flexWrap:"wrap",alignItems:"center"}}>
-        <select value={filtroRango} onChange={e=>{setFiltroRango(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-          <option value="all">Todos</option>
-          <option value="proximos">Proximos</option>
-          <option value="pasados">Pasados</option>
-          <option value="personalizado">Personalizado</option>
-        </select>
-        <select value={filtroPrio} onChange={e=>{setFiltroPrio(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-          <option value="all">Todas las prioridades</option>
-          <option value="alta">Alta</option>
-          <option value="media">Media</option>
-          <option value="baja">Baja</option>
-        </select>
-        <select value={filtroLeido} onChange={e=>{setFiltroLeido(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-          <option value="all">Leídos y no leídos</option>
-          <option value="noleidos">Sin leer</option>
-          <option value="leidos">Leídos</option>
-        </select>
-        <select value={filtroOrigen} onChange={e=>{setFiltroOrigen(e.target.value);setPagina(1);}} style={{padding:"7px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:600,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
-          <option value="all">Todos los orígenes</option>
-          <option value="colegio">🏫 Comunicaciones del colegio</option>
-          <option value="docente">👩‍🏫 Docentes</option>
-          <option value="normal">Apoderados</option>
-        </select>
-        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
           {filtrados.some(r=>!leidosSet.has(r.id))&&(
             <button onClick={marcarTodoLeido} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Marcar todo leído</button>
           )}
-          <button onClick={()=>{setModal({});setForm({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nuevo</button>
+          <BotonFiltros grupos={gruposFiltro} onClick={()=>setFiltrosAbiertos(true)}/>
+          <BotonNuevo ariaLabel="Nuevo aviso" onClick={()=>{setModal({});setForm({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}}/>
         </div>
       </div>
       {filtroRango==="personalizado"&&(

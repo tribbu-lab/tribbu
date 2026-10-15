@@ -28,7 +28,8 @@ import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos"
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
-import { SelectChip } from "../../components/SelectChip";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { EmptyState } from "../../components/EmptyState";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
@@ -168,6 +169,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   const [filtroPrio, setFiltroPrio] = useState("all");
   const [filtroLeido, setFiltroLeido] = useState("all");
   const [filtroOrigen, setFiltroOrigen] = useState("all");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [pagina, setPagina] = useState(1);
   // Deep-link desde una notificación: aviso a resaltar y a llevar a la vista.
   const [resaltado, setResaltado] = useState(null);
@@ -344,6 +346,14 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   // SÍ se muestran, igual que en la web.
   const visiblesTipo = recordatorios.filter((r) => r.tipo !== "regalo_cumple");
   const sinLeer = visiblesTipo.filter((r) => !leidosSet.has(r.id)).length;
+  const conPagina1 = (set) => (v) => { set(v); setPagina(1); };
+  const gruposFiltro = [
+    { key: "leido", label: "Estado", options: LEIDOS, value: filtroLeido, onChange: conPagina1(setFiltroLeido) },
+    { key: "rango", label: "Fecha", options: RANGOS, value: filtroRango, onChange: conPagina1(setFiltroRango) },
+    { key: "prio", label: "Prioridad", options: PRIOS, value: filtroPrio, onChange: conPagina1(setFiltroPrio) },
+    { key: "origen", label: "Quién lo publicó", options: ORIGENES, value: filtroOrigen, onChange: conPagina1(setFiltroOrigen) },
+  ];
+  const limpiarFiltros = () => { setFiltroLeido("all"); setFiltroRango("all"); setFiltroPrio("all"); setFiltroOrigen("all"); setPagina(1); };
 
   const filtrados = visiblesTipo
     .filter((r) => {
@@ -381,6 +391,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
 
   return (
     <View style={styles.screen}>
+      <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} onLimpiar={limpiarFiltros} />
       <LecturasSheet
         visible={!!verLecturas}
         titulo={verLecturas?.titulo || verLecturas?.texto}
@@ -413,59 +424,17 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
           />
         )}
         ListHeaderComponent={
+          // El título lo da la pestaña "Avisos" de Comunicaciones; los filtros van
+          // juntos en un botón (FiltrosSheet) en vez de una fila de chips.
           <View style={styles.headerWrap}>
             <View style={styles.titleRow}>
-              <Text style={styles.h1}>Avisos</Text>
-              <Pressable onPress={abrirNuevo} style={styles.nuevoBtn}>
-                <MaterialCommunityIcons name="plus" size={14} color={t.onAccent} />
-                <Text style={styles.nuevoTxt}>Nuevo</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.subtitle}>
-              {sinLeer === 0 ? "Todo leído" : sinLeer === 1 ? "1 sin leer" : `${sinLeer} sin leer`}
-            </Text>
-
-            <View style={styles.filtersRow}>
-              <SelectChip
-                label="Rango"
-                icon="calendar-range-outline"
-                value={filtroRango}
-                options={RANGOS}
-                onChange={(v) => {
-                  setFiltroRango(v);
-                  setPagina(1);
-                }}
-              />
-              <SelectChip
-                label="Prioridad"
-                icon="flag-outline"
-                value={filtroPrio}
-                options={PRIOS}
-                onChange={(v) => {
-                  setFiltroPrio(v);
-                  setPagina(1);
-                }}
-              />
-              <SelectChip
-                label="Estado"
-                icon="check-circle-outline"
-                value={filtroLeido}
-                options={LEIDOS}
-                onChange={(v) => {
-                  setFiltroLeido(v);
-                  setPagina(1);
-                }}
-              />
-              <SelectChip
-                label="Origen"
-                icon="school-outline"
-                value={filtroOrigen}
-                options={ORIGENES}
-                onChange={(v) => {
-                  setFiltroOrigen(v);
-                  setPagina(1);
-                }}
-              />
+              <Text style={styles.subtitle}>
+                {sinLeer === 0 ? "Todo leído" : sinLeer === 1 ? "1 sin leer" : `${sinLeer} sin leer`}
+              </Text>
+              <View style={styles.acciones}>
+                <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+                <BotonNuevo onPress={abrirNuevo} accessibilityLabel="Nuevo aviso" />
+              </View>
             </View>
           </View>
         }
@@ -723,28 +692,15 @@ const styles = StyleSheet.create({
   horaHint: { fontSize: 11, color: "#94A3B8", marginTop: 4 },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
-  headerWrap: { marginBottom: SPACE.xs },
+  headerWrap: { marginBottom: SPACE.md },
   flex1: { flex: 1 },
 
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4 },
-  nuevoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: RADIUS.md,
-    backgroundColor: t.accent,
-  },
-  nuevoTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
+  subtitle: { fontSize: 14, fontWeight: "600", color: t.textMuted, flexShrink: 1 },
+  acciones: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: SPACE.sm },
 
-  // filtros colapsados (SelectChip del sistema, con icono en vez de label para
-  // entrar en una fila); wrap de respaldo: con fuentes grandes o pantallas muy
-  // angostas un chip baja de línea en vez de cortarse contra el borde
-  filtersRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm, marginTop: SPACE.md, marginBottom: SPACE.md },
 
   // fila de recordatorio
   rowResaltado: { backgroundColor: "#EFF6FF", borderRadius: RADIUS.lg, marginHorizontal: -8, paddingHorizontal: 8 },

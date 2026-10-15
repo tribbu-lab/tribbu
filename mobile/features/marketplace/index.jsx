@@ -17,6 +17,8 @@ import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Button } from "../../components/Button";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
@@ -32,6 +34,7 @@ export function Marketplace() {
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
   const [cat, setCat] = useState("todas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [soloRegalos, setSoloRegalos] = useState(false);
   const [mios, setMios] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -127,11 +130,11 @@ export function Marketplace() {
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;
   const lista = visibles.filter((a) => (cat === "todas" || a.categoria === cat) && (!soloRegalos || a.es_regalo) && (!mios || a.publicado_por === userId) && coincideBusqueda(a, busqueda));
 
-  const chip = (on, label, onPress, key) => (
-    <Pressable key={key || label} onPress={onPress} style={[styles.chip, on && styles.chipOn]}>
-      <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{label}</Text>
-    </Pressable>
-  );
+  const gruposFiltro = [
+    { key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todo" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] },
+    { key: "precio", label: "Precio", value: soloRegalos ? "regalos" : "todos", onChange: (v) => setSoloRegalos(v === "regalos"), options: [{ value: "todos", label: "Todos" }, { value: "regalos", label: "Solo regalos" }] },
+    { key: "mios", label: "Publicaciones", value: mios ? "mias" : "todas", onChange: (v) => setMios(v === "mias"), options: [{ value: "todas", label: "Todas" }, { value: "mias", label: "Mis publicaciones" }] },
+  ];
 
   return (
     <View style={styles.screen}>
@@ -145,15 +148,13 @@ export function Marketplace() {
         renderItem={({ item: a }) => <Tarjeta a={a} tag={tagDeCurso(a.curso_id)} onPress={() => setAbierto(a)} />}
         ListHeaderComponent={
           <View>
-            <View style={styles.buscarRow}>
-              <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar: buzo, talle 10…" placeholderTextColor={t.placeholder} style={[styles.input, styles.flex1]} />
-              {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setEditor({ articulo: null })} /> : null}
+            <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar: buzo, talle 10…" placeholderTextColor={t.placeholder} style={[styles.input, styles.buscar]} />
+            <View style={styles.filaFiltros}>
+              <Text style={styles.filaFiltrosTxt}>{lista.length === 1 ? "1 artículo" : `${lista.length} artículos`}</Text>
+              <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+              {cursosPublicar.length ? <BotonNuevo onPress={() => setEditor({ articulo: null })} accessibilityLabel="Publicar un artículo" /> : null}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {[{ k: "todas", l: "Todo", e: "" }, ...CATEGORIAS].map((c) => chip(cat === c.k, `${c.e} ${c.l}`.trim(), () => setCat(c.k), c.k))}
-              {chip(soloRegalos, "🎁 Regalos", () => setSoloRegalos(!soloRegalos))}
-              {chip(mios, "Mis publicaciones", () => setMios(!mios))}
-            </ScrollView>
+            <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
           </View>
         }
         ListEmptyComponent={
@@ -500,6 +501,10 @@ function ArticuloSheet({ articulo, cursos, colegioDe, userId, onClose, onGuardad
 }
 
 const styles = StyleSheet.create({
+  filaFiltros: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.md },
+  filaFiltrosTxt: { flex: 1, fontSize: 14, fontWeight: "600", color: t.textMuted },
+  buscar: { marginBottom: SPACE.md },
+
   screen: { flex: 1, backgroundColor: t.bg },
   content: { paddingHorizontal: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   cargando: { textAlign: "center", color: t.textFaint, padding: 30 },

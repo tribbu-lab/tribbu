@@ -51,6 +51,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="curso" options={{ title: "Curso" }} />
 
         <Tabs.Screen name="cumples" options={hidden} />
+        <Tabs.Screen name="horario" options={hidden} />
         <Tabs.Screen name="cuenta" options={hidden} />
         <Tabs.Screen name="buscar" options={hidden} />
         <Tabs.Screen name="comedor" options={hidden} />

@@ -14,11 +14,13 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { pickAndUploadImage } from "../../lib/media";
 import { sanitize, fmtLocalDate } from "@shared/helpers";
 import { CATEGORIAS, categoria, estaVigente, estaVisible, ordenarVisibles, coincidencias, filtroAlcance, cargarReclamados, avisaAlCurso, textoPushPublicado } from "@shared/perdidos";
-import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
+import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
@@ -38,6 +40,7 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
   const [datos, setDatos] = useState(null);
   const [tab, setTab] = useState("encontrado");
   const [cat, setCat] = useState("todas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [nuevo, setNuevo] = useState(false);
   const [avisando, setAvisando] = useState(null);
   const [contacto, setContacto] = useState(null); // { titulo, lista: [c] | null }
@@ -133,6 +136,7 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
 
   if (!datos) return <View style={styles.screen}><Text style={styles.cargando}>Cargando…</Text></View>;
   const lista = visibles.filter((o) => o.tipo === tab && (cat === "todas" || o.categoria === cat));
+  const gruposFiltro = [{ key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todas" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] }];
   const cuenta = (tipo) => visibles.filter((o) => o.tipo === tipo).length;
 
   const renderItem = ({ item: o }) => {
@@ -150,54 +154,55 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
           {o.foto ? (
             <ImagenAmpliable src={o.foto} bucket="adjuntos" style={styles.foto} />
           ) : (
-            <View style={[styles.foto, styles.fotoVacia]}><Text style={styles.fotoEmoji}>{c.e}</Text></View>
+            <View style={[styles.foto, styles.fotoVacia]}><Text style={styles.sinFoto}>Sin foto</Text></View>
           )}
           <View style={styles.flex1}>
+            {/* Sobria: una línea gris en vez de etiquetas de colores. */}
             <View style={styles.badges}>
-              <Text style={[styles.badge, o.tipo === "perdido" ? styles.badgeBuscan : styles.badgeEncontrado]}>{o.tipo === "perdido" ? "BUSCAN" : "ENCONTRADO"}</Text>
-              {resuelta ? <Text style={[styles.badge, styles.badgeResuelto]}>✓ RESUELTO</Text> : null}
-              <Text style={styles.cat}>{c.e} {c.l}</Text>
-              {o.es_colegio ? <Text style={styles.colegio}>🏫 Colegio</Text> : null}
+              <Text style={styles.cat}>{[o.tipo === "perdido" ? "Buscan" : "Encontrado", c.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</Text>
+              {resuelta ? <Text style={styles.badgeResuelto}>Resuelto</Text> : null}
             </View>
             <Text style={styles.titulo}>{o.titulo}</Text>
             {o.descripcion ? <Text style={styles.desc}>{o.descripcion}</Text> : null}
             <Text style={styles.meta}>
-              {[tag?.nombre, o.lugar && `📍 ${o.lugar}`, o.fecha && `📅 ${fmtDia(o.fecha)}`, hace(o.creado_en)].filter(Boolean).join(" · ")}
+              {[tag?.nombre, o.lugar, o.fecha && fmtDia(o.fecha), hace(o.creado_en)].filter(Boolean).join(" · ")}
             </Text>
           </View>
         </View>
         {sugerencias.length ? (
           <Pressable onPress={() => setTab(sugerencias[0].objeto.tipo)} style={styles.sugerencia}>
-            <Text style={styles.sugerenciaTxt}>🔎 ¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}? {sugerencias.map((s) => s.objeto.titulo).join(", ")}</Text>
+            <Text style={styles.sugerenciaTxt}>¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}? <Text style={styles.sugerenciaLink}>{sugerencias.map((s) => s.objeto.titulo).join(", ")}</Text></Text>
           </Pressable>
         ) : null}
         {!propio && !yaAvise && reclamado && !resuelta ? (
-          <Text style={styles.reclamado}>{o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}</Text>
+          <Text style={styles.reclamado}>{o.tipo === "encontrado" ? "Alguien ya avisó que es suyo" : "Alguien ya avisó que lo tiene"}</Text>
         ) : null}
+        {!propio || gestiona(o) ? (
         <View style={styles.acciones}>
           {!propio && !yaAvise && !resuelta ? (
             <Pressable onPress={() => setAvisando(o)} style={styles.btnPri}>
-              <Text style={styles.btnPriTxt}>{o.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"}</Text>
+              <Text style={styles.btnPriTxt}>{o.tipo === "encontrado" ? "¡Es mío!" : "Lo tengo yo"}</Text>
             </Pressable>
           ) : null}
           {!propio && yaAvise ? (
             <Pressable onPress={() => verContacto(o)} style={styles.btnSec}>
-              <Text style={styles.btnSecTxt}>📞 Ver contacto</Text>
+              <Text style={styles.btnSecTxt}>Ver contacto</Text>
             </Pressable>
           ) : null}
           {gestiona(o) && nAvisos > 0 ? (
-            <Pressable onPress={() => verAvisos(o)} style={styles.btnOk}>
-              <Text style={styles.btnOkTxt}>🙋 {nAvisos} {nAvisos === 1 ? "aviso" : "avisos"}</Text>
+            <Pressable onPress={() => verAvisos(o)} style={styles.btnSec}>
+              <Text style={styles.btnSecTxt}>{nAvisos} {nAvisos === 1 ? "aviso" : "avisos"}</Text>
             </Pressable>
           ) : null}
           <View style={styles.flex1} />
           {gestiona(o) ? (
             <>
-              {!resuelta ? <Pressable onPress={() => resuelto(o)} hitSlop={6}><Text style={styles.linkOk}>✓ Resuelto</Text></Pressable> : null}
+              {!resuelta ? <Pressable onPress={() => resuelto(o)} hitSlop={6}><Text style={styles.linkOk}>Marcar resuelto</Text></Pressable> : null}
               <Pressable onPress={() => borrar(o)} hitSlop={6}><Text style={styles.linkDanger}>Borrar</Text></Pressable>
             </>
           ) : null}
         </View>
+        ) : null}
       </Card>
     );
   };
@@ -220,26 +225,25 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
                 {!embebido ? <Text style={styles.h1}>Lost &amp; Found</Text> : null}
                 <Text style={styles.sub}>Lo que se perdió y lo que apareció</Text>
               </View>
-              {cursosPublicar.length ? <Button title="+ Publicar" size="sm" onPress={() => setNuevo(true)} /> : null}
             </View>
-            <View style={styles.tabs}>
-              {[["encontrado", "🙌 Encontrados"], ["perdido", "😟 Buscan"]].map(([k, l]) => (
-                <Pressable key={k} onPress={() => setTab(k)} style={[styles.tabBtn, tab === k && styles.tabOn]}>
-                  <Text style={[styles.tabTxt, tab === k && styles.tabTxtOn]}>{l} ({cuenta(k)})</Text>
+            {/* Encontrados / Buscan: mismo control segmentado gris que las pestañas internas. */}
+            <View style={styles.segmento}>
+              {[["encontrado", "Encontrados"], ["perdido", "Buscan"]].map(([k, l]) => (
+                <Pressable key={k} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && styles.segOn]}>
+                  <Text style={[styles.segTxt, tab === k && styles.segTxtOn]}>{l} {cuenta(k)}</Text>
                 </Pressable>
               ))}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-              {[{ k: "todas", l: "Todas", e: "" }, ...CATEGORIAS].map((c) => (
-                <Pressable key={c.k} onPress={() => setCat(c.k)} style={[styles.catBtn, cat === c.k && styles.catOn]}>
-                  <Text style={[styles.catTxt, cat === c.k && styles.catTxtOn]}>{c.e} {c.l}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.filaFiltros}>
+              <Text style={styles.filaFiltrosTxt}>{lista.length === 1 ? "1 publicación" : `${lista.length} publicaciones`}</Text>
+              <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+              {cursosPublicar.length ? <BotonNuevo onPress={() => setNuevo(true)} accessibilityLabel="Publicar un objeto" /> : null}
+            </View>
+            <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
           </View>
         }
         ListEmptyComponent={
-          <EmptyState emoji="🧦" title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones se ven 30 días, también las resueltas." />
+          <EmptyState title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones se ven 30 días, también las resueltas." />
         }
       />
       {nuevo ? (
@@ -261,12 +265,12 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
         />
       ) : null}
       {contacto ? (
-        <Sheet visible onClose={() => setContacto(null)} title={contacto.objeto ? "🙋 Quiénes avisaron" : "📞 Contacto"}>
+        <Sheet visible onClose={() => setContacto(null)} title={contacto.objeto ? "Quiénes avisaron" : "Contacto"}>
           <Text style={styles.contactoTitulo}>{contacto.titulo}</Text>
           <ScrollView style={styles.sheetScroll}>
             {!contacto.lista ? <Text style={styles.cargando}>Cargando…</Text> : contacto.lista.map((c, i) => <ContactoCard key={c.usuario_id || i} c={c} />)}
           </ScrollView>
-          {contacto.objeto ? <Button title="✓ Ya está resuelto" variant="secondary" onPress={() => resuelto(contacto.objeto)} style={styles.mtMd} /> : null}
+          {contacto.objeto ? <Button title="Ya está resuelto" variant="secondary" onPress={() => resuelto(contacto.objeto)} style={styles.mtMd} /> : null}
         </Sheet>
       ) : null}
     </View>
@@ -305,7 +309,7 @@ function AvisarSheet({ o, userId, onClose, onAvisado }) {
     onAvisado();
   };
   return (
-    <Sheet visible onClose={onClose} title={o.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"}>
+    <Sheet visible onClose={onClose} title={o.tipo === "encontrado" ? "¡Es mío!" : "Lo tengo yo"}>
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         <Text style={styles.hint}>Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.</Text>
         <TextInput value={mensaje} onChangeText={setMensaje} placeholder="Mensaje (opcional): ej. tiene el nombre bordado" placeholderTextColor={t.placeholder} multiline style={[styles.input, styles.textarea]} />
@@ -371,11 +375,11 @@ function NuevoSheet({ cursos, colegioDe, userId, candidatos, onClose, onCreado }
     <Sheet visible onClose={onClose} title="Publicar">
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         <View style={styles.tabs}>
-          {chip(form.tipo === "perdido", "😟 Perdí algo", () => set("tipo", "perdido"))}
-          {chip(form.tipo === "encontrado", "🙌 Encontré algo", () => set("tipo", "encontrado"))}
+          {chip(form.tipo === "perdido", "Perdí algo", () => set("tipo", "perdido"))}
+          {chip(form.tipo === "encontrado", "Encontré algo", () => set("tipo", "encontrado"))}
         </View>
         <Text style={styles.label}>Categoría</Text>
-        <View style={styles.wrap}>{CATEGORIAS.map((c) => chip(form.categoria === c.k, `${c.e} ${c.l}`, () => set("categoria", c.k), c.k))}</View>
+        <View style={styles.wrap}>{CATEGORIAS.map((c) => chip(form.categoria === c.k, c.l, () => set("categoria", c.k), c.k))}</View>
         <Text style={styles.label}>Qué es</Text>
         <TextInput value={form.titulo} onChangeText={(v) => set("titulo", v)} placeholder="Ej: Campera azul talle 8" placeholderTextColor={t.placeholder} style={styles.input} />
         <Text style={styles.label}>Detalle (opcional)</Text>
@@ -405,6 +409,9 @@ function NuevoSheet({ cursos, colegioDe, userId, candidatos, onClose, onCreado }
 }
 
 const styles = StyleSheet.create({
+  filaFiltros: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.md },
+  filaFiltrosTxt: { flex: 1, fontSize: 14, fontWeight: "600", color: t.textMuted },
+
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   cargando: { textAlign: "center", color: t.textFaint, padding: 30 },
@@ -413,46 +420,41 @@ const styles = StyleSheet.create({
   sub: { fontSize: 13, color: t.textMuted, marginTop: 2 },
   flex1: { flex: 1, minWidth: 0 },
   tabs: { flexDirection: "row", gap: 8, marginBottom: SPACE.sm },
-  tabBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0" },
-  tabOn: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
-  tabTxt: { fontSize: 13, fontWeight: "700", color: t.textMuted },
-  tabTxtOn: { color: "white" },
-  cats: { gap: 6, paddingBottom: SPACE.md },
+  segmento: { flexDirection: "row", backgroundColor: SLATE[100], borderRadius: RADIUS.full, padding: 4, marginBottom: SPACE.md },
+  segBtn: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 36, borderRadius: RADIUS.full },
+  segOn: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },
+  segTxt: { fontSize: 13.5, fontWeight: "600", color: t.textMuted },
+  segTxtOn: { color: BLUE[700], fontWeight: "800" },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: SPACE.sm },
-  catBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  catBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
   catOn: { borderColor: t.accent, backgroundColor: "#EFF6FF" },
-  catTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  catTxt: { fontSize: 12, fontWeight: "600", color: SLATE[600] },
   catTxtOn: { color: t.accent },
   card: { marginBottom: SPACE.md, padding: 0, overflow: "hidden" },
-  cardTop: { flexDirection: "row", gap: 12, padding: 12 },
+  cardTop: { flexDirection: "row", gap: 14, padding: 14 },
   foto: { width: 84, height: 84, borderRadius: 12, backgroundColor: "#F1F5F9" },
   fotoVacia: { alignItems: "center", justifyContent: "center" },
-  fotoEmoji: { fontSize: 32 },
+  sinFoto: { fontSize: 11.5, fontWeight: "600", color: t.textFaint },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 3 },
-  badge: { fontSize: 10, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
-  badgeBuscan: { backgroundColor: "#FEF3C7", color: "#92400E" },
-  badgeEncontrado: { backgroundColor: "#DCFCE7", color: "#166534" },
-  badgeResuelto: { backgroundColor: "#E2E8F0", color: "#334155" },
+  badgeResuelto: { fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 1, borderRadius: RADIUS.full, overflow: "hidden", backgroundColor: SLATE[100], color: SLATE[600] },
   cardResuelta: { opacity: 0.7 },
-  cardResaltada: { borderColor: t.accent, borderWidth: 2, backgroundColor: "#EFF6FF" },
-  cat: { fontSize: 11, color: t.textMuted },
-  colegio: { fontSize: 10, fontWeight: "700", color: "#6366F1" },
-  titulo: { fontSize: 15, fontWeight: "800", color: t.text },
+  cardResaltada: { borderColor: t.accent, borderWidth: 2 },
+  cat: { fontSize: 12, fontWeight: "600", color: t.textMuted },
+  titulo: { fontSize: 15, fontWeight: "700", color: t.text },
   desc: { fontSize: 12.5, color: t.textMuted, marginTop: 3, lineHeight: 17 },
   meta: { fontSize: 11.5, color: t.textFaint, marginTop: 4 },
-  sugerencia: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F0F9FF", borderTopWidth: 1, borderTopColor: "#E0F2FE" },
-  sugerenciaTxt: { fontSize: 12, fontWeight: "700", color: "#0369A1" },
+  sugerencia: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: SLATE[50], borderTopWidth: 1, borderTopColor: SLATE[100] },
+  sugerenciaTxt: { fontSize: 12.5, fontWeight: "600", color: SLATE[600] },
+  sugerenciaLink: { fontWeight: "700", color: BLUE[600] },
   acciones: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E2E8F0", flexWrap: "wrap" },
   btnPri: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.md, backgroundColor: t.accent },
   btnPriTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "700" },
-  btnSec: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.md, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
-  btnSecTxt: { color: "#1D4ED8", fontSize: 12.5, fontWeight: "700" },
-  btnOk: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.md, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0" },
-  btnOkTxt: { color: "#047857", fontSize: 12.5, fontWeight: "700" },
-  linkOk: { color: "#10B981", fontSize: 12.5, fontWeight: "700" },
-  linkDanger: { color: t.danger, fontSize: 12.5, fontWeight: "700" },
+  btnSec: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },
+  btnSecTxt: { color: t.text, fontSize: 12.5, fontWeight: "700" },
+  linkOk: { color: SLATE[600], fontSize: 12.5, fontWeight: "600" },
+  linkDanger: { color: t.textMuted, fontSize: 12.5, fontWeight: "600" },
   sheetScroll: { flexShrink: 1 },
-  reclamado: { fontSize: 12.5, color: t.textMuted, marginTop: SPACE.sm },
+  reclamado: { fontSize: 12.5, color: t.textMuted, paddingHorizontal: 14, paddingBottom: 10 },
   label: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 4, marginTop: SPACE.sm },
   input: { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: RADIUS.md, padding: 10, fontSize: 14, color: t.text, backgroundColor: "#F8FAFC" },
   textarea: { minHeight: 64, textAlignVertical: "top" },

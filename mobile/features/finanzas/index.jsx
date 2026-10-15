@@ -8,7 +8,8 @@ import { useRecarga } from "../../lib/useRecarga";
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
-import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR } from "@shared/muro";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas } from "@shared/muro";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { supabase } from "../../lib/supabase";
@@ -122,13 +123,15 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
     const alumnosIds = (alum.data || []).map((a) => a.id);
     const uidsSet = new Set();
+    let uhData = [];
     if (userId) uidsSet.add(userId);
     if (alumnosIds.length) {
-      const { data: uhData } = await supabase
+      const { data } = await supabase
         .from("usuario_hijos")
-        .select("usuario_id")
+        .select("usuario_id,hijo_id")
         .in("hijo_id", alumnosIds);
-      (uhData || []).forEach((r) => r.usuario_id && uidsSet.add(r.usuario_id));
+      uhData = data || [];
+      uhData.forEach((r) => r.usuario_id && uidsSet.add(r.usuario_id));
     }
     const uids = [...uidsSet];
     if (uids.length) {
@@ -136,9 +139,12 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         .from("usuarios")
         .select("id,nombre,apellido,activo")
         .in("id", uids);
-      setUsuarios(usData || []);
+      // Curso(s) e hijos de cada apoderado: el "Responsable" se elige entre
+      // las familias del curso de la colecta.
+      const familias = familiasPorUsuario(uhData, alum.data || []);
+      setUsuarios((usData || []).map((u) => ({ ...u, ...(familias.get(u.id) || { cursos: [], hijos: [] }) })));
     }
-    setColectas(colData || []);
+    setColectas(ordenarColectas(colData || []));
     setAlumnos(alum.data || []);
     setPagos(pag.data || []);
   }, [cursoIds, userId]);
@@ -306,7 +312,17 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   return (
     <View style={styles.screen}>
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
-      <Text style={styles.h1}>Colectas</Text>
+      <View style={styles.tituloRow}>
+        <Text style={[styles.h1, styles.flex1]}>Colectas</Text>
+        {/* Cualquier apoderado del curso puede crear una colecta */}
+        <BotonNuevo
+          onPress={() => {
+            setForm({ ...FORM_VACIO, curso_id: cursoId || cursoIds[0] || null });
+            setModal({});
+          }}
+          accessibilityLabel="Nueva colecta"
+        />
+      </View>
       <Text style={styles.subtitle}>{esVistaTodos ? "Regalos y gastos compartidos de tus cursos." : "Regalos y gastos compartidos del curso."}</Text>
 
       {!isAdmin && deudaPropia.length > 0 ? (
@@ -319,16 +335,6 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         </View>
       ) : null}
 
-      {/* Cualquier apoderado del curso puede crear una colecta */}
-      <Pressable
-        onPress={() => {
-          setForm({ ...FORM_VACIO, curso_id: cursoId || cursoIds[0] || null });
-          setModal({});
-        }}
-        style={styles.nuevaBtn}
-      >
-        <Text style={styles.nuevaTxt}>+ Nueva colecta</Text>
-      </Pressable>
 
       {colectas.length === 0 ? (
         <Text style={styles.empty}>No hay colectas activas</Text>
@@ -518,11 +524,12 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         visible={modal !== null}
         form={form}
         setForm={setForm}
-        usuarios={usuarios}
+        usuarios={responsablesParaCurso(usuarios, cursoDestinoModal, [userId, form.responsable_id])}
         saving={saving}
         editing={!!modal?.id}
         cursosOpciones={!modal?.id ? cursosOpciones : []}
         alumnosCursoModal={alumnosCursoModal}
+        cursoDestino={cursoDestinoModal}
         onClose={() => setModal(null)}
         onGuardar={guardar}
       />
@@ -542,7 +549,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   );
 }
 
-function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, cursosOpciones = [], alumnosCursoModal = [], onClose, onGuardar }) {
+function ColectaFormModal({ visible, form, setForm, usuarios, cursoDestino, saving, editing, cursosOpciones = [], alumnosCursoModal = [], onClose, onGuardar }) {
   const participantesSel = form.participantesIds ?? alumnosCursoModal.map((a) => a.id);
   const toggleParticipante = (id) =>
     setForm((p) => {
@@ -656,10 +663,7 @@ function ColectaFormModal({ visible, form, setForm, usuarios, saving, editing, c
                   onPress={() => setForm((p) => ({ ...p, responsable_id: u.id }))}
                   style={[styles.respRow, form.responsable_id === u.id && styles.respOn]}
                 >
-                  <Text style={styles.respTxt}>
-                    {u.nombre}
-                    {u.apellido ? ` ${u.apellido}` : ""}
-                  </Text>
+                  <Text style={styles.respTxt}>{etiquetaResponsable(u, cursoDestino)}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -821,8 +825,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: t.textMuted, marginBottom: SPACE.lg },
   empty: { textAlign: "center", paddingVertical: 40, color: t.textFaint, fontSize: 13 },
-  nuevaBtn: { alignSelf: "flex-start", backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 10, paddingHorizontal: 18, marginBottom: SPACE.lg, minHeight: 44, justifyContent: "center" },
-  nuevaTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  tituloRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   deudaBanner: { backgroundColor: t.warningSoft, borderWidth: 1.5, borderColor: "#FDE68A", borderRadius: RADIUS.xl, padding: 14, marginBottom: SPACE.lg },
   deudaTitulo: { fontSize: 14.5, fontWeight: "800", color: "#B45309" },
   deudaSub: { fontSize: 12, color: "#92400E", marginTop: 3 },

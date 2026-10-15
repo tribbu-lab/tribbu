@@ -7,6 +7,8 @@
 // Super Admin.
 import { useState, useCallback } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { T } from "../../lib/theme";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -22,6 +24,8 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   const [votos,     setVotos]     = useState([]);
   const [cargando,  setCargando]  = useState(true);
   const [filtro,    setFiltro]    = useState("activas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const gruposFiltro = [{ key: "estado", label: "Estado", value: filtro, onChange: setFiltro, options: [{ value: "activas", label: "Activas" }, { value: "cerradas", label: "Cerradas" }, { value: "eliminadas", label: "Eliminadas" }] }];
   const [modal,     setModal]     = useState(false);
   const [editId,    setEditId]    = useState(null); // id de la encuesta en edición, o null si es alta
   const [form,      setForm]      = useState({ pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: null });
@@ -256,10 +260,10 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
       )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
-        {[{ id: "activas", l: "Activas" }, { id: "cerradas", l: "Cerradas" }, { id: "eliminadas", l: "Eliminadas" }].map(t => (
-          <button key={t.id} onClick={() => setFiltro(t.id)} style={{ padding: "7px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, background: filtro === t.id ? "#0F172A" : "white", color: filtro === t.id ? "white" : "#94A3B8", boxShadow: filtro === t.id ? "0 3px 12px rgba(0,0,0,0.15)" : "0 1px 6px rgba(0,0,0,0.06)" }}>{t.l}</button>
-        ))}
-        <button onClick={abrirModal} style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 8, border: "none", background: T.accent, color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>+ Nueva encuesta</button>
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#64748B" }}>{{ activas: "Activas", cerradas: "Cerradas", eliminadas: "Eliminadas" }[filtro]}</span>
+        <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
+        <BotonNuevo onClick={abrirModal} ariaLabel="Nueva encuesta" />
+        {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
       </div>
 
       {error && !modal && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>⚠️ {error}</div>}

@@ -25,9 +25,11 @@ const TIPO_CONFIG = {
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { talleresParaAnotarse } from "../../lib/talleres";
-import { filtroAlcance, encontradosDeLaSemana, cargarReclamados } from "../../lib/perdidos";
-import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "../../lib/muro";
+import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "../../lib/perdidos";
+import { getStorageBackend } from "../../lib/storage";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "../../lib/muro";
 import { Icono } from "../../components/Icono";
+import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
@@ -128,7 +130,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
       supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
-      (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).eq("asiste","pendiente") : Promise.resolve({data:[]}),
+      (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).in("asiste",["pendiente","no"]) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
       // Perdidos y encontrados: objetos encontrados esta semana en mis cursos / colegio.
       supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
@@ -150,7 +152,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       (userId && encuestasActivas.length) ? supabase.from("encuesta_votos").select("encuesta_id").eq("usuario_id",userId).in("encuesta_id",encuestasActivas.map(e=>e.id)) : Promise.resolve({data:[]}),
       (misHijos.length && activas.length) ? supabase.from("colecta_pagos").select("*").in("colecta_id",activas.map(c=>c.id)).in("alumno_id",misHijos) : Promise.resolve({data:[]}),
     ]);
-    const encontradosSemana = encontradosDeLaSemana(objs, userId, { reclamados });
+    const encontradosSemana = encontradosDeLaSemana(objs, userId, { reclamados, vistosHasta: getStorageBackend()?.getItem(claveEncontradosVistos(userId)) });
     // Autorizaciones abiertas con algún hijo mío sin responder.
     const misHijosObj = (hijosData.data||[]).filter(h=>misHijos.includes(h.id));
     const talleresAbiertos = talleresParaAnotarse(talleresData.data||[], misHijosObj, {
@@ -194,13 +196,23 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // Una alerta activa por curso (la más reciente), hasta 3
     const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
     // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
-    const invitaciones = festejosPendientes((invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id)), fechaHoy);
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&e.tipo!=="festejo"), invitaciones, hijosData:hijosData.data||[] });
+    const filasInv = (invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id));
+    const invitaciones = festejosPendientes(filasInv.filter(i=>i.asiste==="pendiente"), fechaHoy);
+    // Festejos en "Próximos días" (la RLS ya trae solo los que me tocan), menos
+    // los que rechazamos.
+    const rechazados = festejosRechazados(filasInv);
+    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
       setError(true);
     }
+  };
+
+  // "No" en "¿Alguno es de tu hijo?": deja de preguntar por estos objetos.
+  const noEsMio = () => {
+    getStorageBackend()?.setItem(claveEncontradosVistos(userId), new Date().toISOString());
+    setDatos((d) => ({ ...d, encontradosSemana: 0 }));
   };
 
   const dismissAlerta = async (alerta) => {
@@ -235,7 +247,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     })),
     ...(datos.colectasPend||[]).map(c=>({
       key:`c-${c.id}`, tipo:"Colecta", tag:tagDe(c.curso_id), titulo:c.titulo,
-      dato:unir(montoTxt(c), "Todavía no registrado"), detalle:null,
+      dato:unir(montoTxt(c), (c.fecha_limite||c.vencimiento)&&!avisoVencimiento("x", c.fecha_limite||c.vencimiento, fechaHoy)?`Cierra el ${fechaCorta(c.fecha_limite||c.vencimiento)}`:null, "Todavía no registrado"), detalle:null,
       vence:c.fecha_limite||c.vencimiento||null, urgencia:avisoVencimiento("Vence", c.fecha_limite||c.vencimiento, fechaHoy),
       accion:"Registrar mi pago", ir:()=>onNavigate?.("finanzas",{openColecta:c.id}),
     })),
@@ -274,8 +286,9 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   // ── Próximos días: eventos + cumpleaños de los próximos 15 días.
   const agenda = [
-    ...(datos.eventos||[]).map(e=>({ key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha),
-      titulo:e.titulo, meta:e.lugar||"Todo el curso", tag:tagDe(e.curso_id), ir:()=>onNavigate?.("clases",{openFecha:e.fecha}) })),
+    ...(datos.eventos||[]).map(e=>e.tipo==="festejo"
+      ? { key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha), titulo:e.titulo, meta:unir("Festejo", hora(e.hora), e.lugar), tag:tagDe(e.curso_id), ir:()=>setFestejoDetalle(e) }
+      : { key:`e-${e.id}`, fecha:e.fecha, dias:diasHasta(e.fecha), titulo:e.titulo, meta:e.lugar||"Todo el curso", tag:tagDe(e.curso_id), ir:()=>onNavigate?.("clases",{openFecha:e.fecha}) }),
     ...(datos.bdayList||[]).map(a=>{
       const { dias, fecha } = calcProximoCumple(a.fecha_nacimiento);
       return { key:a.id, fecha, dias, titulo:`Cumple de ${a.nombre}`, meta:"Cumpleaños", tag:tagDe(a.curso_id), ir:()=>onNavigate?.("cumples") };
@@ -296,9 +309,9 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
               <Hijo tag={destacado.tag}/>
             </div>
             {destacado.urgencia&&(
-              <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:8,background:"#FFFBEB"}}>
-                <Icono nombre="reloj" size={14} color="#B45309"/>
-                <span style={{fontSize:12.5,fontWeight:600,color:"#B45309"}}>{destacado.urgencia}</span>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:8,background:"#FEF2F2"}}>
+                <Icono nombre="reloj" size={14} color="#B91C1C"/>
+                <span style={{fontSize:12.5,fontWeight:700,color:"#B91C1C"}}>{destacado.urgencia}</span>
               </div>
             )}
             <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginTop:10,lineHeight:1.3}}>{destacado.titulo}</div>
@@ -318,7 +331,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
                     <Hijo tag={p.tag}/>
                   </div>
                   <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{p.titulo}</div>
-                  {p.dato&&<div style={{fontSize:12.5,color:"#64748B",marginTop:3,lineHeight:1.45}}>{p.urgencia?<span style={{color:"#B45309",fontWeight:600}}>{p.urgencia} · </span>:null}<span style={{color:"#64748B"}}>{p.dato}</span></div>}
+                  {p.dato&&<div style={{fontSize:12.5,color:"#64748B",marginTop:3,lineHeight:1.45}}>{p.urgencia?<span style={{color:"#B91C1C",fontWeight:700}}>{p.urgencia} · </span>:null}<span style={{color:"#64748B"}}>{p.dato}</span></div>}
                   <Enlace texto={p.accion} onClick={p.ir} style={{marginTop:10}}/>
                 </div>
               ))}
@@ -393,14 +406,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
   const bloqueMenu = menuFilas.length>0 && (
     <div style={{marginBottom:28}}>
       <Encabezado titulo="Menú de hoy" derecha={<button onClick={()=>onNavigate?.("comedor")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Semana</span></button>}/>
-      <div style={{...card,padding:"6px 18px"}}>
-        {menuFilas.map((m,i)=>(
-          <div key={m.label} style={{display:"flex",gap:14,padding:"9px 0",borderTop:i?"1px solid #F1F5F9":"none"}}>
-            <span style={{width:96,flexShrink:0,fontSize:12.5,color:"#64748B"}}>{m.label}</span>
-            <span style={{flex:1,fontSize:14,fontWeight:600,color:"#0F172A"}}>{m.plato}</span>
-          </div>
-        ))}
-      </div>
+      <TablaMenu menu={datos.menu}/>
     </div>
   );
 
@@ -414,7 +420,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
           return (
             <div key={c.id} onClick={()=>onNavigate?.("finanzas",{openColecta:c.id})} style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,padding:"12px 18px",borderTop:i?"1px solid #F1F5F9":"none",cursor:"pointer"}}>
               <span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>{c.titulo}</span>
-              <span style={{fontSize:12,fontWeight:600,color:debo?"#0F172A":"#64748B",whiteSpace:"nowrap"}}>{debo?"Falta tu aporte":"Al día"}</span>
+              <span style={{fontSize:12,fontWeight:600,color:debo?"#0F172A":"#64748B",whiteSpace:"nowrap"}}>{unir(debo?"Falta tu aporte":"Al día", (c.fecha_limite||c.vencimiento)?`cierra el ${fechaCorta(c.fecha_limite||c.vencimiento)}`:null)}</span>
             </div>
           );
         })}
@@ -441,11 +447,12 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
   });
 
   const bloqueEncontrados = datos.encontradosSemana>0 && (
-    <button onClick={()=>onNavigate?.("perdidos")} style={{...card,width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 16px",marginBottom:28,cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+    <div style={{...card,display:"flex",alignItems:"center",gap:12,padding:"12px 16px",marginBottom:28}}>
       <Icono nombre="lupa" size={19} color="#475569"/>
-      <span style={{flex:1,fontSize:13.5,color:"#0F172A"}}><b style={{color:"#0F172A"}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana · ¿es de tu hijo?</span>
-      <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Ver</span>
-    </button>
+      <span style={{flex:1,fontSize:13.5,color:"#0F172A"}}><b style={{color:"#0F172A"}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana. ¿{datos.encontradosSemana===1?"Es":"Alguno es"} de tu hijo?</span>
+      <button onClick={()=>onNavigate?.("perdidos")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Ver</span></button>
+      <button onClick={noEsMio} style={{...enlace,fontSize:13}}><span style={{color:"#64748B"}}>No</span></button>
+    </div>
   );
 
   return (

@@ -31,6 +31,7 @@ import {
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Button } from "../../components/Button";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
@@ -1160,11 +1161,11 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         ListHeaderComponent={
           <View>
             <View style={s.tituloRow}>
+              {/* El título lo da la pestaña "Mensajes" de Comunicaciones. */}
               <View style={s.flex1}>
-                <Text style={s.h1}>Mensajes</Text>
-                <Text style={s.sub}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</Text>
+                <Text style={s.subFila}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</Text>
               </View>
-              <Button title="Nuevo" icon="✏️" size="sm" onPress={() => setNuevo(true)} />
+              <BotonNuevo onPress={() => setNuevo(true)} accessibilityLabel="Nuevo mensaje" />
             </View>
             <View style={s.card}>
               <FilaConversacion c={soporte} userId={userId} onPress={abrirSoporte} />
@@ -1444,6 +1445,7 @@ export function BandejaColegio() {
 // ── Estilos ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  subFila: { fontSize: 14, fontWeight: "600", color: t.textMuted },
   screen: { flex: 1, backgroundColor: t.bg },
   listaContenido: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   tituloRow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, marginBottom: SPACE.md },

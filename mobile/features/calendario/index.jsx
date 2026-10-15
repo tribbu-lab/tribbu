@@ -21,6 +21,8 @@ import { Card } from "../../components/Card";
 import { AdjuntosInput, AdjuntosList, ImagenAmpliable } from "../../components/Adjuntos";
 import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { FestejoDetalleModal } from "../cumples";
 import { diasVisibles, normalizarDia } from "@shared/horarios";
 import { bloquesDeTalleres } from "@shared/talleres";
@@ -39,7 +41,8 @@ const TIPO_CONFIG = {
 };
 const pad = (n) => String(n).padStart(2, "0");
 
-export function Calendario({ openFecha = null, onClearOpenFecha }) {
+// soloHorario: la pestaña "Horario" de Agenda (ruta (tabs)/horario).
+export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = false }) {
   const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null } = useSession();
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
@@ -47,7 +50,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
 
-  const [vista, setVista] = useState("mes");
+  const [vista, setVista] = useState(soloHorario ? "horario" : "mes");
   const [mes, setMes] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
   const [cumples, setCumples] = useState([]);
@@ -62,6 +65,11 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
   const [festejoDetalle, setFestejoDetalle] = useState(null);
   const [filtroRango, setFiltroRango] = useState("90");
   const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const gruposFiltro = [
+    { key: "rango", label: "Período", defecto: "90", value: filtroRango, onChange: setFiltroRango, options: [{ value: "7", label: "Esta semana" }, { value: "30", label: "Este mes" }, { value: "90", label: "Próximos 3 meses" }] },
+    { key: "tipo", label: "Tipo de evento", value: filtroTipo, onChange: setFiltroTipo, options: [{ value: "todos", label: "Todos" }, ...Object.entries(TIPO_CONFIG).filter(([k]) => k !== "festejo").map(([k, v]) => ({ value: k, label: v.label }))] },
+  ];
 
   // Rango de eventos cargado (@shared/calendarioRango): arranca en [1° del mes
   // actual, hoy + 90 días] y se amplía acá, en el render, cuando la vista pide
@@ -257,29 +265,27 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
-      <View style={styles.headerRow}>
-        <Text style={styles.h1}>Calendario</Text>
+      {/* Una sola fila arriba del mes (antes: título + subtítulo + chip de
+          sincronizar + pastillas con emojis = muchos niveles). El título ya lo da
+          la pestaña "Calendario" de Agenda; el Horario es su propia pestaña. */}
+      {soloHorario ? null : (
+      <View style={styles.vistasRow}>
+        <View style={styles.vistas}>
+          {[
+            { id: "mes", l: "Mes" },
+            { id: "lista", l: "Próximos" },
+          ].map((v) => (
+            <Pressable key={v.id} onPress={() => setVista(v.id)} style={[styles.vista, vista === v.id && styles.vistaOn]} hitSlop={4}>
+              <Text style={[styles.vistaTxt, vista === v.id && styles.vistaTxtOn]}>{v.l}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <BotonAgregarCalendario userId={userId} compacto />
         {puedeCrear ? (
-          <Pressable onPress={() => setModal("nuevo")} style={styles.addBtn}>
-            <Text style={styles.addTxt}>+ Evento</Text>
-          </Pressable>
+          <BotonNuevo onPress={() => setModal("nuevo")} accessibilityLabel="Nuevo evento" />
         ) : null}
       </View>
-      <Text style={styles.subtitle}>Clases, eventos y cumpleaños</Text>
-
-      <BotonAgregarCalendario userId={userId} />
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-        {[
-          { id: "mes", l: "📆 Mes" },
-          { id: "lista", l: "📋 Próximos" },
-          { id: "horario", l: "🕐 Horario" },
-        ].map((t) => (
-          <Pressable key={t.id} onPress={() => setVista(t.id)} style={[styles.tab, vista === t.id && styles.tabActive]}>
-            <Text style={[styles.tabTxt, vista === t.id && styles.tabTxtActive]}>{t.l}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      )}
 
       {vista === "mes" ? (
         <View>
@@ -370,40 +376,11 @@ export function Calendario({ openFecha = null, onClearOpenFecha }) {
 
       {vista === "lista" ? (
         <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rangos}>
-            {[
-              { k: "7", l: "Esta semana" },
-              { k: "30", l: "Este mes" },
-              { k: "90", l: "Próx. 3 meses" },
-            ].map((r) => (
-              <Pressable
-                key={r.k}
-                onPress={() => setFiltroRango(r.k)}
-                style={[styles.rangoChip, filtroRango === r.k && styles.rangoOn]}
-              >
-                <Text style={[styles.rangoTxt, filtroRango === r.k && styles.rangoTxtOn]}>{r.l}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rangos}>
-            <Pressable
-              onPress={() => setFiltroTipo("todos")}
-              style={[styles.rangoChip, filtroTipo === "todos" && styles.rangoOn]}
-            >
-              <Text style={[styles.rangoTxt, filtroTipo === "todos" && styles.rangoTxtOn]}>Todos</Text>
-            </Pressable>
-            {Object.entries(TIPO_CONFIG)
-              .filter(([k]) => k !== "festejo")
-              .map(([k, v]) => (
-                <Pressable
-                  key={k}
-                  onPress={() => setFiltroTipo(k)}
-                  style={[styles.rangoChip, filtroTipo === k && styles.rangoOn]}
-                >
-                  <Text style={[styles.rangoTxt, filtroTipo === k && styles.rangoTxtOn]}>{v.label}</Text>
-                </Pressable>
-              ))}
-          </ScrollView>
+          <View style={styles.filaFiltros}>
+            <Text style={styles.filaFiltrosTxt}>{listaEventos().length === 1 ? "1 evento" : `${listaEventos().length} eventos`}</Text>
+            <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+          </View>
+          <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
 
           {listaEventos().length === 0 ? (
             <Text style={styles.muted}>No hay eventos para este filtro</Text>
@@ -1015,20 +992,19 @@ export function EventoAsistenciaModal({ evento, tag = null, onClose, misHijos = 
 // Estilos A3: sin sombras, borde hairline, grilla del mes sin bordes por día
 // (hoy = anillo accent, seleccionado = relleno accent).
 const styles = StyleSheet.create({
+  filaFiltros: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.md },
+  filaFiltrosTxt: { flex: 1, fontSize: 14, fontWeight: "600", color: t.textMuted },
+
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4, marginBottom: 14 },
-  addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.md, paddingVertical: 8, paddingHorizontal: 14, minHeight: 40, justifyContent: "center" },
-  addTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
   muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
-  tabs: { gap: 7, paddingBottom: 4, marginBottom: SPACE.md },
-  tab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 36, justifyContent: "center" },
-  tabActive: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
-  tabTxt: { fontSize: 12, fontWeight: "600", color: t.textMuted },
-  tabTxtActive: { color: t.textInverse, fontWeight: "700" },
+  vistasRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.md },
+  vistas: { flex: 1, flexDirection: "row", gap: 18 },
+  vista: { minHeight: 40, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
+  vistaOn: { borderBottomColor: t.textStrong },
+  vistaTxt: { fontSize: 14, fontWeight: "600", color: t.textMuted },
+  vistaTxtOn: { color: t.textStrong, fontWeight: "800" },
   calCard: { padding: 14, marginBottom: SPACE.md },
   monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: SPACE.md },
   monthLabel: { fontSize: 15, fontWeight: "800", color: t.textStrong },
@@ -1063,11 +1039,6 @@ const styles = StyleSheet.create({
   editRow: { flexDirection: "row", gap: 4, marginTop: 4 },
   miniBtn: { padding: 6, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
   miniTxt: { fontSize: 12, color: t.text },
-  rangos: { gap: 6, paddingBottom: 8 },
-  rangoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.borderStrong, minHeight: 34, justifyContent: "center" },
-  rangoOn: { backgroundColor: SLATE[900], borderColor: SLATE[900] },
-  rangoTxt: { fontSize: 11, fontWeight: "600", color: t.textMuted },
-  rangoTxtOn: { color: t.textInverse, fontWeight: "700" },
   listCard: { padding: 13, marginBottom: 10, borderLeftWidth: 3 },
   listRow: { flexDirection: "row", gap: SPACE.md, alignItems: "flex-start" },
   listRight: { alignItems: "flex-end", gap: 6 },

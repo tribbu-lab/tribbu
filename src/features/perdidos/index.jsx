@@ -8,6 +8,8 @@
 // los contactos (RPCs contacto_objeto_perdido / avisos_objeto_perdido).
 import { useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sanitize, fmtLocalDate } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -20,6 +22,8 @@ import { useCargar } from "../../hooks/useCargar";
 const MAX_FOTO = 10 * 1024 * 1024;
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
 const lbl = { fontSize: 11, fontWeight: 700, color: "#94A3B8", marginBottom: 5 };
+const btnSecundario = { padding: "7px 14px", borderRadius: 10, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit" };
+const btnTexto = { border: "none", background: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", padding: "4px 2px" };
 const fmtDia = (s) => (s ? new Date(s + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : null);
 const hace = (iso) => {
   const d = Math.round((Date.now() - new Date(iso)) / 86400000);
@@ -56,59 +60,59 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
   const propio = o.publicado_por === userId;
   const resuelta = o.estado === "resuelto";
   return (
-    <Card style={{ padding: 0, overflow: "hidden", marginBottom: 12, opacity: resuelta ? 0.7 : 1 }}>
-      <div style={{ display: "flex", gap: 12, padding: 14 }}>
+    // Sobria (como el resto del rediseño): blanco, grises y azul solo en la acción.
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: 16, background: "white", overflow: "hidden", marginBottom: 12, opacity: resuelta ? 0.65 : 1 }}>
+      <div style={{ display: "flex", gap: 14, padding: 16 }}>
         {o.foto
-          ? <ImagenAmpliable src={o.foto} bucket="adjuntos" alt={o.titulo} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 12, flexShrink: 0, background: "#F1F5F9" }} />
-          : <div style={{ width: 92, height: 92, borderRadius: 12, background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, flexShrink: 0 }}>{cat.e}</div>}
+          ? <ImagenAmpliable src={o.foto} bucket="adjuntos" alt={o.titulo} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 12, flexShrink: 0, background: "#F1F5F9" }} />
+          : <div style={{ width: 84, height: 84, borderRadius: 12, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#94A3B8" }}>Sin foto</span></div>}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 3 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 8, background: o.tipo === "perdido" ? "#FEF3C7" : "#DCFCE7", color: o.tipo === "perdido" ? "#92400E" : "#166534" }}>{o.tipo === "perdido" ? "BUSCAN" : "ENCONTRADO"}</span>
-            {resuelta && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 8, background: "#E2E8F0", color: "#334155" }}>✓ RESUELTO</span>}
-            <span style={{ fontSize: 10.5, color: "#64748B" }}>{cat.e} {cat.l}</span>
-            {o.es_colegio && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 8, background: "#EEF2FF", color: "#6366F1" }}>🏫 Colegio</span>}
-            {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#64748B" }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} />{tag.nombre}</span>}
-            {o.alcance === "colegio" && !o.es_colegio && <span style={{ fontSize: 10, color: "#94A3B8" }}>· todo el colegio</span>}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{[o.tipo === "perdido" ? "Buscan" : "Encontrado", cat.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</span>
+            {resuelta && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 999, background: "#F1F5F9", color: "#475569" }}>Resuelto</span>}
+            {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#475569" }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} /><span style={{ color: "#475569" }}>{tag.nombre}</span></span>}
           </div>
-          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A", lineHeight: 1.3 }}>{o.titulo}</div>
-          {o.descripcion && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 3, lineHeight: 1.45 }}>{o.descripcion}</div>}
-          <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 4 }}>
-            {[o.lugar && `📍 ${o.lugar}`, o.fecha && `📅 ${fmtDia(o.fecha)}`, `publicado ${hace(o.creado_en)}`].filter(Boolean).join(" · ")}
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", lineHeight: 1.3, marginTop: 3 }}>{o.titulo}</div>
+          {o.descripcion && <div style={{ fontSize: 13, color: "#475569", marginTop: 3, lineHeight: 1.45 }}>{o.descripcion}</div>}
+          <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
+            {[o.lugar, o.fecha && fmtDia(o.fecha), `publicado ${hace(o.creado_en)}`].filter(Boolean).join(" · ")}
           </div>
         </div>
       </div>
       {sugerencias?.length > 0 && (
-        <div style={{ padding: "8px 14px", background: "#F0F9FF", borderTop: "1px solid #E0F2FE", fontSize: 12 }}>
-          <b style={{ color: "#0369A1" }}>🔎 ¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}?</b>{" "}
+        <div style={{ padding: "10px 16px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 12.5 }}>
+          <span style={{ color: "#475569", fontWeight: 600 }}>¿Será {sugerencias.length === 1 ? "este" : "alguno de estos"}? </span>
           {sugerencias.map((s, i) => (
-            <button key={s.objeto.id} onClick={() => onVerSugerencia(s.objeto)} style={{ border: "none", background: "none", padding: 0, color: "#0284C7", cursor: "pointer", fontSize: 12, fontWeight: 700, textDecoration: "underline" }}>
+            <button key={s.objeto.id} onClick={() => onVerSugerencia(s.objeto)} style={{ border: "none", background: "none", padding: 0, color: "#2563EB", cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "inherit" }}>
               {s.objeto.titulo}{i < sugerencias.length - 1 ? ", " : ""}
             </button>
           ))}
         </div>
       )}
       {!propio && !yaAvise && reclamado && !resuelta && (
-        <div style={{ padding: "0 14px 8px", fontSize: 12, color: "#64748B" }}>
-          {o.tipo === "encontrado" ? "🙋 Alguien ya avisó que es suyo" : "🙋 Alguien ya avisó que lo tiene"}
+        <div style={{ padding: "0 16px 10px", fontSize: 12.5, color: "#64748B" }}>
+          {o.tipo === "encontrado" ? "Alguien ya avisó que es suyo" : "Alguien ya avisó que lo tiene"}
         </div>
       )}
-      <div style={{ display: "flex", gap: 8, padding: "10px 14px", borderTop: "1px solid #F1F5F9", flexWrap: "wrap", alignItems: "center" }}>
-        {!propio && !yaAvise && !resuelta && (
-          <button onClick={() => onAvisar(o)} style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>
-            {o.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"}
-          </button>
-        )}
-        {!propio && yaAvise && (
-          <button onClick={() => onVerContacto(o)} style={{ padding: "7px 14px", borderRadius: 10, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#1D4ED8", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>📞 Ver contacto</button>
-        )}
-        {gestiona && nAvisos > 0 && (
-          <button onClick={() => onVerAvisos(o)} style={{ padding: "7px 14px", borderRadius: 10, border: "1px solid #BBF7D0", background: "#F0FDF4", color: "#047857", cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>🙋 {nAvisos} {nAvisos === 1 ? "aviso" : "avisos"}</button>
-        )}
-        <div style={{ flex: 1 }} />
-        {gestiona && !resuelta && <button onClick={() => onResuelto(o)} style={{ border: "none", background: "none", color: "#10B981", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>✓ Resuelto</button>}
-        {gestiona && <button onClick={() => onBorrar(o)} style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Borrar</button>}
-      </div>
-    </Card>
+      {(!propio || gestiona) && (
+        <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: "1px solid #F1F5F9", flexWrap: "wrap", alignItems: "center" }}>
+          {!propio && !yaAvise && !resuelta && (
+            <button onClick={() => onAvisar(o)} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#2563EB", cursor: "pointer", fontFamily: "inherit" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{o.tipo === "encontrado" ? "¡Es mío!" : "Lo tengo yo"}</span>
+            </button>
+          )}
+          {!propio && yaAvise && (
+            <button onClick={() => onVerContacto(o)} style={btnSecundario}><span style={{ color: "#0F172A" }}>Ver contacto</span></button>
+          )}
+          {gestiona && nAvisos > 0 && (
+            <button onClick={() => onVerAvisos(o)} style={btnSecundario}><span style={{ color: "#0F172A" }}>{nAvisos} {nAvisos === 1 ? "aviso" : "avisos"}</span></button>
+          )}
+          <div style={{ flex: 1 }} />
+          {gestiona && !resuelta && <button onClick={() => onResuelto(o)} style={btnTexto}><span style={{ color: "#475569" }}>Marcar resuelto</span></button>}
+          {gestiona && <button onClick={() => onBorrar(o)} style={btnTexto}><span style={{ color: "#64748B" }}>Borrar</span></button>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -192,12 +196,12 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, candidatos, onClos
   );
   return (
     <Modal titulo="Publicar" onClose={onClose}>
-      {!comoColegio && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{opcionTipo("perdido", "😟 Perdí algo")}{opcionTipo("encontrado", "🙌 Encontré algo")}</div>}
+      {!comoColegio && <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{opcionTipo("perdido", "Perdí algo")}{opcionTipo("encontrado", "Encontré algo")}</div>}
       <div style={{ marginBottom: 10 }}>
         <div style={lbl}>CATEGORÍA</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {CATEGORIAS.map((c) => (
-            <button key={c.k} onClick={() => set("categoria", c.k)} style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${form.categoria === c.k ? "#3B82F6" : "#E2E8F0"}`, background: form.categoria === c.k ? "#EFF6FF" : "white", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{c.e} {c.l}</button>
+            <button key={c.k} onClick={() => set("categoria", c.k)} style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${form.categoria === c.k ? "#3B82F6" : "#E2E8F0"}`, background: form.categoria === c.k ? "#EFF6FF" : "white", cursor: "pointer", fontSize: 12, fontWeight: 600, color: form.categoria === c.k ? "#1D4ED8" : "#475569" }}>{c.l}</button>
           ))}
         </div>
       </div>
@@ -254,6 +258,8 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const [datos, setDatos] = useState(null);
   const [tab, setTab] = useState("encontrado");
   const [cat, setCat] = useState("todas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const gruposFiltro = [{ key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todas" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] }];
   const [nuevo, setNuevo] = useState(false);
   const [avisando, setAvisando] = useState(null); // objeto
   const [mensaje, setMensaje] = useState("");
@@ -313,7 +319,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
     <div>
       {nuevo && <NuevoModal cursos={cursosPublicar} colegioId={colegioId} comoColegio={comoColegio} userId={userId} candidatos={vigentes} onClose={() => setNuevo(false)} onCreado={(n) => { cargar(); setTab(n.tipo); }} />}
       {avisando && (
-        <Modal titulo={avisando.tipo === "encontrado" ? "🙋 ¡Es mío!" : "🙋 Lo tengo yo"} onClose={() => setAvisando(null)}>
+        <Modal titulo={avisando.tipo === "encontrado" ? "¡Es mío!" : "Lo tengo yo"} onClose={() => setAvisando(null)}>
           <div style={{ fontSize: 13, color: "#475569", marginBottom: 10, lineHeight: 1.5 }}>
             Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.
           </div>
@@ -322,40 +328,41 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
         </Modal>
       )}
       {contacto && (
-        <Modal titulo="📞 Contacto" onClose={() => setContacto(null)} ancho={380}>
+        <Modal titulo="Contacto" onClose={() => setContacto(null)} ancho={380}>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{contacto.objeto.titulo}</div>
           <Contacto c={contacto.c} />
         </Modal>
       )}
       {avisos && (
-        <Modal titulo="🙋 Quiénes avisaron" onClose={() => setAvisos(null)} ancho={400}>
+        <Modal titulo="Quiénes avisaron" onClose={() => setAvisos(null)} ancho={400}>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{avisos.objeto.titulo}</div>
           {!avisos.lista ? <Contacto c={null} /> : avisos.lista.map((a) => <Contacto key={a.usuario_id} c={a} />)}
-          <button onClick={() => { resuelto(avisos.objeto); setAvisos(null); }} style={{ width: "100%", marginTop: 6, padding: 9, borderRadius: 10, border: "1px solid #BBF7D0", background: "#F0FDF4", color: "#047857", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>✓ Ya está resuelto</button>
+          <button onClick={() => { resuelto(avisos.objeto); setAvisos(null); }} style={{ width: "100%", marginTop: 6, padding: 9, borderRadius: 10, border: "1px solid #E2E8F0", background: "white", color: "#0F172A", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Ya está resuelto</button>
         </Modal>
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-        {[["encontrado", "🙌 Encontrados"], ["perdido", "😟 Buscan"]].map(([t, txt]) => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: "8px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, background: tab === t ? "#0F172A" : "white", color: tab === t ? "white" : "#64748B", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>{txt} ({cuenta(t)})</button>
-        ))}
+        {/* Encontrados / Buscan: mismo control segmentado gris que las pestañas internas. */}
+        <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 999, padding: 4 }}>
+          {[["encontrado", "Encontrados"], ["perdido", "Buscan"]].map(([t, txt]) => (
+            <button key={t} onClick={() => setTab(t)} style={{ padding: "7px 16px", borderRadius: 999, border: tab === t ? "1px solid #E2E8F0" : "1px solid transparent", cursor: "pointer", fontFamily: "inherit", background: tab === t ? "white" : "transparent" }}>
+              <span style={{ fontSize: 13, fontWeight: tab === t ? 800 : 600, color: tab === t ? "#1D4ED8" : "#64748B" }}>{txt} {cuenta(t)}</span>
+            </button>
+          ))}
+        </div>
         <div style={{ flex: 1 }} />
-        <button onClick={() => setNuevo(true)} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>+ Publicar</button>
+        <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
+        <BotonNuevo onClick={() => setNuevo(true)} ariaLabel="Publicar un objeto" />
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {[{ k: "todas", l: "Todas", e: "" }, ...CATEGORIAS].map((c) => (
-          <button key={c.k} onClick={() => setCat(c.k)} style={{ padding: "4px 10px", borderRadius: 14, border: `1px solid ${cat === c.k ? "#3B82F6" : "#E2E8F0"}`, background: cat === c.k ? "#EFF6FF" : "white", color: cat === c.k ? "#1D4ED8" : "#64748B", cursor: "pointer", fontSize: 11.5, fontWeight: 600 }}>{c.e} {c.l}</button>
-        ))}
-      </div>
+      {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
       {!lista.length && (
         <Card style={{ padding: 28, textAlign: "center" }}>
-          <div style={{ fontSize: 28 }}>🧦</div>
-          <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>{tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"}</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"}</div>
           <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Las publicaciones se ven 30 días, también las resueltas.</div>
         </Card>
       )}
       {lista.map((o) => (
-        <div key={o.id} id={`obj-${o.id}`} style={{ borderRadius: 16, outline: resaltado === o.id ? "2px solid #38BDF8" : "none" }}>
+        <div key={o.id} id={`obj-${o.id}`} style={{ borderRadius: 16, outline: resaltado === o.id ? "2px solid #2563EB" : "none" }}>
           <Tarjeta
             o={o}
             userId={userId}

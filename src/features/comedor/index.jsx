@@ -9,6 +9,8 @@ import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useCargar } from "../../hooks/useCargar";
+import { TablaMenu } from "../../components/TablaMenu";
+import { filasMenu } from "../../lib/menu";
 
 
 
@@ -90,15 +92,6 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
   const tieneMenu = day => menu.some(m=>m.fecha===`${year}-${pad(month+1)}-${pad(day)}`);
   const selDia = day => { setFechaSel(`${year}-${pad(month+1)}-${pad(day)}`); setVista("diario"); };
 
-  const campos = [
-    {key:"entrada",       label:"Entrada",          color:"#8B5CF6", emoji:"🥣"},
-    {key:"plato",         label:"Plato Principal 1", color:"#3B82F6", emoji:"🍽️"},
-    {key:"plato2",        label:"Plato Principal 2", color:"#0EA5E9", emoji:"🍽️"},
-    {key:"acompanamiento",label:"Plato Principal 3", color:"#6366F1", emoji:"🍽️"},
-    {key:"postre",        label:"Postre 1",          color:"#10B981", emoji:"🍎"},
-    {key:"postre2",       label:"Postre 2",          color:"#34D399", emoji:"🍊"},
-  ];
-
   return (
     <div>
       {!isSuper&&<>
@@ -120,32 +113,20 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
             {isSuper&&<button onClick={()=>abrirEdicion(fechaSel)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#3B82F6",whiteSpace:"nowrap"}}>{diaActual?"✏️ Editar":"+ Cargar"}</button>}
           </div>
           {diaActual ? (
-            // Tarjeta navy (handoff Tribbu App.dc.html: "Menú de hoy en
-            // tarjeta navy con entrada/principal/postre separados y
-            // etiquetados") — antes cada plato era su propia Card blanca
-            // con borde de color, muy distinto del mockup.
-            <div style={{background:"#0F172A",borderRadius:16,padding:"18px 20px"}}>
+            // Misma tabla que "Menú de hoy" en el Inicio (Entrada / Plato
+            // principal / Postre, @shared/menu).
+            <div>
               {Array.isArray(diaActual.etiquetas)&&diaActual.etiquetas.length>0&&(
                 <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
                   {diaActual.etiquetas.map(e=>(
-                    <span key={e} style={{fontSize:11,fontWeight:700,color:"#0F172A",background:"white",borderRadius:999,padding:"3px 10px"}}>{e}</span>
+                    <span key={e} style={{fontSize:11.5,fontWeight:600,color:"#475569",background:"#F1F5F9",borderRadius:999,padding:"3px 10px"}}>{e}</span>
                   ))}
                 </div>
               )}
               {diaActual.notas&&(
-                <div style={{fontSize:12.5,color:"#FDE68A",background:"rgba(253,224,71,0.12)",border:"1px solid rgba(253,224,71,0.3)",borderRadius:10,padding:"9px 12px",marginBottom:14,lineHeight:1.4}}>ⓘ {diaActual.notas}</div>
+                <div style={{fontSize:12.5,color:"#92400E",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"9px 12px",marginBottom:14,lineHeight:1.4}}>ⓘ {diaActual.notas}</div>
               )}
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                {campos.map(c=>diaActual[c.key]&&(
-                  <div key={c.key} style={{display:"flex",alignItems:"center",gap:12}}>
-                    <span style={{fontSize:19}}>{c.emoji}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(255,255,255,0.4)"}}>{c.label}</div>
-                      <div style={{fontSize:14.5,fontWeight:600,color:"white",marginTop:2}}>{diaActual[c.key]}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TablaMenu menu={diaActual}/>
             </div>
           ) : (
             <Card style={{padding:24,textAlign:"center"}}>
@@ -178,16 +159,14 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
                   </div>
                   <div style={{padding:"8px 6px",minHeight:80}}>
                     {m ? (
-                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                        {campos.filter(c=>m[c.key]).slice(0,3).map(c=>(
-                          <div key={c.key} style={{fontSize:10,lineHeight:1.3}}>
-                            <span style={{fontWeight:700,color:c.color}}>{c.emoji} </span>
-                            <span style={{color:"#0F172A"}}>{m[c.key]}</span>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {/* Mismas categorías que el Inicio (@shared/menu). */}
+                        {filasMenu(m).map(f=>(
+                          <div key={f.label} style={{lineHeight:1.3}}>
+                            <div style={{fontSize:9,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",color:"#94A3B8"}}>{f.label}</div>
+                            <div style={{fontSize:10.5,color:"#0F172A"}}>{f.platos.join(" o ")}</div>
                           </div>
                         ))}
-                        {campos.filter(c=>m[c.key]).length>3&&(
-                          <div style={{fontSize:9,color:"#94A3B8",marginTop:2}}>+{campos.filter(c=>m[c.key]).length-3} más</div>
-                        )}
                       </div>
                     ) : (
                       <div style={{fontSize:10,color:"#CBD5E1",textAlign:"center",marginTop:16}}>Sin menú</div>
@@ -246,7 +225,7 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
             return (
               <div style={{border:"1px solid #E7ECF3",borderRadius:18,background:"white",overflow:"hidden"}}>
                 <div style={{display:"grid",gridTemplateColumns:isSuper?"90px 1.3fr 1.5fr 1fr 40px":"90px 1.3fr 1.5fr 1fr 70px",gap:14,padding:"12px 20px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
-                  {["Día","Entrada","Principal","Postre",""].map(c=><div key={c} style={{fontSize:10.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{c}</div>)}
+                  {["Día","Entrada","Plato principal","Postre",""].map(c=><div key={c} style={{fontSize:10.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#94A3B8"}}>{c}</div>)}
                 </div>
                 {filas.map(({day,fecha,m})=>{
                   const esHoy = fecha===hoyStr;

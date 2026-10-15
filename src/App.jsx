@@ -57,13 +57,13 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta"]);
+const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta"]);
 // Navegación en 4 secciones (Hoy · Agenda · Comunicaciones · Curso), igual
 // que mobile. Cada una agrupa tabs: queda marcada en cualquiera de ellas y
 // tocarla va a la primera. Lo que no está en las tres primeras es de Curso.
 const SECCIONES = [
   { id:"hoy",            label:"Hoy",            icono:"hoy", tabs:["muro"] },
-  { id:"agenda",         label:"Agenda",         icono:"agenda", tabs:["clases","cumples"] },
+  { id:"agenda",         label:"Agenda",         icono:"agenda", tabs:["clases","horario","cumples"] },
   { id:"comunicaciones", label:"Comunicaciones", icono:"comunicaciones", tabs:["recordatorios","mensajes"] },
   { id:"curso",          label:"Curso",          icono:"curso", tabs:["curso"] },
 ];
@@ -520,7 +520,7 @@ function App() {
   const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) : 0;
   // Pestañas internas de Agenda y Comunicaciones (arriba del contenido).
   const renderSubSeccion = () => {
-    if(seccionActiva==="agenda") return <SubSeccion activo={tab} onIr={setTab} items={[{id:"clases",label:"Calendario"},{id:"cumples",label:"Cumpleaños"}]}/>;
+    if(seccionActiva==="agenda") return <SubSeccion activo={tab} onIr={setTab} items={[{id:"clases",label:"Calendario"},{id:"horario",label:"Horario"},{id:"cumples",label:"Cumpleaños"}]}/>;
     if(seccionActiva==="comunicaciones") return <SubSeccion activo={tab} onIr={(t)=>{ setTab(t); if(t==="recordatorios") setBadgeVisto(avisosVersion); }} items={[{id:"recordatorios",label:"Avisos",badge:badgeCount},{id:"mensajes",label:"Mensajes",badge:mensajesSinLeer||0}]}/>;
     return null;
   };
@@ -564,6 +564,8 @@ function App() {
     switch(t) {
       case "muro":     return <Muro selector={selectorHijos} cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
+      // Horario de clases: pestaña propia de Agenda (antes era una vista del Calendario).
+      case "horario":  return <Calendario soloHorario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
       case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre} onEscribir={escribirA}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
@@ -652,7 +654,12 @@ function App() {
             {colegioActivo?.logo_url&&<SignedImg src={colegioActivo.logo_url} bucket="adjuntos" alt={colegioActivo.nombre} style={{width:22,height:22,borderRadius:6,objectFit:"contain",background:"rgba(255,255,255,0.9)",padding:2}}/>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {/* Mi cuenta (contraseña, notificaciones, salir…). Los mensajes están en Comunicaciones. */}
+            {/* Acceso directo a Mensajes (además de la pestaña en Comunicaciones). */}
+            <button onClick={()=>setTab("mensajes")} aria-label={mensajesSinLeer?`Mensajes, ${mensajesSinLeer} sin leer`:"Mensajes"} style={{position:"relative",width:34,height:34,borderRadius:10,border:"none",background:tab==="mensajes"?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+              <Icono nombre="mensaje" size={18} color="rgba(255,255,255,0.88)"/>
+              {mensajesSinLeer>0&&<span style={{position:"absolute",top:-5,right:-6,minWidth:17,height:17,padding:"0 4px",borderRadius:999,background:"#EF4444",border:"1.5px solid #0F172A",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box"}}><span style={{fontSize:9.5,fontWeight:800,color:"white"}}>{mensajesSinLeer>9?"9+":mensajesSinLeer}</span></span>}
+            </button>
+            {/* Mi cuenta (contraseña, notificaciones, salir…). */}
             <button onClick={()=>setTab("cuenta")} aria-label="Mi cuenta" style={{width:34,height:34,borderRadius:999,border:"1px solid rgba(255,255,255,0.2)",background:tab==="cuenta"?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
               <span style={{fontSize:12.5,fontWeight:800,color:"white",letterSpacing:0.3}}>{iniciales(usuario)}</span>
             </button>
@@ -752,6 +759,10 @@ function App() {
               alcance actual, resultado se muestra como panel sobre el
               módulo activo (mismo criterio que mobile/features/buscar). */}
           <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginBottom:busquedaGlobal.trim()?12:14}}>
+            <button onClick={()=>{ setBusquedaGlobal(""); setTab("mensajes"); }} aria-label={mensajesSinLeer?`Mensajes, ${mensajesSinLeer} sin leer`:"Mensajes"} title="Mensajes" style={{position:"relative",width:44,height:44,borderRadius:999,border:"1px solid #E7ECF3",background:tab==="mensajes"?"#F1F5F9":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>
+              <Icono nombre="mensaje" size={19} color="#475569"/>
+              {mensajesSinLeer>0&&<span style={{position:"absolute",top:-3,right:-3,minWidth:18,height:18,padding:"0 4px",borderRadius:999,background:"#EF4444",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box"}}><span style={{fontSize:10,fontWeight:800,color:"white"}}>{mensajesSinLeer>9?"9+":mensajesSinLeer}</span></span>}
+            </button>
             <div style={{display:"flex",alignItems:"center",gap:9,minHeight:44,padding:"0 16px",border:"1px solid #E7ECF3",borderRadius:999,background:"white",width:300,boxSizing:"border-box"}}>
               <span style={{fontSize:15,color:"#94A3B8"}}>🔍</span>
               <input

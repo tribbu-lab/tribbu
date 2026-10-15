@@ -24,7 +24,7 @@ export const TAB_BAR_SPACE = 112;
 // Comunicaciones). Las pantallas de Curso son todas las secundarias.
 const TABS = [
   { name: "muro", label: "Hoy", icon: "home-outline", rutas: ["muro"] },
-  { name: "calendario", label: "Agenda", icon: "calendar-month-outline", rutas: ["calendario", "cumples"] },
+  { name: "calendario", label: "Agenda", icon: "calendar-month-outline", rutas: ["calendario", "horario", "cumples"] },
   { name: "recordatorios", label: "Comunicaciones", icon: "email-outline", rutas: ["recordatorios", "mensajes"] },
   {
     name: "curso",

@@ -18,6 +18,7 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
@@ -202,7 +203,7 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
               <Text style={styles.h1}>Autorizaciones</Text>
               <Text style={styles.sub}>Salidas y actividades que necesitan tu permiso</Text>
             </View>
-            {cursosQueGestiona.length ? <Button title="+ Nueva" size="sm" onPress={() => setNueva(true)} /> : null}
+            {cursosQueGestiona.length ? <BotonNuevo onPress={() => setNueva(true)} accessibilityLabel="Nueva autorización" /> : null}
           </View>
         }
         ListEmptyComponent={

@@ -11,6 +11,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { supabase } from "../../supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { safeUrl, uuidLite } from "../../lib/helpers";
 import { THEMES, SLATE, BLUE, withAlpha } from "../../lib/tokens";
 import { borrarArchivos } from "../../lib/storageUrl";
@@ -1217,11 +1218,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   const panelLista = (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: isMobile ? "0 0 12px" : "4px 4px 12px" }}>
-        <div>
-          <div style={{ fontSize: 21, fontWeight: 800, color: C.textStrong }}>Mensajes</div>
-          <div style={{ fontSize: 12.5, color: C.textMuted }}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</div>
-        </div>
-        <button onClick={() => setNuevo(true)} style={{ ...btnPri, whiteSpace: "nowrap", minHeight: 40 }}>+ Nuevo</button>
+        {/* El título lo da la pestaña "Mensajes" de Comunicaciones. */}
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.textMuted }}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</div>
+        <BotonNuevo onClick={() => setNuevo(true)} ariaLabel="Nuevo mensaje" />
       </div>
       {error ? <div role="alert" style={{ fontSize: 13, color: C.danger, marginBottom: 8 }}>{error}</div> : null}
       {aviso ? <div role="status" onClick={() => setAviso("")} style={{ fontSize: 13, color: BLUE[700], background: C.accentSoft, borderRadius: 10, padding: "8px 12px", marginBottom: 8, cursor: "pointer" }}>{aviso}</div> : null}
