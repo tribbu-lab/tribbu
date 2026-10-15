@@ -5,7 +5,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
-import { fmtRangoHora, fmtLocalDate, sanitize, fmtEnviado, ordenPorEnviado, coincideTexto } from "../../lib/helpers";
+import { fmtLocalDate, sanitize, ordenPorEnviado, coincideTexto } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { AdjuntosInput, AdjuntosList } from "../../components/Adjuntos";
@@ -15,6 +15,9 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { Buscador } from "../../components/Buscador";
+import { Icono } from "../../components/Icono";
+import { SignedImg } from "../../components/SignedImg";
+import { separarAvisos, haceCuanto, fechaCortaAviso, fechaDelAviso, origenAviso, fotoDelAviso } from "../../lib/avisosLista";
 
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -29,7 +32,7 @@ import { etiquetaDocente } from "../../lib/docentes";
 // dice además cuándo se envió (fmtEnviado).
 const ordenAvisos = ordenPorEnviado;
 
-export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
+export function RecordatoriosTab({ items=[], cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -150,7 +153,7 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
   const marcarTodoLeido = async () => {
     if(!userId) return;
-    const noLeidos = filtrados.filter(r=>!leidosSet.has(r.id));
+    const noLeidos = filtrados.filter(r=>!leidosSet.has(r.id) && !atencion.includes(r));
     if(!noLeidos.length) return;
     await supabase.from("recordatorio_leidos").upsert(
       noLeidos.map(r=>({recordatorio_id:r.id,usuario_id:userId})),
@@ -205,9 +208,14 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
     setResaltado(destino.id);
   }
 
-  const totalPags = Math.max(1,Math.ceil(filtrados.length/POR_PAG));
+  // "Requiere tu atención" (alta/urgente sin leer) arriba; el resto, paginado.
+  const { atencion, recientes } = separarAvisos(filtrados, leidosSet);
+  const totalPags = Math.max(1,Math.ceil(recientes.length/POR_PAG));
   const pagina_ = Math.min(pagina,totalPags);
-  const visible = filtrados.slice((pagina_-1)*POR_PAG, pagina_*POR_PAG);
+  const visible = recientes.slice((pagina_-1)*POR_PAG, pagina_*POR_PAG);
+  const nombreCurso = (cid) => items.find(i=>i.curso_id===cid)?.cursos?.nombre || null;
+  const origenDe = (r) => origenAviso(r, { docente: etiquetaDocente(docenteDe(r.creado_por)), curso: nombreCurso(r.curso_id) });
+  const recientesSinLeer = recientes.filter(r=>!leidosSet.has(r.id));
   // Confirmación de lectura: la RPC solo devuelve los avisos que este usuario
   // puede auditar (propios, de su curso como Room Parent, o como colegio).
   const lecturas = useLecturas(visible.map(r=>r.id));
@@ -328,9 +336,6 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
 
       <div style={{display:"flex",gap:8,marginBottom:filtroRango==="personalizado"?8:12,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
-          {filtrados.some(r=>!leidosSet.has(r.id))&&(
-            <button onClick={marcarTodoLeido} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Marcar todo leído</button>
-          )}
           <BotonFiltros grupos={gruposFiltro} onClick={()=>setFiltrosAbiertos(true)}/>
           <BotonNuevo ariaLabel="Nuevo aviso" onClick={()=>{setModal({});setForm({titulo:"",texto:"",fecha:"",hora_inicio:"",hora_fin:"",prioridad:"media",urgente:false,adjuntos:[],curso_id:cursoId||cursoIds[0]||null});}}/>
         </div>
@@ -349,68 +354,37 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         </div>
       )}
 
-      {visible.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin avisos</div>}
-      {visible.map(r=>{
-        const prio = PRIO[r.prioridad||"media"];
-        const esLeido = leidosSet.has(r.id);
-        const dias = r.fecha ? Math.round((new Date(r.fecha+"T00:00:00")-new Date().setHours(0,0,0,0))/86400000) : null;
-        const diasLabel = dias===null ? null : dias===0 ? "hoy" : dias===1 ? "manana" : dias<0 ? `hace ${Math.abs(dias)}d` : `en ${dias}d`;
-        const esLargo = (r.texto||"").length > 150;
-        const expandido = expandidos.has(r.id);
-        return (
-          <div key={r.id} id={`aviso-${r.id}`} style={{display:"flex",alignItems:"flex-start",gap:0,padding:"11px 14px",marginBottom:6,borderRadius:12,background:r.id===resaltado?"#EFF6FF":"white",border:`1px solid ${r.id===resaltado?"#93C5FD":"#E2E8F0"}`,boxShadow:r.id===resaltado?"0 0 0 3px rgba(59,130,246,0.18)":"none",transition:"background 0.4s, box-shadow 0.4s",opacity:esLeido&&r.id!==resaltado?0.55:1,borderLeft:`3px solid ${r.urgente?"#EF4444":prio.c}`}}>
-            <div style={{width:72,flexShrink:0,marginRight:12,textAlign:"center"}}>
-              {r.fecha?(
-                <>
-                  <div style={{fontSize:18,fontWeight:900,color:"#0F172A",lineHeight:1}}>{new Date(r.fecha+"T00:00:00").getDate()}</div>
-                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase"}}>{new Date(r.fecha+"T00:00:00").toLocaleDateString("es-AR",{month:"short"})}</div>
-                  {diasLabel&&<div style={{fontSize:9,fontWeight:700,marginTop:2,color:dias<0?"#94A3B8":dias<=3?"#EF4444":"#10B981",background:dias<0?"#F8FAFC":dias<=3?"#FEF2F2":"#F0FDF4",borderRadius:6,padding:"1px 4px"}}>{diasLabel}</div>}
-                </>
-              ):(
-                <div style={{fontSize:10,color:"#CBD5E1",fontWeight:600}}>--</div>
-              )}
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              {r.titulo&&<div style={{fontSize:13,fontWeight:700,color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.35,marginBottom:2}}>{r.titulo}</div>}
-              <div style={{fontSize:13,fontWeight:esLeido?400:(r.titulo?500:600),color:esLeido?"#94A3B8":"#0F172A",lineHeight:1.4,...(expandido?{}:{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"})}}>{r.texto}</div>
-              {esLargo&&<button onClick={()=>toggleExpandido(r.id)} style={{border:"none",background:"none",padding:0,marginTop:2,marginBottom:2,cursor:"pointer",fontSize:11,fontWeight:700,color:"#3B82F6"}}>{expandido?"Ver menos":"Ver más"}</button>}
-              <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                {tagDeCurso?.(r.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F1F5F9",color:"#64748B",whiteSpace:"nowrap"}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(r.curso_id).color,display:"inline-block"}}/>{tagDeCurso(r.curso_id).nombre}</span>}
-                {r.grupo_id&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EEF2FF",color:"#6366F1",whiteSpace:"nowrap"}}>🏫 Comunicación del colegio</span>}
-                {docenteDe(r.creado_por)&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1",whiteSpace:"nowrap"}}>{etiquetaDocente(docenteDe(r.creado_por))}</span>}
-                {fmtRangoHora(r.hora_inicio,r.hora_fin)&&<span style={{fontSize:10,fontWeight:700,color:"#94A3B8",whiteSpace:"nowrap"}}>🕐 {fmtRangoHora(r.hora_inicio,r.hora_fin)}</span>}
-                {r.tipo==="regalo_cumple"
-                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#FDF4FF",color:"#8B5CF6"}}>Regalo</span>
-                  : r.tipo==="colecta_vence"
-                  ? <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>💳 Colecta</span>
-                  : <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:prio.bg,color:prio.c}}>{prio.l}</span>
-                }
-                {r.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
-                <ChipLecturas filas={lecturas[r.id]} onClick={()=>setVerLecturas(r)}/>
-                {r.creado_en&&<span style={{fontSize:10,color:"#94A3B8",whiteSpace:"nowrap"}}>{fmtEnviado(r.creado_en)}</span>}
-              </div>
-              <AdjuntosList adjuntos={r.adjuntos}/>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,marginLeft:8,alignItems:"flex-end"}}>
-              {r.tipo==="regalo_cumple"&&!esLeido ? (
-                // Antes había un botón "No" al lado que no hacía nada (onClick
-                // vacío) — sin una acción real detrás (posponer, etc.), "Si" es
-                // la única opción real: marca el aviso como leído.
-                <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #BBF7D0",background:"#F0FDF4",cursor:"pointer",fontSize:11,fontWeight:700,color:"#10B981",whiteSpace:"nowrap"}}>Si</button>
-              ) : (
-                <button onClick={()=>marcarLeido(r.id)} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${esLeido?"#10B981":"#E2E8F0"}`,background:esLeido?"#F0FDF4":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esLeido?"#10B981":"#64748B"}}>{esLeido?"Leido":"Leido"}</button>
-              )}
-              {puedeEditar(r)&&r.tipo!=="regalo_cumple"&&r.tipo!=="colecta_vence"&&<div style={{display:"flex",gap:4}}>
-                <button onClick={()=>{setModal(r);setForm({titulo:r.titulo||"",texto:r.texto||"",fecha:r.fecha||"",hora_inicio:r.hora_inicio?.slice(0,5)||"",hora_fin:r.hora_fin?.slice(0,5)||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});}} style={{padding:"5px 7px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>Editar</button>
-                <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
-              </div>}
-              {isAdmin&&(r.tipo==="regalo_cumple"||r.tipo==="colecta_vence")&&<div style={{display:"flex",gap:4}}>
-                <button onClick={()=>eliminar(r.id)} style={{padding:"5px 7px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",fontSize:11,color:"#EF4444"}}>Borrar</button>
-              </div>}
-            </div>
+      {!atencion.length&&!recientes.length&&<div style={{textAlign:"center",padding:"32px 0",color:"#94A3B8",fontSize:13}}>Sin avisos</div>}
+      {atencion.length>0&&(
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 0 10px"}}>
+            <span style={{fontSize:17,fontWeight:800,color:"#0F172A"}}>Requiere tu atención</span>
+            <span style={{minWidth:22,height:22,padding:"0 6px",borderRadius:999,background:"#FEE2E2",display:"inline-flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box"}}><span style={{fontSize:12,fontWeight:800,color:"#DC2626"}}>{atencion.length}</span></span>
           </div>
-        );
-      })}
+          {atencion.map(r=>(
+            <AvisoAtencion key={r.id} r={r} origen={origenDe(r)} resaltado={r.id===resaltado} abierto={expandidos.has(r.id)} onAbrir={()=>toggleExpandido(r.id)} onEntendido={()=>marcarLeido(r.id)}/>
+          ))}
+        </>
+      )}
+      {recientes.length>0&&(
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 10px"}}>
+          <span style={{flex:1,fontSize:17,fontWeight:800,color:"#0F172A"}}>Recientes</span>
+          {recientesSinLeer.length>0&&(
+            <button onClick={marcarTodoLeido} style={{display:"inline-flex",alignItems:"center",gap:6,border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",padding:0}}>
+              <Icono nombre="checkDoble" size={17} color="#2563EB"/>
+              <span style={{fontSize:13.5,fontWeight:700,color:"#2563EB"}}>Marcar todos como leídos</span>
+            </button>
+          )}
+        </div>
+      )}
+      {visible.map(r=>(
+        <AvisoCard key={r.id} r={r} origen={origenDe(r)} tag={tagDeCurso?.(r.curso_id)} esLeido={leidosSet.has(r.id)} resaltado={r.id===resaltado}
+          abierto={expandidos.has(r.id)} onAbrir={()=>{ toggleExpandido(r.id); if(!leidosSet.has(r.id)) marcarLeido(r.id); }}
+          onNoLeido={()=>marcarLeido(r.id)} lecturas={lecturas[r.id]} onVerLecturas={()=>setVerLecturas(r)}
+          onEditar={puedeEditar(r)&&r.tipo!=="colecta_vence" ? ()=>{setModal(r);setForm({titulo:r.titulo||"",texto:r.texto||"",fecha:r.fecha||"",hora_inicio:r.hora_inicio?.slice(0,5)||"",hora_fin:r.hora_fin?.slice(0,5)||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});} : null}
+          onBorrar={(puedeEditar(r)&&r.tipo!=="colecta_vence")||(isAdmin&&r.tipo==="colecta_vence") ? ()=>eliminar(r.id) : null}
+          prio={PRIO[r.prioridad||"media"]||PRIO.media}/>
+      ))}
 
       {totalPags>1&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:16}}>
@@ -420,114 +394,90 @@ export function RecordatoriosTab({ cursoId, cursoIds=[], esVistaTodos=false, tag
         </div>
       )}
 
-      {/* ── Historial de alertas ──────────────────────────────────── */}
-      <HistorialComunicados cursoIds={cursoIds} tagDeCurso={tagDeCurso} isAdmin={isAdmin} />
     </div>
   );
 }
 
-function HistorialComunicados({ cursoIds=[], tagDeCurso=null }) {
-  const [alertas,    setAlertas]    = useState([]);
-  const [busqueda,   setBusqueda]   = useState("");
-  const [abierto,    setAbierto]    = useState(false);
-  const [cargando,   setCargando]   = useState(false);
-
-  const cargar = async () => {
-    if(!cursoIds?.length) return;
-    setCargando(true);
-    const { data } = await supabase
-      .from("alertas")
-      .select("*")
-      .in("curso_id", cursoIds)
-      .order("creado_en", { ascending: false })
-      .limit(100);
-    setAlertas(data||[]);
-    setCargando(false);
-  };
-
-  const toggle = () => {
-    if(!abierto && alertas.length === 0) cargar();
-    setAbierto(p => !p);
-  };
-
-  const filtradas = alertas.filter(a =>
-    !busqueda.trim() ||
-    a.mensaje?.toLowerCase().includes(busqueda.toLowerCase())
-  );
-
-  const fmtFecha = (iso) => {
-    if(!iso) return "";
-    return new Date(iso).toLocaleDateString("es-AR", {
-      day: "numeric", month: "long", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-  };
-
+// ── Tarjetas de Avisos (formato "Requiere tu atención" + "Recientes") ──
+// Fecha del aviso como un dato más (una línea gris), no como una caja que
+// parece un botón: "Vie 16 oct · 10:30–11:00 · mañana".
+const FechaAviso = ({ r }) => {
+  const f = fechaDelAviso(r.fecha, r.hora_inicio);
+  if (!f) return null;
   return (
-    <div style={{marginTop:24}}>
-      <button
-        onClick={toggle}
-        style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
-          padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",
-          background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}
-      >
-        <span>🚨 Historial de alertas</span>
-        <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
-      </button>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
+      <Icono nombre="agenda" size={15} color="#64748B" />
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: "#64748B" }}>{f.texto}{r.hora_fin ? `–${String(r.hora_fin).slice(0, 5)}` : ""} · {f.rel.toLowerCase()}</span>
+    </div>
+  );
+};
+const PuntoNoLeido = () => <span aria-label="Sin leer" style={{ width: 9, height: 9, borderRadius: 999, background: "#2563EB", flexShrink: 0 }} />;
 
-      {abierto && (
-        <div style={{marginTop:8}}>
-          <input
-            value={busqueda}
-            onChange={e=>setBusqueda(e.target.value)}
-            placeholder="Buscar en alertas..."
-            style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",
-              fontSize:13,outline:"none",fontFamily:"inherit",background:"white",
-              boxSizing:"border-box",marginBottom:10}}
-          />
-
-          {cargando && (
-            <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Cargando...</div>
-          )}
-
-          {!cargando && filtradas.length === 0 && (
-            <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>
-              {busqueda ? "Sin resultados para esa búsqueda" : "Sin alertas anteriores"}
-            </div>
-          )}
-
-          {!cargando && filtradas.map(a => (
-            <div key={a.id} style={{
-              padding:"12px 14px", marginBottom:6, borderRadius:12,
-              background: a.activa ? "linear-gradient(135deg,#FEF2F2,#FFF5F5)" : "white",
-              border: `1px solid ${a.activa ? "#FCA5A5" : "#E2E8F0"}`,
-              borderLeft: `3px solid ${a.activa ? "#EF4444" : "#CBD5E1"}`,
-            }}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                <span style={{fontSize:18,flexShrink:0}}>{a.activa ? "🚨" : "📢"}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#0F172A",lineHeight:1.4,marginBottom:4}}>
-                    {a.mensaje}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:11,color:"#94A3B8"}}>{fmtFecha(a.creado_en)}</span>
-                    {tagDeCurso?.(a.curso_id) && (
-                      <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#64748B"}}>
-                        <span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(a.curso_id).color,display:"inline-block"}}/>
-                        {tagDeCurso(a.curso_id).nombre}
-                      </span>
-                    )}
-                    {a.activa && (
-                      <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,
-                        background:"#FEE2E2",color:"#EF4444"}}>Activa</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+// "Recientes": prioridad, de quién viene, hace cuánto, punto de no leído,
+// miniatura de la foto y la fecha. Clic = se abre entera y queda leída.
+function AvisoCard({ r, origen, tag, prio, esLeido, resaltado, abierto, onAbrir, onNoLeido, lecturas, onVerLecturas, onEditar, onBorrar }) {
+  const foto = fotoDelAviso(r);
+  const link = { border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" };
+  return (
+    <div id={`aviso-${r.id}`} onClick={onAbrir} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onAbrir(); }}
+      style={{ background: "white", border: `${resaltado ? 2 : 1}px solid ${resaltado ? "#60A5FA" : "#E2E8F0"}`, borderRadius: 18, padding: 16, marginBottom: 12, cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: prio.bg }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: prio.c }} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: prio.c }}>{prio.l}</span>
+        </span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "#64748B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{origen}</span>
+        <span style={{ fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>{haceCuanto(r.creado_en)}</span>
+        {!esLeido && <PuntoNoLeido />}
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16.5, fontWeight: 800, color: esLeido ? "#334155" : "#0F172A", lineHeight: 1.3, ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.titulo || r.texto}</div>
+          {r.titulo && r.texto && <div style={{ fontSize: 14, color: "#64748B", marginTop: 4, lineHeight: 1.45, whiteSpace: abierto ? "pre-wrap" : "normal", ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.texto}</div>}
+        </div>
+        {foto && !abierto && <SignedImg src={foto.url} bucket="adjuntos" miniatura alt="" style={{ width: 64, height: 64, borderRadius: 12, objectFit: "cover", flexShrink: 0 }} />}
+      </div>
+      <FechaAviso r={r} />
+      {abierto && <div onClick={(e) => e.stopPropagation()}><AdjuntosList adjuntos={r.adjuntos} /></div>}
+      {(tag || lecturas || onEditar || onBorrar || (abierto && esLeido)) && (
+        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+          {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: tag.color }} /><span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>{tag.nombre}</span></span>}
+          <ChipLecturas filas={lecturas} onClick={onVerLecturas} />
+          <span style={{ flex: 1 }} />
+          {abierto && esLeido && <button onClick={onNoLeido} style={link}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Marcar no leído</span></button>}
+          {onEditar && <button onClick={onEditar} style={link}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Editar</span></button>}
+          {onBorrar && <button onClick={onBorrar} style={link}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Borrar</span></button>}
         </div>
       )}
+    </div>
+  );
+}
+
+// "Requiere tu atención": prioridad alta (o urgente) sin leer. "Entendido" la
+// marca leída y pasa a Recientes.
+function AvisoAtencion({ r, origen, resaltado, abierto, onAbrir, onEntendido }) {
+  return (
+    <div id={`aviso-${r.id}`} style={{ background: "#FEF2F2", border: `${resaltado ? 2 : 1}px solid ${resaltado ? "#F87171" : "#FECACA"}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ width: 42, height: 42, borderRadius: 999, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icono nombre="alerta" size={21} color="#DC2626" /></span>
+        <span style={{ display: "block", flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 13.5, fontWeight: 800, color: "#B91C1C" }}>{r.prioridad === "alta" ? "Prioridad alta" : "Urgente"} · {origen}</span>
+          <span style={{ display: "block", fontSize: 13, color: "#64748B", marginTop: 1 }}>{[r.creado_en ? fechaCortaAviso(r.creado_en) : null, haceCuanto(r.creado_en)].filter(Boolean).join(" · ")}</span>
+        </span>
+        <PuntoNoLeido />
+      </div>
+      <div style={{ fontSize: 19, fontWeight: 800, color: "#0F172A", marginTop: 12, lineHeight: 1.3 }}>{r.titulo || r.texto}</div>
+      {r.titulo && r.texto && <div style={{ fontSize: 14.5, color: "#334155", marginTop: 4, lineHeight: 1.5, whiteSpace: abierto ? "pre-wrap" : "normal", ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.texto}</div>}
+      <FechaAviso r={r} />
+      {abierto && <AdjuntosList adjuntos={r.adjuntos} />}
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <button onClick={onAbrir} style={{ flex: 1, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "1px solid #FECACA", background: "white", cursor: "pointer", fontFamily: "inherit" }}>
+          <Icono nombre="documento" size={18} color="#0F172A" /><span style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{abierto ? "Ver menos" : "Ver comunicado"}</span>
+        </button>
+        <button onClick={onEntendido} style={{ flex: 1, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "none", background: "#2563EB", cursor: "pointer", fontFamily: "inherit" }}>
+          <Icono nombre="check" size={18} color="white" /><span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>Entendido</span>
+        </button>
+      </div>
     </div>
   );
 }

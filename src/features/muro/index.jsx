@@ -27,7 +27,7 @@ import { autorizacionesPendientes } from "../../lib/autorizaciones";
 import { talleresParaAnotarse } from "../../lib/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "../../lib/perdidos";
 import { getStorageBackend } from "../../lib/storage";
-import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "../../lib/muro";
+import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "../../lib/muro";
 import { Icono } from "../../components/Icono";
 import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
@@ -221,7 +221,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   // Sin datos todavía: si ya falló el primer intento, mostrar el error con
   // reintentar en vez de un Spinner eterno.
-  // Avisos de docentes: "Laura · Inglés" como origen en Comunicaciones.
+  // Avisos de docentes: "Laura · Inglés" como origen en Novedades.
   const docenteDe = useAutoresDocentesHook((datos?.recordatorios||[]).map(r=>r.creado_por));
   if(!datos) return error ? <ErrorMuro onReintentar={cargar} tieneDatos={false}/> : <Spinner/>;
 
@@ -247,25 +247,25 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     })),
     ...(datos.colectasPend||[]).map(c=>({
       key:`c-${c.id}`, tipo:"Colecta", tag:tagDe(c.curso_id), titulo:c.titulo,
-      dato:unir(montoTxt(c), (c.fecha_limite||c.vencimiento)&&!avisoVencimiento("x", c.fecha_limite||c.vencimiento, fechaHoy)?`Cierra el ${fechaCorta(c.fecha_limite||c.vencimiento)}`:null, "Todavía no registrado"), detalle:null,
+      dato:unir(montoTxt(c), (c.fecha_limite||c.vencimiento)&&!avisoVencimiento("x", c.fecha_limite||c.vencimiento, fechaHoy)?`Cierra el ${fechaCorta(c.fecha_limite||c.vencimiento)}`:null), detalle:null,
       vence:c.fecha_limite||c.vencimiento||null, urgencia:avisoVencimiento("Vence", c.fecha_limite||c.vencimiento, fechaHoy),
-      accion:"Registrar mi pago", ir:()=>onNavigate?.("finanzas",{openColecta:c.id}),
+      accion:"Ver datos para pagar", ir:()=>onNavigate?.("finanzas",{openColecta:c.id}),
     })),
     ...(datos.invitaciones||[]).map(ev=>({
       key:`i-${ev.id}`, tipo:"Invitación", tag:tagDe(ev.curso_id), titulo:ev.titulo,
-      dato:unir(fechaCorta(ev.fecha), hora(ev.hora), ev.lugar, "Asistencia sin confirmar"), detalle:null,
+      dato:unir(avisoVencimiento("x", ev.fecha, fechaHoy)?null:fechaCorta(ev.fecha), hora(ev.hora), ev.lugar), detalle:null,
       vence:ev.fecha, urgencia:avisoVencimiento("Es", ev.fecha, fechaHoy),
       accion:"Confirmar asistencia", ir:()=>setFestejoDetalle(ev),
     })),
     ...(datos.talleresAbiertos||[]).map(({taller:t,hijos:hs})=>({
       key:`tal-${t.id}`, tipo:"Inscripción abierta", tag:null, titulo:t.nombre,
-      dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null), detalle:null,
+      dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta&&!avisoVencimiento("x", t.inscripcion_hasta, fechaHoy)?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null), detalle:null,
       vence:t.inscripcion_hasta||null, urgencia:avisoVencimiento("Inscripción hasta", t.inscripcion_hasta, fechaHoy),
       accion:"Ver el taller", ir:()=>onNavigate?.("talleres",{openTaller:t.id}),
     })),
     ...(datos.encuestasPend||[]).map(e=>({
       key:`enc-${e.id}`, tipo:"Encuesta", tag:tagDe(e.curso_id), titulo:e.pregunta,
-      dato:unir(e.fecha_cierre?`Cierra el ${fechaCorta(e.fecha_cierre)}`:null, "Todavía no votaste"), detalle:null,
+      dato:e.fecha_cierre&&!avisoVencimiento("x", e.fecha_cierre, fechaHoy)?`Cierra el ${fechaCorta(e.fecha_cierre)}`:null, detalle:null,
       vence:e.fecha_cierre||null, urgencia:avisoVencimiento("Cierra", e.fecha_cierre, fechaHoy),
       accion:"Votar en la encuesta", ir:()=>onNavigate?.("encuestas"),
     })),
@@ -293,7 +293,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       const { dias, fecha } = calcProximoCumple(a.fecha_nacimiento);
       return { key:a.id, fecha, dias, titulo:`Cumple de ${a.nombre}`, meta:"Cumpleaños", tag:tagDe(a.curso_id), ir:()=>onNavigate?.("cumples") };
     }),
-  ].sort((a,b)=>a.dias-b.dias).slice(0,6);
+  ].filter(e=>e.dias>=0&&e.dias<=DIAS_PROXIMOS).sort((a,b)=>a.dias-b.dias);
   const menuFilas = filasMenu(datos.menu);
   const colectasAbiertas = (datos.cuotas||[]).filter(c=>c.activa);
 
@@ -317,9 +317,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
             <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginTop:10,lineHeight:1.3}}>{destacado.titulo}</div>
             {destacado.dato&&<div style={{fontSize:13,color:"#64748B",marginTop:6,lineHeight:1.45}}>{destacado.dato}</div>}
             {destacado.detalle&&<div style={{fontSize:13,color:"#64748B",marginTop:2,lineHeight:1.45,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{destacado.detalle}</div>}
-            <button onClick={destacado.ir} style={{marginTop:14,minHeight:42,padding:"0 18px",borderRadius:12,border:"none",background:"#2563EB",cursor:"pointer",fontFamily:"inherit"}}>
-              <span style={{fontSize:14,fontWeight:700,color:"white"}}>{destacado.accion}</span>
-            </button>
+            {/* Mismo enlace que el resto de los pendientes (antes era un botón azul solo en el primero). */}
+            <Enlace texto={destacado.accion} onClick={destacado.ir} style={{marginTop:12}}/>
           </div>
           {/* El resto, en una sola tarjeta con separadores y un enlace cada uno. */}
           {resto.length>0&&(
@@ -352,10 +351,10 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   const bloqueComunicaciones = (
     <div style={{marginBottom:28}}>
-      <Encabezado titulo="Comunicaciones" cuenta={avisos.length}
+      <Encabezado titulo="Novedades" cuenta={avisos.length}
         derecha={<button onClick={()=>onNavigate?.("mensajes")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Mensajes</span></button>}/>
-      <div style={{fontSize:13,color:"#64748B",margin:"-6px 0 12px"}}>{avisos.length?`Avisos · ${avisos.length} sin leer`:"No tenés avisos sin leer."}</div>
-      {avisos.length>0&&(
+      {!avisos.length&&<div style={{fontSize:13,color:"#64748B",margin:"-6px 0 12px"}}>No tenés avisos sin leer.</div>}
+      {(avisos.length>0||datos.encontradosSemana>0)&&(
         <div style={card}>
           {avisos.map((a,i)=>(
             <div key={a.key} style={{padding:"14px 18px",borderTop:i?"1px solid #F1F5F9":"none"}}>
@@ -368,6 +367,17 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
               <Enlace texto="Leer aviso" onClick={a.ir} style={{marginTop:10}}/>
             </div>
           ))}
+          {datos.encontradosSemana>0&&(
+            <div style={{padding:"14px 18px",borderTop:avisos.length?"1px solid #F1F5F9":"none"}}>
+              <span style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Lost &amp; Found</span>
+              <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"} esta semana</div>
+              <div style={{fontSize:12.5,color:"#64748B",marginTop:3}}>¿{datos.encontradosSemana===1?"Es":"Alguno es"} de tu hijo?</div>
+              <div style={{display:"flex",gap:18,marginTop:10}}>
+                <Enlace texto="Ver" onClick={()=>onNavigate?.("perdidos")}/>
+                <button onClick={noEsMio} style={{...enlace}}><span style={{color:"#64748B"}}>No</span></button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -398,7 +408,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
           })}
         </div>
       ) : (
-        <div style={{fontSize:13,color:"#64748B"}}>Sin eventos ni cumpleaños en los próximos 15 días.</div>
+        <div style={{fontSize:13,color:"#64748B"}}>{`Sin eventos ni cumpleaños en los próximos ${DIAS_PROXIMOS} días.`}</div>
       )}
     </div>
   );
@@ -446,14 +456,6 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     );
   });
 
-  const bloqueEncontrados = datos.encontradosSemana>0 && (
-    <div style={{...card,display:"flex",alignItems:"center",gap:12,padding:"12px 16px",marginBottom:28}}>
-      <Icono nombre="lupa" size={19} color="#475569"/>
-      <span style={{flex:1,fontSize:13.5,color:"#0F172A"}}><b style={{color:"#0F172A"}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"}</b> esta semana. ¿{datos.encontradosSemana===1?"Es":"Alguno es"} de tu hijo?</span>
-      <button onClick={()=>onNavigate?.("perdidos")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Ver</span></button>
-      <button onClick={noEsMio} style={{...enlace,fontSize:13}}><span style={{color:"#64748B"}}>No</span></button>
-    </div>
-  );
 
   return (
     <div>
@@ -470,7 +472,6 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
           {bloqueAlertas}
           {bloquePendientes}
           {bloqueComunicaciones}
-          {bloqueEncontrados}
           {isMobile&&bloqueAgenda}
           {isMobile&&bloqueMenu}
         </div>

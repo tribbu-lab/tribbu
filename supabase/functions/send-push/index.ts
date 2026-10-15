@@ -42,6 +42,9 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
       return { title: "Nuevo evento", body: String(payload.titulo || "") };
     case "colecta":
       return { title: "Nueva colecta", body: String(payload.titulo || payload.descripcion || "") };
+    case "colecta_pago":
+      // Una familia avisó que transfirió: le llega a quien recauda para confirmarlo.
+      return { title: "💳 Avisaron un pago", body: String(payload.titulo || "") };
     case "festejo":
       return { title: "Festejo de cumpleaños", body: String(payload.titulo || "") };
     case "encuesta":

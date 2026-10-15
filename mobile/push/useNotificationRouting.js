@@ -10,6 +10,7 @@ export const TAB_MAP = {
   recordatorio: "/(tabs)/recordatorios",
   evento: "/(tabs)/calendario",
   colecta: "/(tabs)/finanzas",
+  colecta_pago: "/(tabs)/finanzas",
   alerta: "/(tabs)/muro",
   festejo: "/(tabs)/cumples",
   encuesta: "/(tabs)/encuestas",
@@ -31,6 +32,7 @@ const routeForData = (data) => {
   const params =
     type === "evento" && data?.fecha ? { openFecha: data.fecha }
     : type === "marketplace" ? { sub: "marketplace" }
+    : type === "colecta_pago" && data?.colectaId ? { openColecta: String(data.colectaId) }
     : type === "recordatorio" && data?.id ? { openAviso: String(data.id) }
     : type === "recordatorio" && data?.grupo ? { openGrupo: String(data.grupo) }
     : type === "taller" && data?.tallerId ? { openTaller: String(data.tallerId), t: String(Date.now()) }

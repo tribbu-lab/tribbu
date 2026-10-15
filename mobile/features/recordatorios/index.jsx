@@ -1,7 +1,6 @@
 // Recordatorios — patrón A3 (ver mobile/DESIGN_SYSTEM.md §7). Lista con leídos/
 // no-leídos, filtros colapsados en select-chips (Sheet), alta/edición y borrado.
-// El admin que crea un recordatorio dispara un push al curso. Incluye historial
-// de alertas. La prioridad/urgencia vive en el dot de la fila; leído = dot
+// El admin que crea un recordatorio dispara un push al curso. La prioridad/urgencia vive en el dot de la fila; leído = dot
 // hueco + texto apagado.
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
@@ -22,8 +21,8 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
-import { sanitize, fmtRangoHora, fmtLocalDate, fmtEnviado, ordenPorEnviado, coincideTexto } from "@shared/helpers";
-import { THEMES, STATUS, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
+import { sanitize, fmtLocalDate, ordenPorEnviado, coincideTexto } from "@shared/helpers";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -39,6 +38,8 @@ import { useLecturas } from "../../lib/useLecturas";
 import { useNotificacionesCtx } from "../notificaciones";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
 import { etiquetaDocente } from "@shared/docentes";
+import { separarAvisos, haceCuanto, fechaCortaAviso, fechaDelAviso, origenAviso, fotoDelAviso } from "@shared/avisosLista";
+import { SignedImage } from "../../components/SignedImage";
 
 // "18", "18:5", "1830", "18:30" → "18:30" · vacío → null · inválido → false.
 const normalizarHora = (v) => {
@@ -84,71 +85,116 @@ const ORIGENES = [
   { value: "normal", label: "Apoderados" },
 ];
 
-const RecordatorioRow = memo(function RecordatorioRow({ r, docente = null, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
-  // El aviso al que se llegó desde una notificación se muestra completo.
-  const [expandido, setExpandido] = useState(resaltado);
-  const esLargo = (r.texto || "").length > 150;
-  const prio = PRIO[r.prioridad || "media"];
-  const dias = r.fecha
-    ? Math.round((new Date(r.fecha + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / 86400000)
-    : null;
-  const rel =
-    dias === null ? null : dias === 0 ? "hoy" : dias === 1 ? "mañana" : dias < 0 ? `hace ${Math.abs(dias)} días` : `en ${dias} días`;
-  const fechaCorta = r.fecha
-    ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" })
-    : null;
-  const horaRango = fmtRangoHora(r.hora_inicio, r.hora_fin);
-  const meta = [fechaCorta, horaRango, rel, prio.l, r.urgente ? "Urgente" : null, r.grupo_id ? "🏫 Comunicación del colegio" : null, docente]
-    .filter(Boolean)
-    .join(" · ") || "Sin fecha";
-  const dotColor = r.urgente ? t.danger : prio.c;
-
+// Fecha del aviso como un dato más (una línea gris), no como una caja que
+// parece un botón: "Vie 16 oct · 10:30–11:00 · mañana".
+function LineaFecha({ r }) {
+  const f = fechaDelAviso(r.fecha, r.hora_inicio);
+  if (!f) return null;
   return (
-    <View style={[styles.row, resaltado && styles.rowResaltado]}>
-      <View style={[styles.rdot, esLeido ? styles.rdotLeido : { backgroundColor: dotColor }]} />
-      <View style={styles.flex1}>
-        {r.titulo ? <Text style={[styles.rowTitle, esLeido && styles.rowTxtLeido]}>{r.titulo}</Text> : null}
-        <Text style={[styles.rowTxt, r.titulo && styles.rowTxtConTitulo, esLeido && styles.rowTxtLeido]} numberOfLines={expandido ? undefined : 3}>{r.texto}</Text>
-        {esLargo ? (
-          <Pressable onPress={() => setExpandido((p) => !p)} hitSlop={6}>
-            <Text style={styles.verMasTxt}>{expandido ? "Ver menos" : "Ver más"}</Text>
-          </Pressable>
-        ) : null}
-        <Text style={styles.rowMeta} numberOfLines={1}>{meta}</Text>
-        {r.creado_en ? <Text style={styles.rowEnviado} numberOfLines={1}>{fmtEnviado(r.creado_en)}</Text> : null}
-        {tag ? (
-          <View style={styles.tagRow}>
-            <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
-            <Text style={styles.tagTxt} numberOfLines={1}>{tag.nombre}</Text>
-          </View>
-        ) : null}
-        <AdjuntosList adjuntos={r.adjuntos} />
-        <ChipLecturas filas={lecturas} onPress={() => onVerLecturas(r)} />
+    <View style={styles.fechaLinea}>
+      <MaterialCommunityIcons name="calendar-blank-outline" size={15} color={t.textMuted} />
+      <Text style={styles.fechaLineaTxt}>
+        {f.texto}{r.hora_fin ? `–${String(r.hora_fin).slice(0, 5)}` : ""} · {f.rel.toLowerCase()}
+      </Text>
+    </View>
+  );
+}
+
+// Tarjeta de "Recientes": prioridad, de quién viene, hace cuánto, punto de no
+// leído, miniatura de la foto y la fecha del aviso en una cajita. Tocarla la
+// abre entera (texto, adjuntos) y la marca leída.
+const AvisoCard = memo(function AvisoCard({ r, origen, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
+  const [abierto, setAbierto] = useState(resaltado);
+  const prio = PRIO[r.prioridad || "media"] || PRIO.media;
+  const foto = fotoDelAviso(r);
+  const tocar = () => {
+    setAbierto((x) => !x);
+    if (!esLeido) onLeido(r.id);
+  };
+  return (
+    <Pressable onPress={tocar} style={[styles.aviso, resaltado && styles.avisoResaltado]} accessibilityRole="button" accessibilityLabel={(r.titulo || r.texto || "") + (esLeido ? "" : ", sin leer")}>
+      <View style={styles.avisoTop}>
+        <View style={[styles.prioPill, { backgroundColor: prio.bg }]}>
+          <View style={[styles.prioDot, { backgroundColor: prio.c }]} />
+          <Text style={[styles.prioPillTxt, { color: prio.c }]}>{prio.l}</Text>
+        </View>
+        <Text style={styles.origen} numberOfLines={1}>{origen}</Text>
+        <Text style={styles.hace}>{haceCuanto(r.creado_en)}</Text>
+        {!esLeido ? <View style={styles.puntoNoLeido} /> : null}
       </View>
-      <View style={styles.rowActions}>
-        {esLeido ? (
-          <Pressable onPress={() => onLeido(r.id)} hitSlop={8} style={styles.checkBtn} accessibilityLabel="Marcar no leído">
-            <MaterialCommunityIcons name="check" size={17} color={t.textFaint} />
-          </Pressable>
-        ) : (
-          <Pressable onPress={() => onLeido(r.id)} hitSlop={8} style={styles.leerBtn}>
-            <Text style={styles.leerTxt}>Marcar leído</Text>
-          </Pressable>
-        )}
-        {puedeEditar ? (
-          <View style={styles.editRow}>
-            <Pressable onPress={() => onEditar(r)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Editar">
-              <MaterialCommunityIcons name="pencil-outline" size={15} color={t.textMuted} />
+      <View style={styles.avisoCuerpo}>
+        <View style={styles.flex1}>
+          <Text style={[styles.avisoTitulo, esLeido && styles.avisoLeido]} numberOfLines={abierto ? undefined : 2}>{r.titulo || r.texto}</Text>
+          {r.titulo && r.texto ? <Text style={styles.avisoTexto} numberOfLines={abierto ? undefined : 2}>{r.texto}</Text> : null}
+        </View>
+        {foto && !abierto ? <SignedImage src={foto.url} bucket="adjuntos" miniatura style={styles.thumb} /> : null}
+      </View>
+      <LineaFecha r={r} />
+      {abierto ? <AdjuntosList adjuntos={r.adjuntos} /> : null}
+      {tag || lecturas || puedeEditar || (abierto && esLeido) ? (
+        <View style={styles.avisoPie}>
+          {tag ? (
+            <View style={styles.tagRow}>
+              <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+              <Text style={styles.tagTxt} numberOfLines={1}>{tag.nombre}</Text>
+            </View>
+          ) : null}
+          <ChipLecturas filas={lecturas} onPress={() => onVerLecturas(r)} />
+          <View style={styles.flex1} />
+          {abierto && esLeido ? (
+            <Pressable onPress={() => onLeido(r.id)} hitSlop={8}>
+              <Text style={styles.noLeidoTxt}>Marcar no leído</Text>
             </Pressable>
-            <Pressable onPress={() => onEliminar(r.id)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Borrar">
-              <MaterialCommunityIcons name="trash-can-outline" size={15} color={t.danger} />
-            </Pressable>
-          </View>
-        ) : null}
+          ) : null}
+          {puedeEditar ? (
+            <View style={styles.editRow}>
+              <Pressable onPress={() => onEditar(r)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Editar">
+                <MaterialCommunityIcons name="pencil-outline" size={15} color={t.textMuted} />
+              </Pressable>
+              <Pressable onPress={() => onEliminar(r.id)} style={styles.iconBtn} hitSlop={6} accessibilityLabel="Borrar">
+                <MaterialCommunityIcons name="trash-can-outline" size={15} color={t.textMuted} />
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </Pressable>
+  );
+});
+
+// "Requiere tu atención": prioridad alta (o urgente) sin leer. "Entendido" la
+// marca leída y pasa a Recientes.
+function AvisoAtencion({ r, origen, resaltado = false, onEntendido }) {
+  const [abierto, setAbierto] = useState(resaltado);
+  return (
+    <View style={[styles.atencion, resaltado && styles.avisoResaltado]}>
+      <View style={styles.atencionTop}>
+        <View style={styles.atencionIcono}>
+          <MaterialCommunityIcons name="alert-outline" size={22} color={t.danger} />
+        </View>
+        <View style={styles.flex1}>
+          <Text style={styles.atencionTipo} numberOfLines={1}>{r.prioridad === "alta" ? "Prioridad alta" : "Urgente"} · {origen}</Text>
+          <Text style={styles.atencionFecha}>{[r.creado_en ? fechaCortaAviso(r.creado_en) : null, haceCuanto(r.creado_en)].filter(Boolean).join(" · ")}</Text>
+        </View>
+        <View style={styles.puntoNoLeido} />
+      </View>
+      <Text style={styles.atencionTitulo}>{r.titulo || r.texto}</Text>
+      {r.titulo && r.texto ? <Text style={styles.atencionTexto} numberOfLines={abierto ? undefined : 3}>{r.texto}</Text> : null}
+      <LineaFecha r={r} />
+      {abierto ? <AdjuntosList adjuntos={r.adjuntos} /> : null}
+      <View style={styles.atencionBtns}>
+        <Pressable onPress={() => setAbierto((x) => !x)} style={styles.atencionVer}>
+          <MaterialCommunityIcons name="file-document-outline" size={18} color={t.textStrong} />
+          <Text style={styles.atencionVerTxt}>{abierto ? "Ver menos" : "Ver comunicado"}</Text>
+        </Pressable>
+        <Pressable onPress={() => onEntendido(r.id)} style={styles.atencionOk}>
+          <MaterialCommunityIcons name="check" size={18} color="#fff" />
+          <Text style={styles.atencionOkTxt}>Entendido</Text>
+        </Pressable>
       </View>
     </View>
   );
-});
+}
 
 export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null }) {
   const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
@@ -380,14 +426,26 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   if (destino) {
     setDestinoUsado(destinoKey);
     setFiltroRango("all"); setFiltroPrio("all"); setFiltroLeido("all"); setFiltroOrigen("all");
-    const orden = [...visiblesTipo].sort(ordenAvisos);
-    setPagina(Math.floor(orden.findIndex((r) => r.id === destino.id) / POR_PAG) + 1);
+    const orden = [...visiblesTipo].sort(ordenAvisos).filter((r) => r.id === destino.id || !(r.prioridad === "alta" || r.urgente) || leidosSet.has(r.id));
+    setPagina(Math.max(1, Math.floor(orden.findIndex((r) => r.id === destino.id) / POR_PAG) + 1));
     setResaltado(destino.id);
   }
 
-  const totalPags = Math.max(1, Math.ceil(filtrados.length / POR_PAG));
+  // "Requiere tu atención" (alta/urgente sin leer) arriba; el resto, paginado.
+  const { atencion, recientes } = separarAvisos(filtrados, leidosSet);
+  const totalPags = Math.max(1, Math.ceil(recientes.length / POR_PAG));
   const pagina_ = Math.min(pagina, totalPags);
-  const visible = filtrados.slice((pagina_ - 1) * POR_PAG, pagina_ * POR_PAG);
+  const visible = recientes.slice((pagina_ - 1) * POR_PAG, pagina_ * POR_PAG);
+  const nombreCurso = (cid) => (items || []).find((i) => i.curso_id === cid)?.cursos?.nombre || null;
+  const origenDe = (r) => origenAviso(r, { docente: etiquetaDocente(docenteDe(r.creado_por)), curso: nombreCurso(r.curso_id) });
+  const recientesSinLeer = recientes.filter((r) => !leidosSet.has(r.id));
+  const marcarTodos = async () => {
+    if (!userId || !recientesSinLeer.length) return;
+    const ids = recientesSinLeer.map((r) => r.id);
+    await supabase.from("recordatorio_leidos").upsert(ids.map((id) => ({ recordatorio_id: id, usuario_id: userId })), { onConflict: "recordatorio_id,usuario_id" });
+    setLeidosSet((p) => new Set([...p, ...ids]));
+    recargarBadge?.();
+  };
   // Confirmación de lectura: la RPC solo devuelve los avisos que este usuario
   // puede auditar (propios, de su curso como Room Parent, o como colegio).
   const lecturas = useLecturas(visible.map((r) => r.id));
@@ -408,8 +466,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
         onScrollToIndexFailed={({ index }) => setTimeout(() => listaRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300)}
         keyExtractor={(r) => String(r.id)}
         renderItem={({ item }) => (
-          <RecordatorioRow
-            docente={etiquetaDocente(docenteDe(item.creado_por))}
+          <AvisoCard
+            origen={origenDe(item)}
             r={item}
             resaltado={item.id === resaltado}
             esLeido={leidosSet.has(item.id)}
@@ -440,20 +498,41 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
                 <BotonNuevo onPress={abrirNuevo} accessibilityLabel="Nuevo aviso" />
               </View>
             </View>
+            {atencion.length ? (
+              <>
+                <View style={styles.seccionRow}>
+                  <Text style={styles.seccionTxt}>Requiere tu atención</Text>
+                  <View style={styles.seccionCuenta}><Text style={styles.seccionCuentaTxt}>{atencion.length}</Text></View>
+                </View>
+                {atencion.map((r) => (
+                  <AvisoAtencion key={r.id} r={r} origen={origenDe(r)} resaltado={r.id === resaltado} onEntendido={marcarLeido} />
+                ))}
+              </>
+            ) : null}
+            {recientes.length ? (
+              <View style={styles.seccionRow}>
+                <Text style={[styles.seccionTxt, styles.flex1]}>Recientes</Text>
+                {recientesSinLeer.length ? (
+                  <Pressable onPress={marcarTodos} hitSlop={8} style={styles.marcarTodos}>
+                    <MaterialCommunityIcons name="check-all" size={17} color={BLUE[600]} />
+                    <Text style={styles.marcarTodosTxt}>Marcar todos como leídos</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         }
-        ListEmptyComponent={
+        ListEmptyComponent={atencion.length ? null : (
           <EmptyState
             emoji="📌"
             title="Sin avisos"
             note="Cuando el curso tenga avisos, aparecen acá."
             compact
           />
-        }
+        )}
         ListFooterComponent={
           <View>
             <Paginador pagina={pagina_} totalPag={totalPags} setPagina={setPagina} />
-            <HistorialComunicados cursoIds={cursoIds} tagDeCurso={tagDeCurso} />
           </View>
         }
       />
@@ -620,76 +699,45 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
   );
 }
 
-function HistorialComunicados({ cursoIds, tagDeCurso }) {
-  const [alertas, setAlertas] = useState([]);
-  const [abierto, setAbierto] = useState(false);
-  const [cargando, setCargando] = useState(false);
-
-  const cargar = async () => {
-    if (!cursoIds?.length) return;
-    setCargando(true);
-    const { data } = await supabase
-      .from("alertas")
-      .select("*")
-      .in("curso_id", cursoIds)
-      .order("creado_en", { ascending: false })
-      .limit(100);
-    setAlertas(data || []);
-    setCargando(false);
-  };
-
-  const toggle = () => {
-    if (!abierto && alertas.length === 0) cargar();
-    setAbierto((p) => !p);
-  };
-
-  const fmtFecha = (iso) =>
-    iso
-      ? new Date(iso).toLocaleDateString("es-AR", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "";
-
-  return (
-    <View style={styles.histWrap}>
-      <Text style={styles.label}>Comunicados</Text>
-      <Pressable onPress={toggle} style={styles.histToggle}>
-        <Text style={styles.histToggleTxt}>🚨 Historial de alertas</Text>
-        <MaterialCommunityIcons name={abierto ? "chevron-up" : "chevron-down"} size={18} color={t.textFaint} />
-      </Pressable>
-
-      {abierto ? (
-        <View style={styles.histList}>
-          {cargando ? <Text style={styles.empty}>Cargando...</Text> : null}
-          {!cargando && alertas.length === 0 ? <Text style={styles.empty}>Sin alertas anteriores</Text> : null}
-          {!cargando &&
-            alertas.map((a) => (
-              <View key={a.id} style={[styles.histItem, a.activa && styles.histItemActiva]}>
-                <Text style={styles.histEmoji}>{a.activa ? "🚨" : "📢"}</Text>
-                <View style={styles.flex1}>
-                  <Text style={styles.histMsg}>{a.mensaje}</Text>
-                  {tagDeCurso?.(a.curso_id) ? (
-                    <View style={styles.tagRow}>
-                      <View style={[styles.tagDot, { backgroundColor: tagDeCurso(a.curso_id).color }]} />
-                      <Text style={styles.tagTxt} numberOfLines={1}>{tagDeCurso(a.curso_id).nombre}</Text>
-                    </View>
-                  ) : null}
-                  <Text style={styles.histDate}>{fmtFecha(a.creado_en)}</Text>
-                </View>
-              </View>
-            ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 // Estilos A3: sin sombras, borde hairline, radio 16, dot de estado como ancla.
 const styles = StyleSheet.create({
+  // Avisos (formato tarjetas: Requiere tu atención + Recientes)
+  seccionRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: SPACE.md, marginBottom: SPACE.sm },
+  seccionTxt: { fontSize: 17, fontWeight: "800", color: t.textStrong },
+  seccionCuenta: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: RADIUS.full, backgroundColor: t.dangerSoft, alignItems: "center", justifyContent: "center" },
+  seccionCuentaTxt: { fontSize: 12, fontWeight: "800", color: t.danger },
+  marcarTodos: { flexDirection: "row", alignItems: "center", gap: 5 },
+  marcarTodosTxt: { fontSize: 13.5, fontWeight: "700", color: BLUE[600] },
+  aviso: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 20, padding: 16, marginBottom: SPACE.md },
+  avisoResaltado: { borderColor: BLUE[400], borderWidth: 2 },
+  avisoTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  prioPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: RADIUS.full },
+  prioDot: { width: 7, height: 7, borderRadius: 4 },
+  prioPillTxt: { fontSize: 12.5, fontWeight: "700" },
+  origen: { flex: 1, fontSize: 13.5, color: t.textMuted },
+  hace: { fontSize: 13, color: t.textMuted },
+  puntoNoLeido: { width: 9, height: 9, borderRadius: 5, backgroundColor: BLUE[600] },
+  avisoCuerpo: { flexDirection: "row", gap: 12, marginTop: 10 },
+  avisoTitulo: { fontSize: 16.5, fontWeight: "800", color: t.textStrong, lineHeight: 22 },
+  avisoLeido: { color: t.text },
+  avisoTexto: { fontSize: 14, color: t.textMuted, marginTop: 4, lineHeight: 20 },
+  thumb: { width: 64, height: 64, borderRadius: 12 },
+  fechaLinea: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
+  fechaLineaTxt: { fontSize: 13.5, fontWeight: "600", color: t.textMuted },
+  avisoPie: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
+  noLeidoTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted },
+  atencion: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA", borderRadius: 20, padding: 16, marginBottom: SPACE.md },
+  atencionTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  atencionIcono: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
+  atencionTipo: { fontSize: 13.5, fontWeight: "800", color: "#B91C1C" },
+  atencionFecha: { fontSize: 13, color: t.textMuted, marginTop: 1 },
+  atencionTitulo: { fontSize: 19, fontWeight: "800", color: t.textStrong, marginTop: 12 },
+  atencionTexto: { fontSize: 14.5, color: t.text, marginTop: 4, lineHeight: 21 },
+  atencionBtns: { flexDirection: "row", gap: 10, marginTop: 14 },
+  atencionVer: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#fff" },
+  atencionVerTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
+  atencionOk: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 46, borderRadius: 14, backgroundColor: BLUE[600] },
+  atencionOkTxt: { fontSize: 14.5, fontWeight: "800", color: "#fff" },
   horaRow: { flexDirection: "row", gap: 10 },
   horaCol: { flex: 1 },
   inputOff: { opacity: 0.5 },
@@ -814,33 +862,4 @@ const styles = StyleSheet.create({
   saveBtnOff: { opacity: 0.5 },
   saveTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
 
-  // historial
-  histWrap: { marginTop: SPACE.xl },
-  histToggle: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACE.lg,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: t.borderStrong,
-    backgroundColor: t.surface,
-  },
-  histToggleTxt: { fontSize: 13.5, fontWeight: "700", color: t.text },
-  histList: { marginTop: SPACE.sm },
-  histItem: {
-    flexDirection: "row",
-    gap: 10,
-    padding: SPACE.md,
-    marginBottom: 6,
-    borderRadius: RADIUS.xl,
-    backgroundColor: t.surface,
-    borderWidth: 1,
-    borderColor: t.borderStrong,
-  },
-  histItemActiva: { backgroundColor: t.dangerSoft, borderColor: STATUS.danger.border },
-  histEmoji: { fontSize: 18 },
-  histMsg: { fontSize: 13, fontWeight: "600", color: t.text, lineHeight: 18, marginBottom: 4 },
-  histDate: { fontSize: 11, color: t.textFaint },
 });

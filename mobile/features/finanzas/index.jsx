@@ -8,7 +8,7 @@ import { useRecarga } from "../../lib/useRecarga";
 import * as Clipboard from "expo-clipboard";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtF, dHasta, fmtLocalDate } from "@shared/helpers";
-import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas } from "@shared/muro";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas, estadoPago, avisarPagoA } from "@shared/muro";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -261,9 +261,22 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     return p && p.size ? base.filter((a) => p.has(a.id)) : base;
   };
 
-  const togglePago = async (colectaId, alumnoId, estadoActual) => {
-    const nuevo = estadoActual === "pagado" ? "pendiente" : "pagado";
-    const fecha_pago = nuevo === "pagado" ? fmtLocalDate() : null;
+  // Quien recauda: pendiente/informado → pagado (confirmar), pagado → pendiente.
+  const togglePago = (colectaId, alumnoId, estadoActual) =>
+    guardarEstadoPago(colectaId, alumnoId, estadoActual === "pagado" ? "pendiente" : "pagado");
+
+  // La familia avisa que transfirió (o lo deshace); a quien recauda le llega
+  // una notificación para confirmarlo.
+  const informarPago = async (c, a, deshacer = false) => {
+    await guardarEstadoPago(c.id, a.id, deshacer ? "pendiente" : "informado");
+    const ids = deshacer ? [] : avisarPagoA(c, userId);
+    if (ids.length) {
+      sendPush({ type: "colecta_pago", payload: { titulo: `Familia de ${a.nombre} avisó que pagó "${c.titulo}"`, colectaId: c.id, userIds: ids } }).catch(() => {});
+    }
+  };
+
+  const guardarEstadoPago = async (colectaId, alumnoId, nuevo) => {
+    const fecha_pago = nuevo === "pendiente" ? null : fmtLocalDate();
     setPagos((prev) => {
       const idx = prev.findIndex((p) => p.colecta_id === colectaId && p.alumno_id === alumnoId);
       if (idx >= 0) {
@@ -298,7 +311,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
     .flatMap((c) => {
       const alumnosCurso = alumnosDeColecta(c).filter((a) => misHijos.includes(a.id));
       return alumnosCurso
-        .filter((a) => getPago(c.id, a.id)?.estado !== "pagado")
+        .filter((a) => estadoPago(getPago(c.id, a.id)) === "pendiente")
         .map((a) => ({ colecta: c, dias: c.fecha_limite ? dHasta(c.fecha_limite) : null }));
     });
   const deudaTotal = deudaPropia.reduce((sum, d) => sum + (d.colecta.monto_sugerido || 0), 0);
@@ -361,6 +374,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
         const unSoloHijo = misAlumnosCurso.length === 1 ? misAlumnosCurso[0] : null;
         const pagoUnico = unSoloHijo ? getPago(c.id, unSoloHijo.id) : null;
         const pagadoUnico = pagoUnico?.estado === "pagado";
+        const informadoUnico = pagoUnico?.estado === "informado";
         const esResponsableUnico = unSoloHijo && userId === c.responsable_id;
 
         return (
@@ -416,15 +430,12 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
                     style={[styles.aporteBtn, pagadoUnico && styles.aporteBtnOn]}
                   >
                     <Text style={[styles.aporteTxt, pagadoUnico && styles.aporteTxtOn]}>
-                      {pagadoUnico ? "✓ Aportado · Deshacer" : `Registrar mi aporte${c.monto_sugerido ? ` · ${fmtMonto(c.monto_sugerido, c.moneda || "$")}` : ""}`}
+                      {pagadoUnico ? "✓ Aportado · Deshacer" : informadoUnico ? "Confirmar mi aporte" : `Registrar mi aporte${c.monto_sugerido ? ` · ${fmtMonto(c.monto_sugerido, c.moneda || "$")}` : ""}`}
                     </Text>
                   </Pressable>
                 ) : (
-                  <View style={[styles.estadoChip, pagadoUnico && styles.estadoChipOn]}>
-                    <Text style={[styles.estadoTxt, pagadoUnico && styles.estadoTxtOn]}>
-                      {pagadoUnico ? "✓ Aportado" : "Pendiente tu aporte"}
-                    </Text>
-                  </View>
+                  <PagoFamilia estado={estadoPago(pagoUnico)} activa={c.activa} ancho
+                    onInformar={() => informarPago(c, unSoloHijo)} onDeshacer={() => informarPago(c, unSoloHijo, true)} />
                 )}
               </View>
             ) : null}
@@ -455,11 +466,8 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
                           </Text>
                         </Pressable>
                       ) : (
-                        <View style={[styles.estadoChip, pagado && styles.estadoChipOn]}>
-                          <Text style={[styles.estadoTxt, pagado && styles.estadoTxtOn]}>
-                            {pagado ? "✓ Pagado" : "Pendiente"}
-                          </Text>
-                        </View>
+                        <PagoFamilia estado={estadoPago(pago)} activa={c.activa}
+                          onInformar={() => informarPago(c, a)} onDeshacer={() => informarPago(c, a, true)} />
                       )}
                     </View>
                   );
@@ -718,13 +726,53 @@ function ColectaFormModal({ visible, form, setForm, usuarios, cursoDestino, savi
   );
 }
 
+// Lo que ve la familia sobre su pago: "Ya transferí" (le avisa a quien
+// recauda), "Avisaste que pagaste · Deshacer" mientras no lo confirman, o
+// "✓ Aportado" cuando ya lo confirmaron.
+function PagoFamilia({ estado, activa, ancho = false, onInformar, onDeshacer }) {
+  if (estado === "pagado") {
+    return (
+      <View style={[styles.estadoChip, styles.estadoChipOn, ancho && styles.chipAncho]}>
+        <Text style={[styles.estadoTxt, styles.estadoTxtOn]}>✓ Aportado</Text>
+      </View>
+    );
+  }
+  if (estado === "informado") {
+    return (
+      <View style={ancho ? styles.informadoAncho : styles.informadoFila}>
+        <View style={styles.chipInformado}>
+          <Text style={styles.chipInformadoTxt}>Avisaste que pagaste</Text>
+        </View>
+        {ancho ? <Text style={styles.informadoNota}>Falta que quien recauda lo confirme.</Text> : null}
+        <Pressable onPress={onDeshacer} hitSlop={8}>
+          <Text style={styles.deshacerTxt}>Deshacer</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (!activa) {
+    return (
+      <View style={[styles.estadoChip, ancho && styles.chipAncho]}>
+        <Text style={styles.estadoTxt}>Pendiente tu aporte</Text>
+      </View>
+    );
+  }
+  return (
+    <Pressable onPress={onInformar} style={ancho ? styles.aporteBtn : styles.pagoBtn} accessibilityRole="button">
+      <Text style={ancho ? styles.aporteTxt : styles.pagoTxt}>{ancho ? "Ya transferí · avisar a quien recauda" : "Ya transferí"}</Text>
+    </Pressable>
+  );
+}
+
 function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, showToast }) {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
   if (!colecta) return null;
   const toggleable = canToggle(colecta);
-  const faltantes = alumnos.filter((a) => getPago(colecta.id, a.id)?.estado !== "pagado");
+  // Los que avisaron que pagaron no reciben el recordatorio (falta confirmarlos, no pagar).
+  const faltantes = alumnos.filter((a) => estadoPago(getPago(colecta.id, a.id)) === "pendiente");
+  const porConfirmar = alumnos.filter((a) => estadoPago(getPago(colecta.id, a.id)) === "informado").length;
 
   const recordar = async () => {
     if (!faltantes.length) return;
@@ -761,6 +809,7 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, s
             {alumnos.map((a) => {
               const pago = getPago(colecta.id, a.id);
               const pagado = pago?.estado === "pagado";
+              const informado = pago?.estado === "informado";
               return (
                 <View key={a.id} style={styles.pagoAlumnoRow}>
                   <View style={styles.flex1}>
@@ -769,21 +818,23 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, s
                     </Text>
                     {pagado && pago.fecha_pago ? (
                       <Text style={styles.meta}>Pagado el {fmtF(pago.fecha_pago)}</Text>
+                    ) : informado ? (
+                      <Text style={styles.metaInformado}>Avisó que pagó{pago.fecha_pago ? ` el ${fmtF(pago.fecha_pago)}` : ""}</Text>
                     ) : null}
                   </View>
                   {toggleable ? (
                     <Pressable
                       onPress={() => onToggle(colecta.id, a.id, pago?.estado)}
-                      style={[styles.pagoBtn, pagado && styles.pagoBtnOn]}
+                      style={[styles.pagoBtn, pagado && styles.pagoBtnOn, informado && styles.pagoBtnConfirmar]}
                     >
-                      <Text style={[styles.pagoTxt, pagado && styles.pagoTxtOn]}>
-                        {pagado ? "✓ Pagado" : "Marcar pagado"}
+                      <Text style={[styles.pagoTxt, pagado && styles.pagoTxtOn, informado && styles.pagoTxtConfirmar]}>
+                        {pagado ? "✓ Pagado" : informado ? "Confirmar" : "Marcar pagado"}
                       </Text>
                     </Pressable>
                   ) : (
                     <View style={[styles.estadoChip, pagado && styles.estadoChipOn]}>
                       <Text style={[styles.estadoTxt, pagado && styles.estadoTxtOn]}>
-                        {pagado ? "✓ Pagado" : "Pendiente"}
+                        {pagado ? "✓ Pagado" : informado ? "Avisó que pagó" : "Pendiente"}
                       </Text>
                     </View>
                   )}
@@ -796,7 +847,7 @@ function PagosModal({ colecta, alumnos, getPago, canToggle, onToggle, onClose, s
           {toggleable && alumnos.length > 0 ? (
             <View style={styles.pagosFooter}>
               <Text style={styles.pagosFooterTxt}>
-                {faltantes.length === 0 ? "Todos aportaron ✓" : `Faltan ${faltantes.length} de ${alumnos.length}`}
+                {[faltantes.length ? `Faltan ${faltantes.length} de ${alumnos.length}` : porConfirmar ? null : "Todos aportaron ✓", porConfirmar ? `${porConfirmar} por confirmar` : null].filter(Boolean).join(" · ")}
               </Text>
               {faltantes.length > 0 ? (
                 <Pressable onPress={recordar} disabled={enviando} style={styles.recordarBtn}>
@@ -868,6 +919,16 @@ const styles = StyleSheet.create({
   pagoBtnOn: { backgroundColor: t.success, borderColor: t.success },
   pagoTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
   pagoTxtOn: { color: "#FFFFFF" },
+  chipAncho: { alignSelf: "stretch", alignItems: "center", paddingVertical: 10 },
+  informadoFila: { alignItems: "flex-end", gap: 4 },
+  informadoAncho: { gap: 6 },
+  chipInformado: { alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: BLUE[50] },
+  chipInformadoTxt: { fontSize: 12.5, fontWeight: "700", color: BLUE[700] },
+  informadoNota: { fontSize: 12.5, color: t.textMuted },
+  deshacerTxt: { fontSize: 12.5, fontWeight: "700", color: t.textMuted },
+  metaInformado: { fontSize: 12, fontWeight: "600", color: BLUE[700], marginTop: 2 },
+  pagoBtnConfirmar: { backgroundColor: BLUE[600], borderColor: BLUE[600] },
+  pagoTxtConfirmar: { color: "#FFFFFF" },
   estadoChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: RADIUS.full, backgroundColor: t.warningSoft },
   estadoChipOn: { backgroundColor: t.successSoft },
   estadoTxt: { fontSize: 12, fontWeight: "700", color: "#B45309" },

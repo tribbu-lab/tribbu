@@ -5,7 +5,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtF, dHasta, fmtLocalDate } from "../../lib/helpers";
-import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas } from "../../lib/muro";
+import { gestionaColecta, diasVencida, DIAS_PARA_CERRAR, familiasPorUsuario, responsablesParaCurso, etiquetaResponsable, ordenarColectas, estadoPago, avisarPagoA } from "../../lib/muro";
 import { Card } from "../../components/Card";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
@@ -188,9 +188,20 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
     cargar();
   };
 
-  const togglePago = async (colectaId, alumnoId, estadoActual) => {
-    const nuevoEstado = estadoActual==="pagado" ? "pendiente" : "pagado";
-    const fecha_pago  = nuevoEstado==="pagado" ? fmtLocalDate() : null;
+  // Quien recauda: pendiente/informado → pagado (confirmar), pagado → pendiente.
+  const togglePago = (colectaId, alumnoId, estadoActual) =>
+    guardarEstadoPago(colectaId, alumnoId, estadoActual==="pagado" ? "pendiente" : "pagado");
+
+  // La familia avisa que transfirió (o lo deshace); a quien recauda le llega
+  // una notificación para confirmarlo.
+  const informarPago = async (c, a, deshacer=false) => {
+    await guardarEstadoPago(c.id, a.id, deshacer ? "pendiente" : "informado");
+    const ids = deshacer ? [] : avisarPagoA(c, userId);
+    if(ids.length) sendPush({ type:"colecta_pago", payload:{ titulo:`Familia de ${a.nombre} avisó que pagó "${c.titulo}"`, colectaId:c.id, userIds:ids } }).catch(()=>{});
+  };
+
+  const guardarEstadoPago = async (colectaId, alumnoId, nuevoEstado) => {
+    const fecha_pago  = nuevoEstado==="pendiente" ? null : fmtLocalDate();
     // Actualización optimista — UI responde inmediatamente
     setPagos(prev => {
       const idx = prev.findIndex(p=>p.colecta_id===colectaId&&p.alumno_id===alumnoId);
@@ -229,7 +240,7 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
   // mismo cálculo que ya hace cada tarjeta, agregado a nivel de módulo.
   let deudaTotal = 0, coleccionesConDeuda = 0;
   for(const c of colectas.filter(c=>c.activa)) {
-    const impagos = alumnosDeColecta(c).filter(a=>misHijos.includes(a.id) && getPago(c.id,a.id)?.estado!=="pagado");
+    const impagos = alumnosDeColecta(c).filter(a=>misHijos.includes(a.id) && estadoPago(getPago(c.id,a.id))==="pendiente");
     if(impagos.length) { deudaTotal += impagos.length*(c.monto_sugerido||0); coleccionesConDeuda++; }
   }
 
@@ -365,19 +376,21 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
             {alumnosDeColecta(vistaAdmin).map(a=>{
               const pago = getPago(vistaAdmin.id, a.id);
               const pagado = pago?.estado==="pagado";
-              const esResponsable = isAdmin || userId===vistaAdmin.responsable_id;
+              const informado = pago?.estado==="informado";
+              const esResponsable = gestionaColecta(vistaAdmin, userId, cursosAdmin);
               return (
                 <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid #F1F5F9"}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
                     {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
+                    {informado&&<div style={{fontSize:11.5,fontWeight:600,color:"#1D4ED8"}}>Avisó que pagó{pago.fecha_pago?` el ${fmtF(pago.fecha_pago)}`:""}</div>}
                   </div>
                   {esResponsable
-                    ? <button onClick={()=>togglePago(vistaAdmin.id,a.id,pago?.estado)} style={{padding:"5px 14px",borderRadius:20,border:"none",background:pagado?"#10B981":"#F1F5F9",color:pagado?"white":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-                        {pagado?"✓ Pagado":"Marcar pagado"}
+                    ? <button onClick={()=>togglePago(vistaAdmin.id,a.id,pago?.estado)} style={{padding:"5px 14px",borderRadius:20,border:"none",background:pagado?"#10B981":informado?"#2563EB":"#F1F5F9",color:pagado||informado?"white":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                        {pagado?"✓ Pagado":informado?"Confirmar":"Marcar pagado"}
                       </button>
                     : <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:pagado?"#F0FDF4":"#F8FAFC",color:pagado?"#10B981":"#94A3B8",border:`1px solid ${pagado?"#BBF7D0":"#E2E8F0"}`}}>
-                        {pagado?"✓ Pagado":"Pendiente"}
+                        {pagado?"✓ Pagado":informado?"Avisó que pagó":"Pendiente"}
                       </span>
                   }
                 </div>
@@ -484,16 +497,27 @@ const { data: colData } = await supabase.from("colectas").select("*").in("curso_
                 {misAlumnosCurso.map(a=>{
                   const pago        = getPago(c.id,a.id);
                   const pagado      = pago?.estado==="pagado";
-                  const esResponsable = isAdmin || userId===c.responsable_id;
+                  const informado   = pago?.estado==="informado";
+                  const esResponsable = gestionaColecta(c, userId, cursosAdmin);
                   return (
                     <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600}}>{a.nombre} {a.apellido}</div>
                         {pagado&&pago.fecha_pago&&<div style={{fontSize:11,color:"#94A3B8"}}>Pagado el {fmtF(pago.fecha_pago)}</div>}
+                        {informado&&!esResponsable&&<div style={{fontSize:11.5,color:"#64748B"}}>Falta que quien recauda lo confirme.</div>}
                       </div>
-                      {esResponsable
+                      {!esResponsable&&!pagado ? (
+                        informado
+                          ? <span style={{display:"inline-flex",alignItems:"center",gap:10}}>
+                              <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8"}}>Avisaste que pagaste</span>
+                              <button onClick={()=>informarPago(c,a,true)} style={{border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12,fontWeight:700,color:"#64748B"}}>Deshacer</span></button>
+                            </span>
+                          : c.activa
+                            ? <button onClick={()=>informarPago(c,a)} style={{padding:"6px 16px",borderRadius:20,border:"none",background:"#2563EB",cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12,fontWeight:700,color:"white"}}>Ya transferí</span></button>
+                            : <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:"#F8FAFC",color:"#94A3B8",border:"1px solid #E2E8F0"}}>Pendiente</span>
+                      ) : esResponsable
                         ? <button onClick={()=>c.activa&&togglePago(c.id,a.id,pago?.estado)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${pagado?"#10B981":"#E2E8F0"}`,background:pagado?"#10B981":"white",color:pagado?"white":"#64748B",cursor:c.activa?"pointer":"default",fontSize:12,fontWeight:700,transition:"all 0.15s",opacity:c.activa?1:0.5}}>
-                            {pagado?"✓ Pagado":"Marcar pagado"}
+                            {pagado?"✓ Pagado":informado?"Confirmar":"Marcar pagado"}
                           </button>
                         : <span style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:pagado?"#F0FDF4":"#F8FAFC",color:pagado?"#10B981":"#94A3B8",border:`1px solid ${pagado?"#BBF7D0":"#E2E8F0"}`}}>
                             {pagado?"✓ Pagado":"Pendiente"}

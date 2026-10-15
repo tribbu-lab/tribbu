@@ -49,7 +49,9 @@ export const colectasActivas = (colectas, hasta) => colectas.filter((c) => c.act
  * y un hijo de otro curso no cuenta como impago.
  */
 export const colectasPendientes = (activas, pagos, misHijosPorCurso) => {
-  const pagados = new Set(pagos.filter((p) => p.estado === "pagado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
+  // "informado" (la familia avisó que pagó, falta que lo confirmen) ya no le
+  // pide nada a la familia.
+  const pagados = new Set(pagos.filter((p) => p.estado === "pagado" || p.estado === "informado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
   return activas.filter((c) => (misHijosPorCurso.get(c.curso_id) || []).some((hid) => !pagados.has(`${c.id}-${hid}`)));
 };
 
@@ -143,6 +145,16 @@ export const etiquetaResponsable = (u, cursoId) => {
   return `${u.nombre || ""}${u.apellido ? ` ${u.apellido}` : ""}${hijos.length ? ` (${hijos.join(" y ")})` : ""}`;
 };
 
+/**
+ * Estado del pago de un alumno en una colecta (supabase/colectas-informar-pago.sql):
+ * "pagado" (confirmado por quien recauda; es lo único que suma), "informado"
+ * (la familia avisó que transfirió) o "pendiente".
+ */
+export const estadoPago = (pago) => (pago?.estado === "pagado" ? "pagado" : pago?.estado === "informado" ? "informado" : "pendiente");
+
+/** A quién avisarle que una familia informó un pago: el responsable (o quien la creó). */
+export const avisarPagoA = (c, userId) => [c?.responsable_id || c?.creado_por].filter((u) => u && u !== userId);
+
 /** Colectas para listar: las abiertas primero y las cerradas al final (cada grupo en el orden que vino). */
 export const ordenarColectas = (colectas = []) => [...colectas.filter((c) => c.activa), ...colectas.filter((c) => !c.activa)];
 
@@ -187,6 +199,9 @@ export const ordenarPorVencimiento = (items = []) =>
 
 const fmtDiaSemanaCorto = (s) =>
   new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "");
+
+/** "Próximos días" del Inicio: de hoy a DIAS_PROXIMOS días adelante. */
+export const DIAS_PROXIMOS = 5;
 
 /** Hasta cuántos días antes un pendiente se marca como urgente (en rojo). */
 export const DIAS_URGENTE = 2;

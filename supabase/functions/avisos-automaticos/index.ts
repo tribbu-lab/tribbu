@@ -129,7 +129,7 @@ async function impagosDeColectas(ctx: Ctx, colectas: any[]) {
   const { data: pagos } = colectas.length
     ? await ctx.sb.from("colecta_pagos").select("colecta_id,alumno_id,estado").in("colecta_id", colectas.map((c) => c.id))
     : { data: [] };
-  const pagado = new Set((pagos || []).filter((p) => p.estado === "pagado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
+  const pagado = new Set((pagos || []).filter((p) => p.estado === "pagado" || p.estado === "informado").map((p) => `${p.colecta_id}-${p.alumno_id}`));
   const porColecta = new Map<string, Set<string>>();
   for (const c of colectas) {
     const ids = new Set<string>();

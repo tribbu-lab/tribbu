@@ -37,7 +37,7 @@ import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { talleresParaAnotarse } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "@shared/perdidos";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu } from "@shared/muro";
+import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -336,25 +336,25 @@ export function Muro() {
     }),
     ...datos.colectasPend.map((c) => ({
       key: `c-${c.id}`, tipo: "Colecta", tag: tagDeCurso(c.curso_id), titulo: c.titulo,
-      dato: unir(montoTxt(c), (c.fecha_limite || c.vencimiento) && !avisoVencimiento("x", c.fecha_limite || c.vencimiento, fechaHoy) ? `Cierra el ${fechaCorta(c.fecha_limite || c.vencimiento)}` : null, "Todavía no registrado"), detalle: null,
+      dato: unir(montoTxt(c), (c.fecha_limite || c.vencimiento) && !avisoVencimiento("x", c.fecha_limite || c.vencimiento, fechaHoy) ? `Cierra el ${fechaCorta(c.fecha_limite || c.vencimiento)}` : null), detalle: null,
       vence: c.fecha_limite || c.vencimiento || null, urgencia: avisoVencimiento("Vence", c.fecha_limite || c.vencimiento, fechaHoy),
-      accion: "Registrar mi pago", ir: () => irColecta(c),
+      accion: "Ver datos para pagar", ir: () => irColecta(c),
     })),
     ...datos.invitaciones.map((ev) => ({
       key: `i-${ev.id}`, tipo: "Invitación", tag: tagDeCurso(ev.curso_id), titulo: ev.titulo,
-      dato: unir(fechaCorta(ev.fecha), hora(ev.hora), ev.lugar, "Asistencia sin confirmar"), detalle: null,
+      dato: unir(avisoVencimiento("x", ev.fecha, fechaHoy) ? null : fechaCorta(ev.fecha), hora(ev.hora), ev.lugar), detalle: null,
       vence: ev.fecha, urgencia: avisoVencimiento("Es", ev.fecha, fechaHoy),
       accion: "Confirmar asistencia", ir: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
     })),
     ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
       key: `tal-${x.id}`, tipo: "Inscripción abierta", tag: null, titulo: x.nombre,
-      dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null), detalle: null,
+      dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta && !avisoVencimiento("x", x.inscripcion_hasta, fechaHoy) ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null), detalle: null,
       vence: x.inscripcion_hasta || null, urgencia: avisoVencimiento("Inscripción hasta", x.inscripcion_hasta, fechaHoy),
       accion: "Ver el taller", ir: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
     })),
     ...datos.encuestasPend.map((e) => ({
       key: `enc-${e.id}`, tipo: "Encuesta", tag: tagDeCurso(e.curso_id), titulo: e.pregunta,
-      dato: unir(e.fecha_cierre ? `Cierra el ${fechaCorta(e.fecha_cierre)}` : null, "Todavía no votaste"), detalle: null,
+      dato: e.fecha_cierre && !avisoVencimiento("x", e.fecha_cierre, fechaHoy) ? `Cierra el ${fechaCorta(e.fecha_cierre)}` : null, detalle: null,
       vence: e.fecha_cierre || null, urgencia: avisoVencimiento("Cierra", e.fecha_cierre, fechaHoy),
       accion: "Votar en la encuesta", ir: () => router.push("/(tabs)/encuestas"),
     })),
@@ -393,8 +393,8 @@ export function Muro() {
       tag: tagDeCurso(b.curso_id), ir: () => router.push("/(tabs)/cumples"),
     })),
   ]
-    .sort((a, b) => a.dias - b.dias)
-    .slice(0, 6);
+    .filter((x) => x.dias >= 0 && x.dias <= DIAS_PROXIMOS)
+    .sort((a, b) => a.dias - b.dias);
   const menuFilas = filasMenu(datos.menu);
 
   return (
@@ -455,9 +455,8 @@ export function Muro() {
             <Text style={styles.destTitulo}>{destacado.titulo}</Text>
             {destacado.dato ? <Text style={styles.dato}>{destacado.dato}</Text> : null}
             {destacado.detalle ? <Text style={styles.dato} numberOfLines={2}>{destacado.detalle}</Text> : null}
-            <Pressable onPress={destacado.ir} style={styles.boton} accessibilityRole="button">
-              <Text style={styles.botonTxt}>{destacado.accion}</Text>
-            </Pressable>
+            {/* Mismo enlace que el resto de los pendientes (antes era un botón azul solo en el primero). */}
+            <Enlace texto={destacado.accion} onPress={destacado.ir} />
           </View>
           {resto.length ? (
             <View style={[styles.card, { marginTop: SPACE.md }]}>
@@ -492,9 +491,9 @@ export function Muro() {
         </View>
       )}
 
-      {/* ── Comunicaciones ── */}
+      {/* ── Novedades: avisos sin leer + Lost & Found ── */}
       <View style={styles.encabezado}>
-        <Text style={[styles.seccion, styles.seccionEnFila]}>Comunicaciones</Text>
+        <Text style={[styles.seccion, styles.seccionEnFila]}>Novedades</Text>
         {avisos.length ? (
           <View style={styles.cuenta}>
             <Text style={styles.cuentaTxt}>{avisos.length}</Text>
@@ -505,8 +504,8 @@ export function Muro() {
           <Text style={styles.link}>Mensajes</Text>
         </Pressable>
       </View>
-      <Text style={styles.subSeccion}>{avisos.length ? `Avisos · ${avisos.length} sin leer` : "No tenés avisos sin leer."}</Text>
-      {avisos.length ? (
+      {!avisos.length ? <Text style={styles.subSeccion}>No tenés avisos sin leer.</Text> : null}
+      {avisos.length || datos.encontradosSemana > 0 ? (
         <View style={styles.card}>
           {avisos.map((a, i) => (
             <View key={a.key} style={[styles.fila, i > 0 && styles.filaBorde]}>
@@ -519,31 +518,29 @@ export function Muro() {
               <Enlace texto="Leer aviso" onPress={a.ir} />
             </View>
           ))}
-        </View>
-      ) : null}
-
-      {datos.encontradosSemana > 0 ? (
-        <View style={[styles.card, styles.encontrados]}>
-          <MaterialCommunityIcons name="magnify" size={20} color={SLATE[600]} />
-          <Text style={styles.encontradosTxt}>
-            <Text style={styles.encontradosNum}>
-              {datos.encontradosSemana} {datos.encontradosSemana === 1 ? "objeto encontrado" : "objetos encontrados"}
-            </Text>{" "}
-            esta semana. ¿{datos.encontradosSemana === 1 ? "Es" : "Alguno es"} de tu hijo?
-          </Text>
-          <Pressable onPress={() => router.push("/(tabs)/perdidos")} hitSlop={8}>
-            <Text style={styles.link}>Ver</Text>
-          </Pressable>
-          {/* "No": deja de preguntar por estos objetos (vuelve solo si aparece uno nuevo). */}
-          <Pressable
-            onPress={() => {
-              AsyncStorage.setItem(claveEncontradosVistos(userId), new Date().toISOString()).catch(() => {});
-              setDatos((d) => ({ ...d, encontradosSemana: 0 }));
-            }}
-            hitSlop={8}
-          >
-            <Text style={styles.linkNo}>No</Text>
-          </Pressable>
+          {datos.encontradosSemana > 0 ? (
+            <View style={[styles.fila, avisos.length ? styles.filaBorde : null]}>
+              <Text style={styles.tipo}>Lost & Found</Text>
+              <Text style={styles.filaTitulo}>
+                {datos.encontradosSemana} {datos.encontradosSemana === 1 ? "objeto encontrado" : "objetos encontrados"} esta semana
+              </Text>
+              <Text style={styles.dato}>¿{datos.encontradosSemana === 1 ? "Es" : "Alguno es"} de tu hijo?</Text>
+              <View style={styles.accionesFila}>
+                <Enlace texto="Ver" onPress={() => router.push("/(tabs)/perdidos")} />
+                {/* "No": deja de preguntar por estos objetos (vuelve solo si aparece uno nuevo). */}
+                <Pressable
+                  onPress={() => {
+                    AsyncStorage.setItem(claveEncontradosVistos(userId), new Date().toISOString()).catch(() => {});
+                    setDatos((d) => ({ ...d, encontradosSemana: 0 }));
+                  }}
+                  hitSlop={8}
+                  style={styles.noBtn}
+                >
+                  <Text style={styles.linkNo}>No</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -577,7 +574,7 @@ export function Muro() {
           })}
         </View>
       ) : (
-        <Text style={styles.subSeccion}>Sin eventos ni cumpleaños en los próximos 15 días.</Text>
+        <Text style={styles.subSeccion}>{`Sin eventos ni cumpleaños en los próximos ${DIAS_PROXIMOS} días.`}</Text>
       )}
 
       {/* ── Menú de hoy ── */}
@@ -697,8 +694,6 @@ const styles = StyleSheet.create({
   destTitulo: { fontSize: 18, fontWeight: "800", color: t.textStrong, marginTop: 10, lineHeight: 23 },
   dato: { fontSize: 13, color: t.textMuted, marginTop: 4, lineHeight: 18 },
   datoUrgente: { color: "#B91C1C", fontWeight: "700" },
-  boton: { alignSelf: "flex-start", marginTop: 14, minHeight: 44, paddingHorizontal: 18, borderRadius: RADIUS.lg, backgroundColor: BLUE[600], alignItems: "center", justifyContent: "center" },
-  botonTxt: { fontSize: 14.5, fontWeight: "700", color: "#FFFFFF" },
   fila: { paddingHorizontal: 16, paddingVertical: 14 },
   filaBorde: { borderTopWidth: 1, borderTopColor: t.border },
   filaTitulo: { fontSize: 15, fontWeight: "700", color: t.textStrong, marginTop: 4, lineHeight: 20 },
@@ -713,10 +708,9 @@ const styles = StyleSheet.create({
   alDiaTitulo: { fontSize: 15, fontWeight: "700", color: t.textStrong },
   alDiaTxt: { fontSize: 13, color: t.textMuted, marginTop: 2, lineHeight: 18 },
 
-  encontrados: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, marginTop: SPACE.xl },
-  encontradosTxt: { flex: 1, fontSize: 13.5, color: t.text },
-  encontradosNum: { fontWeight: "800", color: t.textStrong },
-  linkNo: { fontSize: 13.5, fontWeight: "700", color: t.textMuted, marginLeft: 6 },
+  accionesFila: { flexDirection: "row", alignItems: "center", gap: 20 },
+  noBtn: { marginTop: 10, minHeight: 28, justifyContent: "center" },
+  linkNo: { fontSize: 14, fontWeight: "700", color: t.textMuted },
 
   arow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12 },
   fechaCol: { width: 36, alignItems: "center" },
