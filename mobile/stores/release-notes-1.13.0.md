@@ -1,20 +1,22 @@
 # Release notes 1.13.0 (es-419)
 
-Android vc45 · iOS build 39 · commits `a91bf4d..cf9ba55` (desde 1.12.0)
+Android vc46 · iOS build 40 · commits `a91bf4d..1bfd635` (desde 1.12.0)
 
-> **Reemplaza a vc44 / build 38** (2026-10-14, `a91bf4d..49bc1e0`) y a vc43 / build 37 (2026-10-13), que se subieron pero nunca se promovieron:
-> les faltaban los commits del 2026-10-15 (filtros y "+ Nuevo" unificados, buscador, foto de perfil). Promover **solo vc45 / build 39**.
-> Subidos el 2026-10-15: Android vc45 → Play interno (submission `36f31718`, Firebase ×2 en `base/resources.pb`, AAB 56 MB); iOS build 39 → ASC (submission `3f9e66b4`, `DTSDKName=iphoneos26.2`). En ASC la versión 1.13.0 todavía no existía, así que no hizo falta bump.
+> **Reemplaza a vc45 / build 39** (2026-10-15 tarde, `a91bf4d..cf9ba55`), vc44 / build 38 (2026-10-14) y vc43 / build 37 (2026-10-13), que se subieron pero nunca se promovieron.
+> vc45 / build 39 no tenían `1bfd635` (avisos en tarjetas, "Ya transferí" en colectas, Novedades en el Inicio), que entró a origin después del build. Promover **solo vc46 / build 40**.
+> Antes: vc45 → Play interno (submission `36f31718`), build 39 → ASC (submission `3f9e66b4`). En ASC la versión 1.13.0 todavía no existe, así que no hace falta bump.
+> Subidos el 2026-10-15 (noche): Android vc46 → Play interno (submission `040dc023`, Firebase ×2 en `base/resources.pb`, AAB 56 MB); iOS build 40 → ASC (submission `ddd38a12`, `DTSDKName=iphoneos26.2`).
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
 ```
-• Nueva navegación: Hoy, Agenda, Comunicaciones y Curso. Tu cuenta, con tu foto, en el círculo de arriba.
+• Nueva navegación: Hoy, Agenda, Comunicaciones y Curso. Sumá tu foto de perfil.
 • Hoy te muestra primero lo que espera tu respuesta.
 • Nuevo: Mensajes. Chateá con familias del curso, maestras y Secretaría sin compartir tu teléfono.
 • Nuevo: Talleres. Anotá a tus hijos y miralos en su horario.
+• Colectas: avisá "Ya transferí" y quien recauda lo confirma.
 • Las maestras tienen su cuenta en tribbu.
-• Buscador en Avisos y Mensajes, y filtros más simples.
+• Avisos más claros, buscador y filtros más simples.
 • Arreglos del teclado en Android.
 ```
 
@@ -26,13 +28,14 @@ Llegan los Mensajes y los Talleres, las maestras se suman a tribbu y estrenamos 
 • Nueva navegación en cuatro secciones: Hoy, Agenda (calendario, horario y cumpleaños), Comunicaciones (avisos y mensajes) y Curso (lo del colegio y lo que organizan las familias). Tu cuenta, las notificaciones y la ayuda están en el círculo de arriba a la derecha.
 • Se fueron el menú "Más" y la campana: lo que estaba en "Más" ahora está en Curso o en tu cuenta, y los avisos están en Comunicaciones, con su contador.
 • Foto de perfil: poné tu foto desde tu cuenta y se ve en el círculo de arriba. Si sos Room Parent, ahora lo ves en tu cuenta en vez de en el encabezado.
-• Hoy: arranca con lo que espera tu respuesta (autorizaciones, colectas, invitaciones, encuestas), con lo más urgente primero y la fecha en que cierra cada cosa; lo que vence en los próximos dos días aparece en rojo. Después, los avisos sin leer, los próximos días (con los cumpleaños a los que están invitados tus hijos) y el menú del comedor.
+• Hoy: arranca con lo que espera tu respuesta (autorizaciones, colectas, invitaciones, encuestas), con lo más urgente primero y la fecha en que cierra cada cosa; lo que vence en los próximos dos días aparece en rojo. Después, las novedades (avisos sin leer y objetos encontrados), los próximos cinco días (con los cumpleaños a los que están invitados tus hijos) y el menú del comedor.
 • Objetos encontrados: si esta semana encontraron algo, Hoy te pregunta si es de tu hijo. Podés verlo, o decir que no y deja de preguntarte.
 • Elegí a qué hijo mirar desde "Todos mis hijos", arriba de cada sección.
 • Más simple en todas las pantallas: un mismo botón "+ Nuevo" para crear y un botón "Filtros" para filtrar.
+• Avisos en tarjetas: arriba, los importantes que todavía no leíste, con "Entendido" para marcarlos leídos. Abajo, los recientes, con de quién viene cada uno, hace cuánto llegó y su foto. "Marcar todos como leídos" de un toque. Se fue el historial de alertas del final de Avisos.
 • Buscá en Avisos y en Mensajes.
 • Comedor: el menú dividido en Entrada, Plato principal y Postre, igual en Hoy y en Comedor.
-• Colectas: las activas aparecen primero. Al elegir responsable, solo aparecen las familias del curso, en orden alfabético.
+• Colectas: cuando transferiste, avisá "Ya transferí" y quien recauda recibe una notificación para confirmarlo. Las activas aparecen primero y, al elegir responsable, solo aparecen las familias del curso, en orden alfabético.
 • Autorizaciones: respondé directo desde Hoy. Ves hasta cuándo podés responder, la fecha de la salida y lo que respondiste por cada hijo.
 • Mensajes: escribile a otra familia del curso sin compartir tu teléfono ni tu email. El ícono de arriba te lleva a tus chats y te muestra cuántos mensajes tenés sin leer.
 • Grupo del curso: cada curso tiene su grupo con todas las familias. También podés armar tus propios grupos (para un cumple, una salida) o mandarle el mismo mensaje a varias familias, que lo reciben cada una por separado.
@@ -79,10 +82,12 @@ Sólo commits que tocan `mobile/` o `src/lib/`.
 - `3f664c3` — criterios de UI unificados: un solo `BotonNuevo` y un solo botón "Filtros" (`components/Filtros.jsx`: `BotonFiltros`/`FiltrosSheet`, grupos como chips + "Limpiar filtros"/"Listo") en Avisos, Mensajes, Calendario, Cumpleaños, Colectas, Encuestas, Autorizaciones, Lost & Found y Marketplace. Agenda = Calendario · Horario · Cumpleaños (nueva ruta `(tabs)/horario` con `Calendario soloHorario`). Menú del comedor con las mismas categorías en Inicio y Comedor (`TablaMenu`, `@shared/menu`: `CATEGORIAS_MENU`/`filasMenu`; `acompanamiento` = Plato principal 3). **Vuelve el ícono de Mensajes al `AppHeader`**, con globito (lo había sacado `1b433fb`). Inicio: vencimiento ≤2 días en rojo (`DIAS_URGENTE`), colectas/encuestas con "Cierra el …", festejos no rechazados en Próximos días, "¿Es de tu hijo? Ver / No" en objetos encontrados (`claveEncontradosVistos`, en AsyncStorage). Colectas: activas primero (`ordenarColectas`), responsable solo familias del curso, alfabético (`responsablesParaCurso`). Lost & Found sin emojis ni etiquetas de colores.
 - `bbcaa1a` — `Buscador` en Avisos (título + texto) y Mensajes (nombre, familia, último mensaje), sin acentos (`coincideTexto`, `filtrarConversaciones`). Soporte sale de la lista de Mensajes (queda en Mi cuenta → Ayuda y soporte; solo aparece en la lista con una respuesta sin leer). Sin emojis en títulos.
 - `cf9ba55` — foto de perfil: `usuarios.foto_url` + RPC `actualizar_mi_foto` (SQL `perfil-foto.sql`, aplicado en prod), `lib/fotoPerfil.js` + `AvatarPerfil` en el header y en Mi cuenta. "Room Parent" deja de ser cartel del header: "Room Parent de 4°B" en Mi cuenta.
+- **Agregado en vc46 / build 40** (2026-10-15 noche; `16ee672` es la landing):
+- `1bfd635` — Avisos en tarjetas (`mobile/features/recordatorios`): "Requiere tu atención" = prioridad alta/urgente sin leer (`AvisoAtencion`, "Ver comunicado" / "Entendido"), "Recientes" paginado con "Marcar todos como leídos", pill de prioridad, origen, `haceCuanto`, punto de no leído, miniatura de la primera foto (`@shared/avisosLista`: `separarAvisos`, `fechaDelAviso`, `origenAviso`, `fotoDelAviso`). Sale `HistorialComunicados` (el desplegable de alertas pasadas al pie de Avisos). Colectas: `colecta_pagos.estado` `informado` — la familia toca "Ya transferí", quien recauda confirma desde "Ver pagos"; push `colecta_pago` → `(tabs)/finanzas` con `openColecta` (`useNotificationRouting`); `informado` deja de contar como pendiente (`estadoPago`/`avisarPagoA` en `@shared/muro`). SQL `colectas-informar-pago.sql` aplicado y `send-push`/`avisos-automaticos` redeployadas **antes** del build: las versiones viejas (1.12.0 en producción, build 39) no se rompen — la familia nunca escribía el estado desde la app — pero muestran un pago `informado` como deuda y el push `colecta_pago` no abre la colecta. Inicio: "Comunicaciones" pasa a "Novedades" (Lost & Found adentro), Próximos días a `DIAS_PROXIMOS` = 5, todas las acciones de pendientes como enlace (colecta: "Ver datos para pagar").
 - QA 2026-10-13 en emulador Android: grupo, difusión, Secretaría, soporte y vista docente (cuenta real de una maestra) — todo OK; los datos de prueba se borraron.
-- **Falta** probar en un iPhone real desde TestFlight (build 39) antes de enviar a review: el chat (teclado, Modal del chat, `Sheet` encadenados, normas dentro del chat), la navegación nueva (Hoy, "Todos mis hijos", Mi cuenta → Eliminar mi cuenta, "‹ Curso"), la `FiltrosSheet` y subir/quitar la foto de perfil (picker de imágenes + Storage). Nada de 1.13.0 se probó en un dispositivo todavía.
+- **Falta** probar en un iPhone real desde TestFlight (build 40) antes de enviar a review: el chat (teclado, Modal del chat, `Sheet` encadenados, normas dentro del chat), la navegación nueva (Hoy, "Todos mis hijos", Mi cuenta → Eliminar mi cuenta, "‹ Curso"), la `FiltrosSheet`, subir/quitar la foto de perfil (picker de imágenes + Storage), Avisos en tarjetas y "Ya transferí" → push a quien recauda → Confirmar. Nada de 1.13.0 se probó en un dispositivo todavía.
 
-**Review Notes de ASC — HAY QUE ACTUALIZARLAS antes de `/store-promote`.** `promover-release.mjs` reusa las de 1.12.0, que quedaron **inválidas con la navegación nueva**: describen pestañas Inicio / Calendario / Cumpleaños / Avisos / Más, y dicen que la baja de cuenta está en **"Más → Eliminar mi cuenta"** — "Más" ya no existe (ahora es Mi cuenta, desde el círculo con las iniciales). Un revisor que no encuentra la baja de cuenta rechaza por 5.1.1(v). No cambia el login ni el alta de cuentas: la cuenta demo (demo@tribbu.app, sin código) sigue siendo válida. Además este release agrega **contenido generado por usuarios** (chat, Apple 1.2): normas que se aceptan antes de escribir a otras familias, denunciar mensaje, bloquear usuario, y las denuncias las revisa el colegio. La cuenta demo tiene otra familia en su curso (verificado 2026-10-13), así que el revisor puede abrir un chat y ver el grupo del curso. Ajustado 2026-10-15 a build 39: Horario es pestaña propia de Agenda, el círculo puede mostrar la foto de perfil y el chat se abre con "+ Nuevo" (o el ícono de Mensajes del header).
+**Review Notes de ASC — HAY QUE ACTUALIZARLAS antes de `/store-promote`.** `promover-release.mjs` reusa las de 1.12.0, que quedaron **inválidas con la navegación nueva**: describen pestañas Inicio / Calendario / Cumpleaños / Avisos / Más, y dicen que la baja de cuenta está en **"Más → Eliminar mi cuenta"** — "Más" ya no existe (ahora es Mi cuenta, desde el círculo con las iniciales). Un revisor que no encuentra la baja de cuenta rechaza por 5.1.1(v). No cambia el login ni el alta de cuentas: la cuenta demo (demo@tribbu.app, sin código) sigue siendo válida. Además este release agrega **contenido generado por usuarios** (chat, Apple 1.2): normas que se aceptan antes de escribir a otras familias, denunciar mensaje, bloquear usuario, y las denuncias las revisa el colegio. La cuenta demo tiene otra familia en su curso (verificado 2026-10-13), así que el revisor puede abrir un chat y ver el grupo del curso. Ajustado 2026-10-15 a build 40 ("Novedades" en Hoy) y antes a build 39: Horario es pestaña propia de Agenda, el círculo puede mostrar la foto de perfil y el chat se abre con "+ Nuevo" (o el ícono de Mensajes del header).
 
 Texto propuesto (reemplaza las Review Notes completas):
 
@@ -91,7 +96,7 @@ tribbu is a school-community app for parents and guardians of school-age childre
 
 HOW TO REVIEW
 Sign in with the demo account provided above. It belongs to "María", parent of Sofía in the demo classroom "3°A - Primaria" of "Colegio Demo tribbu" (a sample school with no real families). María is also that classroom's Room Parent (the volunteer parent who coordinates the class), so she can create content too. The app has four sections in the bottom bar, pre-loaded with sample data:
-• Hoy (Today): what is waiting for the family's answer (a permission slip, a class fundraiser, a birthday party invitation, a poll), unread notices, the next days and today's lunch menu.
+• Hoy (Today): what is waiting for the family's answer (a permission slip, a class fundraiser, a birthday party invitation, a poll), Novedades (unread notices and found items), the next five days and today's lunch menu.
 • Agenda: Calendario (class events), Horario (the weekly class timetable) and Cumpleaños (classmates' birthdays and party invitations).
 • Comunicaciones: Avisos (class and school notices, with read receipts) and Mensajes (chat).
 • Curso: Autorizaciones (permission slips), Comedor (lunch menu), Talleres (after-school workshops), Info útil, Contacto, Colectas (fundraisers), Encuestas (polls), Marketplace (used items among families of the same school) and Lost & Found.
