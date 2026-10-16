@@ -6,6 +6,7 @@
 // haya votado o no. Cerrar/borrar es de quien la creó, un admin del curso, o
 // Super Admin.
 import { useState, useCallback } from "react";
+import { EmptyState } from "../../components/EmptyState";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
@@ -199,7 +200,7 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
   return (
     <div>
       <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 4, letterSpacing: -0.3 }}>Encuestas</div>
-      <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>Sondeos rápidos del curso — un voto por apoderado</div>
+      <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>Consultas entre las familias del curso</div>
 
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -270,12 +271,12 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
 
       {cargando && <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Cargando...</div>}
       {!cargando && filtro !== "eliminadas" && visibles.length === 0 && (
-        <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>
-          {filtro === "activas" ? "Sin encuestas activas" : "Sin encuestas cerradas"}
-        </div>
+        <EmptyState icono="grafico" titulo={filtro === "activas" ? "Sin encuestas activas" : "Sin encuestas cerradas"}
+          nota={filtro === "activas" ? "Creá la primera para consultar al curso." : null}
+          accion={filtro === "activas" ? "Crear encuesta" : null} onAccion={abrirModal} />
       )}
       {!cargando && filtro === "eliminadas" && eliminadas.length === 0 && (
-        <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Sin encuestas eliminadas</div>
+        <EmptyState icono="papelera" titulo="Sin encuestas eliminadas" />
       )}
 
       {!cargando && filtro === "eliminadas" && eliminadas.length > 0 && (

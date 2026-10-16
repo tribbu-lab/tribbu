@@ -30,7 +30,7 @@ const GRUPOS_FAMILIA = [
   ] },
   { titulo: "De la comunidad", items: [
     { id: "finanzas", label: "Colectas", desc: "Aportes y registro de pagos", icon: "hand-coin-outline", cuenta: "colectas" },
-    { id: "encuestas", label: "Encuestas", desc: "Consultas entre las familias", icon: "chart-bar" },
+    { id: "encuestas", label: "Encuestas", desc: "Consultas entre las familias", icon: "chart-box-outline" },
     { id: "comunidad", label: "Marketplace", desc: "Comprá, vendé o regalá cosas usadas", icon: "shopping-outline" },
     { id: "perdidos", label: "Lost & Found", desc: "Objetos perdidos y encontrados", icon: "magnify-scan" },
   ] },
@@ -42,7 +42,7 @@ const GRUPOS_DOCENTE = [
   { titulo: "Mis cursos", items: [
     { id: "alumnos", label: "Alumnos", desc: "Tus alumnos y sus familias", icon: "account-school-outline" },
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icon: "file-sign" },
-    { id: "encuestas", label: "Encuestas", desc: "Consultas a las familias", icon: "chart-bar" },
+    { id: "encuestas", label: "Encuestas", desc: "Consultas a las familias", icon: "chart-box-outline" },
     { id: "talleres", label: "Mis talleres", desc: "Inscriptos y avisos", icon: "palette-outline" },
   ] },
 ];

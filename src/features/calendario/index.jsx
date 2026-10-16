@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
+import { EmptyState } from "../../components/EmptyState";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
@@ -378,7 +379,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
             );
           })()}
 
-          {listaEventos().length===0&&<div style={{fontSize:13,color:"#94A3B8",padding:32,textAlign:"center"}}>No hay eventos para este filtro</div>}
+          {listaEventos().length===0&&<EmptyState icono="agenda" titulo="No hay eventos" nota="Probá con otros filtros, o creá uno con + Nuevo."/>}
           {listaEventos().map((e,i)=>{
             const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
             const d   = new Date(e.fecha+"T00:00:00");
@@ -430,7 +431,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
       {/* VISTA HORARIO */}
       {vista==="horario"&&(()=>{
-        const DIA_COLORS = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#0EA5E9"];
+        const diaHoyHorario = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][new Date().getDay()-1] || null;
         // Talleres optativos: los ve quien gestiona el curso (Room Parent,
         // docente) y cada familia solo si su hijo está anotado.
         const verTodo = (cid) => (isAdmin && cid===cursoId) || cursosDocente.includes(cid);
@@ -487,9 +488,9 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                   <thead>
                     <tr>
                       <th style={{padding:"8px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:10,color:"#94A3B8",fontWeight:700}}></th>
-                      {DIAS.map((d,i)=>(
-                        <th key={d} style={{padding:"8px 6px",background:DIA_COLORS[i]+"18",border:"1px solid #E2E8F0",fontSize:11,fontWeight:800,color:DIA_COLORS[i],textAlign:"center",letterSpacing:0.3}}>
-                          {d.slice(0,3).toUpperCase()}
+                      {DIAS.map(d=>(
+                        <th key={d} style={{padding:"9px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",textAlign:"center"}}>
+                          <span style={{fontSize:12,fontWeight:d===diaHoyHorario?800:700,color:d===diaHoyHorario?"#1D4ED8":"#475569"}}>{d.slice(0,3)}{d===diaHoyHorario?" · hoy":""}</span>
                         </th>
                       ))}
                     </tr>
@@ -505,16 +506,14 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                             <div style={{fontSize:10,fontWeight:700,color:"#64748B",whiteSpace:"nowrap"}}>{fmtHora(slot)}</div>
                             {maxFin&&<div style={{fontSize:9,color:"#CBD5E1",whiteSpace:"nowrap"}}>{fmtHora(maxFin)}</div>}
                           </td>
-                          {DIAS.map((dia,di)=>{
+                          {DIAS.map(dia=>{
                             const clase = hs.find(h=>delDia(h,dia)&&h.hora_inicio===slot);
-                            const dc = DIA_COLORS[di];
                             return (
                               <td key={dia} style={{padding:"5px 5px",border:"1px solid #E2E8F0",verticalAlign:"top",background:"white"}}>
                                 {clase ? (
-                                  <div style={{background:(clase.color||dc)+"18",border:`1.5px solid ${clase.color||dc}44`,borderRadius:8,padding:"6px 7px",height:"100%",boxSizing:"border-box"}}>
-                                    <div style={{fontSize:11,fontWeight:700,color:clase.color||dc,lineHeight:1.3,marginBottom:clase.docente?2:0}}>{clase.clases?.optativa?"✦ ":""}{clase.materia}</div>
-                                    {clase.docente&&<div style={{fontSize:9,color:"#94A3B8",lineHeight:1.2}}>{clase.docente}</div>}
-                                    <div style={{fontSize:9,color:"#CBD5E1",marginTop:2}}>{fmtHora(clase.hora_inicio)}–{fmtHora(clase.hora_fin)}</div>
+                                  <div style={{borderLeft:`3px solid ${clase.color||"#CBD5E1"}`,padding:"4px 8px",height:"100%",boxSizing:"border-box"}}>
+                                    <div style={{fontSize:12.5,fontWeight:700,color:"#0F172A",lineHeight:1.3}}>{clase.clases?.optativa?"✦ ":""}{clase.materia}</div>
+                                    {clase.docente&&<div style={{fontSize:11,color:"#64748B",lineHeight:1.3,marginTop:1}}>{clase.docente}</div>}
                                   </div>
                                 ) : (
                                   <div style={{height:52}}/>
@@ -541,9 +540,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
             {/* El título lo da la pestaña "Horario" de Agenda. */}
 
             {horariosVisibles.length===0&&(
-              <div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>
-                {isAdmin ? "No hay horarios cargados. Agregá desde ⚙️ Admin → Horarios." : "No hay horarios cargados aún."}
-              </div>
+              <EmptyState icono="reloj" titulo="Todavía no hay horario"
+                nota={isAdmin ? "Cargalo desde Curso → Administrar el curso → Horarios." : "Cuando el colegio cargue el horario de clases, aparece acá."}/>
             )}
 
             {horariosVisibles.some(h=>h.clases?.optativa)&&<div style={{fontSize:11.5,color:"#7C3AED",marginBottom:10}}>✦ Taller</div>}

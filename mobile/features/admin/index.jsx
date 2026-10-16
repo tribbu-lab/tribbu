@@ -18,8 +18,11 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
+import { THEMES, BLUE, SLATE, RADIUS } from "@shared/tokens";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useSession } from "../../context/Session";
 import { HorarioCurso } from "../horarios";
+import { EmptyState } from "../../components/EmptyState";
 
 
 export function AdminPanel() {
@@ -145,26 +148,32 @@ export function AdminPanel() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>Admin</Text>
+      <Text style={styles.h1}>Administrar el curso</Text>
       <Text style={styles.subtitle}>{cursoNombre}</Text>
 
-      <Pressable onPress={() => setAlertaSheet(true)} style={styles.alertaBanner}>
-        <Text style={styles.alertaBannerIcon}>🚨</Text>
-        <Text style={styles.alertaBannerTxt}>Publicar alerta urgente al curso</Text>
+      <Pressable onPress={() => setAlertaSheet(true)} style={styles.alertaBanner} accessibilityRole="button">
+        <View style={styles.alertaIcono}>
+          <MaterialCommunityIcons name="alarm-light-outline" size={19} color="#DC2626" />
+        </View>
+        <View style={styles.flex1}>
+          <Text style={styles.alertaBannerTxt}>Publicar una alerta urgente</Text>
+          <Text style={styles.alertaBannerSub}>Les llega al instante a todas las familias del curso</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={SLATE[400]} />
       </Pressable>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
+      <View style={styles.tabs}>
         {[
           { id: "general", l: "General" },
           { id: "horarios", l: "Horarios" },
           { id: "familias", l: "Familias" },
-          { id: "regalos", l: "🎁 Regalos" },
+          { id: "regalos", l: "Regalos" },
         ].map((t) => (
           <Pressable key={t.id} onPress={() => setTab(t.id)} style={[styles.tab, tab === t.id && styles.tabActive]}>
             <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.l}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {tab === "general" ? (
         <View style={styles.card}>
@@ -212,7 +221,7 @@ export function AdminPanel() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Room Parents del curso</Text>
             {roomParents.length === 0 ? (
-              <Text style={styles.muted}>Sin Room Parents asignados</Text>
+              <EmptyState compact icon="account-star-outline" title="Sin Room Parents" note="El colegio los asigna desde su panel." />
             ) : (
               roomParents.map((r, i) => (
                 <Text key={i} style={styles.rpRow}>{fmtNombre(r)} · {r.email}</Text>
@@ -224,7 +233,7 @@ export function AdminPanel() {
             Familias sin registrar{familiasSinRegistrar.length ? ` · ${familiasSinRegistrar.length}` : ""}
           </Text>
           <Text style={styles.familiasSub}>
-            Alumnos del curso a los que todavía ningún apoderado se vinculó con el código de invitación.
+            Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
           </Text>
           {familiasSinRegistrar.length === 0 ? (
             <View style={styles.card}>
@@ -337,20 +346,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: T.bg },
   content: { padding: 16, paddingBottom: 112 /* barra flotante */ },
   flex1: { flex: 1 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
+  h1: { fontSize: 21, fontWeight: "800", color: T.text },
   subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
   muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 24 },
-  tabsScroll: { flexGrow: 0, marginBottom: 16 },
-  tabs: { flexDirection: "row", gap: 8 },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, backgroundColor: "#F1F5F9", minHeight: 38, justifyContent: "center" },
-  tabActive: { backgroundColor: T.primary },
-  tabTxt: { fontSize: 13, fontWeight: "700", color: "#64748B" },
-  tabTxtActive: { color: "white" },
+  // mismas pestañas que Agenda/Comunicaciones (components/SubTabs)
+  tabs: { flexDirection: "row", backgroundColor: SLATE[100], borderRadius: RADIUS.full, padding: 4, marginBottom: 16 },
+  tab: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 38, borderRadius: RADIUS.full },
+  tabActive: { backgroundColor: THEMES.light.surface, borderWidth: 1, borderColor: THEMES.light.border },
+  tabTxt: { fontSize: 13.5, fontWeight: "600", color: THEMES.light.textMuted },
+  tabTxtActive: { color: BLUE[700], fontWeight: "800" },
 
   // alerta urgente arriba de todo (Parte 3.b del handoff)
-  alertaBanner: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FCA5A5", paddingHorizontal: 16, marginBottom: 16 },
-  alertaBannerIcon: { fontSize: 20 },
-  alertaBannerTxt: { fontSize: 13.5, fontWeight: "700", color: "#DC2626" },
+  alertaBanner: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, backgroundColor: THEMES.light.surface, borderWidth: 1, borderColor: THEMES.light.borderStrong, padding: 14, marginBottom: 16 },
+  alertaIcono: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
+  alertaBannerTxt: { fontSize: 15, fontWeight: "700", color: THEMES.light.textStrong },
+  alertaBannerSub: { fontSize: 12.5, color: THEMES.light.textMuted, marginTop: 2 },
   alertaSub: { fontSize: 12, color: "#94A3B8", lineHeight: 17, marginBottom: 14 },
   alertaInput: { minHeight: 80, textAlignVertical: "top" },
 

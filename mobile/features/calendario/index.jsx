@@ -5,6 +5,7 @@
 // gestionan en Cumpleaños (no se abre su modal acá).
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { EmptyState } from "../../components/EmptyState";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Linking, KeyboardAvoidingView, StyleSheet, Alert, RefreshControl } from "react-native";
 import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -24,7 +25,7 @@ import BotonAgregarCalendario from "./BotonAgregarCalendario";
 import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { FestejoDetalleModal } from "../cumples";
-import { diasVisibles, normalizarDia } from "@shared/horarios";
+import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/horarios";
 import { bloquesDeTalleres } from "@shared/talleres";
 
 const t = THEMES.light;
@@ -51,6 +52,9 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
   hoy.setHours(0, 0, 0, 0);
 
   const [vista, setVista] = useState(soloHorario ? "horario" : "mes");
+  // Horario: día elegido; arranca en hoy (o en el primero con clases).
+  const [diaHorario, setDiaHorario] = useState(null);
+  const diaHorarioSel = (dias) => (dias.includes(diaHorario) ? diaHorario : dias.includes(diaDeHoy()) ? diaDeHoy() : dias[0]);
   const [mes, setMes] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
   const [cumples, setCumples] = useState([]);
@@ -383,7 +387,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
           <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
 
           {listaEventos().length === 0 ? (
-            <Text style={styles.muted}>No hay eventos para este filtro</Text>
+            <EmptyState icon="calendar-blank-outline" title="No hay eventos" note="Probá con otros filtros, o creá uno con + Nuevo." />
           ) : null}
           {listaEventos().map((e, i) => {
             const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
@@ -453,21 +457,25 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
       ) : null}
 
       {vista === "horario" ? (
-        esVistaTodos ? (
-          horariosVisibles.length === 0 ? (
-            <Text style={styles.muted}>No hay horarios cargados aún.</Text>
-          ) : (
-            (cursoIds || [])
-              .filter((cid) => horariosVisibles.some((h) => h.curso_id === cid))
-              .map((cid) => (
-                <View key={cid} style={styles.horarioSeccion}>
-                  <TagHijo tag={tagDeCurso(cid)} />
-                  <HorarioView horarios={horariosVisibles.filter((h) => h.curso_id === cid)} isAdmin={false} />
-                </View>
-              ))
-          )
+        horariosVisibles.length === 0 ? (
+          <EmptyState icon="clock-outline" title="Todavía no hay horario"
+            note={isAdmin ? "Cargalo desde Curso → Administrar el curso → Horarios." : "Cuando el colegio cargue el horario de clases, aparece acá."} />
         ) : (
-          <HorarioView horarios={horariosVisibles} isAdmin={isAdmin} />
+          <>
+            <DiasHorario dias={diasVisibles(horariosVisibles)} dia={diaHorarioSel(diasVisibles(horariosVisibles))} onDia={setDiaHorario} />
+            {esVistaTodos ? (
+              (cursoIds || [])
+                .filter((cid) => horariosVisibles.some((h) => h.curso_id === cid))
+                .map((cid) => (
+                  <View key={cid} style={styles.horarioSeccion}>
+                    <TagHijo tag={tagDeCurso(cid)} />
+                    <HorarioDia horarios={horariosVisibles.filter((h) => h.curso_id === cid)} dia={diaHorarioSel(diasVisibles(horariosVisibles))} />
+                  </View>
+                ))
+            ) : (
+              <HorarioDia horarios={horariosVisibles} dia={diaHorarioSel(diasVisibles(horariosVisibles))} />
+            )}
+          </>
         )
       ) : null}
 
@@ -585,57 +593,51 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
   );
 }
 
-function HorarioView({ horarios, isAdmin }) {
-  const DIAS = diasVisibles(horarios);
-  const DIA_COLORS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#0EA5E9"];
-  const fmtHora = (t) => (t ? t.slice(0, 5) : "");
-  const slots = [...new Set(horarios.map((h) => h.hora_inicio))].sort();
+// Horario de la familia: un día por vez (pestañas Lun–Vie, arranca en hoy) y
+// la lista de clases de ese día, sobrio: hora, materia y docente; el color
+// de la materia queda solo como una rayita a la izquierda.
+const hhmm = (t) => (t ? String(t).slice(0, 5) : "");
 
-  if (horarios.length === 0) {
-    return (
-      <Text style={styles.muted}>
-        {isAdmin ? "No hay horarios cargados. Agregá desde Admin → Horarios." : "No hay horarios cargados aún."}
-      </Text>
-    );
-  }
+// Día de hoy como "Lunes"…"Sábado" (domingo → null).
+const diaDeHoy = () => DIAS_HORARIO[new Date().getDay() - 1] || null;
 
+function DiasHorario({ dias, dia, onDia }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator style={styles.horarioScroll}>
-      <View>
-        <View style={styles.horarioHeaderRow}>
-          <View style={styles.horaCol} />
-          {DIAS.map((d, i) => (
-            <View key={d} style={[styles.horarioDiaHead, { backgroundColor: DIA_COLORS[i] + "22" }]}>
-              <Text style={[styles.horarioDiaTxt, { color: DIA_COLORS[i] }]}>{d.slice(0, 3).toUpperCase()}</Text>
-            </View>
-          ))}
-        </View>
-        {slots.map((slot) => (
-          <View key={slot} style={styles.horarioRow}>
-            <View style={styles.horaCol}>
-              <Text style={styles.horaTxt}>{fmtHora(slot)}</Text>
-            </View>
-            {DIAS.map((dia, di) => {
-              const clase = horarios.find((h) => normalizarDia(h.dia) === dia && h.hora_inicio === slot);
-              const dc = DIA_COLORS[di];
-              return (
-                <View key={dia} style={styles.horarioCell}>
-                  {clase ? (
-                    <View style={[styles.claseBox, { backgroundColor: (clase.color || dc) + "22", borderColor: (clase.color || dc) + "55" }]}>
-                      <Text style={[styles.claseMateria, { color: clase.color || dc }]}>{clase.clases?.optativa ? "✦ " : ""}{clase.materia}</Text>
-                      {clase.docente ? <Text style={styles.claseDocente}>{clase.docente}</Text> : null}
-                      <Text style={styles.claseHora}>
-                        {fmtHora(clase.hora_inicio)}–{fmtHora(clase.hora_fin)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
+    <View style={styles.diasTabs}>
+      {dias.map((d) => {
+        const on = d === dia;
+        return (
+          <Pressable key={d} onPress={() => onDia(d)} style={[styles.diaTab, on && styles.diaTabOn]} accessibilityRole="tab" accessibilityState={{ selected: on }}>
+            <Text style={[styles.diaTabTxt, on && styles.diaTabTxtOn]}>{DIA_CORTO[d]}</Text>
+            {d === diaDeHoy() ? <View style={[styles.diaHoyDot, on && styles.diaHoyDotOn]} /> : <View style={styles.diaHoyDotVacio} />}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function HorarioDia({ horarios, dia }) {
+  const delDia = horarios
+    .filter((h) => normalizarDia(h.dia) === dia)
+    .sort((x, y) => String(x.hora_inicio).localeCompare(String(y.hora_inicio)));
+  if (!delDia.length) return <Text style={styles.horarioVacio}>No hay clases el {dia.toLowerCase()}.</Text>;
+  return (
+    <View style={styles.horarioLista}>
+      {delDia.map((h, i) => (
+        <View key={h.id} style={[styles.claseFila, i > 0 && styles.claseFilaBorde]}>
+          <View style={styles.claseHoras}>
+            <Text style={styles.claseIni}>{hhmm(h.hora_inicio)}</Text>
+            <Text style={styles.claseFin}>{hhmm(h.hora_fin)}</Text>
           </View>
-        ))}
-      </View>
-    </ScrollView>
+          <View style={[styles.claseRaya, { backgroundColor: h.color || SLATE[300] }]} />
+          <View style={styles.flex1}>
+            <Text style={styles.claseMateria}>{h.clases?.optativa ? "✦ " : ""}{h.materia}</Text>
+            {h.docente ? <Text style={styles.claseDocente}>{h.docente}</Text> : null}
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1048,18 +1050,24 @@ const styles = StyleSheet.create({
   tagHijoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
   tagHijoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
   horarioSeccion: { marginBottom: SPACE.lg },
-  horarioScroll: { marginTop: 4 },
-  horarioHeaderRow: { flexDirection: "row" },
-  horaCol: { width: 64, padding: 6, backgroundColor: t.surfaceSunken, borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
-  horaTxt: { fontSize: 10, fontWeight: "700", color: t.textMuted },
-  horarioDiaHead: { width: 110, padding: 8, borderWidth: 1, borderColor: t.border, alignItems: "center" },
-  horarioDiaTxt: { fontSize: 11, fontWeight: "800" },
-  horarioRow: { flexDirection: "row" },
-  horarioCell: { width: 110, minHeight: 56, padding: 4, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface },
-  claseBox: { flex: 1, borderRadius: RADIUS.sm, borderWidth: 1.5, padding: 6 },
-  claseMateria: { fontSize: 11, fontWeight: "700" },
-  claseDocente: { fontSize: 9, color: t.textFaint, marginTop: 2 },
-  claseHora: { fontSize: 9, color: SLATE[300], marginTop: 2 },
+  diasTabs: { flexDirection: "row", gap: 6, marginBottom: SPACE.md },
+  diaTab: { flex: 1, alignItems: "center", paddingTop: 8, paddingBottom: 6, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
+  diaTabOn: { backgroundColor: BLUE[50], borderColor: BLUE[600] },
+  diaTabTxt: { fontSize: 13, fontWeight: "700", color: SLATE[600] },
+  diaTabTxtOn: { color: BLUE[700], fontWeight: "800" },
+  diaHoyDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: SLATE[400], marginTop: 4 },
+  diaHoyDotOn: { backgroundColor: BLUE[600] },
+  diaHoyDotVacio: { width: 5, height: 5, marginTop: 4 },
+  horarioLista: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: 16, paddingHorizontal: 14 },
+  horarioVacio: { fontSize: 13, color: t.textMuted, paddingVertical: SPACE.md },
+  claseFila: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  claseFilaBorde: { borderTopWidth: 1, borderTopColor: t.border },
+  claseHoras: { width: 46 },
+  claseIni: { fontSize: 14, fontWeight: "700", color: t.textStrong },
+  claseFin: { fontSize: 12, color: t.textMuted, marginTop: 1 },
+  claseRaya: { width: 3, alignSelf: "stretch", borderRadius: 2 },
+  claseMateria: { fontSize: 15, fontWeight: "700", color: t.textStrong },
+  claseDocente: { fontSize: 13, color: t.textMuted, marginTop: 1 },
   overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
   modalCard: { width: "100%", maxWidth: 440, maxHeight: "88%", backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xl },
   confirmCard: { width: "100%", maxWidth: 340, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },

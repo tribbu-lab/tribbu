@@ -207,7 +207,7 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState emoji="✍️" title="No hay autorizaciones" note="Cuando el colegio o el Room Parent pida permiso para una salida, aparece acá." />
+          <EmptyState icon="file-sign" title="No hay autorizaciones" note="Cuando el colegio o el Room Parent pida permiso para una salida, aparece acá." />
         }
       />
       {respondiendo ? (

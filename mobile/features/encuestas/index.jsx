@@ -224,7 +224,7 @@ export function Encuestas() {
         ListHeaderComponent={
           <>
             <Text style={styles.h1}>Encuestas</Text>
-            <Text style={styles.sub}>Sondeos rápidos del curso — un voto por apoderado</Text>
+            <Text style={styles.sub}>Consultas entre las familias del curso</Text>
             <View style={styles.toolbar}>
               <Text style={styles.filaFiltrosTxt}>{{ activas: "Activas", cerradas: "Cerradas", eliminadas: "Eliminadas" }[filtro]} · {(filtro === "eliminadas" ? eliminadas : visibles).length}</Text>
               <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
@@ -237,9 +237,11 @@ export function Encuestas() {
         ListEmptyComponent={
           !cargando ? (
             <EmptyState
-              emoji="📊"
+              icon="chart-box-outline"
               title={filtro === "activas" ? "Sin encuestas activas" : filtro === "cerradas" ? "Sin encuestas cerradas" : "Sin encuestas eliminadas"}
-              note={filtro === "activas" ? "Creá la primera para sondear al curso." : null}
+              note={filtro === "activas" ? "Creá la primera para consultar al curso." : null}
+              actionLabel={filtro === "activas" ? "Crear encuesta" : null}
+              onAction={abrirModal}
             />
           ) : null
         }

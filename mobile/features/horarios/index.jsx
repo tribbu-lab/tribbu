@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, Alert, Switch, StyleSheet, ActivityIndicator } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, sanitize } from "@shared/helpers";
-import { THEMES, SLATE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
+import { THEMES, SLATE, BLUE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
 import {
   DIAS_HORARIO, DIAS_HABILES, DIA_CORTO, normalizarDia, aMin, deMin, hhmm, validarBloque, superposiciones,
   serieDe, planGuardarBloque, planCopiarDia, planCopiarCurso, diasVisibles,
@@ -155,7 +155,7 @@ function BloqueSheet({ visible, borrador, setBorrador, curso, horarios, clases, 
 
         {choques.length ? (
           <Text style={s.aviso}>
-            ⚠️ Se superpone con {choques.slice(0, 3).map((h) => `${h.materia} (${DIA_CORTO[normalizarDia(h.dia)]} ${hhmm(h.hora_inicio)})`).join(", ")}{choques.length > 3 ? ` y ${choques.length - 3} más` : ""}. Si es un taller optativo puede estar bien.
+            Se superpone con {choques.slice(0, 3).map((h) => `${h.materia} (${DIA_CORTO[normalizarDia(h.dia)]} ${hhmm(h.hora_inicio)})`).join(", ")}{choques.length > 3 ? ` y ${choques.length - 3} más` : ""}. Si es un taller optativo puede estar bien.
           </Text>
         ) : null}
         {error ? <Text style={s.error}>{error}</Text> : null}
@@ -493,8 +493,9 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
           <Pressable key={h.id} onPress={() => abrirBloque(h)} style={[s.bloque, { borderLeftColor: col }, opt && { borderStyle: "dashed" }]} accessibilityRole="button">
             <Text style={s.bloqueHora}>{hhmm(h.hora_inicio)}{"\n"}<Text style={s.bloqueHoraFin}>{hhmm(h.hora_fin)}</Text></Text>
             <View style={s.flex1}>
-              <Text style={s.bloqueMat}>{!h.clase_id ? "⚠️ " : opt ? "✦ " : ""}{h.materia}</Text>
+              <Text style={s.bloqueMat}>{opt ? "✦ " : ""}{h.materia}</Text>
               {h.docente ? <Text style={s.muted}>{h.docente}</Text> : null}
+              {!h.clase_id ? <Text style={s.sinClase}>Sin clase asignada · tocá para elegirla</Text> : null}
             </View>
             <Text style={{ color: t.textFaint }}>›</Text>
           </Pressable>
@@ -553,13 +554,14 @@ const s = StyleSheet.create({
   claseChipTxt: { fontSize: 12.5, color: t.text, flexShrink: 1 },
   tabs: { flexDirection: "row", gap: 4, marginBottom: SPACE.sm },
   tab: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
-  tabOn: { backgroundColor: t.textStrong, borderColor: t.textStrong },
+  tabOn: { backgroundColor: BLUE[50], borderColor: BLUE[600] },
   tabTxt: { fontSize: 12.5, fontWeight: "800", color: SLATE[600] },
   tabN: { fontSize: 10.5, color: t.textFaint, marginTop: 1 },
-  tabTxtOn: { color: "#fff" },
+  tabTxtOn: { color: BLUE[700] },
   bloque: { flexDirection: "row", alignItems: "center", gap: SPACE.md, borderWidth: 1, borderColor: t.borderStrong, borderLeftWidth: 4, borderRadius: 12, padding: SPACE.md, marginBottom: 6, backgroundColor: t.surface },
   bloqueHora: { width: 48, fontSize: 13.5, fontWeight: "800", color: t.textStrong },
   bloqueHoraFin: { fontSize: 11.5, fontWeight: "600", color: t.textFaint },
+  sinClase: { fontSize: 12, fontWeight: "600", color: "#B45309", marginTop: 2 },
   bloqueMat: { fontSize: 14.5, fontWeight: "800", color: t.textStrong },
   optativa: { flexDirection: "row", alignItems: "center", gap: SPACE.md, marginTop: SPACE.md, padding: SPACE.md, borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.md },
   optativaOn: { borderColor: "#DDD6FE", backgroundColor: "#F5F3FF" },

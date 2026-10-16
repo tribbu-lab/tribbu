@@ -243,7 +243,7 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
           </View>
         }
         ListEmptyComponent={
-          <EmptyState title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones se ven 30 días, también las resueltas." />
+          <EmptyState icon="magnify-scan" title={tab === "encontrado" ? "No hay objetos encontrados" : "Nadie está buscando nada"} note="Las publicaciones se ven 30 días, también las resueltas." />
         }
       />
       {nuevo ? (

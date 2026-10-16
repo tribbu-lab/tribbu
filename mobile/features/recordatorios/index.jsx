@@ -524,10 +524,9 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
         }
         ListEmptyComponent={atencion.length ? null : (
           <EmptyState
-            emoji="📌"
+            icon="bell-outline"
             title="Sin avisos"
             note="Cuando el curso tenga avisos, aparecen acá."
-            compact
           />
         )}
         ListFooterComponent={

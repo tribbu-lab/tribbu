@@ -158,7 +158,7 @@ export function Marketplace() {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState emoji="🛍️" title={visibles.length ? "No hay nada con esos filtros" : "Todavía no hay nada publicado"} note="¿Tenés un uniforme que ya no le entra, libros del año pasado o un disfraz? Publicalo." />
+          <EmptyState icon="shopping-outline" title={visibles.length ? "No hay nada con esos filtros" : "Todavía no hay nada publicado"} note="¿Tenés un uniforme que ya no le entra, libros del año pasado o un disfraz? Publicalo." />
         }
       />
       {abierto ? (

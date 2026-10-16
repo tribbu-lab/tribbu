@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { useState, useCallback } from "react";
+import { EmptyState } from "../../components/EmptyState";
+import { Icono } from "../../components/Icono";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
@@ -120,18 +122,25 @@ export function AdminPanel({ cursoId, cursoNombre }) {
 
   return (
     <div>
-      <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Admin</div>
+      <div style={{fontSize:24,fontWeight:800,marginBottom:4,letterSpacing:-0.3}}>Administrar el curso</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
 
-      <button onClick={()=>setAlertaModal(true)} style={{width:"100%",minHeight:52,display:"flex",alignItems:"center",gap:10,borderRadius:14,background:"#FEF2F2",border:"1.5px solid #FCA5A5",padding:"0 16px",cursor:"pointer",marginBottom:16}}>
-        <span style={{fontSize:20}}>🚨</span>
-        <span style={{fontSize:13.5,fontWeight:700,color:"#DC2626"}}>Publicar alerta urgente al curso</span>
+      <button onClick={()=>setAlertaModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,borderRadius:16,background:"white",border:"1px solid #E2E8F0",padding:14,cursor:"pointer",marginBottom:16,textAlign:"left",fontFamily:"inherit"}}>
+        <span style={{width:36,height:36,flexShrink:0,borderRadius:"50%",background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center"}}><Icono nombre="sirena" size={18} color="#DC2626"/></span>
+        <span style={{display:"block",flex:1}}>
+          <span style={{display:"block",fontSize:15,fontWeight:700,color:"#0F172A"}}>Publicar una alerta urgente</span>
+          <span style={{display:"block",fontSize:12.5,color:"#64748B",marginTop:2}}>Les llega al instante a todas las familias del curso</span>
+        </span>
+        <span style={{display:"inline-flex",transform:"rotate(-90deg)"}}><Icono nombre="chevron" size={18} color="#94A3B8"/></span>
       </button>
       {alertaModal&&<AlertaModal onClose={()=>setAlertaModal(false)} onEnviar={enviarAlerta}/>}
 
-      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"familias",l:"Familias"},{id:"regalos",l:"🎁 Regalos"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:tab===t.id?"#0F172A":"#F1F5F9",color:tab===t.id?"white":"#64748B"}}>{t.l}</button>
+      {/* Mismas pestañas que Agenda/Comunicaciones (components/SubSeccion). */}
+      <div style={{display:"flex",gap:4,marginBottom:20,padding:4,background:"#F1F5F9",borderRadius:999,maxWidth:520}}>
+        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"familias",l:"Familias"},{id:"regalos",l:"Regalos"}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,minHeight:36,borderRadius:999,cursor:"pointer",fontFamily:"inherit",border:tab===t.id?"1px solid #E2E8F0":"1px solid transparent",background:tab===t.id?"white":"transparent"}}>
+            <span style={{fontSize:13.5,fontWeight:tab===t.id?800:600,color:tab===t.id?"#1D4ED8":"#64748B"}}>{t.l}</span>
+          </button>
         ))}
       </div>
 
@@ -177,7 +186,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
           <Card style={{padding:20,marginBottom:18}}>
             <div style={{fontSize:14,fontWeight:800,marginBottom:12}}>Room Parents del curso</div>
             {roomParents.length===0
-              ? <div style={{fontSize:13,color:"#94A3B8"}}>Sin Room Parents asignados</div>
+              ? <EmptyState sinBorde icono="usuarios" titulo="Sin Room Parents" nota="El colegio los asigna desde su panel."/>
               : roomParents.map((r,i)=>(
                   <div key={i} style={{fontSize:13,color:"#1E293B",marginBottom:6}}>{fmtNombre(r)} · {r.email}</div>
                 ))
@@ -188,7 +197,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
             Familias sin registrar{familiasSinRegistrar.length?` · ${familiasSinRegistrar.length}`:""}
           </div>
           <div style={{fontSize:12,color:"#94A3B8",lineHeight:1.5,marginBottom:12}}>
-            Alumnos del curso a los que todavía ningún apoderado se vinculó con el código de invitación.
+            Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
           </div>
           {familiasSinRegistrar.length===0 ? (
             <Card style={{padding:20}}>
@@ -256,14 +265,14 @@ export function AlertaModal({ onClose, onEnviar }) {
       <div style={{background:"white",borderRadius:22,padding:"28px 24px",width:"100%",maxWidth:440}} onClick={e=>e.stopPropagation()}>
         {sent ? (
           <div style={{textAlign:"center",padding:"20px 0"}}>
-            <div style={{fontSize:50}}>📣</div>
-            <div style={{fontSize:18,fontWeight:900,marginTop:12}}>¡Alerta enviada!</div>
+            <span style={{width:48,height:48,margin:"0 auto",borderRadius:"50%",background:"#F1F5F9",display:"flex",alignItems:"center",justifyContent:"center"}}><Icono nombre="check" size={24} color="#475569"/></span>
+            <div style={{fontSize:18,fontWeight:800,marginTop:12}}>Alerta enviada</div>
             <button onClick={onClose} style={{marginTop:20,padding:"10px 30px",borderRadius:10,border:"none",cursor:"pointer",background:"#3B82F6",color:"white",fontSize:14,fontWeight:700}}>Cerrar</button>
           </div>
         ) : (
           <>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-              <div style={{width:44,height:44,borderRadius:14,background:"#FEE2E2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🚨</div>
+              <div style={{width:44,height:44,borderRadius:"50%",background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center"}}><Icono nombre="sirena" size={22} color="#DC2626"/></div>
               <div style={{flex:1}}><div style={{fontSize:17,fontWeight:900}}>Alerta a la comunidad</div><div style={{fontSize:12,color:"#94A3B8"}}>Solo para avisos urgentes</div></div>
               <button onClick={onClose} style={{background:"#F1F5F9",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,color:"#94A3B8"}}>✕</button>
             </div>
@@ -271,7 +280,7 @@ export function AlertaModal({ onClose, onEnviar }) {
               {SUGS.map((s,i)=><button key={i} onClick={()=>setMsg(s)} style={{textAlign:"left",padding:"9px 13px",borderRadius:11,border:`1.5px solid ${msg===s?"#3B82F6":"#E2E8F0"}`,background:msg===s?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:msg===s?700:500,color:msg===s?"#3B82F6":"#0F172A"}}>{s}</button>)}
             </div>
             <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="O escribí un mensaje propio..." style={{width:"100%",border:"1.5px solid #E2E8F0",borderRadius:11,padding:"10px 12px",fontSize:13,resize:"none",height:70,boxSizing:"border-box",outline:"none",fontFamily:"inherit"}}/>
-            <button onClick={enviar} disabled={!msg.trim()} style={{width:"100%",marginTop:10,padding:13,borderRadius:11,border:"none",cursor:msg.trim()?"pointer":"default",background:msg.trim()?"linear-gradient(135deg,#EF4444,#B91C1C)":"#E2E8F0",color:msg.trim()?"white":"#94A3B8",fontSize:14,fontWeight:800}}>🚨 Enviar alerta urgente</button>
+            <button onClick={enviar} disabled={!msg.trim()} style={{width:"100%",marginTop:10,padding:13,borderRadius:11,border:"none",cursor:msg.trim()?"pointer":"default",background:msg.trim()?"linear-gradient(135deg,#EF4444,#B91C1C)":"#E2E8F0",color:msg.trim()?"white":"#94A3B8",fontSize:14,fontWeight:800}}>Enviar alerta urgente</button>
           </>
         )}
       </div>

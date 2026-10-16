@@ -8,6 +8,7 @@
 // esa asignación sigue generando recordatorios automáticos al responsable.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { EmptyState } from "../../components/EmptyState";
 import {
   View,
   Text,
@@ -29,7 +30,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { fmtNombre, fmtF, fmtLocalDate, sanitize, safeUrl, bannerFestejoCerrado, cerrarBannerFestejo } from "@shared/helpers";
 import { ajustarEdades, edadesParaGuardar, fmtEdadesHermanos, invitacionesVigentes } from "@shared/festejos";
 import { T } from "@shared/theme";
-import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE, childTheme } from "@shared/tokens";
+import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
@@ -251,7 +252,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
           nombre: fmtNombre(m),
           tipo: "Maestro",
           fecha_nacimiento: m.fecha_nacimiento,
-          color: "#8B5CF6",
+          color: SLATE[400],
           // El !inner ya filtró los cursos a cursoIds; si el maestro está en
           // varios de mis cursos, se etiqueta con el primero.
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
@@ -401,19 +402,11 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
 
   const Header = (
     <View>
-      <View style={styles.titleRow}>
-        <Text style={styles.h1}>Cumpleaños</Text>
-        {montoRegalo ? (
-          <View style={styles.montoPill}>
-            <Text style={styles.montoTxt}>
-              🎁 {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")} por familia
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      {/* El título lo da la pestaña "Cumpleaños" de Agenda. */}
       <Text style={styles.subtitle}>
         {lista.length} {esVistaTodos ? "en tus cursos" : "en el curso"}
         {esteMes ? ` · ${esteMes} este mes` : ""}
+        {montoRegalo ? ` · regalo: ${monedaRegalo} ${Number(montoRegalo).toLocaleString("es-AR")} por familia` : ""}
       </Text>
 
       {/* Tu festejo: crear/ver festejo del propio hijo (card A3 con barra del color del hijo) */}
@@ -425,9 +418,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         // pendiente, no solo informativa.
         if (fest && (bannerCerrados[fest.id] || bannerFestejoCerrado(userId, fest.id))) return null;
         const bl = bdayLabel(nextBday(a.fecha_nacimiento));
-        const ct = childTheme(a.color);
         return (
-          <View key={`b-${a.rawId}`} style={[styles.banner, { borderLeftColor: ct.main }]}>
+          <View key={`b-${a.rawId}`} style={styles.banner}>
             {fest ? (
               <Pressable onPress={() => cerrarBanner(fest.id)} hitSlop={8} style={styles.bannerCerrarBtn} accessibilityLabel="Cerrar aviso">
                 <MaterialCommunityIcons name="close" size={14} color={t.textFaint} />
@@ -452,12 +444,13 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <View style={styles.bannerBtns}>
               {fest ? (
                 <>
-                  <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.verFestBtn}>
-                    <Text style={styles.verFestTxt}>Ver festejo</Text>
+                  <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.verFestBtn} hitSlop={6}>
+                    <Text style={styles.verFestTxt}>Ver festejo →</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id, festejo: fest })}
-                    style={styles.editFestBtn}
+                    style={styles.verFestBtn}
+                    hitSlop={6}
                   >
                     <Text style={styles.editFestTxt}>Editar</Text>
                   </Pressable>
@@ -466,8 +459,9 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
                 <Pressable
                   onPress={() => setFestejoModal({ alumnoId: a.rawId, alumnoNombre: a.nombre, cursoId: a.curso_id })}
                   style={styles.verFestBtn}
+                  hitSlop={6}
                 >
-                  <Text style={styles.verFestTxt}>+ Crear festejo</Text>
+                  <Text style={styles.verFestTxt}>Crear festejo →</Text>
                 </Pressable>
               )}
             </View>
@@ -491,7 +485,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             return (
               <Pressable key={inv.id} onPress={() => setFestejoDetalle(ev)} style={styles.invCard}>
                 <View style={styles.invTile}>
-                  <Text style={styles.invTileTxt}>🎉</Text>
+                  <MaterialCommunityIcons name="party-popper" size={19} color={SLATE[600]} />
                 </View>
                 <View style={styles.flex1}>
                   <Text style={styles.invNombre} numberOfLines={1}>{ev.titulo}</Text>
@@ -563,7 +557,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
           <View style={styles.rowTags}>
             <Text style={styles.rowFecha}>{fmtDiaMes(a.fecha_nacimiento)}</Text>
             <Text style={styles.rowFecha}>·</Text>
-            <Text style={[styles.tipoTxt, { color: a.tipo === "Maestro" ? "#8B5CF6" : t.textMuted }]}>
+            <Text style={[styles.tipoTxt, { color: t.textMuted }]}>
               {a.tipo === "Maestro" ? "Seño" : a.tipo}
               {esMiHijo ? " · tu hijo/a" : ""}
             </Text>
@@ -592,7 +586,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <View style={styles.festRow}>
               <Pressable onPress={() => setFestejoDetalle(fest)} style={styles.miniFest}>
                 <Text style={styles.miniFestTxt}>
-                  🎉 {new Date(fest.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                  Festejo {new Date(fest.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
                 </Text>
               </Pressable>
               {esMiHijo ? (
@@ -620,7 +614,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
                 onPress={() => setColectaRegaloModal({ maestroNombre: a.nombre, maestroId: a.rawId, cursoId: a.curso_id })}
                 style={styles.miniColecta}
               >
-                <Text style={styles.miniColectaTxt}>+ Colecta</Text>
+                <Text style={styles.miniColectaTxt}>Armar colecta →</Text>
               </Pressable>
             </View>
           ) : null}
@@ -643,7 +637,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <Paginador pagina={ctrl.pagina} totalPag={ctrl.totalPag} setPagina={ctrl.setPagina} />
           ) : null
         }
-        ListEmptyComponent={<Text style={styles.muted}>Sin cumpleaños cargados</Text>}
+        ListEmptyComponent={<EmptyState icon="cake-variant-outline" title={ctrl.busqueda || filtrosActivos(gruposFiltro) ? "No hay cumpleaños con esa búsqueda" : "Todavía no hay cumpleaños"} note={ctrl.busqueda || filtrosActivos(gruposFiltro) ? null : "Cuando el curso tenga las fechas cargadas, aparecen acá."} />}
         contentContainerStyle={styles.content}
       />
 
@@ -1330,20 +1324,15 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
-  h1: { fontSize: 21, fontWeight: "800", color: t.textStrong, letterSpacing: -0.3 },
   subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4, marginBottom: 4 },
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.lg, marginBottom: SPACE.sm },
   mesHeader: { ...TYPE.label, color: t.textFaint, textTransform: "capitalize", marginTop: SPACE.lg, marginBottom: SPACE.xs },
-  montoPill: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 11 },
-  montoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted },
   muted: { fontSize: 13, color: t.textFaint, textAlign: "center", paddingVertical: SPACE.lg },
 
   banner: {
     backgroundColor: t.surface,
     borderWidth: 1,
     borderColor: t.borderStrong,
-    borderLeftWidth: 3,
     borderRadius: RADIUS.xl,
     padding: 13,
     marginBottom: SPACE.sm,
@@ -1353,11 +1342,10 @@ const styles = StyleSheet.create({
   bannerTop: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
   bannerNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   bannerFecha: { fontSize: 12, color: t.textMuted, marginTop: 2 },
-  bannerBtns: { flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.md, paddingLeft: 50 },
-  verFestBtn: { backgroundColor: t.accent, borderRadius: RADIUS.md, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
-  verFestTxt: { color: t.onAccent, fontSize: 12.5, fontWeight: "800" },
-  editFestBtn: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.md, paddingHorizontal: 14, minHeight: 36, justifyContent: "center" },
-  editFestTxt: { color: t.textMuted, fontSize: 12.5, fontWeight: "700" },
+  bannerBtns: { flexDirection: "row", gap: 20, marginTop: SPACE.sm, paddingLeft: 50 },
+  verFestBtn: { minHeight: 32, justifyContent: "center" },
+  verFestTxt: { color: BLUE[600], fontSize: 14, fontWeight: "700" },
+  editFestTxt: { color: t.textMuted, fontSize: 14, fontWeight: "700" },
 
   // toolbar de una fila: búsqueda + selects colapsados
   toolRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginTop: SPACE.lg },
@@ -1388,8 +1376,7 @@ const styles = StyleSheet.create({
     padding: 13,
     marginBottom: SPACE.sm,
   },
-  invTile: { width: 38, height: 38, borderRadius: RADIUS.md + 1, backgroundColor: t.warningSoft, alignItems: "center", justifyContent: "center" },
-  invTileTxt: { fontSize: 18 },
+  invTile: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: SLATE[100], alignItems: "center", justifyContent: "center" },
   invNombre: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
   invMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   estadoPill: { borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
@@ -1422,13 +1409,13 @@ const styles = StyleSheet.create({
   diasTxt: { fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
   festRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   miniFest: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
-  miniFestTxt: { fontSize: 10.5, fontWeight: "700", color: "#B45309" },
+  miniFestTxt: { fontSize: 10.5, fontWeight: "700", color: t.textMuted },
   miniEdit: { borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.sm, padding: 5 },
   miniCrear: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
   miniCrearTxt: { fontSize: 11, fontWeight: "700", color: BLUE[600] },
   adminBtns: { flexDirection: "row", gap: 4 },
-  miniColecta: { backgroundColor: t.accentSoft, borderRadius: RADIUS.sm, paddingVertical: 4, paddingHorizontal: 8 },
-  miniColectaTxt: { fontSize: 10, color: BLUE[600], fontWeight: "700" },
+  miniColecta: { paddingVertical: 4 },
+  miniColectaTxt: { fontSize: 12.5, color: BLUE[600], fontWeight: "700" },
 
   // Modales
   overlay: { flex: 1, backgroundColor: t.overlay, justifyContent: "center", padding: SPACE.lg },
