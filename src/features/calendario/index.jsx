@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
+import { Icono } from "../../components/Icono";
 import { EmptyState } from "../../components/EmptyState";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
@@ -314,7 +315,6 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
                     return (
                       <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 0",borderBottom:i<evDiaSelec.length-1?"1px solid #F1F5F9":"none"}}>
-                        <div style={{width:36,height:36,borderRadius:10,background:cfg.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{cfg.emoji}</div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                             <div style={{fontSize:13,fontWeight:700}}>{e.titulo}</div>
@@ -322,20 +322,20 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                             {docenteDe(e.creado_por)?<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1"}}>{etiquetaDocente(docenteDe(e.creado_por))}</span>:null}
                           </div>
                           <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                            {cfg.label}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · 📍${e.lugar}`:""}
+                            {cfg.label}{e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}{e.lugar?` · ${e.lugar}`:""}
                           </div>
                           {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
                           {e.tipo==="festejo"&&e.imagen_url&&<ImagenAmpliable src={e.imagen_url} bucket="eventos" alt="Invitación" style={{width:64,height:64,objectFit:"cover",borderRadius:8,marginTop:6,display:"block"}}/>}
                           <AdjuntosList adjuntos={e.adjuntos}/>
                         </div>
                         {e.tipo==="festejo"
-                        ? <button onClick={()=>setFestejoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>
-                        : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button> : null)
+                        ? <button onClick={()=>setFestejoDetalle(e)} style={{border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12.5,fontWeight:700,color:"#2563EB",whiteSpace:"nowrap"}}>Invitados →</span></button>
+                        : (e.confirma_asistencia ? <button onClick={()=>setEventoDetalle(e)} style={{border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12.5,fontWeight:700,color:"#2563EB",whiteSpace:"nowrap"}}>Asistencia →</span></button> : null)
                       }
                         {userId&&e.creado_por===userId&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                           <div style={{display:"flex",gap:4}}>
-                            <button onClick={()=>setModal(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                            <button onClick={()=>setConfirm(e)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                            <button onClick={()=>setModal(e)} style={{width:30,height:30,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}} aria-label="Editar evento"><Icono nombre="lapiz" size={15} color="#64748B"/></button>
+                            <button onClick={()=>setConfirm(e)} style={{width:30,height:30,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}} aria-label="Borrar evento"><Icono nombre="papelera" size={15} color="#64748B"/></button>
                           </div>
                         )}
                       </div>
@@ -381,17 +381,18 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
           {listaEventos().length===0&&<EmptyState icono="agenda" titulo="No hay eventos" nota="Probá con otros filtros, o creá uno con + Nuevo."/>}
           {listaEventos().map((e,i)=>{
-            const cfg = TIPO_CONFIG[e.tipo]||TIPO_CONFIG.acto;
             const d   = new Date(e.fecha+"T00:00:00");
             const dFin = e.fecha_fin ? new Date(e.fecha_fin+"T00:00:00") : d;
             const enCurso = hoy>=d && hoy<=dFin;
             const dias = enCurso ? 0 : Math.round((d-hoy)/86400000);
             const diasTxt = enCurso ? "En curso" : dias===0?"Hoy":dias===1?"Mañana":`${dias}d`;
             return (
-              <Card key={e.id||i} style={{padding:"13px 15px",marginBottom:10,borderLeft:`3px solid ${cfg.color}`}}>
+              <Card key={e.id||i} style={{padding:"13px 15px",marginBottom:10}}>
                 <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                  <div style={{width:42,height:42,borderRadius:12,background:cfg.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    <div style={{fontSize:18}}>{cfg.emoji}</div>
+                  {/* Fecha en columna, como "Próximos días" del Inicio. */}
+                  <div style={{width:38,flexShrink:0,textAlign:"center"}}>
+                    <span style={{display:"block",fontSize:10.5,fontWeight:700,letterSpacing:0.6,textTransform:"uppercase",color:"#64748B"}}>{d.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</span>
+                    <span style={{display:"block",fontSize:20,fontWeight:800,color:"#0F172A",lineHeight:1.15}}>{d.getDate()}</span>
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -400,11 +401,10 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                       {docenteDe(e.creado_por)?<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#F0F9FF",color:"#0369A1"}}>{etiquetaDocente(docenteDe(e.creado_por))}</span>:null}
                     </div>
                     <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>
-                      {fmtRangoFecha(e.fecha, e.fecha_fin)}
-                      {e.hora?` · ${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:""}
+                      {[TIPO_CONFIG[e.tipo]?.label, e.fecha_fin&&e.fecha_fin!==e.fecha?fmtRangoFecha(e.fecha, e.fecha_fin):null, e.hora?`${e.hora}${e.hora_fin?` – ${e.hora_fin}`:""}`:null].filter(Boolean).join(" · ")}
                     </div>
                     {e.lugar&&<div style={{fontSize:11,color:"#94A3B8",display:"flex",alignItems:"center",gap:4}}>
-                      📍 {e.lugar}
+                      {e.lugar}
                       {e.url_ubicacion&&<a href={safeUrl(e.url_ubicacion)||"#"} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3B82F6",marginLeft:4}}>Ver mapa</a>}
                     </div>}
                     {e.descripcion&&<div style={{fontSize:11,color:"#64748B",marginTop:2}}>{e.descripcion}</div>}
@@ -412,13 +412,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
                     <AdjuntosList adjuntos={e.adjuntos}/>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias===0?"#FEE2E2":dias<=7?"#FEF3C7":"#F1F5F9",color:enCurso||dias===0?"#EF4444":dias<=7?"#F59E0B":"#94A3B8"}}>{diasTxt}</span>
-                    {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #FCD34D",background:"#FFFBEB",cursor:"pointer",fontSize:11,fontWeight:700,color:"#F59E0B"}}>Ver invitados</button>}
-                    {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{padding:"3px 10px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:600,color:"#64748B"}}>Ver asistencia</button>}
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:12,background:enCurso||dias<=2?"#FEE2E2":"#F1F5F9",color:enCurso||dias<=2?"#DC2626":"#64748B"}}>{diasTxt}</span>
+                    {e.tipo==="festejo"&&<button onClick={()=>setFestejoDetalle(e)} style={{border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12.5,fontWeight:700,color:"#2563EB",whiteSpace:"nowrap"}}>Invitados →</span></button>}
+                    {e.tipo!=="festejo"&&e.confirma_asistencia&&<button onClick={()=>setEventoDetalle(e)} style={{border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}><span style={{fontSize:12.5,fontWeight:700,color:"#2563EB",whiteSpace:"nowrap"}}>Asistencia →</span></button>}
                     {userId&&e.creado_por===userId&&e.id&&!e.id?.toString().startsWith("c-")&&!e.id?.toString().startsWith("r-")&&e.tipo!=="festejo"&&(
                       <div style={{display:"flex",gap:4}}>
-                        <button onClick={()=>setModal(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11}}>✏️</button>
-                        <button onClick={()=>setConfirm(e)} style={{padding:"3px 8px",borderRadius:6,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                        <button onClick={()=>setModal(e)} style={{width:30,height:30,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}} aria-label="Editar evento"><Icono nombre="lapiz" size={15} color="#64748B"/></button>
+                        <button onClick={()=>setConfirm(e)} style={{width:30,height:30,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}} aria-label="Borrar evento"><Icono nombre="papelera" size={15} color="#64748B"/></button>
                       </div>
                     )}
                   </div>

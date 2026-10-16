@@ -1,6 +1,6 @@
 // Menú de un día como tabla (Entrada / Plato principal / Postre), el mismo en
 // el Inicio y en Comedor. Categorías en @shared/menu.
-import { filasMenu } from "../lib/menu";
+import { filasMenu, platoCortable } from "../lib/menu";
 
 export function TablaMenu({ menu, style }) {
   const filas = filasMenu(menu);
@@ -12,7 +12,7 @@ export function TablaMenu({ menu, style }) {
           <span style={{ width: 108, flexShrink: 0, fontSize: 12.5, lineHeight: "20px", color: "#64748B", whiteSpace: "nowrap" }}>{f.label}</span>
           <span style={{ flex: 1, minWidth: 0 }}>
             {f.platos.map((p, j) => (
-              <span key={j} style={{ display: "block", fontSize: 14, lineHeight: "20px", fontWeight: 600, color: "#0F172A", marginTop: j ? 4 : 0 }}>{p}</span>
+              <span key={j} style={{ display: "block", fontSize: 14, lineHeight: "20px", fontWeight: 600, color: "#0F172A", marginTop: j ? 4 : 0, overflowWrap: "anywhere" }}>{platoCortable(p)}</span>
             ))}
           </span>
         </div>

@@ -20,3 +20,7 @@ export const filasMenu = (menu) =>
   !menu
     ? []
     : CATEGORIAS_MENU.map((c) => ({ label: c.label, platos: c.campos.map((k) => menu[k]).filter(Boolean) })).filter((f) => f.platos.length);
+
+// "Tomate/Jamon/Huevo/Cebolla" no tiene espacios y se salía de la tabla:
+// un espacio de ancho cero después de cada "/" le permite cortar ahí.
+export const platoCortable = (t) => String(t ?? "").replace(/\//g, "/​");

@@ -1,7 +1,7 @@
 // Menú de un día como tabla (Entrada / Plato principal / Postre), el mismo en
 // el Inicio y en Comedor. Categorías en @shared/menu.
 import { View, Text, StyleSheet } from "react-native";
-import { filasMenu } from "@shared/menu";
+import { filasMenu, platoCortable } from "@shared/menu";
 import { THEMES, RADIUS } from "@shared/tokens";
 
 const t = THEMES.light;
@@ -16,7 +16,7 @@ export function TablaMenu({ menu, style }) {
           <Text style={styles.label}>{f.label}</Text>
           <View style={styles.platos}>
             {f.platos.map((p, j) => (
-              <Text key={j} style={[styles.plato, j > 0 && styles.platoSig]}>{p}</Text>
+              <Text key={j} style={[styles.plato, j > 0 && styles.platoSig]}>{platoCortable(p)}</Text>
             ))}
           </View>
         </View>

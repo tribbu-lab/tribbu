@@ -390,28 +390,29 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
             <EmptyState icon="calendar-blank-outline" title="No hay eventos" note="Probá con otros filtros, o creá uno con + Nuevo." />
           ) : null}
           {listaEventos().map((e, i) => {
-            const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
             const d = new Date(e.fecha + "T00:00:00");
             const dFin = e.fecha_fin ? new Date(e.fecha_fin + "T00:00:00") : d;
             const enCurso = hoy >= d && hoy <= dFin;
             const dias = enCurso ? 0 : Math.round((d - hoy) / 86400000);
             const diasTxt = enCurso ? "En curso" : dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : `${dias}d`;
             return (
-              <Card key={e.id || i} style={[styles.listCard, { borderLeftColor: cfg.color }]}>
+              <Card key={e.id || i} style={styles.listCard}>
                 <View style={styles.listRow}>
-                  <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
-                    <Text style={styles.iconTxt}>{cfg.emoji}</Text>
+                  {/* Fecha en columna, como "Próximos días" del Inicio. */}
+                  <View style={styles.fechaCol}>
+                    <Text style={styles.fechaDow}>{d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "")}</Text>
+                    <Text style={styles.fechaNum}>{d.getDate()}</Text>
                   </View>
                   <View style={styles.flex1}>
                     <Text style={styles.eventoTitulo}>{e.titulo}</Text>
                     <TagHijo tag={tagDeCurso(e.curso_id)} />
                     <Text style={styles.eventoMeta}>
-                      {fmtRangoFecha(e.fecha, e.fecha_fin)}
-                      {e.hora ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
+                      {[TIPO_CONFIG[e.tipo]?.label, e.fecha_fin && e.fecha_fin !== e.fecha ? fmtRangoFecha(e.fecha, e.fecha_fin) : null, e.hora ? `${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : null].filter(Boolean).join(" · ")}
                     </Text>
                     {e.lugar ? (
                       <View style={styles.lugarRow}>
-                        <Text style={styles.eventoMeta}>📍 {e.lugar}</Text>
+                        <MaterialCommunityIcons name="map-marker-outline" size={14} color={t.textMuted} />
+                        <Text style={[styles.eventoMeta, { marginTop: 0 }]}>{e.lugar}</Text>
                         {e.url_ubicacion ? (
                           <Pressable onPress={() => safeUrl(e.url_ubicacion) && Linking.openURL(safeUrl(e.url_ubicacion))}>
                             <Text style={styles.mapLink}>Ver mapa</Text>
@@ -430,21 +431,21 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
                       <Text style={styles.diasTagTxt}>{diasTxt}</Text>
                     </View>
                     {e.tipo === "festejo" ? (
-                      <Pressable onPress={() => setFestejoDetalle(e)} style={styles.asistBtn}>
-                        <Text style={styles.asistTxt}>Ver invitados</Text>
+                      <Pressable onPress={() => setFestejoDetalle(e)} style={styles.linkBtn} hitSlop={6}>
+                        <Text style={styles.linkTxt}>Invitados →</Text>
                       </Pressable>
                     ) : e.confirma_asistencia ? (
-                      <Pressable onPress={() => setEventoDetalle(e)} style={styles.asistBtn}>
-                        <Text style={styles.asistTxt}>Asistencia</Text>
+                      <Pressable onPress={() => setEventoDetalle(e)} style={styles.linkBtn} hitSlop={6}>
+                        <Text style={styles.linkTxt}>Asistencia →</Text>
                       </Pressable>
                     ) : null}
                     {userId && e.creado_por === userId && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo" ? (
                       <View style={styles.editRow}>
-                        <Pressable onPress={() => setModal(e)} style={styles.miniBtn}>
-                          <Text style={styles.miniTxt}>✏️</Text>
+                        <Pressable onPress={() => setModal(e)} style={styles.miniBtn} accessibilityLabel="Editar evento">
+                          <MaterialCommunityIcons name="pencil-outline" size={16} color={SLATE[500]} />
                         </Pressable>
-                        <Pressable onPress={() => setConfirm(e)} style={styles.miniBtn}>
-                          <Text style={[styles.miniTxt, { color: "#EF4444" }]}>🗑</Text>
+                        <Pressable onPress={() => setConfirm(e)} style={styles.miniBtn} accessibilityLabel="Borrar evento">
+                          <MaterialCommunityIcons name="trash-can-outline" size={16} color={SLATE[500]} />
                         </Pressable>
                       </View>
                     ) : null}
@@ -553,16 +554,13 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
   const editable = userId && e.creado_por === userId && e.id && !String(e.id).startsWith("c-") && !String(e.id).startsWith("r-") && e.tipo !== "festejo";
   return (
     <View style={styles.diaRow}>
-      <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
-        <Text style={styles.iconTxt}>{cfg.emoji}</Text>
-      </View>
       <View style={styles.flex1}>
         <Text style={styles.eventoTitulo}>{e.titulo}</Text>
         <TagHijo tag={tag} />
         <Text style={styles.eventoMeta}>
           {cfg.label}
           {e.hora ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
-          {e.lugar ? ` · 📍${e.lugar}` : ""}
+          {e.lugar ? ` · ${e.lugar}` : ""}
         </Text>
         {e.descripcion ? <Text style={styles.eventoDesc}>{e.descripcion}</Text> : null}
         {e.tipo === "festejo" && e.imagen_url ? (
@@ -571,21 +569,21 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
         <AdjuntosList adjuntos={e.adjuntos} />
       </View>
       {e.tipo === "festejo" ? (
-        <Pressable onPress={onFestejo} style={styles.asistBtn}>
-          <Text style={styles.asistTxt}>Ver invitados</Text>
+        <Pressable onPress={onFestejo} style={styles.linkBtn} hitSlop={6}>
+          <Text style={styles.linkTxt}>Invitados →</Text>
         </Pressable>
       ) : e.confirma_asistencia ? (
-        <Pressable onPress={onAsistencia} style={styles.asistBtn}>
-          <Text style={styles.asistTxt}>Asistencia</Text>
+        <Pressable onPress={onAsistencia} style={styles.linkBtn} hitSlop={6}>
+          <Text style={styles.linkTxt}>Asistencia →</Text>
         </Pressable>
       ) : null}
       {editable ? (
         <View style={styles.editRow}>
-          <Pressable onPress={onEditar} style={styles.miniBtn}>
-            <Text style={styles.miniTxt}>✏️</Text>
+          <Pressable onPress={onEditar} style={styles.miniBtn} accessibilityLabel="Editar evento">
+            <MaterialCommunityIcons name="pencil-outline" size={16} color={SLATE[500]} />
           </Pressable>
-          <Pressable onPress={onEliminar} style={styles.miniBtn}>
-            <Text style={[styles.miniTxt, { color: "#EF4444" }]}>🗑</Text>
+          <Pressable onPress={onEliminar} style={styles.miniBtn} accessibilityLabel="Borrar evento">
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color={SLATE[500]} />
           </Pressable>
         </View>
       ) : null}
@@ -1041,7 +1039,12 @@ const styles = StyleSheet.create({
   editRow: { flexDirection: "row", gap: 4, marginTop: 4 },
   miniBtn: { padding: 6, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
   miniTxt: { fontSize: 12, color: t.text },
-  listCard: { padding: 13, marginBottom: 10, borderLeftWidth: 3 },
+  listCard: { padding: 13, marginBottom: 10 },
+  fechaCol: { width: 36, alignItems: "center", paddingTop: 1 },
+  fechaDow: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", color: t.textMuted },
+  fechaNum: { fontSize: 20, fontWeight: "800", color: t.textStrong, fontVariant: ["tabular-nums"] },
+  linkBtn: { minHeight: 28, justifyContent: "center" },
+  linkTxt: { fontSize: 13, fontWeight: "700", color: BLUE[600] },
   listRow: { flexDirection: "row", gap: SPACE.md, alignItems: "flex-start" },
   listRight: { alignItems: "flex-end", gap: 6 },
   diasTag: { backgroundColor: SLATE[100], borderRadius: RADIUS.full, paddingVertical: 5, paddingHorizontal: 9 },
