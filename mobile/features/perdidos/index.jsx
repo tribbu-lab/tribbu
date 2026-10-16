@@ -34,11 +34,11 @@ const hace = (iso) => {
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 };
 
-export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) {
+export function Perdidos({ embebido = false, openObjeto = null, abrirTab = null, nonce = null }) {
   const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, items } = useSession();
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
-  const [tab, setTab] = useState("encontrado");
+  const [tab, setTab] = useState("perdido");
   const [cat, setCat] = useState("todas");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [nuevo, setNuevo] = useState(false);
@@ -95,6 +95,13 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
   const listaRef = useRef(null);
   const [resaltado, setResaltado] = useState(null);
   const [destinoUsado, setDestinoUsado] = useState(null);
+  // Pestaña pedida desde afuera (Inicio → "Ver" encontrados), una vez por nonce.
+  const [tabUsada, setTabUsada] = useState(null);
+  const tabKey = abrirTab ? `${abrirTab}:${nonce || ""}` : null;
+  if (tabKey && tabKey !== tabUsada) {
+    setTabUsada(tabKey);
+    setTab(abrirTab === "encontrado" ? "encontrado" : "perdido");
+  }
   const destinoKey = openObjeto ? `${openObjeto}:${nonce || ""}` : null;
   const destino = destinoKey && destinoKey !== destinoUsado ? visibles.find((o) => String(o.id) === openObjeto) : null;
   if (destino) {
@@ -159,7 +166,7 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
           <View style={styles.flex1}>
             {/* Sobria: una línea gris en vez de etiquetas de colores. */}
             <View style={styles.badges}>
-              <Text style={styles.cat}>{[o.tipo === "perdido" ? "Buscan" : "Encontrado", c.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</Text>
+              <Text style={styles.cat}>{[o.tipo === "perdido" ? "Perdido" : "Encontrado", c.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</Text>
               {resuelta ? <Text style={styles.badgeResuelto}>Resuelto</Text> : null}
             </View>
             <Text style={styles.titulo}>{o.titulo}</Text>
@@ -226,9 +233,9 @@ export function Perdidos({ embebido = false, openObjeto = null, nonce = null }) 
                 <Text style={styles.sub}>Lo que se perdió y lo que apareció</Text>
               </View>
             </View>
-            {/* Encontrados / Buscan: mismo control segmentado gris que las pestañas internas. */}
+            {/* Perdidos / Encontrados: mismo control segmentado gris que las pestañas internas. */}
             <View style={styles.segmento}>
-              {[["encontrado", "Encontrados"], ["perdido", "Buscan"]].map(([k, l]) => (
+              {[["perdido", "Perdidos"], ["encontrado", "Encontrados"]].map(([k, l]) => (
                 <Pressable key={k} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && styles.segOn]}>
                   <Text style={[styles.segTxt, tab === k && styles.segTxtOn]}>{l} {cuenta(k)}</Text>
                 </Pressable>

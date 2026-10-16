@@ -526,7 +526,7 @@ export function Muro() {
               </Text>
               <Text style={styles.dato}>¿{datos.encontradosSemana === 1 ? "Es" : "Alguno es"} de tu hijo?</Text>
               <View style={styles.accionesFila}>
-                <Enlace texto="Ver" onPress={() => router.push("/(tabs)/perdidos")} />
+                <Enlace texto="Ver" onPress={() => router.push({ pathname: "/(tabs)/perdidos", params: { tab: "encontrado", t: String(Date.now()) } })} />
                 {/* "No": deja de preguntar por estos objetos (vuelve solo si aparece uno nuevo). */}
                 <Pressable
                   onPress={() => {

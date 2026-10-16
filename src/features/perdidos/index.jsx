@@ -68,7 +68,7 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
           : <div style={{ width: 84, height: 84, borderRadius: 12, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#94A3B8" }}>Sin foto</span></div>}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{[o.tipo === "perdido" ? "Buscan" : "Encontrado", cat.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{[o.tipo === "perdido" ? "Perdido" : "Encontrado", cat.l, o.es_colegio ? "Caja del colegio" : o.alcance === "colegio" ? "Todo el colegio" : null].filter(Boolean).join(" · ")}</span>
             {resuelta && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 999, background: "#F1F5F9", color: "#475569" }}>Resuelto</span>}
             {tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#475569" }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} /><span style={{ color: "#475569" }}>{tag.nombre}</span></span>}
           </div>
@@ -254,9 +254,15 @@ function NuevoModal({ cursos, colegioId, comoColegio, userId, candidatos, onClos
 }
 
 /** Lista + acciones, compartida por la pestaña de las familias y la sección del colegio. */
-function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, puedeModerar, tagDeCurso }) {
+function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, puedeModerar, tagDeCurso, abrirTab = null }) {
   const [datos, setDatos] = useState(null);
-  const [tab, setTab] = useState("encontrado");
+  const [tab, setTab] = useState(abrirTab?.tipo === "encontrado" ? "encontrado" : "perdido");
+  // Pestaña pedida desde afuera (Inicio → "Ver" encontrados), una vez por pedido.
+  const [tabUsada, setTabUsada] = useState(abrirTab?.n ?? null);
+  if (abrirTab && abrirTab.n !== tabUsada) {
+    setTabUsada(abrirTab.n);
+    setTab(abrirTab.tipo === "encontrado" ? "encontrado" : "perdido");
+  }
   const [cat, setCat] = useState("todas");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const gruposFiltro = [{ key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todas" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] }];
@@ -342,9 +348,9 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-        {/* Encontrados / Buscan: mismo control segmentado gris que las pestañas internas. */}
+        {/* Perdidos / Encontrados: mismo control segmentado gris que las pestañas internas. */}
         <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 999, padding: 4 }}>
-          {[["encontrado", "Encontrados"], ["perdido", "Buscan"]].map(([t, txt]) => (
+          {[["perdido", "Perdidos"], ["encontrado", "Encontrados"]].map(([t, txt]) => (
             <button key={t} onClick={() => setTab(t)} style={{ padding: "7px 16px", borderRadius: 999, border: tab === t ? "1px solid #E2E8F0" : "1px solid transparent", cursor: "pointer", fontFamily: "inherit", background: tab === t ? "white" : "transparent" }}>
               <span style={{ fontSize: 13, fontWeight: tab === t ? 800 : 600, color: tab === t ? "#1D4ED8" : "#64748B" }}>{txt} {cuenta(t)}</span>
             </button>
@@ -386,7 +392,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 }
 
 /** Pestaña de las familias. */
-export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, items = [], embebido = false }) {
+export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, items = [], embebido = false, abrirTab = null }) {
   // nombre/colegio_id de cada curso ya vienen en "Mi acceso" (items[].cursos) —
   // evita una consulta a "cursos" en cada carga (items[].curso_id / .cursos.*
   // vienen de App.jsx, que ya los cargó al loguearse).
@@ -405,7 +411,7 @@ export function Perdidos({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCu
       {/* Dentro de Comunidad el título lo pone la sección. */}
       {!embebido && <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3 }}>Lost &amp; Found</div>}
       <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>Lo que se perdió y lo que apareció en tu curso y en el colegio</div>
-      <Tablero cursoIds={cursoIds} cursosPublicar={cursos} colegioId={cursos[0]?.colegio_id} comoColegio={false} userId={userId} puedeModerar={puedeModerar} tagDeCurso={esVistaTodos ? tagDeCurso : null} />
+      <Tablero abrirTab={abrirTab} cursoIds={cursoIds} cursosPublicar={cursos} colegioId={cursos[0]?.colegio_id} comoColegio={false} userId={userId} puedeModerar={puedeModerar} tagDeCurso={esVistaTodos ? tagDeCurso : null} />
     </div>
   );
 }

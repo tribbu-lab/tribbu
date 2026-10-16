@@ -373,7 +373,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
               <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"} esta semana</div>
               <div style={{fontSize:12.5,color:"#64748B",marginTop:3}}>¿{datos.encontradosSemana===1?"Es":"Alguno es"} de tu hijo?</div>
               <div style={{display:"flex",gap:18,marginTop:10}}>
-                <Enlace texto="Ver" onClick={()=>onNavigate?.("perdidos")}/>
+                <Enlace texto="Ver" onClick={()=>onNavigate?.("perdidos",{tabPerdidos:"encontrado"})}/>
                 <button onClick={noEsMio} style={{...enlace}}><span style={{color:"#64748B"}}>No</span></button>
               </div>
             </div>
