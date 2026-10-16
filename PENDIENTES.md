@@ -1,43 +1,17 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-14).
+Lista viva de lo que queda por hacer (última actualización: 2026-10-16).
 Tachá o borrá cada ítem cuando se resuelva.
 
-## 📅 Para mañana (2026-10-15)
+## Hecho 2026-10-16
 
-1. **Rotar la clave vieja de Supabase** (ver "Urgente" abajo), en este orden:
-   1. *Yanina* — Vercel → proyecto tribbu → Settings → Environment Variables:
-      `VITE_SUPABASE_ANON_KEY` = `sb_publishable_RyHBhftWKg2zuXr479tNrw_BSPgBLM3`
-      (la publishable que ya usa la app de tiendas en `mobile/eas.json`; es
-      pública) en Production y Preview → **Redeploy**.
-   2. Verificar que tribbu.ar/app cargue e inicie sesión.
-   3. *Yanina* — Supabase Dashboard → proyecto `gctymjhblvocvaenmdhr` →
-      Project Settings → JWT Keys → cambiar/rotar el **Legacy JWT secret**
-      (invalida la anon y la service_role viejas). **No** "desactivar las
-      claves legacy" sin revisar antes: las Edge Functions usan las claves que
-      Supabase les inyecta.
-   4. *Claude* — cambiar `.env`, `mobile/.env` y `.env.example` a la
-      publishable; verificar web, push y avisos automáticos, y que la clave
-      vieja ya no funcione.
-   - No hay que tocar: app de tiendas (ya usa la publishable), Edge Functions
-     (claves inyectadas, se actualizan solas), cron/push de mensajes (usan
-     `avisos_cron_secret`), CI (placeholders), backup (pide la clave al CLI).
-   - Puede que algunos usuarios tengan que volver a iniciar sesión una vez.
-     Deja de andar la app Android vieja de Capacitor (`android/`), si alguien
-     todavía la usa.
-2. ~~**Actualizar la landing tribbu.ar**~~ (hecho 2026-10-15: capturas reales del diseño nuevo, familia ficticia) (`public/*.html`) con el diseño nuevo de
-   la app: capturas de Hoy · Agenda · Comunicaciones · Curso, el Inicio
-   "Tenés N respuestas pendientes", autorizaciones y "Escribir por tribbu".
-   Usar la familia ficticia (`~/.claude/projects/C--Tribbu/demo-mock/`) para
-   las capturas, sin datos reales.
-
-## ⚠️ Urgente
-
-- [ ] **Invalidar la service-role key vieja de Supabase** (sin cambios desde
-      2026-09-23 — verificar si ya se rotó). Está en commits viejos del repo
-      (que es **público**) y ese día **todavía funcionaba** (lee datos
-      saltándose la RLS). Borrar el historial de git no alcanza: hay que rotarla.
-      Pasos concretos en "Para mañana" arriba.
+- ~~**Claves viejas de Supabase**~~: Vercel pasó a la publishable (y se borró
+  `VITE_SUPABASE_SERVICE_KEY` de sus variables), las Edge Functions usan las
+  claves nuevas (`supabase/functions/_shared/claves.ts`), se borró la función
+  vieja `reset-pasword` y se **desactivaron las claves legacy** (anon +
+  service_role) el 2026-10-16: la clave filtrada en el repo ya no sirve.
+  También se revocó la "Legacy HS256" en JWT Signing Keys.
+- ~~**Actualizar la landing tribbu.ar**~~ (2026-10-15).
 
 ## Rediseño según los prototipos de Figma (siguiente)
 

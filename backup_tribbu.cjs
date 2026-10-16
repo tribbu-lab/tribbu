@@ -24,7 +24,11 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SIN_ARCHIVOS = process.argv.includes("--sin-archivos");
 const PAGINA = 1000;
 
-const headers = { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY };
+// Las claves nuevas (sb_secret_…) no son JWT: van solo en `apikey`. Una
+// service_role legacy (eyJ…) también va como Bearer.
+const headers = SUPABASE_KEY?.startsWith("eyJ")
+  ? { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY }
+  : { apikey: SUPABASE_KEY };
 
 async function pedir(url, opts = {}) {
   const res = await fetch(SUPABASE_URL + url, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
