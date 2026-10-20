@@ -172,3 +172,35 @@ export const contactosPorTribbu = (docentes = [], hijos = [], cursoIds = []) => 
 /** Buscador de la lista de Mensajes: por nombre, descripción o último mensaje. */
 export const filtrarConversaciones = (convs, q) =>
   (convs || []).filter((c) => coincideTexto(q, c.titulo, c.subtitulo, c.ultimo_texto));
+
+/**
+ * Edición de un mensaje propio: texto nuevo + las fotos que quedan.
+ * Devuelve { cambios, quitadas } para el update y el borrado del Storage, o
+ * null si quedaría vacío (sin texto ni fotos: para eso está "Eliminar").
+ */
+export function planEdicion(m, texto, fotosQueQuedan) {
+  const t = limpiarTexto(texto);
+  const antes = m?.fotos || [];
+  const quedan = (fotosQueQuedan || antes).filter((p) => antes.includes(p));
+  if (!t && !quedan.length) return null;
+  const quitadas = antes.filter((p) => !quedan.includes(p));
+  const cambios = { texto: t || null };
+  if (quitadas.length) cambios.fotos = quedan;
+  return { cambios, quitadas };
+}
+
+// Grupos: cada persona con su color en el nombre, siempre el mismo
+// para el mismo autor, para distinguir quién dice qué de un vistazo.
+const COLORES_AUTOR = ["#2563EB", "#DB2777", "#059669", "#D97706", "#7C3AED", "#0891B2", "#DC2626", "#4D7C0F"];
+// Con `autores` (los ids de la conversación) los colores no se repiten hasta
+// el 9º autor; sin la lista, sale de un hash del id.
+export function colorAutor(id, autores = null) {
+  const lista = autores ? [...autores].sort() : null;
+  const i = lista ? lista.indexOf(id) : -1;
+  if (i >= 0) return COLORES_AUTOR[i % COLORES_AUTOR.length];
+  const s = String(id || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return COLORES_AUTOR[h % COLORES_AUTOR.length];
+}
+

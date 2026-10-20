@@ -25,7 +25,7 @@ import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE, MIN_TOUCH, withAlpha } from "
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
-  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
+  fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje,
 } from "@shared/mensajes";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -455,21 +455,30 @@ function ParticipantesSheet({ conv, onCerrar }) {
 
 // ── Burbuja ─────────────────────────────────────────────────────────────────
 
-const Burbuja = memo(function Burbuja({ m, mio, firma, primero, seleccionado, onTocar, onVerFoto, onReintentar }) {
+const Burbuja = memo(function Burbuja({ m, mio, firma, autor = null, primero, seleccionado, onTocar, onVerFoto, onReintentar }) {
   const borrado = !!m.borrado_en;
   const fotos = m.fotos || [];
   const previews = m._previews || [];
   const nFotos = fotos.length || previews.length;
   const lado = nFotos > 1 ? 118 : 220;
+  // En los grupos el nombre va adentro de la burbuja (como encabezado); en
+  // soporte, arriba como antes.
+  const firmaAdentro = firma && autor && !borrado;
   return (
     <View style={[s.burbujaWrap, mio ? s.derecha : s.izquierda, primero ? s.mt8 : s.mt2]}>
-      {firma ? <Text style={s.firma}>{firma}</Text> : null}
+      {firma && !firmaAdentro ? <Text style={s.firma}>{firma}</Text> : null}
       <Pressable onPress={borrado ? undefined : onTocar} onLongPress={borrado ? undefined : onTocar} delayLongPress={250}
         style={[s.burbuja, borrado ? s.burbujaBorrada : mio ? s.burbujaMia : s.burbujaOtra, mio && primero && s.esqDer, !mio && primero && s.esqIzq,
           nFotos && !m.texto ? s.burbujaSoloFoto : null, m._estado === "enviando" && s.enviando, seleccionado && s.seleccionada]}
         accessibilityRole="button" accessibilityHint="Tocá para ver opciones">
         {borrado ? <Text style={s.borradoTxt}>Mensaje eliminado</Text> : (
           <>
+            {firmaAdentro ? (
+              <Text style={[s.firmaAdentro, nFotos ? s.px6 : null]} numberOfLines={1}>
+                <Text style={{ color: autor.color }}>{firma}</Text>
+                {autor.familia ? <Text style={s.firmaFamilia}> · {autor.familia}</Text> : null}
+              </Text>
+            ) : null}
             {nFotos ? (
               <View style={[s.fotosGrid, m.texto ? s.mb6 : null]}>
                 {fotos.length ? fotos.map((p) => (
@@ -543,12 +552,14 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     return () => { vivo = false; };
   }, [grupal, userId]);
   const [nombres, setNombres] = useState({});
+  const [familias, setFamilias] = useState({});
   const nombresRef = useRef({});
   const cargarNombres = useCallback(async () => {
     const { data } = await supabase.rpc("autores_conversacion", { p_conv: conv.id });
     const map = Object.fromEntries((data || []).map((a) => [a.usuario_id, a.nombre]));
     nombresRef.current = map;
     setNombres(map);
+    setFamilias(Object.fromEntries((data || []).filter((a) => a.familia).map((a) => [a.usuario_id, a.familia])));
   }, [conv.id]);
   useEffect(() => { if (multi) cargarNombres(); }, [multi, cargarNombres]);
   const esSoporte = conv.tipo === "soporte";
@@ -667,10 +678,12 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   };
 
   const guardarEdicion = async () => {
-    const tx = limpiarTexto(editando.texto);
-    if (!tx) return;
-    const { data, error } = await supabase.from("mensajes").update({ texto: tx }).eq("id", editando.id).select().single();
+    const m = mensajes.find((x) => x.id === editando.id);
+    const plan = planEdicion(m, editando.texto, editando.fotos);
+    if (!plan) { Alert.alert("El mensaje quedaría vacío", "Para sacarlo entero, usá Eliminar."); return; }
+    const { data, error } = await supabase.from("mensajes").update(plan.cambios).eq("id", editando.id).select().single();
     if (error) { Alert.alert("No se pudo editar el mensaje"); return; }
+    if (plan.quitadas.length) borrarArchivos(plan.quitadas, "adjuntos");
     setMensajes((prev) => fusionarMensajes(prev, [data]));
     setEditando(null);
   };
@@ -780,7 +793,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     if (m._estado) return;
     const opciones = [];
     if (puedeEditar(m, userId)) {
-      if (m.texto) opciones.push({ text: "Editar", onPress: () => setEditando({ id: m.id, texto: m.texto }) });
+      if (m.texto || (m.fotos || []).length > 1) opciones.push({ text: "Editar", onPress: () => setEditando({ id: m.id, texto: m.texto || "", fotos: m.fotos || [] }) });
       opciones.push({ text: "Eliminar", style: "destructive", onPress: () => eliminar(m) });
     } else if (!staff && m.rol_autor === "usuario" && conv.tipo !== "soporte") {
       opciones.push({ text: "Denunciar", style: "destructive", onPress: () => setDenunciar(m) });
@@ -810,14 +823,16 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       return <View style={[s.burbujaWrap, s.izquierda, s.mt8]}><Text style={[s.borradoTxt, s.bloqueadoTxt]}>Mensaje de un usuario bloqueado</Text></View>;
     }
     const firma = !mio && f.primeroDelGrupo && (multi || (staff && m.rol_autor === "soporte")) ? firmaMensaje(m, { userId, nombres }) : null;
+    // En los grupos: color, iniciales y "familia de…" de quien escribe.
+    const autor = multi && !mio ? { color: colorAutor(m.autor_id || m.rol_autor, Object.keys(nombres)), familia: familias[m.autor_id] || null } : null;
     return (
-      <Burbuja m={m} mio={mio} firma={firma} primero={f.primeroDelGrupo} seleccionado={seleccionado === m.id}
+      <Burbuja m={m} mio={mio} firma={firma} autor={autor} primero={f.primeroDelGrupo} seleccionado={seleccionado === m.id}
         onTocar={() => tocarMensaje(m)} onVerFoto={setVisor}
         onReintentar={() => enviar({ ...m._reintento, creado_en: m.creado_en })} />
     );
   // enviar cambia en cada render pero solo se usa en el reintento
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staff, userId, conv.tipo, seleccionado, tocarMensaje, rolStaff, multi, nombres, grupal, bloqueados]);
+  }, [staff, userId, conv.tipo, seleccionado, tocarMensaje, rolStaff, multi, nombres, familias, grupal, bloqueados]);
 
   return (
     <View style={[s.chatRoot, { paddingTop: insets.top }]}>
@@ -903,6 +918,18 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
         ) : editando ? (
           <View style={[s.composer, { paddingBottom: insets.bottom + SPACE.sm }]}>
             <Text style={s.editandoLbl}>Editando mensaje</Text>
+            {(editando.fotos || []).length ? (
+              <View style={s.previewsRow}>
+                {editando.fotos.map((p, i) => (
+                  <View key={p}>
+                    <SignedImage src={p} bucket="adjuntos" miniatura style={s.previewImg} />
+                    <Pressable onPress={() => setEditando((e) => ({ ...e, fotos: e.fotos.filter((x) => x !== p) }))} style={s.quitarFoto} hitSlop={8} accessibilityLabel={`Quitar foto ${i + 1}`}>
+                      <MaterialCommunityIcons name="close" size={12} color="white" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={s.composerRow}>
               <TextInput value={editando.texto} onChangeText={(v) => setEditando((e) => ({ ...e, texto: v.slice(0, MAX_TEXTO) }))} multiline autoFocus style={s.composerInput} accessibilityLabel="Editar mensaje" />
               <Pressable onPress={() => setEditando(null)} style={s.iconBtn} accessibilityLabel="Cancelar edición"><MaterialCommunityIcons name="close" size={22} color={t.textMuted} /></Pressable>
@@ -1540,7 +1567,9 @@ const s = StyleSheet.create({
   mt2: { marginTop: 2 },
   mb6: { marginBottom: 6 },
   px6: { paddingHorizontal: 6, paddingBottom: 4 },
-  firma: { fontSize: 11.5, fontWeight: "700", color: t.textMuted, marginHorizontal: 8, marginBottom: 2 },
+  firma: { fontSize: 12.5, fontWeight: "700", color: t.textMuted, marginHorizontal: 8, marginBottom: 2 },
+  firmaAdentro: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
+  firmaFamilia: { fontSize: 12.5, fontWeight: "500", color: t.textMuted },
   burbuja: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   burbujaMia: { backgroundColor: t.accent },
   burbujaOtra: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },

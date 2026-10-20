@@ -25,7 +25,7 @@ import { useConfirmar } from "../../hooks/useConfirmar";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
-  fusionarMensajes, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
+  fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje,
 } from "../../lib/mensajes";
 
@@ -554,9 +554,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     return () => { vivo = false; };
   }, [grupal, userId]);
   const [nombres, setNombres] = useState({});
+  const [familias, setFamilias] = useState({});
   const cargarNombres = useCallback(async () => {
     const { data } = await supabase.rpc("autores_conversacion", { p_conv: conv.id });
     setNombres(Object.fromEntries((data || []).map((a) => [a.usuario_id, a.nombre])));
+    setFamilias(Object.fromEntries((data || []).filter((a) => a.familia).map((a) => [a.usuario_id, a.familia])));
   }, [conv.id]);
   useEffect(() => { if (multi) Promise.resolve().then(cargarNombres); }, [multi, cargarNombres]);
   const nombresRef = useRef(nombres);
@@ -702,11 +704,12 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   };
 
   const guardarEdicion = async () => {
-    const t = limpiarTexto(editando.texto);
     const m = mensajes.find((x) => x.id === editando.id);
-    if (!t && !(m?.fotos || []).length) return;
-    const { data, error: e } = await supabase.from("mensajes").update({ texto: t || null }).eq("id", editando.id).select().single();
+    const plan = planEdicion(m, editando.texto, editando.fotos);
+    if (!plan) { setError("El mensaje quedaría vacío. Para sacarlo entero, usá Eliminar."); return; }
+    const { data, error: e } = await supabase.from("mensajes").update(plan.cambios).eq("id", editando.id).select().single();
     if (e) { setError("No se pudo editar el mensaje."); return; }
+    if (plan.quitadas.length) borrarArchivos(plan.quitadas, "adjuntos");
     setMensajes((prev) => fusionarMensajes(prev, [data]));
     setEditando(null); setSeleccionado(null);
   };
@@ -860,13 +863,14 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
             <span style={{ fontSize: 11.5, fontWeight: 700, color: C.textMuted, background: C.surface2, borderRadius: 999, padding: "3px 10px" }}>{f.label}</span>
           </div>
         ) : (
-          <Burbuja key={f.key} m={f.m} userId={userId} staff={staff} rolStaff={rolStaff} multi={multi} nombres={nombres} conv={conv} primero={f.primeroDelGrupo}
+          <Burbuja key={f.key} m={f.m} userId={userId} staff={staff} rolStaff={rolStaff} multi={multi} nombres={nombres} familias={familias} conv={conv} primero={f.primeroDelGrupo}
             grupal={grupal} bloqueadoAutor={grupal && bloqueados.has(f.m.autor_id)} moderador={!!conv.modero} onBloquear={() => bloquearAutor(f.m)}
             seleccionado={seleccionado === f.m.id}
             onSeleccionar={() => setSeleccionado((s) => (s === f.m.id ? null : f.m.id))}
             editando={editando?.id === f.m.id ? editando : null}
-            onEditar={() => setEditando({ id: f.m.id, texto: f.m.texto || "" })}
+            onEditar={() => setEditando({ id: f.m.id, texto: f.m.texto || "", fotos: f.m.fotos || [] })}
             onCambiarEdicion={(t) => setEditando((e) => ({ ...e, texto: t }))}
+            onQuitarFoto={(p) => setEditando((e) => ({ ...e, fotos: (e.fotos || []).filter((x) => x !== p) }))}
             onGuardarEdicion={guardarEdicion}
             onCancelarEdicion={() => setEditando(null)}
             onEliminar={() => eliminar(f.m)}
@@ -938,7 +942,7 @@ function MenuItem({ onClick, children, peligro }) {
   );
 }
 
-function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, grupal, bloqueadoAutor, moderador, onBloquear, seleccionado, onSeleccionar, editando, onEditar, onCambiarEdicion, onGuardarEdicion, onCancelarEdicion, onEliminar, onDenunciar, onReintentar, onVerFoto }) {
+function Burbuja({ m, userId, staff, rolStaff, multi, nombres, familias = {}, conv, primero, grupal, bloqueadoAutor, moderador, onBloquear, seleccionado, onSeleccionar, editando, onEditar, onCambiarEdicion, onQuitarFoto, onGuardarEdicion, onCancelarEdicion, onEliminar, onDenunciar, onReintentar, onVerFoto }) {
   // En una bandeja institucional, "mío" = lo que escribió ese lado (cualquier
   // super en soporte, cualquier admin del colegio en Secretaría).
   const mio = rolStaff ? m.rol_autor === rolStaff : m.autor_id === userId;
@@ -948,7 +952,8 @@ function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, gr
   const fondo = mio ? C.accent : C.surface;
   const color = mio ? C.onAccent : C.text;
   const previews = m._previews || [];
-  const fotos = m.fotos || [];
+  // Editando: se ven solo las fotos que quedan, cada una con "Quitar".
+  const fotos = editando ? (editando.fotos || []) : (m.fotos || []);
   const acciones = seleccionado && !borrado && !m._estado;
 
   // Autor bloqueado (en grupos de familias): no se muestra el contenido.
@@ -960,16 +965,36 @@ function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, gr
     );
   }
 
+  // En los grupos: color, iniciales y "familia de…" de quien escribe.
+  const autor = multi && !mio ? { color: colorAutor(m.autor_id || m.rol_autor, Object.keys(nombres)), familia: familias[m.autor_id] || null } : null;
+
+  // En los grupos el nombre va adentro de la burbuja (como encabezado); en
+  // soporte, arriba como antes.
+  const firmaAdentro = firma && autor && !borrado;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: mio ? "flex-end" : "flex-start", marginTop: primero ? 8 : 2 }}>
-      {firma ? <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textMuted, margin: "0 8px 2px" }}>{firma}</div> : null}
+      {firma && !firmaAdentro ? <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textMuted, margin: "0 8px 2px" }}>{firma}</div> : null}
       <div onClick={(e) => { e.stopPropagation(); if (!borrado && !editando) onSeleccionar(); }}
         style={{ maxWidth: "min(78%, 520px)", background: borrado ? "transparent" : fondo, color: borrado ? C.textFaint : color, border: borrado ? `1px dashed ${C.borderStrong}` : mio ? "none" : `1px solid ${C.border}`, borderRadius: 16, borderTopRightRadius: mio && primero ? 4 : 16, borderTopLeftRadius: !mio && primero ? 4 : 16, padding: (fotos.length || previews.length) && !m.texto ? 4 : "8px 12px", cursor: borrado ? "default" : "pointer", opacity: m._estado === "enviando" ? 0.7 : 1, outline: seleccionado ? `2px solid ${BLUE[300]}` : "none" }}>
         {borrado ? <span style={{ fontSize: 13, fontStyle: "italic", color: C.textFaint }}>Mensaje eliminado</span> : (
           <>
+            {firmaAdentro ? (
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2, padding: (fotos.length || previews.length) ? "4px 8px 0" : 0 }}>
+                <span style={{ color: autor.color }}>{firma}</span>
+                {autor.familia ? <span style={{ fontSize: 12.5, fontWeight: 500, color: C.textMuted }}> · {autor.familia}</span> : null}
+              </div>
+            ) : null}
             {fotos.length || previews.length ? (
               <div style={{ display: "grid", gridTemplateColumns: (fotos.length || previews.length) > 1 ? "1fr 1fr" : "1fr", gap: 4, marginBottom: m.texto ? 6 : 0 }}>
-                {fotos.length ? fotos.map((p, i) => (
+                {fotos.length && editando ? fotos.map((p, i) => (
+                  <span key={p} onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "block" }}>
+                    <SignedImg src={p} bucket="adjuntos" miniatura alt={`Foto ${i + 1}`} style={{ width: fotos.length > 1 ? 120 : 220, height: fotos.length > 1 ? 120 : 220, maxWidth: "100%", objectFit: "cover", borderRadius: 12, display: "block" }} />
+                    <button onClick={() => onQuitarFoto(p)} aria-label={`Quitar foto ${i + 1}`} style={{ position: "absolute", top: 6, right: 6, border: "none", borderRadius: 999, padding: "4px 9px", cursor: "pointer", background: "rgba(15,23,42,0.75)", fontFamily: "inherit" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "white" }}>Quitar</span>
+                    </button>
+                  </span>
+                )) : fotos.length ? fotos.map((p, i) => (
                   <button key={p} onClick={(e) => { e.stopPropagation(); onVerFoto(p); }} aria-label={`Ver foto ${i + 1}`} style={{ border: "none", padding: 0, background: "transparent", cursor: "zoom-in" }}>
                     <SignedImg src={p} bucket="adjuntos" miniatura alt={`Foto ${i + 1}`} style={{ width: fotos.length > 1 ? 120 : 220, height: fotos.length > 1 ? 120 : 220, maxWidth: "100%", objectFit: "cover", borderRadius: 12, display: "block" }} />
                   </button>
@@ -1004,7 +1029,7 @@ function Burbuja({ m, userId, staff, rolStaff, multi, nombres, conv, primero, gr
         <div style={{ display: "flex", gap: 6, margin: "4px 4px 0" }} onClick={(e) => e.stopPropagation()}>
           {puedeEditar(m, userId) ? (
             <>
-              {m.texto ? <button onClick={onEditar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12 }}>✏️ Editar</button> : null}
+              {m.texto || (m.fotos || []).length > 1 ? <button onClick={onEditar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12 }}>✏️ Editar</button> : null}
               <button onClick={onEliminar} style={{ ...btnSec, padding: "6px 12px", fontSize: 12, color: C.danger }}>🗑 Eliminar</button>
             </>
           ) : !staff && m.rol_autor === "usuario" && conv.tipo !== "soporte" ? (
