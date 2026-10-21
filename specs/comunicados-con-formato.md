@@ -1,6 +1,6 @@
 ---
 title: Comunicados con formato y membrete
-status: acordado con Yanina (2026-10-21) — listo para implementar
+status: implementado (2026-10-21) — falta QA visual y deploy de calendar-feed
 priority: medium
 ---
 
@@ -64,15 +64,35 @@ Sin dependencias nuevas (regla de la casa).
 
 ## Acceptance Criteria
 
-- [ ] Comunicado del colegio con "Con membrete" muestra logo + nombre +
+- [x] Comunicado del colegio con "Con membrete" muestra logo + nombre +
       línea + firma (la del nivel si la hay) en web y mobile; sin el tilde se
       ve como hoy.
 - [ ] Negrita, cursiva, títulos, listas y links se ven bien en web y mobile
-      para cualquier autor; un comunicado viejo (texto plano) se ve idéntico.
-- [ ] Push, calendario y vistas previas muestran el texto sin marcas.
-- [ ] Ningún render usa HTML crudo; los links pasan por `safeUrl`.
-- [ ] Sin dependencias nuevas.
-- [ ] Lint + build web, lint mobile + `npx expo export -p ios`, CLAUDE.md.
+      para cualquier autor (parser probado con 26 casos; falta mirarlo en la
+      app). Un comunicado viejo se ve igual, salvo que sus líneas que empiezan
+      con "- " o "1. " ahora se dibujan como lista.
+
+## Implementación (2026-10-21)
+
+- Lógica pura en `src/lib/formato.js` (`@shared/formato`): `bloquesDeTexto`,
+  `partesDeLinea`, `textoPlano`, `tieneFormato`, `aplicarMarca`,
+  `BOTONES_FORMATO`, `membreteDe`. Copia de `textoPlano` en
+  `supabase/functions/_shared/textoPlano.ts` (calendar-feed).
+- Web: `TextoConFormato`, `EditorFormato` (el botón Link inserta
+  `[texto](https://)` con la dirección seleccionada: `window.prompt` no
+  aparece en navegadores embebidos), `Membrete`; hook `useMembretes`.
+  Mobile: los mismos en `mobile/components` + `mobile/lib/useMembretes.js`.
+- El texto se muestra con formato al abrir el aviso (Avisos, web y mobile);
+  cerrado y en el resto de la app (Inicio, campana, búsqueda, calendario,
+  historial del colegio, lecturas, push) va `textoPlano`.
+- Membrete: tilde "Con membrete del colegio" en Comunicaciones (web y panel
+  mobile, prendido por defecto); se configura en Super Admin → Colegio →
+  "Membrete de los comunicados" (línea + firma, y por nivel si el colegio tiene
+  más de uno). SQL `supabase/comunicados-formato.sql` (aplicado).
+- [x] Push, calendario y vistas previas muestran el texto sin marcas.
+- [x] Ningún render usa HTML crudo; los links pasan por `safeUrl`.
+- [x] Sin dependencias nuevas.
+- [x] Lint + build web, lint mobile + `npx expo export -p ios`, CLAUDE.md.
 
 ## Out of Scope
 

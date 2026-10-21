@@ -40,6 +40,11 @@ import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
 import { etiquetaDocente } from "@shared/docentes";
 import { separarAvisos, haceCuanto, fechaCortaAviso, fechaDelAviso, origenAviso, fotoDelAviso } from "@shared/avisosLista";
 import { SignedImage } from "../../components/SignedImage";
+import { textoPlano } from "@shared/formato";
+import { TextoConFormato } from "../../components/TextoConFormato";
+import { EditorFormato } from "../../components/EditorFormato";
+import { MembreteEncabezado, MembreteFirma } from "../../components/Membrete";
+import { useMembretes } from "../../lib/useMembretes";
 
 // "18", "18:5", "1830", "18:30" → "18:30" · vacío → null · inválido → false.
 const normalizarHora = (v) => {
@@ -103,7 +108,7 @@ function LineaFecha({ r }) {
 // Tarjeta de "Recientes": prioridad, de quién viene, hace cuánto, punto de no
 // leído, miniatura de la foto y la fecha del aviso en una cajita. Tocarla la
 // abre entera (texto, adjuntos) y la marca leída.
-const AvisoCard = memo(function AvisoCard({ r, origen, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
+const AvisoCard = memo(function AvisoCard({ r, membrete, origen, resaltado = false, esLeido, puedeEditar, tag, lecturas, onLeido, onEditar, onEliminar, onVerLecturas }) {
   const [abierto, setAbierto] = useState(resaltado);
   const prio = PRIO[r.prioridad || "media"] || PRIO.media;
   const foto = fotoDelAviso(r);
@@ -112,7 +117,7 @@ const AvisoCard = memo(function AvisoCard({ r, origen, resaltado = false, esLeid
     if (!esLeido) onLeido(r.id);
   };
   return (
-    <Pressable onPress={tocar} style={[styles.aviso, resaltado && styles.avisoResaltado]} accessibilityRole="button" accessibilityLabel={(r.titulo || r.texto || "") + (esLeido ? "" : ", sin leer")}>
+    <Pressable onPress={tocar} style={[styles.aviso, resaltado && styles.avisoResaltado]} accessibilityRole="button" accessibilityLabel={(r.titulo || textoPlano(r.texto) || "") + (esLeido ? "" : ", sin leer")}>
       <View style={styles.avisoTop}>
         <View style={[styles.prioPill, { backgroundColor: prio.bg }]}>
           <View style={[styles.prioDot, { backgroundColor: prio.c }]} />
@@ -124,8 +129,14 @@ const AvisoCard = memo(function AvisoCard({ r, origen, resaltado = false, esLeid
       </View>
       <View style={styles.avisoCuerpo}>
         <View style={styles.flex1}>
-          <Text style={[styles.avisoTitulo, esLeido && styles.avisoLeido]} numberOfLines={abierto ? undefined : 2}>{r.titulo || r.texto}</Text>
-          {r.titulo && r.texto ? <Text style={styles.avisoTexto} numberOfLines={abierto ? undefined : 2}>{r.texto}</Text> : null}
+          {abierto && membrete ? <MembreteEncabezado m={membrete} /> : null}
+          {r.titulo || !abierto ? <Text style={[styles.avisoTitulo, esLeido && styles.avisoLeido]} numberOfLines={abierto ? undefined : 2}>{r.titulo || textoPlano(r.texto)}</Text> : null}
+          {abierto ? (
+            <View style={r.titulo ? styles.cuerpoAbierto : null}>
+              <TextoConFormato texto={r.texto} fontSize={14} />
+              <MembreteFirma m={membrete} />
+            </View>
+          ) : r.titulo && r.texto ? <Text style={styles.avisoTexto} numberOfLines={2}>{textoPlano(r.texto)}</Text> : null}
         </View>
         {foto && !abierto ? <SignedImage src={foto.url} bucket="adjuntos" miniatura style={styles.thumb} /> : null}
       </View>
@@ -164,7 +175,7 @@ const AvisoCard = memo(function AvisoCard({ r, origen, resaltado = false, esLeid
 
 // "Requiere tu atención": prioridad alta (o urgente) sin leer. "Entendido" la
 // marca leída y pasa a Recientes.
-function AvisoAtencion({ r, origen, resaltado = false, onEntendido }) {
+function AvisoAtencion({ r, membrete, origen, resaltado = false, onEntendido }) {
   const [abierto, setAbierto] = useState(resaltado);
   return (
     <View style={[styles.atencion, resaltado && styles.avisoResaltado]}>
@@ -178,8 +189,14 @@ function AvisoAtencion({ r, origen, resaltado = false, onEntendido }) {
         </View>
         <View style={styles.puntoNoLeido} />
       </View>
-      <Text style={styles.atencionTitulo}>{r.titulo || r.texto}</Text>
-      {r.titulo && r.texto ? <Text style={styles.atencionTexto} numberOfLines={abierto ? undefined : 3}>{r.texto}</Text> : null}
+      {abierto && membrete ? <View style={styles.atencionMembrete}><MembreteEncabezado m={membrete} /></View> : null}
+      {r.titulo || !abierto ? <Text style={styles.atencionTitulo}>{r.titulo || textoPlano(r.texto)}</Text> : null}
+      {abierto ? (
+        <View style={styles.cuerpoAbierto}>
+          <TextoConFormato texto={r.texto} />
+          <MembreteFirma m={membrete} />
+        </View>
+      ) : r.titulo && r.texto ? <Text style={styles.atencionTexto} numberOfLines={3}>{textoPlano(r.texto)}</Text> : null}
       <LineaFecha r={r} />
       {abierto ? <AdjuntosList adjuntos={r.adjuntos} /> : null}
       <View style={styles.atencionBtns}>
@@ -207,6 +224,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   const [recordatorios, setRecordatorios] = useState([]);
   // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" (specs/docentes-clases-y-grupos.md).
   const docenteDe = useAutoresDocentes(recordatorios.map((r) => r.creado_por));
+  // Comunicados del colegio con membrete (specs/comunicados-con-formato.md).
+  const membreteDeAviso = useMembretes(recordatorios, items);
   const [leidosSet, setLeidosSet] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [verLecturas, setVerLecturas] = useState(null); // aviso con "¿quién lo leyó?" abierto
@@ -305,7 +324,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       if (isAdmin || (cursosDocente || []).includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
-        await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || form.texto, id: creado?.id, userIds } });
+        await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || textoPlano(form.texto), id: creado?.id, userIds } });
       }
     }
     setSaving(false);
@@ -456,7 +475,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} onLimpiar={limpiarFiltros} />
       <LecturasSheet
         visible={!!verLecturas}
-        titulo={verLecturas?.titulo || verLecturas?.texto}
+        titulo={verLecturas?.titulo || textoPlano(verLecturas?.texto)}
         filas={verLecturas ? lecturas[verLecturas.id] : null}
         onClose={() => setVerLecturas(null)}
       />
@@ -470,6 +489,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
           <AvisoCard
             origen={origenDe(item)}
             r={item}
+            membrete={membreteDeAviso(item)}
             resaltado={item.id === resaltado}
             esLeido={leidosSet.has(item.id)}
             // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
@@ -506,7 +526,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
                   <View style={styles.seccionCuenta}><Text style={styles.seccionCuentaTxt}>{atencion.length}</Text></View>
                 </View>
                 {atencion.map((r) => (
-                  <AvisoAtencion key={r.id} r={r} origen={origenDe(r)} resaltado={r.id === resaltado} onEntendido={marcarLeido} />
+                  <AvisoAtencion key={r.id} r={r} membrete={membreteDeAviso(r)} origen={origenDe(r)} resaltado={r.id === resaltado} onEntendido={marcarLeido} />
                 ))}
               </>
             ) : null}
@@ -598,12 +618,10 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
               />
 
               <Text style={styles.modalLabel}>{form.titulo?.trim() ? "Descripción" : "Texto"}</Text>
-              <TextInput
+              <EditorFormato
                 value={form.texto}
-                onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
+                onChange={(v) => setForm((p) => ({ ...p, texto: v }))}
                 placeholder={form.titulo?.trim() ? "Ej: En el SUM, traer la autorización firmada." : "Ej: Reunión de padres el viernes"}
-                placeholderTextColor={t.placeholder}
-                multiline
                 style={[styles.modalInput, styles.modalTextarea]}
               />
 
@@ -721,6 +739,8 @@ const styles = StyleSheet.create({
   avisoTitulo: { fontSize: 16.5, fontWeight: "800", color: t.textStrong, lineHeight: 22 },
   avisoLeido: { color: t.text },
   avisoTexto: { fontSize: 14, color: t.textMuted, marginTop: 4, lineHeight: 20 },
+  cuerpoAbierto: { marginTop: 6 },
+  atencionMembrete: { marginTop: 12, backgroundColor: "#fff", borderRadius: 12, paddingTop: 12, paddingHorizontal: 14 },
   thumb: { width: 64, height: 64, borderRadius: 12 },
   fechaLinea: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   fechaLineaTxt: { fontSize: 13.5, fontWeight: "600", color: t.textMuted },

@@ -24,6 +24,11 @@ import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
+import { useMembretes } from "../../hooks/useMembretes";
+import { textoPlano } from "../../lib/formato";
+import { TextoConFormato } from "../../components/TextoConFormato";
+import { EditorFormato } from "../../components/EditorFormato";
+import { MembreteEncabezado, MembreteFirma } from "../../components/Membrete";
 import { etiquetaDocente } from "../../lib/docentes";
 
 // Último publicado primero (creado_en), no por la fecha del aviso: ordenar por
@@ -52,6 +57,8 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
   const [busqueda, setBusqueda] = useState("");
   // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" y filtro por origen.
   const docenteDe = useAutoresDocentes(recordatorios.map(r=>r.creado_por));
+  // Comunicados del colegio con membrete (specs/comunicados-con-formato.md).
+  const membreteDeAviso = useMembretes(recordatorios, items);
   const [expandidos,    setExpandidos]    = useState(()=>new Set());
   const toggleExpandido = (id) => setExpandidos(p=>{ const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const [pagina,        setPagina]        = useState(1);
@@ -124,7 +131,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
       if(isAdmin || cursosDocente.includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
-        await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||form.texto, id:creado?.id, userIds } });
+        await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||textoPlano(form.texto), id:creado?.id, userIds } });
       }
     }
     setSaving(false); setModal(null); cargar();
@@ -233,7 +240,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
 
   return (
     <div style={{maxWidth:900}}>
-      {verLecturas&&lecturas[verLecturas.id]&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={lecturas[verLecturas.id]} onClose={()=>setVerLecturas(null)}/>}
+      {verLecturas&&lecturas[verLecturas.id]&&<LecturasModal titulo={verLecturas.titulo||textoPlano(verLecturas.texto)} filas={lecturas[verLecturas.id]} onClose={()=>setVerLecturas(null)}/>}
       {/* El título lo da la pestaña "Avisos" de Comunicaciones. */}
       {filtrosAbiertos&&<FiltrosModal grupos={gruposFiltro} onClose={()=>setFiltrosAbiertos(false)} onLimpiar={limpiarFiltros}/>}
       <Buscador value={busqueda} onChange={(v)=>{setBusqueda(v);setPagina(1);}} placeholder="Buscar en avisos…"/>
@@ -292,7 +299,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
             </div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{form.titulo?.trim() ? "DESCRIPCIÓN" : "TEXTO"}</div>
-              <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder={form.titulo?.trim() ? "Ej: En el SUM, traer la autorización firmada." : "Ej: Reunion de padres el viernes"} rows={3} style={{...inp,resize:"vertical"}}/>
+              <EditorFormato value={form.texto} onChange={v=>setForm(p=>({...p,texto:v}))} placeholder={form.titulo?.trim() ? "Ej: En el SUM, traer la autorización firmada." : "Ej: Reunion de padres el viernes"} rows={4} style={{...inp,resize:"vertical"}}/>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
               <div style={{flex:"1 1 140px"}}>
@@ -363,7 +370,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
             <span style={{minWidth:22,height:22,padding:"0 6px",borderRadius:999,background:"#FEE2E2",display:"inline-flex",alignItems:"center",justifyContent:"center",boxSizing:"border-box"}}><span style={{fontSize:12,fontWeight:800,color:"#DC2626"}}>{atencion.length}</span></span>
           </div>
           {atencion.map(r=>(
-            <AvisoAtencion key={r.id} r={r} origen={origenDe(r)} resaltado={r.id===resaltado} abierto={expandidos.has(r.id)} onAbrir={()=>toggleExpandido(r.id)} onEntendido={()=>marcarLeido(r.id)}/>
+            <AvisoAtencion key={r.id} r={r} membrete={membreteDeAviso(r)} origen={origenDe(r)} resaltado={r.id===resaltado} abierto={expandidos.has(r.id)} onAbrir={()=>toggleExpandido(r.id)} onEntendido={()=>marcarLeido(r.id)}/>
           ))}
         </>
       )}
@@ -379,7 +386,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
         </div>
       )}
       {visible.map(r=>(
-        <AvisoCard key={r.id} r={r} origen={origenDe(r)} tag={tagDeCurso?.(r.curso_id)} esLeido={leidosSet.has(r.id)} resaltado={r.id===resaltado}
+        <AvisoCard key={r.id} r={r} membrete={membreteDeAviso(r)} origen={origenDe(r)} tag={tagDeCurso?.(r.curso_id)} esLeido={leidosSet.has(r.id)} resaltado={r.id===resaltado}
           abierto={expandidos.has(r.id)} onAbrir={()=>{ toggleExpandido(r.id); if(!leidosSet.has(r.id)) marcarLeido(r.id); }}
           onNoLeido={()=>marcarLeido(r.id)} lecturas={lecturas[r.id]} onVerLecturas={()=>setVerLecturas(r)}
           onEditar={puedeEditar(r)&&r.tipo!=="colecta_vence" ? ()=>{setModal(r);setForm({titulo:r.titulo||"",texto:r.texto||"",fecha:r.fecha||"",hora_inicio:r.hora_inicio?.slice(0,5)||"",hora_fin:r.hora_fin?.slice(0,5)||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});} : null}
@@ -416,7 +423,7 @@ const PuntoNoLeido = () => <span aria-label="Sin leer" style={{ width: 9, height
 
 // "Recientes": prioridad, de quién viene, hace cuánto, punto de no leído,
 // miniatura de la foto y la fecha. Clic = se abre entera y queda leída.
-function AvisoCard({ r, origen, tag, prio, esLeido, resaltado, abierto, onAbrir, onNoLeido, lecturas, onVerLecturas, onEditar, onBorrar }) {
+function AvisoCard({ r, membrete, origen, tag, prio, esLeido, resaltado, abierto, onAbrir, onNoLeido, lecturas, onVerLecturas, onEditar, onBorrar }) {
   const foto = fotoDelAviso(r);
   const link = { border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" };
   return (
@@ -433,8 +440,11 @@ function AvisoCard({ r, origen, tag, prio, esLeido, resaltado, abierto, onAbrir,
       </div>
       <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16.5, fontWeight: 800, color: esLeido ? "#334155" : "#0F172A", lineHeight: 1.3, ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.titulo || r.texto}</div>
-          {r.titulo && r.texto && <div style={{ fontSize: 14, color: "#64748B", marginTop: 4, lineHeight: 1.45, whiteSpace: abierto ? "pre-wrap" : "normal", ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.texto}</div>}
+          {abierto && membrete && <div onClick={(e) => e.stopPropagation()}><MembreteEncabezado m={membrete} /></div>}
+          {(r.titulo || !abierto) && <div style={{ fontSize: 16.5, fontWeight: 800, color: esLeido ? "#334155" : "#0F172A", lineHeight: 1.3, ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.titulo || textoPlano(r.texto)}</div>}
+          {abierto
+            ? <div onClick={(e) => e.stopPropagation()} style={{ marginTop: r.titulo ? 6 : 0 }}><TextoConFormato texto={r.texto} fontSize={14} /><MembreteFirma m={membrete} /></div>
+            : r.titulo && r.texto && <div style={{ fontSize: 14, color: "#64748B", marginTop: 4, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{textoPlano(r.texto)}</div>}
         </div>
         {foto && !abierto && <SignedImg src={foto.url} bucket="adjuntos" miniatura alt="" style={{ width: 64, height: 64, borderRadius: 12, objectFit: "cover", flexShrink: 0 }} />}
       </div>
@@ -456,7 +466,7 @@ function AvisoCard({ r, origen, tag, prio, esLeido, resaltado, abierto, onAbrir,
 
 // "Requiere tu atención": prioridad alta (o urgente) sin leer. "Entendido" la
 // marca leída y pasa a Recientes.
-function AvisoAtencion({ r, origen, resaltado, abierto, onAbrir, onEntendido }) {
+function AvisoAtencion({ r, membrete, origen, resaltado, abierto, onAbrir, onEntendido }) {
   return (
     <div id={`aviso-${r.id}`} style={{ background: "#FEF2F2", border: `${resaltado ? 2 : 1}px solid ${resaltado ? "#F87171" : "#FECACA"}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -467,8 +477,11 @@ function AvisoAtencion({ r, origen, resaltado, abierto, onAbrir, onEntendido }) 
         </span>
         <PuntoNoLeido />
       </div>
-      <div style={{ fontSize: 19, fontWeight: 800, color: "#0F172A", marginTop: 12, lineHeight: 1.3 }}>{r.titulo || r.texto}</div>
-      {r.titulo && r.texto && <div style={{ fontSize: 14.5, color: "#334155", marginTop: 4, lineHeight: 1.5, whiteSpace: abierto ? "pre-wrap" : "normal", ...(abierto ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{r.texto}</div>}
+      {abierto && membrete && <div style={{ marginTop: 12, background: "white", borderRadius: 12, padding: "12px 14px 0" }}><MembreteEncabezado m={membrete} /></div>}
+      {(r.titulo || !abierto) && <div style={{ fontSize: 19, fontWeight: 800, color: "#0F172A", marginTop: 12, lineHeight: 1.3 }}>{r.titulo || textoPlano(r.texto)}</div>}
+      {abierto
+        ? <div style={{ marginTop: r.titulo ? 6 : 12 }}><TextoConFormato texto={r.texto} /><MembreteFirma m={membrete} /></div>
+        : r.titulo && r.texto && <div style={{ fontSize: 14.5, color: "#334155", marginTop: 4, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{textoPlano(r.texto)}</div>}
       <FechaAviso r={r} />
       {abierto && <AdjuntosList adjuntos={r.adjuntos} />}
       <div style={{ display: "flex", gap: 10, marginTop: 14 }}>

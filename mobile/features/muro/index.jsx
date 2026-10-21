@@ -47,6 +47,7 @@ import { useNotificacionesCtx } from "../notificaciones";
 import { SkeletonList } from "../../components/Skeleton";
 import { SelectorHijos } from "../../components/SelectorHijos";
 import { TablaMenu } from "../../components/TablaMenu";
+import { textoPlano } from "@shared/formato";
 
 const t = THEMES.light;
 
@@ -372,7 +373,7 @@ export function Muro() {
   const avisos = datos.recordatorios
     .filter((r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general")
     .map((r) => ({
-      key: `r-${r.id}`, tag: tagDeCurso(r.curso_id), titulo: r.titulo || r.texto,
+      key: `r-${r.id}`, tag: tagDeCurso(r.curso_id), titulo: r.titulo || textoPlano(r.texto),
       dato: unir(r.grupo_id ? "Comunicación del colegio" : "Aviso del curso", r.fecha ? fechaCorta(r.fecha) : null, fmtRangoHora(r.hora_inicio, r.hora_fin) || null),
       ir: () => router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(r.id), t: String(Date.now()) } }),
     }));

@@ -13,6 +13,7 @@ import { supabase } from "../../lib/supabase";
 import { useSession } from "../../context/Session";
 import { THEMES, SPACE, RADIUS, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
+import { textoPlano } from "@shared/formato";
 
 const t = THEMES.light;
 
@@ -62,7 +63,7 @@ export function Buscar() {
       ]);
 
       const items = [
-        ...(recs.data || []).map((r) => ({ _tipo: "recordatorio", id: `rec-${r.id}`, raw: r, titulo: r.texto, meta: r.fecha, curso_id: r.curso_id })),
+        ...(recs.data || []).map((r) => ({ _tipo: "recordatorio", id: `rec-${r.id}`, raw: r, titulo: r.titulo || textoPlano(r.texto), meta: r.fecha, curso_id: r.curso_id })),
         ...(evs.data || []).map((e) => ({ _tipo: "evento", id: `ev-${e.id}`, raw: e, titulo: e.titulo, meta: e.fecha, curso_id: e.curso_id })),
         ...(hijos.data || []).map((h) => ({
           _tipo: "familia",

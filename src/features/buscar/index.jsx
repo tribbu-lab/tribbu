@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
+import { textoPlano } from "../../lib/formato";
 
 export function BusquedaGlobal({ query, cursoIds, tagDeCurso, onNavigate, onLimpiar }) {
   const [resultados, setResultados] = useState([]);
@@ -30,7 +31,7 @@ export function BusquedaGlobal({ query, cursoIds, tagDeCurso, onNavigate, onLimp
       const items = [
         ...(recs.data || []).map(r => ({
           id: `rec-${r.id}`, emoji: "📌", soft: "#EFF6FF",
-          titulo: r.texto, meta: ["Aviso", tagDeCurso?.(r.curso_id)?.nombre, fmtFecha(r.fecha)].filter(Boolean).join(" · "),
+          titulo: r.titulo || textoPlano(r.texto), meta: ["Aviso", tagDeCurso?.(r.curso_id)?.nombre, fmtFecha(r.fecha)].filter(Boolean).join(" · "),
           go: () => onNavigate("recordatorios"),
         })),
         ...(evs.data || []).map(e => ({

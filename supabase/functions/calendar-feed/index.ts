@@ -30,6 +30,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { CLAVE_SERVICIO } from "../_shared/claves.ts";
+import { textoPlano } from "../_shared/textoPlano.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = CLAVE_SERVICIO;
@@ -153,7 +154,7 @@ type Recordatorio = {
 // Si tiene título (comunicaciones del colegio), el SUMMARY es el título y
 // `texto` pasa a DESCRIPTION — mismo criterio que `eventos.titulo`/`descripcion`.
 function buildRecordatorioVevent(r: Recordatorio, curso: string): string {
-  const nombre = r.titulo || r.texto;
+  const nombre = r.titulo || textoPlano(r.texto);
   const summary = esc(curso ? `${curso} — ${nombre}` : nombre);
   const lines = [
     "BEGIN:VEVENT",
@@ -163,7 +164,7 @@ function buildRecordatorioVevent(r: Recordatorio, curso: string): string {
     `DTSTART:${dateTimeUTC(r.fecha, r.hora_inicio!)}`,
     `DTEND:${dateTimeUTC(r.fecha, r.hora_fin || r.hora_inicio!)}`,
   ];
-  if (r.titulo) lines.push(`DESCRIPTION:${esc(r.texto)}`);
+  if (r.titulo) lines.push(`DESCRIPTION:${esc(textoPlano(r.texto))}`);
   lines.push("END:VEVENT");
   return lines.map(fold).join("\r\n");
 }

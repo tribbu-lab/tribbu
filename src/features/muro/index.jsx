@@ -35,6 +35,7 @@ import { useTabActiva } from "../../hooks/useTabActiva";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
+import { textoPlano } from "../../lib/formato";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
 function TagHijo({ tag }) {
@@ -281,7 +282,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   // ── Comunicaciones: avisos sin leer (leerlo lo marca como leído en Avisos).
   const avisos = datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
-    key:`r-${r.id}`, tag:tagDe(r.curso_id), titulo:r.titulo||r.texto,
+    key:`r-${r.id}`, tag:tagDe(r.curso_id), titulo:r.titulo||textoPlano(r.texto),
     dato:unir(r.grupo_id?"Comunicación del colegio":docenteDe(r.creado_por)?etiquetaDocente(docenteDe(r.creado_por)).replace(/^👩‍🏫\s*/,""):"Aviso del curso", r.fecha?fechaCorta(r.fecha):null, fmtRangoHora(r.hora_inicio,r.hora_fin)||null),
     ir:()=>onNavigate?.("recordatorios",{openAviso:r.id}),
   }));

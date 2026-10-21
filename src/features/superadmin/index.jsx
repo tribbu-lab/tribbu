@@ -37,6 +37,8 @@ import { Comedor } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 import { CambiarPasswordModal } from "../auth";
 import { useCargar } from "../../hooks/useCargar";
+import { textoPlano } from "../../lib/formato";
+import { EditorFormato } from "../../components/EditorFormato";
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
 // wrappean se vuelven enormes e inmanejables. Único lugar para este patrón
@@ -160,6 +162,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
   const [colegioNiveles,setColegioNiveles] = useState([]); // niveles que tiene el colegio (roles-por-nivel)
+  const [membrete,setMembrete] = useState({ linea:"", firma:"", niveles:{} }); // comunicados-con-formato
   const [colegios,setColegios]           = useState([]);
   const [modalColegio,setModalColegio]   = useState(null);
   const [savingColegio,setSavingColegio] = useState(false);
@@ -284,7 +287,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
       activeColegioId
-        ? supabase.from("colegios").select("id,año_lectivo_actual,nombre,niveles").eq("id",activeColegioId).single()
+        ? supabase.from("colegios").select("id,año_lectivo_actual,nombre,niveles,membrete_linea,membrete_firma,membrete_niveles").eq("id",activeColegioId).single()
         : Promise.resolve({data:null}),
       esSuper ? supabase.from("colegios").select("*").order("creado_en") : Promise.resolve({data:[]}),
     ]);
@@ -313,6 +316,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
     setColegioNombre(col.data?.nombre||"");
     setColegioNiveles(ordenarNiveles(col.data?.niveles));
+    setMembrete({ linea:col.data?.membrete_linea||"", firma:col.data?.membrete_firma||"", niveles:col.data?.membrete_niveles||{} });
     const mcData = activeColegioId ? (mc.data||[]).filter(r=>cursoIdsSet.has(r.curso_id)) : (esSuper?[]:(mc.data||[]));
     const maestroIdsDelColegio = new Set(mcData.map(r=>r.maestro_id));
     const maestrosDelColegio = activeColegioId ? (m.data||[]).filter(x=>maestroIdsDelColegio.has(x.id)) : (esSuper?[]:(m.data||[]));
@@ -1895,6 +1899,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 })}
               </div>
             </div>
+            <MembreteColegio colegioId={colegioIdActivo} colegioNombre={colegioNombre} niveles={colegioNiveles} valor={membrete} onGuardado={setMembrete} showToast={showToast}/>
             {colegioNiveles.length>1&&(
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
@@ -2253,10 +2258,49 @@ export function AlertasAdmin({ cursos }) {
 // de Super Admin). Un `grupo_id` (uuid) compartido marca las filas como parte
 // de la misma comunicación, aunque cada una se edita/borra por curso como
 // cualquier recordatorio (ver specs/comunicaciones-multi-curso.md).
+// Membrete de los comunicados (specs/comunicados-con-formato.md): una línea
+// debajo del nombre del colegio y una firma; por nivel se puede cambiar.
+function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado, showToast }) {
+  const [form, setForm] = useState(valor);
+  const [guardando, setGuardando] = useState(false);
+  const [base, setBase] = useState(valor);
+  if (valor !== base) { setBase(valor); setForm(valor); } // ajuste en render al recargar
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
+  const lbl = {fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5};
+  const setNivel = (k, campo, v) => setForm(p=>({...p,niveles:{...p.niveles,[k]:{...(p.niveles?.[k]||{}),[campo]:v}}}));
+  const guardar = async () => {
+    setGuardando(true);
+    const membrete_niveles = Object.fromEntries(Object.entries(form.niveles||{}).map(([k,v])=>[k,{linea:sanitize(v?.linea||"")||null,firma:sanitize(v?.firma||"")||null}]).filter(([,v])=>v.linea||v.firma));
+    const fila = { membrete_linea:sanitize(form.linea)||null, membrete_firma:sanitize(form.firma)||null, membrete_niveles };
+    const { error } = await supabase.from("colegios").update(fila).eq("id", colegioId);
+    setGuardando(false);
+    if (error) { showToast(`No se pudo guardar el membrete: ${error.message}`,"error"); return; }
+    showToast("Membrete guardado","ok");
+    onGuardado({ linea:fila.membrete_linea||"", firma:fila.membrete_firma||"", niveles:membrete_niveles });
+  };
+  return (
+    <div style={{marginBottom:24}}>
+      <div style={{fontSize:15,fontWeight:900}}>Membrete de los comunicados</div>
+      <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los comunicados que mandes con “Con membrete” se ven con el logo y el nombre de {colegioNombre||"el colegio"} arriba, esta línea debajo y la firma al final.</div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:"1 1 220px"}}><div style={lbl}>Línea (opcional)</div><input value={form.linea||""} onChange={e=>setForm(p=>({...p,linea:e.target.value}))} placeholder="Ej: Ciclo lectivo 2026" style={inp}/></div>
+        <div style={{flex:"1 1 220px"}}><div style={lbl}>Firma (opcional)</div><input value={form.firma||""} onChange={e=>setForm(p=>({...p,firma:e.target.value}))} placeholder="Ej: Dirección" style={inp}/></div>
+      </div>
+      {niveles.length>1&&niveles.map(k=>(
+        <div key={k} style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+          <div style={{flex:"1 1 220px"}}><div style={lbl}>Línea · {nombreNivel(k)}</div><input value={form.niveles?.[k]?.linea||""} onChange={e=>setNivel(k,"linea",e.target.value)} placeholder="Si queda vacía, va la general" style={inp}/></div>
+          <div style={{flex:"1 1 220px"}}><div style={lbl}>Firma · {nombreNivel(k)}</div><input value={form.niveles?.[k]?.firma||""} onChange={e=>setNivel(k,"firma",e.target.value)} placeholder={`Ej: Dirección de ${nombreNivel(k)}`} style={inp}/></div>
+        </div>
+      ))}
+      <button onClick={guardar} disabled={guardando} style={{padding:"9px 16px",borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:12.5,fontWeight:700}}>{guardando?"Guardando…":"Guardar membrete"}</button>
+    </div>
+  );
+}
+
 export function ComunicacionesAdmin({ cursos }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+  const [form, setForm] = useState({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true, conMembrete:true });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -2287,6 +2331,7 @@ export function ComunicacionesAdmin({ cursos }) {
       const rows = cursosSel.map(curso_id=>({
         titulo: sanitize(form.titulo), texto: sanitize(form.texto), fecha: form.fecha, hora_inicio: form.hora_inicio||null, hora_fin: form.hora_fin||null,
         prioridad: form.prioridad||"media", urgente: form.urgente||false, adjuntos: form.adjuntos||[], curso_id, grupo_id, creado_por: userId,
+        con_membrete: !!form.conMembrete,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if(insertErr) throw insertErr;
@@ -2297,7 +2342,7 @@ export function ComunicacionesAdmin({ cursos }) {
       }
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length!==1?"s":""}${form.enviarPush?" · con push":" · sin push"}.`);
-      setForm({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true });
+      setForm({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true, conMembrete:true });
       setCursosSel([]);
       setTimeout(()=>setOk(null),4000);
     } catch(e) {
@@ -2322,7 +2367,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
       <div style={{marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DESCRIPCIÓN</div>
-        <textarea value={form.texto} onChange={e=>setForm(p=>({...p,texto:e.target.value}))} placeholder="Ej: El viernes 15 a las 18hs, en el SUM." rows={3} style={{...inp,resize:"vertical"}}/>
+        <EditorFormato value={form.texto} onChange={v=>setForm(p=>({...p,texto:v}))} placeholder="Ej: El viernes 15 a las 18hs, en el SUM." rows={6} style={{...inp,resize:"vertical"}}/>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:140}}>
@@ -2355,6 +2400,12 @@ export function ComunicacionesAdmin({ cursos }) {
             <span style={{position:"absolute",top:2,left:form.enviarPush?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
           </span>
           {form.enviarPush?"🔔 Va a sonar (push)":"Sin notificación push"}
+        </button>
+        <button onClick={()=>setForm(p=>({...p,conMembrete:!p.conMembrete}))} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.conMembrete?"#BFDBFE":"#E2E8F0"}`,background:form.conMembrete?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.conMembrete?"#2563EB":"#94A3B8"}}>
+          <span style={{width:28,height:16,borderRadius:999,background:form.conMembrete?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
+            <span style={{position:"absolute",top:2,left:form.conMembrete?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
+          </span>
+          {form.conMembrete?"Con membrete del colegio":"Sin membrete"}
         </button>
       </div>
       <div style={{marginBottom:20}}>
@@ -2486,7 +2537,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
   return (
     <div style={{marginTop:24}}>
-      {verLecturas&&<LecturasModal titulo={verLecturas.titulo||verLecturas.texto} filas={verLecturas.lecturas} onClose={()=>setVerLecturas(null)}/>}
+      {verLecturas&&<LecturasModal titulo={verLecturas.titulo||textoPlano(verLecturas.texto)} filas={verLecturas.lecturas} onClose={()=>setVerLecturas(null)}/>}
       <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
         <span>📋 Historial de comunicaciones</span>
         <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
@@ -2524,11 +2575,11 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                 </div>
               ) : (
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:c.titulo?2:6}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"#0F172A",lineHeight:1.4}}>{c.titulo||c.texto}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#0F172A",lineHeight:1.4}}>{c.titulo||textoPlano(c.texto)}</div>
                   <button onClick={()=>empezarEdicion(c)} style={{flexShrink:0,padding:"3px 9px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Editar</button>
                 </div>
               )}
-              {editando!==c.grupo_id&&c.titulo&&<div style={{fontSize:12,color:"#64748B",lineHeight:1.4,marginBottom:6}}>{c.texto}</div>}
+              {editando!==c.grupo_id&&c.titulo&&<div style={{fontSize:12,color:"#64748B",lineHeight:1.4,marginBottom:6}}>{textoPlano(c.texto)}</div>}
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:11,color:"#94A3B8"}}>Publicado {fmtFecha(c.creado_en)}</span>
                 <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>{c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>

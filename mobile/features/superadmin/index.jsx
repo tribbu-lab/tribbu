@@ -37,6 +37,8 @@ import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesM
 import { HorarioCurso, SemanaMaestra } from "../horarios";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
 import { textoSecretaria, textoNiveles, nivelesDeCursos, nombreNivel, nivelesParaGuardar, ordenarNiveles } from "@shared/niveles";
+import { textoPlano } from "@shared/formato";
+import { EditorFormato } from "../../components/EditorFormato";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
 // para que el mismo mental model funcione en las dos plataformas. "Colegio" y
@@ -1698,7 +1700,7 @@ const PRIO = {
 function ComunicacionesAdmin({ cursos }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
-  const [form, setForm] = useState({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+  const [form, setForm] = useState({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [], conMembrete: true });
   const [subiendoAdj, setSubiendoAdj] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -1727,6 +1729,7 @@ function ComunicacionesAdmin({ cursos }) {
         curso_id,
         grupo_id,
         creado_por: usuario?.id ?? null,
+        con_membrete: !!form.conMembrete,
       }));
       const { error: insertErr } = await supabase.from("recordatorios").insert(rows);
       if (insertErr) throw insertErr;
@@ -1735,7 +1738,7 @@ function ComunicacionesAdmin({ cursos }) {
       if (userIds.length) await sendPush({ type: "recordatorio", payload: { titulo: form.titulo, grupo: grupo_id, userIds } });
       setConfirmando(false);
       setOk(`Publicado en ${cursosSel.length} curso${cursosSel.length !== 1 ? "s" : ""}.`);
-      setForm({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [] });
+      setForm({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [], conMembrete: true });
       setCursosSel([]);
       setTimeout(() => setOk(null), 4000);
     } catch (e) {
@@ -1774,13 +1777,11 @@ function ComunicacionesAdmin({ cursos }) {
       />
 
       <Text style={styles.label}>DESCRIPCIÓN</Text>
-      <TextInput
+      <EditorFormato
         value={form.texto}
-        onChangeText={(v) => setForm((p) => ({ ...p, texto: v }))}
+        onChange={(v) => setForm((p) => ({ ...p, texto: v }))}
         placeholder="Ej: El viernes 15 a las 18hs, en el SUM."
-        placeholderTextColor="#94A3B8"
-        multiline
-        style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
+        style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]}
       />
 
       <Text style={styles.label}>FECHA</Text>
@@ -1818,6 +1819,13 @@ function ComunicacionesAdmin({ cursos }) {
         style={[styles.togglePill, form.urgente && { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
       >
         <Text style={[styles.toggleTxt, form.urgente && { color: "#EF4444" }]}>{form.urgente ? "Urgente" : "Marcar urgente"}</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => setForm((p) => ({ ...p, conMembrete: !p.conMembrete }))}
+        style={[styles.togglePill, form.conMembrete && { borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" }]}
+        accessibilityState={{ selected: !!form.conMembrete }}
+      >
+        <Text style={[styles.toggleTxt, form.conMembrete && { color: "#2563EB" }]}>{form.conMembrete ? "✓ Con membrete del colegio" : "Sin membrete"}</Text>
       </Pressable>
 
       <Text style={styles.label}>ADJUNTOS (OPCIONAL)</Text>
@@ -1946,7 +1954,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     <View style={{ marginTop: 24 }}>
       <LecturasSheet
         visible={!!verLecturas}
-        titulo={verLecturas?.titulo || verLecturas?.texto}
+        titulo={verLecturas?.titulo || textoPlano(verLecturas?.texto)}
         filas={verLecturas?.lecturas}
         onClose={() => setVerLecturas(null)}
       />
@@ -2013,13 +2021,13 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                   </View>
                 ) : (
                   <View style={comStyles.historialHeaderRow}>
-                    <Text style={[comStyles.historialTexto, !c.titulo && { marginBottom: 6 }, { flex: 1 }]}>{c.titulo || c.texto}</Text>
+                    <Text style={[comStyles.historialTexto, !c.titulo && { marginBottom: 6 }, { flex: 1 }]}>{c.titulo || textoPlano(c.texto)}</Text>
                     <Pressable onPress={() => empezarEdicion(c)} style={comStyles.editBtn}>
                       <Text style={comStyles.editBtnTxt}>Editar</Text>
                     </Pressable>
                   </View>
                 )}
-                {editando !== c.grupo_id && c.titulo ? <Text style={comStyles.historialDescripcion}>{c.texto}</Text> : null}
+                {editando !== c.grupo_id && c.titulo ? <Text style={comStyles.historialDescripcion}>{textoPlano(c.texto)}</Text> : null}
                 <ChipLecturas filas={c.lecturas} onPress={() => setVerLecturas(c)} />
                 <View style={comStyles.historialMetaRow}>
                   <Text style={comStyles.historialMeta}>Publicado {fmtFecha(c.creado_en)}</Text>

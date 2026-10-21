@@ -26,6 +26,7 @@ import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
 import { diasVisibles, normalizarDia } from "../../lib/horarios";
 import { bloquesDeTalleres } from "../../lib/talleres";
+import { textoPlano } from "../../lib/formato";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -177,8 +178,8 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   // sin lugar en el calendario.
   const comunicados = recordatorios.filter(r=>r.fecha).map(r=>({
     id:`r-${r.id}`, tipo:"comunicado",
-    titulo:(r.grupo_id?"🏫 ":"")+(r.titulo||r.texto),
-    descripcion: r.titulo ? r.texto : null,
+    titulo:(r.grupo_id?"🏫 ":"")+(r.titulo||textoPlano(r.texto)),
+    descripcion: r.titulo ? textoPlano(r.texto) : null,
     fecha:r.fecha, hora:r.hora_inicio, hora_fin:r.hora_fin, curso_id:r.curso_id, adjuntos:r.adjuntos,
   }));
 

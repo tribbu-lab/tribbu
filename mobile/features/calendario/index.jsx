@@ -27,6 +27,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { FestejoDetalleModal } from "../cumples";
 import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/horarios";
 import { bloquesDeTalleres } from "@shared/talleres";
+import { textoPlano } from "@shared/formato";
 
 const t = THEMES.light;
 
@@ -197,8 +198,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
     .map((r) => ({
       id: `r-${r.id}`,
       tipo: "comunicado",
-      titulo: (r.grupo_id ? "🏫 " : "") + (r.titulo || r.texto),
-      descripcion: r.titulo ? r.texto : null,
+      titulo: (r.grupo_id ? "🏫 " : "") + (r.titulo || textoPlano(r.texto)),
+      descripcion: r.titulo ? textoPlano(r.texto) : null,
       fecha: r.fecha,
       hora: r.hora_inicio,
       hora_fin: r.hora_fin,

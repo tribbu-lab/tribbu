@@ -6,6 +6,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
+import { textoPlano } from "../../lib/formato";
 
 // ── Centro de notificaciones in-app ──────────────────────────────────────────
 // Muestra recordatorios + alertas como un panel deslizable desde el header.
@@ -224,7 +225,7 @@ export function NotificacionesPanel({ notifs, leidos, cargando, tagDeCurso, onAb
                       color:leido?"#94A3B8":"#0F172A",
                       lineHeight:1.45,marginBottom:4,
                     }}>
-                      {n.texto}
+                      {textoPlano(n.texto)}
                     </div>
                     <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                       {relativo && (
