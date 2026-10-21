@@ -153,14 +153,21 @@ no lo pida — se necesita sí o sí para publicar en ambas consolas. Escribilo
 **mientras corren los builds** (son ~25 min de tiempo muerto), a partir del
 rango de commits de la Phase 0 (2b).
 
-El archivo lleva tres secciones:
+El archivo lleva cuatro secciones:
 
 1. **Google Play → "Novedades"**, en es-419, **máximo 500 caracteres** (límite
    duro de Play). Verificá el largo, no lo estimes:
    `… | wc -m` sobre el bloque antes de entregarlo.
 2. **App Store Connect → "Novedades de esta versión"** (es-419, hasta 4000
    caracteres, se puede explayar un poco más que Play).
-3. **"Qué entró realmente (interno, no publicar)"** — los commits con su hash y
+3. **`## App Review` → "Notas" de la Información de la revisión de ASC** (en
+   inglés, hasta 4000 caracteres, en un bloque ```): cómo revisar la app con la
+   cuenta demo, alta de cuentas, contenido generado por usuarios, pagos y dónde
+   está "Eliminar mi cuenta". Partí de las de la versión anterior y ajustalas a
+   lo que cambió. `/store-promote` las carga solo en la versión; verificá cada
+   ruta que nombran contra el código y lo que la cuenta demo tiene hoy (sus
+   datos tienen fechas: no prometas pendientes que ya vencieron).
+4. **"Qué entró realmente (interno, no publicar)"** — los commits con su hash y
    la causa raíz de cada fix. Es lo que hace auditable el release después.
 
 Reglas de redacción de las notas públicas:
