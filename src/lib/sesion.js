@@ -8,8 +8,8 @@
 // clases con el curso (specs/docentes-clases-y-grupos.md, Fase B).
 
 export const SELECT_USUARIO_SESION =
-  "*, usuario_hijos(hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))), usuario_cursos(curso_id, rol), " +
-  "maestros(id, clases(curso_id, materias(nombre), cursos(id,nombre,color,avatar,colegio_id,año_lectivo,colegios(año_lectivo_actual))))";
+  "*, usuario_hijos(hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id,nivel))), usuario_cursos(curso_id, rol), " +
+  "maestros(id, clases(curso_id, materias(nombre), cursos(id,nombre,color,avatar,colegio_id,nivel,año_lectivo,colegios(año_lectivo_actual))))";
 
 /**
  * Cursos de una docente (uno por curso, con las materias que da ahí). Solo

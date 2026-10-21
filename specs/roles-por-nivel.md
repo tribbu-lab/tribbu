@@ -1,6 +1,6 @@
 ---
 title: Roles del colegio por nivel (Inicial / Primaria / Secundaria)
-status: draft — falta que Yanina responda las preguntas abiertas
+status: implementado (2026-10-21) — SQL probado con rollback (30 chequeos)
 priority: high
 ---
 
@@ -8,20 +8,37 @@ priority: high
 
 Hoy el colegio tiene un solo rol, `colegio_admin`, que puede todo en su colegio
 (usuarios, cursos, horarios, comunicados, menú, autorizaciones, talleres,
-mensajes de familias…). Yanina pidió separar:
+mensajes de familias…). Se separa en:
 
 - **Administrador del colegio** (el `colegio_admin` de hoy): ve y gestiona
-  todos los niveles.
-- **Secretaría / Dirección de nivel** (rol nuevo): lo mismo, pero solo para
-  los cursos de su nivel (Inicial, Primaria o Secundaria). Un director de
-  Primaria no debería poder mandarle un comunicado a Kinder ni tocar sus
-  horarios.
+  todos los niveles. Sin cambios.
+- **Secretaría** (rol nuevo, `nivel_admin`): lo mismo que el administrador,
+  pero solo para los cursos de **sus** niveles (uno o varios), y sin lo que es
+  de todo el colegio (ver Permisos).
 
-De paso, dos cosas que dependen del nivel:
-- **Comunicados**: elegir "todo el colegio" o "un nivel" además de los cursos
-  sueltos de hoy.
-- **Menú del comedor**: un menú puede valer para todos los niveles o solo para
-  uno (hoy hay un único menú por colegio y por día).
+Dos cosas que dependen del nivel:
+- **Comunicados**: elegir "todo el colegio", uno o varios niveles, o cursos
+  sueltos.
+- **Menú del comedor**: lo carga el administrador e indica a qué niveles
+  aplica.
+
+## Decisiones de Yanina (2026-10-21)
+
+1. **Los niveles son opcionales**: un colegio puede no tener alguno (solo
+   Primaria, o Inicial + Primaria). El colegio elige cuáles tiene; si tiene uno
+   solo (o ninguno), no aparece nada de niveles en la app.
+2. Una Secretaría puede tener **más de un nivel**.
+3. Permisos: los de la propuesta (abajo), sin cambios.
+4. La Secretaría **crea cuentas de familias y cambia contraseñas**, solo de
+   familias de su nivel.
+5. **Menú**: lo carga solo el administrador del colegio e indica a qué niveles
+   aplica.
+6. **Mensajes → Secretaría**: la Secretaría contesta los hilos de alumnos de
+   su nivel; el administrador sigue viéndolos todos.
+7. Nombre del rol en pantalla: **"Secretaría"** (con el nivel cuando hace
+   falta: "Secretaría · Primaria").
+8. Las alertas del colegio son para todos (familias y maestras): no cambian
+   con los niveles.
 
 ## Estado actual (datos de prod, 2026-10-21)
 
@@ -33,106 +50,121 @@ De paso, dos cosas que dependen del nivel:
 - El alcance de `colegio_admin` es 100% RLS (`es_colegio_admin_de(colegio)`),
   sin filtros en el cliente.
 
-## Propuesta
+## Diseño
 
 ### Modelo
 
-- `cursos.nivel text not null check (nivel in ('inicial','primaria','secundaria'))`.
-  Migración: `Kinder`/`Jardín`/`Sala` → inicial, `Primaria` → primaria,
-  `Secundaria` → secundaria (por el sufijo del nombre). Se elige al crear o
-  editar un curso (Super Admin → Cursos) y "Duplicar para el año siguiente" lo
-  copia. El nombre del curso no cambia.
-- Rol nuevo **`nivel_admin`** (etiqueta "Dirección de nivel" o la que elija
-  Yanina) + `usuarios.nivel` (el nivel que administra) y `usuarios.colegio_id`
-  (como `colegio_admin`). ¿Puede tener más de un nivel? → pregunta 2.
-- Helper SQL `es_admin_nivel_de_curso(curso)` = `nivel_admin` del colegio del
-  curso con el mismo nivel. Se agrega como alternativa al lado de
-  `es_colegio_admin_de(colegio_de_curso(...))` en las políticas que hoy se
-  basan en un curso (recordatorios, eventos, autorizaciones, horarios, clases,
-  alumnos/hijos, usuario_cursos, colectas, encuestas, alertas, talleres por
-  curso…). Igual que `multi-colegio.sql`: aditivo, en un SQL nuevo
-  (`supabase/roles-por-nivel.sql`), probado en una transacción con rollback.
-- Lo que es de **todo el colegio** (ficha del colegio y logo, materias,
-  maestras, contactos, uniformes, crear `colegio_admin`, Marketplace, año
-  lectivo, Promoción) queda solo para `colegio_admin` salvo lo que se decida
-  en la pregunta 3.
+- `colegios.niveles text[] not null default '{}'` — los niveles que tiene el
+  colegio, de `('inicial','primaria','secundaria')`. Se edita en Super Admin →
+  Colegio. Migración: los niveles que aparecen en los nombres de sus cursos.
+- `cursos.nivel text null check (nivel in ('inicial','primaria','secundaria'))`
+  — null = sin nivel. Migración por el sufijo del nombre: `Kinder` / `Jardín` /
+  `Sala` / `Inicial` → inicial, `Primaria` → primaria, `Secundaria` →
+  secundaria; el resto queda null. Se elige al crear o editar un curso (el
+  selector solo aparece si el colegio tiene más de un nivel, con las opciones
+  de `colegios.niveles`) y "Duplicar para el año siguiente" lo copia. El nombre
+  del curso no cambia.
+- Rol nuevo **`nivel_admin`** (se suma a `usuarios_rol_check`), con
+  `usuarios.colegio_id` (como `colegio_admin`) y `usuarios.niveles text[]`
+  (uno o varios). Etiqueta "Secretaría" (`ROL_LABEL`/`ROL_COLOR`/`ROL_BG` en
+  `src/lib/theme.js`).
+- Helpers SQL: `es_secretaria_de_curso(curso)` = `nivel_admin` del colegio del
+  curso con `cursos.nivel = any(usuarios.niveles)`; `es_secretaria_de_hijo`,
+  `es_secretaria_de_usuario` (familia con algún hijo en un curso de sus
+  niveles). Un curso **sin nivel** solo lo gestiona el administrador.
+- Se agregan como alternativa al lado de `es_colegio_admin_de(colegio_de_X)`
+  en las políticas que dependen de un curso (recordatorios, eventos,
+  autorizaciones + respuestas, horarios, clases + clase_alumnos, hijos,
+  usuario_hijos, usuario_cursos, colectas, encuestas, alertas, talleres por
+  curso, conversaciones `colegio`, denuncias de chats de su nivel,
+  `puede_ver_lecturas`, `adopcion_por_curso`). Aditivo, en
+  `supabase/roles-por-nivel.sql`, probado en una transacción con rollback.
 
-### Panel (web; mobile igual que `colegio_admin` en mobile)
+### Permisos de la Secretaría
 
-- El mismo panel de Super Admin que usa `colegio_admin`, filtrado por RLS. Los
-  selectores de cursos muestran solo los de su nivel (sale solo de RLS, como
-  hoy con `colegio_admin`).
-- Secciones que no le corresponden se ocultan (lista en la pregunta 3).
-- Encabezado: "Dirección de Primaria" en vez de "Admin del colegio".
-- Usuarios → "Acceso especial": el `colegio_admin` (y super) puede crear un
-  `nivel_admin` eligiendo el nivel; un `nivel_admin` no puede crear otros.
-  `manage-auth-user` tiene que aceptar `nivel_admin` con el mismo recorte que
-  `colegio_admin` (solo usuarios de su nivel) — ver pregunta 4.
+- **Puede**, solo en cursos de sus niveles: comunicados, eventos,
+  autorizaciones, alertas, horarios y clases, alumnos y apoderados (crear
+  cuentas y cambiar contraseñas incluido), Room Parents, Mensajes →
+  Secretaría, talleres de sus cursos, Adopción e "Inicio / Para resolver" de su
+  nivel.
+- **No puede**: crear o borrar cursos, Promoción, año lectivo, ficha del
+  colegio y niveles, materias y maestras, uniformes, menú, Marketplace, crear
+  administradores ni otras Secretarías.
+
+### Panel
+
+- El mismo panel que usa `colegio_admin` (web `src/features/superadmin`,
+  mobile `mobile/features/superadmin`), filtrado por RLS; se ocultan las
+  secciones que no le corresponden. Encabezado "Secretaría · Primaria".
+- Usuarios → "Acceso especial": el administrador (y super) puede crear una
+  "Secretaría" eligiendo sus niveles; una Secretaría no ve ese toggle.
+- `manage-auth-user`: acepta `nivel_admin`; `create` sin restricción (como
+  hoy), `update`/`find` solo si el usuario destino es una familia con un hijo
+  en un curso de sus niveles (`targetEnNivel()`, resuelto a mano como
+  `targetEnColegio()`). Nunca puede tocar a un administrador ni a otra
+  Secretaría. Redeploy con `--no-verify-jwt`.
 
 ### Comunicados por nivel
 
-- `ComunicacionesAdmin` suma un selector arriba de la lista de cursos:
-  "Todo el colegio" / "Inicial" / "Primaria" / "Secundaria" / "Elegir cursos".
-  Elegir un nivel tilda sus cursos (sigue siendo una fila por curso con el
-  mismo `grupo_id`, sin cambios en la tabla).
-- Un `nivel_admin` solo ve su nivel en ese selector.
-- Lo mismo en "Evento para varios cursos" y en Autorizaciones del colegio.
+- `ComunicacionesAdmin` (web + mobile) y "Evento para varios cursos" y
+  Autorizaciones del colegio: arriba de la lista de cursos, chips "Todo el
+  colegio" + un chip por nivel del colegio (solo si tiene más de uno). Elegir
+  niveles tilda sus cursos; se pueden destildar cursos sueltos. Sigue siendo
+  una fila por curso con el mismo `grupo_id`.
+- Una Secretaría solo ve sus niveles y sus cursos.
 
-### Menú por nivel
+### Menú por niveles
 
-- `menu.nivel text null` (null = todos los niveles). Unicidad pasa a
-  `unique(colegio_id, coalesce(nivel,'todos'), fecha)` (índice único por
-  expresión; los upserts dejan de usar `onConflict` y pasan a una RPC
-  `guardar_menu(...)` o a borrar+insertar el día).
-- Al subir el Excel (`UploadMenuExcel`, web y mobile) se elige "Para todos los
-  niveles" o un nivel. Una familia ve el menú de su nivel si existe, si no el
-  de "todos" (por día). Inicio "Menú de hoy" y Comedor usan la misma regla
-  (`menuDelDia(filas, nivel)` en `@shared/menu`).
-- ¿Quién carga el menú de un nivel? → pregunta 5.
+- `menu.niveles text[] null` (null = todos los niveles) + columna generada
+  `menu.niveles_clave` ("" o "inicial,primaria"). La unicidad pasa de
+  `(colegio_id, fecha)` a `(colegio_id, fecha, niveles_clave)`: puede haber un
+  menú general y otros por nivel el mismo día. Los upserts usan
+  `onConflict:"colegio_id,fecha,niveles_clave"` (web y mobile). Un menú propio
+  de un nivel no borra el general: lo tapa para esas familias.
+- Al subir el Excel (`UploadMenuExcel`, web y mobile) el administrador elige
+  "Todos los niveles" o uno o varios (chips; solo si el colegio tiene más de
+  uno).
+- La familia ve, por día, el menú cuyo `niveles` incluye el nivel del curso de
+  su hijo; si no hay, el de "todos". Reglas puras `menuParaNivel` /
+  `menusParaNivel` / `nivelDeVista` en `@shared/niveles`, usadas en Inicio
+  "Menú de hoy" y Comedor (web y mobile). Un curso sin nivel, o la vista
+  "Todos" con hijos en niveles distintos, ve el de "todos".
 
-## Preguntas abiertas para Yanina
+## Diferencias con lo planeado (implementación 2026-10-21)
 
-1. **Niveles**: ¿alcanza con Inicial / Primaria / Secundaria? ¿"Kinder" es
-   Inicial? ¿Hay colegios con más divisiones (p. ej. Primer y Segundo ciclo)?
-2. ¿Una persona puede administrar **más de un nivel** (directora de Inicial y
-   Primaria)? Si sí, `usuarios.niveles text[]`.
-3. ¿Qué **no** puede hacer la Dirección de nivel? Propuesta:
-   - Puede: comunicados, eventos, autorizaciones, alertas, horarios y clases,
-     alumnos y apoderados, Room Parents, mensajes de familias (Secretaría) y
-     talleres de **sus** cursos; ver Adopción y "Para resolver" de su nivel.
-   - No puede: crear/borrar cursos, Promoción, año lectivo, ficha del colegio,
-     materias y maestras, uniformes, menú (salvo que se decida otra cosa),
-     Marketplace, crear otros administradores.
-4. ¿La Dirección de nivel puede **crear cuentas de familias** y cambiar
-   contraseñas? (Hoy eso lo hace `colegio_admin` vía Edge Function.)
-5. **Menú**: ¿lo carga solo el administrador del colegio, o cada nivel el suyo?
-   ¿Hay colegios con menú distinto por nivel hoy, o es "por si acaso"?
-6. **Secretaría en Mensajes**: hoy "Secretaría" es un solo hilo por alumno que
-   contesta cualquier `colegio_admin`. ¿La Dirección de nivel también contesta
-   (solo los de su nivel)? ¿El administrador general sigue viéndolos todos?
-7. ¿Cómo se llama el rol en pantalla? "Dirección de nivel", "Secretaría de
-   nivel", "Directivo"…
+- **Talleres**, **Lost & Found del colegio** y **Denuncias** quedan solo para
+  el administrador en esta etapa (son de todo el colegio): la Secretaría no ve
+  esas secciones.
+- Los **niveles del colegio** y las **cuentas de Secretaría** se configuran en
+  la web (Super Admin → Colegio). En mobile la Secretaría usa el panel, pero
+  el nivel de un curso y las Secretarías no se editan desde ahí.
+- **Transición**: al aplicar el SQL, la versión vieja de la app mobile no puede
+  subir el menú (usa `onConflict:"colegio_id,fecha"`) hasta el build nuevo, y
+  si se carga un menú propio de un nivel, la app vieja no muestra el menú de
+  ese día en el Inicio.
 
 ## Acceptance Criteria
 
-- [ ] `cursos.nivel` existe, migrado desde el nombre, editable en Cursos y
-      copiado por "Duplicar".
-- [ ] Un `nivel_admin` de Primaria ve y gestiona solo cursos de Primaria en
-      todas las secciones permitidas (probado con RLS en transacción con
-      rollback: no puede leer ni escribir nada de Inicial).
-- [ ] El `colegio_admin` sigue viendo todo, sin cambios.
-- [ ] Comunicados, eventos multi-curso y autorizaciones permiten elegir un
-      nivel; un `nivel_admin` solo ve el suyo.
-- [ ] El menú puede ser "todos" o de un nivel; la familia ve el de su nivel o,
-      si no hay, el general (web Inicio + Comedor, mobile igual).
-- [ ] `manage-auth-user` recorta a `nivel_admin` igual que a `colegio_admin`
-      (si se decide que puede crear cuentas).
-- [ ] Panel mobile (`colegio_admin` en mobile) también sirve al `nivel_admin`.
-- [ ] Lint + build web, lint mobile + `npx expo export -p ios`, CLAUDE.md.
+- [x] `colegios.niveles` editable; `cursos.nivel` migrado desde el nombre,
+      editable y copiado por "Duplicar". Con un solo nivel (o ninguno) no
+      aparece nada de niveles.
+- [x] Una Secretaría de Primaria ve y gestiona solo cursos de Primaria en las
+      secciones permitidas; con Inicial + Primaria, los dos. Probado con RLS en
+      transacción con rollback (no lee ni escribe nada de otro nivel ni de
+      cursos sin nivel).
+- [ ] La Secretaría crea familias y les cambia la contraseña solo en su nivel
+      (Edge Function: falta deploy y prueba con una cuenta real; RLS de usuarios ya probada).
+- [x] El administrador del colegio sigue viendo todo, sin cambios.
+- [x] Comunicados, eventos multi-curso y autorizaciones permiten elegir
+      niveles; la Secretaría solo ve los suyos.
+- [x] Menú con niveles: la familia ve el de su nivel o, si no hay, el general
+      (Inicio + Comedor, web y mobile).
+- [x] Mensajes → Secretaría: la Secretaría ve y contesta los hilos de su nivel.
+- [x] Panel mobile también sirve a la Secretaría.
+- [x] Lint + build web, lint mobile + `npx expo export -p ios`, CLAUDE.md.
 
 ## Out of Scope
 
-- Permisos configurables por persona (casillas de "puede/no puede"): se elige
-  un rol con permisos fijos.
+- Permisos configurables por persona (casillas de "puede/no puede").
 - Niveles en el Marketplace o en Lost & Found.
 - Reportes comparativos entre niveles.

@@ -38,6 +38,7 @@ import { talleresParaAnotarse } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "@shared/perdidos";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
+import { menusParaNivel, nivelDeVista } from "@shared/niveles";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -118,8 +119,9 @@ export function Muro() {
       tallerInscData,
     ] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
-      supabase.from("menu").select("*").eq("fecha", fechaHoy).maybeSingle(),
-      supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(1),
+      // Puede haber un menú general y otros por nivel (roles-por-nivel): se elige abajo.
+      supabase.from("menu").select("*").eq("fecha", fechaHoy),
+      supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(8),
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
       // fecha o de hoy en adelante, para todos o para mí — no el
       // historial completo del año.
@@ -242,8 +244,8 @@ export function Muro() {
 
     setDatos({
       alertas: alertasUnaPorCurso(alerta.data || []),
-      menu: menu.data || null,
-      menuProx: menuProx.data?.[0] || null,
+      menu: menusParaNivel(menu.data, nivelDeVista(items, cursosScope))[0] || null,
+      menuProx: menusParaNivel(menuProx.data, nivelDeVista(items, cursosScope))[0] || null,
       recordatorios: recsNoLeidos,
       bdayList,
       colectasPend,

@@ -28,6 +28,7 @@ import { talleresParaAnotarse } from "../../lib/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "../../lib/perdidos";
 import { getStorageBackend } from "../../lib/storage";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "../../lib/muro";
+import { menuParaNivel, nivelDeVista } from "../../lib/niveles";
 import { Icono } from "../../components/Icono";
 import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
@@ -116,7 +117,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     const colegios = [...new Set(cursoIds.map(cid=>(items||[]).find(i=>i.curso_id===cid)?.cursos?.colegio_id).filter(Boolean))];
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,encuestasData,objsData,autsData,talleresData,tallerInscData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
-      supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
+      // Puede haber un menú general y otros por nivel (roles-por-nivel): se elige abajo.
+      supabase.from("menu").select("*").eq("fecha",fechaHoy),
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
       // fecha o de hoy en adelante, para todos o para mí — no
       // el historial completo del año.
@@ -201,7 +203,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // Festejos en "Próximos días" (la RLS ya trae solo los que me tocan), menos
     // los que rechazamos.
     const rechazados = festejosRechazados(filasInv);
-    setDatos({ alertas:alertasPorCurso, menu:menu.data||null, recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), invitaciones, hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menuParaNivel(menu.data, nivelDeVista(items, cursoIds)), recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);

@@ -13,6 +13,7 @@ import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { LecturasModal } from "../../components/Lecturas";
 import { unirLecturasPorFamilia } from "../../lib/lecturas";
+import { NIVELES, nombreNivel, textoSecretaria, textoNiveles, ordenarNiveles } from "../../lib/niveles";
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
@@ -78,6 +79,10 @@ const SECCIONES = [
   ]},
 ];
 
+// Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve. Ver
+// specs/roles-por-nivel.md → Permisos.
+const SOLO_ADMIN_COLEGIO = new Set(["maestros","cursos","promocion","materias","uniformes","marketplace","talleres","perdidos","denuncias","colegio","menu"]);
+
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
 const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"}, {id:"soporte",l:"🛟 Soporte"}, {id:"super_admins",l:"👑 Super Admins"} ] };
@@ -142,6 +147,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // ninguna de ellas necesita agregar un filtro de colegio_id a mano.
   const esSuper = usuario?.rol==="super";
   const esColegioAdmin = usuario?.rol==="colegio_admin";
+  // Secretaría (nivel_admin, specs/roles-por-nivel.md): el mismo panel, pero
+  // RLS la acota a los cursos de sus niveles y no ve lo que es de todo el
+  // colegio (SOLO_ADMIN_COLEGIO).
+  const esSecretaria = usuario?.rol==="nivel_admin";
+  const esStaffColegio = esColegioAdmin || esSecretaria;
   const miColegioId = usuario?.colegio_id ?? null;
   // colegio "activo": el fijo del colegio_admin, o el que el super entró en
   // "Colegios". Necesario para insertar filas con colegio_id NOT NULL (cursos).
@@ -149,6 +159,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [navAbierta,setNavAbierta] = useState(false); // mobile: lista de secciones plegada
   const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
+  const [colegioNiveles,setColegioNiveles] = useState([]); // niveles que tiene el colegio (roles-por-nivel)
   const [colegios,setColegios]           = useState([]);
   const [modalColegio,setModalColegio]   = useState(null);
   const [savingColegio,setSavingColegio] = useState(false);
@@ -182,7 +193,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [confirmar, confirmUI] = useConfirmar();
   const { showToast, Toast } = useToast();
 
-  const activeColegioId = esColegioAdmin ? miColegioId : colegioId;
+  const activeColegioId = esStaffColegio ? miColegioId : colegioId;
 
   // Evita el doble-submit: deshabilita el botón mientras corre el guardado.
   const [guardando,setGuardando] = useState(false);
@@ -195,7 +206,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // super y colegio_admin se gestionan aparte (👑 Super Admins / 🏫 Colegio →
   // Administradores) — esta lista es solo apoderado/Room Parent de este colegio.
   // Las docentes se manejan desde Maestros → "Acceso a Mensajes", no acá.
-  const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin"&&u.rol!=="docente");
+  const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin"&&u.rol!=="nivel_admin"&&u.rol!=="docente");
   const ctrlUsuarios = useListControls(usuariosNormales, {
     searchFn: (u,q)=> u.nombre.toLowerCase().includes(q)||u.email.toLowerCase().includes(q),
     sortOptions: [
@@ -261,7 +272,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   // colegio_admin: fijo a su propio colegio. super: el que haya elegido en
   // "Colegios" (null hasta que elija uno — no hay nada más que mostrar).
-  if(esColegioAdmin && colegioId!==miColegioId) setColegioId(miColegioId); // ajuste durante el render
+  if(esStaffColegio && colegioId!==miColegioId) setColegioId(miColegioId); // ajuste durante el render
 
 
   const cargar = useCallback(async () => {
@@ -273,7 +284,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
       activeColegioId
-        ? supabase.from("colegios").select("id,año_lectivo_actual,nombre").eq("id",activeColegioId).single()
+        ? supabase.from("colegios").select("id,año_lectivo_actual,nombre,niveles").eq("id",activeColegioId).single()
         : Promise.resolve({data:null}),
       esSuper ? supabase.from("colegios").select("*").order("creado_en") : Promise.resolve({data:[]}),
     ]);
@@ -301,6 +312,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     setHijos(hijosDelColegio);
     if(col.data?.año_lectivo_actual) setAnoActual(col.data.año_lectivo_actual);
     setColegioNombre(col.data?.nombre||"");
+    setColegioNiveles(ordenarNiveles(col.data?.niveles));
     const mcData = activeColegioId ? (mc.data||[]).filter(r=>cursoIdsSet.has(r.curso_id)) : (esSuper?[]:(mc.data||[]));
     const maestroIdsDelColegio = new Set(mcData.map(r=>r.maestro_id));
     const maestrosDelColegio = activeColegioId ? (m.data||[]).filter(x=>maestroIdsDelColegio.has(x.id)) : (esSuper?[]:(m.data||[]));
@@ -520,6 +532,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolFijo, colegio_id: colegioIdFijo,
         avatar, activo: true, auth_id,
+        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles)}:{}),
       });
       if(error) { showToast("Error al crear la cuenta","error"); return; }
     } else {
@@ -528,6 +541,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       await supabase.from("usuarios").update({
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, activo: form.activo,
+        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles)}:{}),
       }).eq("id", form.id);
       const emailCambio = emailNuevo !== sanitize(form._emailOriginal||"").toLowerCase();
       if(passNueva || emailCambio) {
@@ -590,7 +604,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // cursos.colegio_id es NOT NULL — sin esto el insert falla siempre
     // ("Error al guardar el curso" sin más detalle).
     if(!activeColegioId) { showToast("Elegí un colegio primero", "error"); return; }
-    const { data, error } = await supabase.from("cursos").insert({nombre:sanitize(form.nombre),avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo,colegio_id:activeColegioId}).select().single();
+    const { data, error } = await supabase.from("cursos").insert({nombre:sanitize(form.nombre),avatar:form.avatar||"🏫",color:form.color||"#3B82F6",año_lectivo:form.año_lectivo,colegio_id:activeColegioId,nivel:form.nivel||(colegioNiveles.length===1?colegioNiveles[0]:null)}).select().single();
     if(error) { showToast(`Error al guardar el curso: ${error.message}`, "error"); return; }
     if(form._duplicarDeId && data) await clonarConfiguracionCurso(form._duplicarDeId, data.id);
     setModal(null); cargar();
@@ -598,7 +612,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   const actualizarCurso = async () => {
     if(!form.nombre||!form.año_lectivo) return;
-    const { error } = await supabase.from("cursos").update({nombre:sanitize(form.nombre),avatar:form.avatar,color:form.color,año_lectivo:form.año_lectivo}).eq("id",form.id);
+    const { error } = await supabase.from("cursos").update({nombre:sanitize(form.nombre),avatar:form.avatar,color:form.color,año_lectivo:form.año_lectivo,nivel:form.nivel||null}).eq("id",form.id);
     if(error) { showToast(`Error al actualizar el curso: ${error.message}`, "error"); return; }
     setModal(null); cargar();
   };
@@ -849,7 +863,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     : SECCIONES;
   const seccionesVisibles = esSuper
     ? (colegioId ? [SECCION_PLATAFORMA, ...seccionesColegio] : [SECCION_PLATAFORMA])
-    : SECCIONES;
+    : esSecretaria
+      ? SECCIONES.map(g=>({ ...g, items: g.items.filter(i=>!SOLO_ADMIN_COLEGIO.has(i.id)) })).filter(g=>g.items.length)
+      : SECCIONES;
 
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",overflowX:"hidden"}}>
@@ -1024,8 +1040,19 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modalAdmin==="nuevo"||modalAdmin?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador"}</div>
-            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>Administrador de {colegioNombre}.</div>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{formAdmin.rol==="nivel_admin"?(modalAdmin==="nuevo"?"Nueva Secretaría":"Editar Secretaría"):(modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador")}</div>
+            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>{formAdmin.rol==="nivel_admin"?`Secretaría de ${colegioNombre}: gestiona solo los cursos de sus niveles.`:`Administrador de ${colegioNombre}.`}</div>
+            {formAdmin.rol==="nivel_admin"&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Niveles</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {colegioNiveles.map(k=>{
+                    const on=(formAdmin.niveles||[]).includes(k);
+                    return <button key={k} onClick={()=>setFormAdmin(p=>({...p,niveles:on?(p.niveles||[]).filter(x=>x!==k):[...(p.niveles||[]),k]}))} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>{on?"✓ ":""}{nombreNivel(k)}</button>;
+                  })}
+                </div>
+              </div>
+            )}
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
@@ -1049,7 +1076,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{ setModalAdmin(null); setFormAdmin({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={()=>guardarCuentaEspecial("colegio_admin",colegioId,modalAdmin==="nuevo",formAdmin,setFormAdmin,()=>setModalAdmin(null))} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?"Crear administrador":"Guardar cambios"}</button>
+              <button onClick={()=>{
+                if(formAdmin.rol==="nivel_admin"&&!(formAdmin.niveles||[]).length){ showToast("Elegí al menos un nivel","error"); return; }
+                guardarCuentaEspecial(formAdmin.rol||"colegio_admin",colegioId,modalAdmin==="nuevo",formAdmin,setFormAdmin,()=>setModalAdmin(null));
+              }} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?(formAdmin.rol==="nivel_admin"?"Crear Secretaría":"Crear administrador"):"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1112,6 +1142,17 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 ))}
               </div>
             </div>
+            {colegioNiveles.length>1&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Nivel</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[...colegioNiveles.map(k=>({k,l:nombreNivel(k)})),{k:null,l:"Sin nivel"}].map(n=>{
+                    const on=(form.nivel||null)===n.k;
+                    return <button key={n.k||"ninguno"} onClick={()=>setForm(p=>({...p,nivel:n.k}))} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>{n.l}</button>;
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Año lectivo</div>
               <input type="number" value={form.año_lectivo||""} onChange={e=>setForm(p=>({...p,año_lectivo:Number(e.target.value)||""}))} placeholder="Ej: 2026" style={inp}/>
@@ -1288,7 +1329,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <Wordmark size={20} letterSpacing={-0.8}/>
             <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
               <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
-              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":"Admin del colegio"}</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":esSecretaria?textoSecretaria(usuario?.niveles):"Admin del colegio"}</span>
             </div>
           </div>
           <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"0 12px",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
@@ -1572,7 +1613,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{fontSize:12.5,color:"#64748B"}}>{admins.length>0?admins.map(a=>a.nombre).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin asignar</span>}</div>
                   <div style={{fontSize:13,fontWeight:700,textAlign:isMobile?"left":"center"}}>{alumnosCurso}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
+                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,nivel:c.nivel||null,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
                     <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                     <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Solo se puede borrar un curso sin alumnos ni contenido (recordatorios, eventos, colectas…). Se borra también su configuración: horarios, Room Parents, maestros, uniformes, útiles y libros.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
                   </div>
@@ -1723,7 +1764,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <MarketplaceColegio cursos={cursosAnoActual} userId={usuario?.id}/>
       )}
       {sec==="inicio"&&(
-        <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esColegioAdmin} onIr={setSec}/>
+        <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esStaffColegio} ocultas={esSecretaria?SOLO_ADMIN_COLEGIO:null} onIr={setSec}/>
       )}
       {sec==="talleres"&&(
         <TalleresColegio colegioId={activeColegioId} cursos={cursosAnoActual} anoActual={anoActual}/>
@@ -1828,15 +1869,59 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
 
       {sec==="colegio"&&(() => {
-        const colegioIdActivo = esColegioAdmin?miColegioId:colegioId;
+        const colegioIdActivo = esStaffColegio?miColegioId:colegioId;
         // Solo super gestiona los colegio_admin de un colegio (RLS bloquea a
         // un colegio_admin crear/editar pares suyos — ver usuarios_insert/
         // update en multi-colegio.sql), así que este bloque no se ofrece a
         // colegio_admin. `usuarios` ya viene scopeado a este colegio por
         // cargar() (colegio_id===colegioIdActivo), colegio_admin incluido.
         const adminsDelColegio = usuarios.filter(u=>u.rol==="colegio_admin");
+        const secretarias = usuarios.filter(u=>u.rol==="nivel_admin");
+        const guardarNiveles = async (lista) => {
+          const niveles = ordenarNiveles(lista);
+          const { error } = await supabase.from("colegios").update({ niveles }).eq("id", colegioIdActivo);
+          if(error) { showToast(`No se pudieron guardar los niveles: ${error.message}`,"error"); return; }
+          setColegioNiveles(niveles);
+        };
         return (
           <>
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:15,fontWeight:900}}>Niveles</div>
+              <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y dar acceso de Secretaría por nivel.</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {NIVELES.map(n=>{
+                  const on=colegioNiveles.includes(n.k);
+                  return <button key={n.k} onClick={()=>guardarNiveles(on?colegioNiveles.filter(x=>x!==n.k):[...colegioNiveles,n.k])} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>{on?"✓ ":""}{n.l}</button>;
+                })}
+              </div>
+            </div>
+            {colegioNiveles.length>1&&(
+              <div style={{marginBottom:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:900}}>Secretarías</div>
+                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan solo los cursos de sus niveles: comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
+                  </div>
+                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[]}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nueva Secretaría</button>
+                </div>
+                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+                  {secretarias.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay Secretarías.</div>}
+                  {secretarias.map(u=>(
+                    <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
+                        <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{textoNiveles(u.niveles)||"Sin niveles"} · {u.email}</div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
+                        <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                        <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {esSuper&&(
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
@@ -1844,7 +1929,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     <div style={{fontSize:15,fontWeight:900}}>🔑 Administradores de {colegioNombre}</div>
                     <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.</div>
                   </div>
-                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>
+                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>
                 </div>
                 <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
                   {adminsDelColegio.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay administradores para este colegio.</div>}
@@ -1859,7 +1944,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       </div>
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                        <button onClick={()=>{ setFormAdmin({...u,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                        <button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                         <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                       </div>
                     </div>
@@ -1876,7 +1961,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <div>
           <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🍽️ Menú comedor</div>
           <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin tener que resubir todo.</div>
-          <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile} colegioId={esColegioAdmin?miColegioId:colegioId}/>
+          <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile} colegioId={esStaffColegio?miColegioId:colegioId} niveles={colegioNiveles}/>
           <div style={{marginTop:16,background:"#F8FAFC",borderRadius:14,padding:"16px 18px",border:"1px solid #E2E8F0"}}>
             <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:10}}>📋 Formato esperado del Excel</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>

@@ -36,6 +36,7 @@ import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin }
 import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
 import { HorarioCurso, SemanaMaestra } from "../horarios";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
+import { textoSecretaria, textoNiveles, nivelesDeCursos, nombreNivel, nivelesParaGuardar, ordenarNiveles } from "@shared/niveles";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
 // para que el mismo mental model funcione en las dos plataformas. "Colegio" y
@@ -72,6 +73,8 @@ const SECCIONES = [
   ]},
 ];
 const TODAS_SECCIONES = SECCIONES.flatMap((g) => g.items);
+// Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve (mismo criterio que la web).
+const SOLO_ADMIN_COLEGIO = new Set(["maestros", "cursos", "materias", "uniformes", "talleres", "denuncias", "colegio", "menu"]);
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
@@ -79,8 +82,29 @@ const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899
 // patrón (antes copy-pasteado en Comunicaciones/Maestros/Alumnos/Alertas/
 // Horarios/Uniformes por separado): `multi` decide checkbox (varios) vs.
 // checkmark de selección única.
+// Con cursos de más de un nivel (roles-por-nivel), chips "Todo Primaria"
+// arriba: tildan o destildan todos los cursos de ese nivel.
 function CursoListSelector({ cursos, seleccionados, onToggle, multi = true, maxHeight = 200 }) {
+  const niveles = multi ? nivelesDeCursos(cursos) : [];
+  const toggleNivel = (k) => {
+    const delNivel = cursos.filter((c) => c.nivel === k);
+    const todos = delNivel.every((c) => seleccionados.includes(c.id));
+    delNivel.filter((c) => (todos ? seleccionados.includes(c.id) : !seleccionados.includes(c.id))).forEach((c) => onToggle(c.id));
+  };
   return (
+    <>
+    {niveles.length > 1 ? (
+      <View style={cursoSelectorStyles.niveles}>
+        {niveles.map((k) => {
+          const on = cursos.filter((c) => c.nivel === k).every((c) => seleccionados.includes(c.id));
+          return (
+            <Pressable key={k} onPress={() => toggleNivel(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={[cursoSelectorStyles.nivelChip, on && cursoSelectorStyles.nivelChipOn]}>
+              <Text style={[cursoSelectorStyles.nivelTxt, on && cursoSelectorStyles.nivelTxtOn]}>{on ? "✓ " : ""}Todo {nombreNivel(k)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    ) : null}
     <ScrollView style={[cursoSelectorStyles.list, { maxHeight }]} nestedScrollEnabled>
       {cursos.map((c, i) => {
         const sel = seleccionados.includes(c.id);
@@ -106,10 +130,16 @@ function CursoListSelector({ cursos, seleccionados, onToggle, multi = true, maxH
       })}
       {cursos.length === 0 ? <Text style={[styles.muted, { padding: 14, textAlign: "center" }]}>Sin cursos</Text> : null}
     </ScrollView>
+    </>
   );
 }
 
 const cursoSelectorStyles = StyleSheet.create({
+  niveles: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  nivelChip: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
+  nivelChipOn: { borderColor: "#3B82F6", backgroundColor: "#EFF6FF" },
+  nivelTxt: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  nivelTxtOn: { color: "#1D4ED8" },
   list: { borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
   rowBorder: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
@@ -139,7 +169,7 @@ export function SuperAdmin() {
   // selector de arriba y todo el panel se filtra en el cliente a ese colegio
   // — misma lógica que cargar() en la web. Antes mezclaba los datos de todos
   // los colegios y no podía crear cursos (usaba su colegio_id, que es null).
-  const { esColegioAdmin, usuario } = useSession();
+  const { esColegioAdmin, esSecretaria, usuario } = useSession();
   const miColegioId = usuario?.colegio_id ?? null;
   const [colegios, setColegios] = useState([]);
   const [colegioSel, setColegioSel] = useState(null);
@@ -151,6 +181,9 @@ export function SuperAdmin() {
   // remontada en vez de exponer un callback nuevo en un componente que hoy
   // no toma props de recarga externa.
   const [menuRefreshKey, setMenuRefreshKey] = useState(0);
+  // Menú por niveles (roles-por-nivel): niveles del colegio + para cuáles se carga (vacío = todos).
+  const [colegioNiveles, setColegioNiveles] = useState([]);
+  const [menuNiveles, setMenuNiveles] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [cursos, setCursos] = useState([]);
   const [hijos, setHijos] = useState([]);
@@ -182,9 +215,10 @@ export function SuperAdmin() {
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
-      supabase.from("colegios").select("año_lectivo_actual").eq("id", activeColegioId).maybeSingle(),
+      supabase.from("colegios").select("año_lectivo_actual, niveles").eq("id", activeColegioId).maybeSingle(),
     ]);
     setAnoActual(col.data?.año_lectivo_actual ?? null);
+    setColegioNiveles(ordenarNiveles(col.data?.niveles));
     // RLS ya acota todo para colegio_admin; para super este filtro es el que
     // separa un colegio de otro (ver el comentario de arriba).
     const cursosDelColegio = (c.data || []).filter((x) => x.colegio_id === activeColegioId);
@@ -614,7 +648,7 @@ export function SuperAdmin() {
   const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
 
   const stats = [
-    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "docente").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
+    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
     { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos", c: "#94A3B8", bg: "#F8FAFC" },
     { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },
@@ -623,15 +657,15 @@ export function SuperAdmin() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.titleRow}>
-        <Text style={styles.h1}>{esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
+        <Text style={styles.h1}>{esSecretaria ? textoSecretaria(usuario?.niveles) : esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
         <Pill
-          label={esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
+          label={esSecretaria ? ROL_LABEL.nivel_admin : esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
           color={esColegioAdmin ? ROL_COLOR.colegio_admin : "#8B5CF6"}
           bg={esColegioAdmin ? ROL_BG.colegio_admin : "#F5F3FF"}
         />
       </View>
       <Text style={styles.subtitle}>
-        {esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión de usuarios, roles y cursos por colegio"}
+        {esSecretaria ? `Gestión de los cursos de ${textoNiveles(usuario?.niveles)}: familias, alumnos y comunicaciones` : esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión de usuarios, roles y cursos por colegio"}
       </Text>
 
       {!esColegioAdmin ? (
@@ -660,7 +694,7 @@ export function SuperAdmin() {
 
       {sec === null ? (
         <View>
-          {SECCIONES.map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin)) })).filter((g) => g.items.length).map((g) => (
+          {SECCIONES.map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) })).filter((g) => g.items.length).map((g) => (
             <View key={g.grupo} style={styles.grupoWrap}>
               <Text style={styles.grupoLabel}>{g.grupo}</Text>
               <View style={styles.moduloGrid}>
@@ -907,8 +941,25 @@ export function SuperAdmin() {
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>
           <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
-          <UploadMenuExcel colegioId={activeColegioId} onDone={() => setMenuRefreshKey((k) => k + 1)} />
-          <Comedor key={`${activeColegioId}-${menuRefreshKey}`} colegioId={activeColegioId} puedeEditar mostrarUpload={false} />
+          {colegioNiveles.length > 1 ? (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.label}>MENÚ PARA</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {[{ k: null, l: "Todos los niveles" }, ...colegioNiveles.map((k) => ({ k, l: nombreNivel(k) }))].map((n) => {
+                  const sel = nivelesParaGuardar(menuNiveles, colegioNiveles);
+                  const on = n.k ? !!sel?.includes(n.k) : !sel;
+                  return (
+                    <Pressable key={n.k || "todos"} onPress={() => setMenuNiveles((p) => (!n.k ? [] : p.includes(n.k) ? p.filter((x) => x !== n.k) : [...p, n.k]))} style={[cursoSelectorStyles.nivelChip, on && cursoSelectorStyles.nivelChipOn]}>
+                      <Text style={[cursoSelectorStyles.nivelTxt, on && cursoSelectorStyles.nivelTxtOn]}>{on ? "✓ " : ""}{n.l}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 6 }}>{nivelesParaGuardar(menuNiveles, colegioNiveles) ? "Lo que cargues o edites es solo para esos niveles: sus familias lo ven en lugar del menú general." : "El menú general: lo ven todos los niveles que no tengan uno propio."}</Text>
+            </View>
+          ) : null}
+          <UploadMenuExcel colegioId={activeColegioId} niveles={nivelesParaGuardar(menuNiveles, colegioNiveles)} onDone={() => setMenuRefreshKey((k) => k + 1)} />
+          <Comedor key={`${activeColegioId}-${menuRefreshKey}-${menuNiveles.join(",")}`} colegioId={activeColegioId} niveles={nivelesParaGuardar(menuNiveles, colegioNiveles)} puedeEditar mostrarUpload={false} />
         </View>
       ) : null}
         </View>

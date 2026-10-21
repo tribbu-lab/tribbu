@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 // ── Módulos extraídos ────────────────────────────────────────────────────────
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
 import { getHijoColor, setHijoColor, colorColegio } from "./lib/helpers";
+import { nivelDeVista } from "./lib/niveles";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -265,11 +266,11 @@ function App() {
   const badgeCount = avisosVersion === badgeVisto ? 0 : avisosSinLeer;
   // Mensajes: no leídos + la única suscripción Realtime de la sesión (también
   // la usa la bandeja de soporte del super, que acá no cuenta badge).
-  const esPanelAdmin = usuario?.rol==="super" || usuario?.rol==="colegio_admin";
+  const esPanelAdmin = usuario?.rol==="super" || usuario?.rol==="colegio_admin" || usuario?.rol==="nivel_admin";
   const { noLeidos: mensajesSinLeer, recargar: recargarMensajes } = useMensajesNoLeidos(usuario?.id ?? null, { contar: !!usuario && !esPanelAdmin });
 
   useEffect(()=>{
-    if(!usuario||usuario.rol==="super"||usuario.rol==="colegio_admin") return;
+    if(!usuario||["super","colegio_admin","nivel_admin"].includes(usuario.rol)) return;
     const cargarItems = async () => {
       // Docente: "Mi acceso" = sus cursos (de sus clases, ya en la sesión).
       if(usuario.rol==="docente") {
@@ -489,7 +490,7 @@ function App() {
 
   // colegio_admin (multi-colegio): mismo panel que super, acotado a su
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
-  if(usuario.rol==="super"||usuario.rol==="colegio_admin") return (
+  if(esPanelAdmin) return (
     <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/></Suspense>
   );
 
@@ -575,7 +576,7 @@ function App() {
       case "clases":   return <Calendario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       // Horario de clases: pestaña propia de Agenda (antes era una vista del Calendario).
       case "horario":  return <Calendario soloHorario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;
-      case "comedor":  return <Comedor cursoId={cursoId} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
+      case "comedor":  return <Comedor cursoId={cursoId} nivel={nivelDeVista(items, cursoIds)} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} isMobile={isMobile}/>;
       case "info":     return <InfoUtil cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={usuario.id} cursoNombre={cursoNombre} onEscribir={escribirA}/>;
       case "finanzas": return <Finanzas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} openColectaId={openColecta} onClearOpen={()=>setOpenColecta(null)} isMobile={isMobile}/>;
       case "recordatorios": return <RecordatoriosTab items={items} cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} cursoNombre={cursoNombre} userId={usuario.id} isAdmin={isAdmin} isSuper={usuario?.rol==="super"} active={tab==="recordatorios"} onBadgeChange={()=>recargarNotifs()} openAviso={openAviso}/>;

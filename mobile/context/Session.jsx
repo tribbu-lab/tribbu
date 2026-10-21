@@ -63,7 +63,7 @@ export function SessionProvider({ children }) {
   // Cargar "items" (hijos + cursos admin) cuando hay usuario no-super.
   // super y colegio_admin no tienen "Mi acceso" — van directo a su panel.
   useEffect(() => {
-    if (!usuario || usuario.rol === "super" || usuario.rol === "colegio_admin") {
+    if (!usuario || ["super", "colegio_admin", "nivel_admin"].includes(usuario.rol)) {
       setItems([]);
       return;
     }
@@ -214,7 +214,10 @@ export function SessionProvider({ children }) {
       isSuper: usuario?.rol === "super",
       // colegio_admin: mismo panel de administración que super pero acotado a
       // su colegio_id por RLS. NO es isSuper (no activa lógica de plataforma).
-      esColegioAdmin: usuario?.rol === "colegio_admin",
+      // La Secretaría (nivel_admin, specs/roles-por-nivel.md) usa el mismo panel:
+      // cuenta como esColegioAdmin y RLS la acota a los cursos de sus niveles.
+      esColegioAdmin: usuario?.rol === "colegio_admin" || usuario?.rol === "nivel_admin",
+      esSecretaria: usuario?.rol === "nivel_admin",
       // Docente (specs/docentes-clases-y-grupos.md): sus cursos en "Mi acceso",
       // publica en ellos; cursosDocente = ids donde puede publicar.
       esDocente,

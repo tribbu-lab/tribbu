@@ -39,7 +39,7 @@ function Bloque({ titulo, children, accion }) {
   );
 }
 
-export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, onIr }) {
+export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, ocultas = null, onIr }) {
   const [d, setD] = useState(null);
   const hoy = hoyAR();
   const ids = useMemo(() => cursos.map((c) => c.id), [cursos]);
@@ -96,7 +96,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   const hijosAno = hijos.filter((h) => idsSet.has(h.curso_id));
   const conApoderado = new Set(usuarios.flatMap((u) => u.hijos || []));
   const sinApoderado = hijosAno.filter((h) => !conApoderado.has(h.id)).length;
-  const familias = usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "docente" && u.activo !== false).length;
+  const familias = usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente" && u.activo !== false).length;
   const pctApp = d?.adopcion.familias ? Math.round((d.adopcion.conApp / d.adopcion.familias) * 100) : null;
 
   const pendientes = d ? [
@@ -106,12 +106,12 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     d.sinMenu.length ? { ico: "🍽️", txt: `Falta el menú de ${d.sinMenu.length === 1 ? "1 día" : `${d.sinMenu.length} días`} de esta semana`, sub: d.sinMenu.map(fechaCorta).join(", "), sec: "menu", color: "#B45309" } : null,
     sinApoderado ? { ico: "🎒", txt: `${sinApoderado} ${sinApoderado === 1 ? "alumno sin" : "alumnos sin"} apoderado vinculado`, sub: "Sus familias todavía no reciben nada", sec: "alumnos", color: "#B45309" } : null,
     d.cursosSinHorario.length ? { ico: "🕐", txt: `${d.cursosSinHorario.length} ${d.cursosSinHorario.length === 1 ? "curso sin" : "cursos sin"} horario cargado`, sub: d.cursosSinHorario.slice(0, 4).map((c) => c.nombre).join(", ") + (d.cursosSinHorario.length > 4 ? "…" : ""), sec: "horarios", color: "#475569" } : null,
-  ].filter(Boolean) : [];
+  ].filter((p) => p && !ocultas?.has(p.sec)) : [];
 
   const accesos = [
     ["📢", "Nueva comunicación", "comunicaciones"], ["📅", "Nuevo evento", "eventos"], ["✍️", "Pedir autorización", "autorizaciones"],
     ["🚨", "Alerta urgente", "alertas"], ["🎨", "Talleres", "talleres"], ["📈", "Adopción", "adopcion"],
-  ];
+  ].filter(([, , sec]) => !ocultas?.has(sec));
 
   return (
     <div>

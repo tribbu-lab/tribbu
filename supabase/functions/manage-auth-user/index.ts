@@ -3,7 +3,9 @@
 // Edge Function que reemplaza el uso directo de VITE_SUPABASE_SERVICE_KEY en el cliente.
 // Puede ser llamada por "super" (sin restricción, cualquier usuario del sistema)
 // o "colegio_admin" (acotado a usuarios de SU colegio — ver targetEnColegio()
-// más abajo; el multi-colegio del 2026-09 agregó este segundo caso).
+// más abajo; el multi-colegio del 2026-09 agregó este segundo caso) o
+// "nivel_admin" = Secretaría (solo familias de sus niveles — targetEnNivel(),
+// roles-por-nivel.sql; desplegar DESPUÉS de ese SQL: lee usuarios.niveles).
 //
 // Operaciones soportadas:
 //   action: "create"  → crea un usuario en Supabase Auth
@@ -65,13 +67,16 @@ serve(async (req) => {
     // tomar la cuenta de un usuario de otro colegio.
     const { data: userData } = await userClient
       .from("usuarios")
-      .select("rol, colegio_id")
+      .select("rol, colegio_id, niveles")
       .eq("auth_id", user.id)
       .single();
 
     const esSuper = userData?.rol === "super";
     const esColegioAdmin = userData?.rol === "colegio_admin";
-    if (!esSuper && !esColegioAdmin) {
+    // "nivel_admin" (Secretaría, roles-por-nivel.sql): como colegio_admin, pero
+    // solo sobre familias con un hijo/curso de SUS niveles (targetEnNivel()).
+    const esSecretaria = userData?.rol === "nivel_admin";
+    if (!esSuper && !esColegioAdmin && !esSecretaria) {
       return new Response(JSON.stringify({ error: "Sin permisos suficientes" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -144,6 +149,36 @@ serve(async (req) => {
         ...(viaHijos || []).map((r: any) => r.hijos?.cursos?.colegio_id),
       ];
       return colegios.includes(colegioId);
+    }
+
+    // Para la Secretaría: el usuario objetivo tiene que ser una familia (sin
+    // colegio_id: nunca personal del colegio) con algún curso de sus niveles
+    // en su colegio. Mismo criterio que es_secretaria_de_usuario().
+    async function targetEnNivel(colegioId: string, niveles: string[], filtro: { authId?: string; email?: string }) {
+      let query = adminClient.from("usuarios").select("id, colegio_id, rol");
+      query = filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
+      const { data: fila } = await query.maybeSingle();
+      if (!fila) return true; // alta nueva: el alcance lo pone RLS al vincular hijos
+      if (fila.colegio_id || !["padre", "room", "admin"].includes(fila.rol)) return false;
+      const [{ data: viaCursos }, { data: viaHijos }] = await Promise.all([
+        adminClient.from("usuario_cursos").select("cursos!inner(colegio_id, nivel)").eq("usuario_id", fila.id),
+        adminClient.from("usuario_hijos").select("hijos!inner(cursos!inner(colegio_id, nivel))").eq("usuario_id", fila.id),
+      ]);
+      const cursos = [
+        ...(viaCursos || []).map((r: any) => r.cursos),
+        ...(viaHijos || []).map((r: any) => r.hijos?.cursos),
+      ];
+      return cursos.some((c: any) => c && c.colegio_id === colegioId && c.nivel && niveles.includes(c.nivel));
+    }
+
+    if (esSecretaria && (action === "update" || action === "find")) {
+      const filtro = action === "update" ? { authId: payload?.auth_id } : { email: payload?.email };
+      const enMiNivel = await targetEnNivel(userData!.colegio_id, userData!.niveles || [], filtro);
+      if (!enMiNivel) {
+        return new Response(JSON.stringify({ error: "Sin permisos sobre ese usuario" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     if (esColegioAdmin && (action === "update" || action === "find")) {

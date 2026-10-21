@@ -11,11 +11,19 @@ import { Paginador } from "../../components/Paginador";
 import { useCargar } from "../../hooks/useCargar";
 import { TablaMenu } from "../../components/TablaMenu";
 import { filasMenu } from "../../lib/menu";
+import { NIVELES, nombreNivel, menusParaNivel, nivelesParaGuardar } from "../../lib/niveles";
 
 
 
-export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
-  const [menu,setMenu]         = useState([]);
+// nivel: el del curso de la familia (menú de su nivel o, si no hay, el general).
+// niveles (Super Admin): los del colegio; con más de uno se elige para qué
+// niveles se carga/edita el menú (vacío = todos). Ver specs/roles-por-nivel.md.
+export function Comedor({ isSuper, isMobile=true, colegioId=null, nivel=null, niveles=[] }) {
+  const [filas,setFilas]       = useState([]);
+  const [paraNiveles,setParaNiveles] = useState([]);
+  const nivelesSel = nivelesParaGuardar(paraNiveles, niveles); // null = todos
+  const clave = nivelesSel ? nivelesSel.join(",") : "";
+  const menu = isSuper ? filas.filter(m=>(m.niveles_clave||"")===clave) : menusParaNivel(filas, nivel);
   const [vista,setVista]       = useState("diario");
   const [fechaSel,setFechaSel] = useState(fmtLocalDate());
   const [mes,setMes]           = useState(new Date());
@@ -34,22 +42,23 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
     const q = colegioId
       ? supabase.from("menu").select("*").eq("colegio_id",colegioId).order("fecha")
       : supabase.from("menu").select("*").order("fecha");
-    q.then(r=>setMenu(r.data||[]));
+    q.then(r=>setFilas(r.data||[]));
   }, [colegioId]);
   useCargar(cargarMenu);
 
   const abrirEdicion = (fecha) => {
     const existente = menu.find(m=>m.fecha===fecha);
-    setEditModal(existente ? {...existente} : {fecha, colegio_id:colegioId, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:"", etiquetas:[], notas:""});
+    setEditModal(existente ? {...existente} : {fecha, colegio_id:colegioId, niveles:nivelesSel, entrada:"", plato:"", plato2:"", acompanamiento:"", postre:"", postre2:"", etiquetas:[], notas:""});
   };
   const guardarDia = async (form) => {
-    const { error } = await supabase.from("menu").upsert({...form, colegio_id:form.colegio_id||colegioId}, { onConflict:"colegio_id,fecha" });
+    const { niveles_clave:_clave, ...fila } = form; // columna generada: no se escribe
+    const { error } = await supabase.from("menu").upsert({...fila, colegio_id:fila.colegio_id||colegioId}, { onConflict:"colegio_id,fecha,niveles_clave" });
     if(error) { console.error("Comedor.guardarDia:", error); return; }
     setEditModal(null);
     cargarMenu();
   };
   const borrarDia = async (fecha) => {
-    let q = supabase.from("menu").delete().eq("fecha", fecha);
+    let q = supabase.from("menu").delete().eq("fecha", fecha).eq("niveles_clave", clave);
     if(colegioId) q = q.eq("colegio_id", colegioId);
     const { error } = await q;
     if(error) { console.error("Comedor.borrarDia:", error); return; }
@@ -98,7 +107,19 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null }) {
         <div style={{fontSize:26,fontWeight:900,marginBottom:4,letterSpacing:-0.3}}>Comedor</div>
         <div style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Menú del curso</div>
       </>}
-      {isSuper && <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId}/>}
+      {isSuper && niveles.length>1 && (
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Menú para</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[{k:null,l:"Todos los niveles"},...NIVELES.filter(n=>niveles.includes(n.k))].map(n=>{
+              const on = n.k ? !!nivelesSel?.includes(n.k) : !nivelesSel;
+              return <button key={n.k||"todos"} onClick={()=>setParaNiveles(p=>!n.k?[]:p.includes(n.k)?p.filter(x=>x!==n.k):[...p,n.k])} aria-pressed={on} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>{on?"✓ ":""}{n.l}</button>;
+            })}
+          </div>
+          <div style={{fontSize:11.5,color:"#94A3B8",marginTop:6}}>{nivelesSel?`Lo que cargues o edites acá es solo para ${nivelesSel.map(nombreNivel).join(" y ")}: esas familias lo ven en lugar del menú general.`:"El menú general: lo ven todos los niveles que no tengan uno propio."}</div>
+        </div>
+      )}
+      {isSuper && <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId} niveles={nivelesSel}/>}
       <div style={{display:"flex",flexWrap:"nowrap",alignItems:"center",gap:6,marginBottom:18}}>
         {[{id:"diario",l:"Día"},{id:"semanal",l:"Semana"},{id:"mensual",l:"Mes"}].map(v=>(
           <button key={v.id} onClick={()=>setVista(v.id)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",flexShrink:0,background:vista===v.id?"#0F172A":"#F1F5F9",color:vista===v.id?"white":"#64748B"}}>{v.l}</button>
@@ -307,7 +328,7 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
   );
 }
 
-export function UploadMenuExcel({ onDone, colegioId=null }) {
+export function UploadMenuExcel({ onDone, colegioId=null, niveles=null }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
 
@@ -375,6 +396,7 @@ export function UploadMenuExcel({ onDone, colegioId=null }) {
       const inserts = rows.map(r=>({
         fecha:          parseFecha(r[colFecha]),
         colegio_id:     colegioDestino,
+        niveles,
         entrada:        colEntrada ?r[colEntrada]||null :null,
         plato:          colPlato1  ?r[colPlato1]||null  :null,
         plato2:         colPlato2  ?r[colPlato2]||null  :null,
@@ -385,7 +407,7 @@ export function UploadMenuExcel({ onDone, colegioId=null }) {
         notas:          colNotas ? String(r[colNotas]||"").trim()||null : null,
       })).filter(r=>r.fecha);
       if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
-      const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "colegio_id,fecha" });
+      const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "colegio_id,fecha,niveles_clave" });
       if(error) throw error;
       setMsg(`✅ ${inserts.length} días actualizados correctamente`);
       onDone();
