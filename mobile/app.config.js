@@ -103,6 +103,9 @@ export default {
       // manifest); los celulares siguen solo en vertical. iOS no cambia
       // (sigue `orientation: "portrait"` de arriba).
       "./plugins/withPantallasGrandes",
+      // Android: más heap y Metaspace para Gradle. Con R8, los valores del
+      // template (2 GiB / 512 MiB) hacían caer :app:minifyReleaseWithR8 en EAS.
+      "./plugins/withMemoriaGradle",
       [
         // media.js pide permiso de fototeca (subida de invitaciones de cumples);
         // sin este string en Info.plist, iOS crashea al pedirlo.
