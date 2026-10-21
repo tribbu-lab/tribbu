@@ -174,3 +174,19 @@ export function bloquesDeTalleres(talleres, { horarios = [], inscripciones = [],
 
 /** select de un taller con lo que muestran las tarjetas (cursos, horarios, profe). */
 export const SELECT_TALLER = "*, taller_cursos(curso_id), taller_horarios(id,dia,hora_inicio,hora_fin), profe:maestros(nombre,apellido)";
+
+// ── Novedades del Inicio: un taller con inscripción abierta se informa ahí
+// hasta que la familia lo mira ("Ver el taller"). Lo visto se guarda en el
+// dispositivo (como "No es de mi hijo" en Lost & Found), sin viaje al servidor.
+export const claveTalleresVistos = (userId) => `talleres_vistos_${userId}`;
+
+/** Texto guardado → Set de ids de talleres vistos. */
+export const leerTalleresVistos = (guardado) => {
+  try { return new Set(JSON.parse(guardado || "[]")); } catch { return new Set(); }
+};
+
+/** Agrega un taller a lo visto (guarda los últimos 50) → texto para guardar. */
+export const marcarTallerVisto = (guardado, id) => {
+  const lista = [...leerTalleresVistos(guardado)].filter((x) => x !== id);
+  return JSON.stringify([...lista, id].slice(-50));
+};

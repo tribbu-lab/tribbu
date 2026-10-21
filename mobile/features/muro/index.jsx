@@ -34,7 +34,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
-import { talleresParaAnotarse } from "@shared/talleres";
+import { talleresParaAnotarse, claveTalleresVistos, leerTalleresVistos, marcarTallerVisto } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "@shared/perdidos";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
@@ -48,6 +48,8 @@ import { SkeletonList } from "../../components/Skeleton";
 import { SelectorHijos } from "../../components/SelectorHijos";
 import { TablaMenu } from "../../components/TablaMenu";
 import { textoPlano } from "@shared/formato";
+import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
+import { etiquetaDocente } from "@shared/docentes";
 
 const t = THEMES.light;
 
@@ -167,7 +169,7 @@ export function Muro() {
     const auts = autsData.data || [];
     const encuestasActivas = encuestasAbiertas(encuestasData.data || [], fechaHoy);
     const activas = colectasActivas(cuotas.data || [], fecha15);
-    const [reclamados, respData, votosData, pagosData, vistosHasta] = await Promise.all([
+    const [reclamados, respData, votosData, pagosData, vistosHasta, talleresVistosTxt] = await Promise.all([
       cargarReclamados(supabase, objs.map((o) => o.id)),
       auts.length
         ? supabase.from("autorizacion_respuestas").select("autorizacion_id,hijo_id").in("autorizacion_id", auts.map((a) => a.id)).in("hijo_id", misHijosIds)
@@ -180,6 +182,8 @@ export function Muro() {
         : Promise.resolve({ data: [] }),
       // "No es de mi hijo" (local, sin viaje al servidor).
       AsyncStorage.getItem(claveEncontradosVistos(userId)).catch(() => null),
+      // Talleres ya mirados desde Novedades (local).
+      AsyncStorage.getItem(claveTalleresVistos(userId)).catch(() => null),
     ]);
 
     const bdayList = [
@@ -255,6 +259,7 @@ export function Muro() {
       encuestasPend,
       autorizacionesPend,
       talleresAbiertos,
+      talleresVistos: talleresVistosTxt,
       encontradosSemana,
       eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && !(e.tipo === "festejo" && rechazados.has(e.id))),
     });
@@ -294,6 +299,9 @@ export function Muro() {
     cargar();
     recargarBadge?.();
   };
+
+  // Avisos de docentes: "Laura · Inglés" como origen en Novedades (igual que la web).
+  const docenteDe = useAutoresDocentes((datos?.recordatorios || []).map((r) => r.creado_por));
 
   // Cargando: el saludo es inmediato (dato local) y la lista llega como skeleton.
   // Si la primera carga falla, mostramos el error en vez de un skeleton eterno.
@@ -370,16 +378,22 @@ export function Muro() {
     .filter((r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general")
     .map((r) => ({
       key: `r-${r.id}`, etiqueta: "Sin leer", accion: "Leer aviso", tag: tagDeCurso(r.curso_id), titulo: r.titulo || textoPlano(r.texto),
-      dato: unir(r.grupo_id ? "Comunicación del colegio" : "Aviso del curso", r.fecha ? fechaCorta(r.fecha) : null, fmtRangoHora(r.hora_inicio, r.hora_fin) || null),
+      dato: unir(r.grupo_id ? "Comunicación del colegio" : docenteDe(r.creado_por) ? etiquetaDocente(docenteDe(r.creado_por)).replace(/^👩‍🏫\s*/, "") : "Aviso del curso", r.fecha ? fechaCorta(r.fecha) : null, fmtRangoHora(r.hora_inicio, r.hora_fin) || null),
       ir: () => router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(r.id), t: String(Date.now()) } }),
     }));
 
   const avisos = [
     ...avisosSinLeer,
-    ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
+    ...(datos.talleresAbiertos || []).filter(({ taller: x }) => !leerTalleresVistos(datos.talleresVistos).has(x.id)).map(({ taller: x, hijos: hs }) => ({
       key: `tal-${x.id}`, etiqueta: "Inscripción abierta", etiquetaGris: true, accion: "Ver el taller", tag: null, titulo: x.nombre,
       dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null),
-      ir: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
+      ir: () => {
+        // Mirarlo lo saca de Novedades (sigue en Curso → Talleres).
+        const guardado = marcarTallerVisto(datos.talleresVistos, x.id);
+        setDatos((d) => ({ ...d, talleresVistos: guardado }));
+        AsyncStorage.setItem(claveTalleresVistos(userId), guardado).catch(() => {});
+        router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } });
+      },
     })),
   ];
 

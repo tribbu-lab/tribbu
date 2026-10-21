@@ -24,7 +24,7 @@ const TIPO_CONFIG = {
 
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
-import { talleresParaAnotarse } from "../../lib/talleres";
+import { talleresParaAnotarse, claveTalleresVistos, leerTalleresVistos, marcarTallerVisto } from "../../lib/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "../../lib/perdidos";
 import { getStorageBackend } from "../../lib/storage";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "../../lib/muro";
@@ -97,6 +97,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
   const [datos,setDatos] = useState(null);
+  // Talleres que la familia ya miró desde Novedades (guardado en el dispositivo).
+  const [talleresVistos,setTalleresVistos] = useState(()=>leerTalleresVistos(getStorageBackend()?.getItem(claveTalleresVistos(userId))));
   const [festejoDetalle,setFestejoDetalle] = useState(null);
   const [error,setError] = useState(false);
   const hoy = (() => { const t = new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"}).replace(",",""); return t.charAt(0).toUpperCase()+t.slice(1); })();
@@ -285,10 +287,16 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   const novedades = [
     ...avisos,
-    ...(datos.talleresAbiertos||[]).map(({taller:t,hijos:hs})=>({
+    ...(datos.talleresAbiertos||[]).filter(({taller:t})=>!talleresVistos.has(t.id)).map(({taller:t,hijos:hs})=>({
       key:`tal-${t.id}`, etiqueta:"Inscripción abierta", etiquetaGris:true, accion:"Ver el taller", tag:null, titulo:t.nombre,
       dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null),
-      ir:()=>onNavigate?.("talleres",{openTaller:t.id}),
+      ir:()=>{
+        // Mirarlo lo saca de Novedades (sigue en Curso → Talleres).
+        const guardado = marcarTallerVisto(getStorageBackend()?.getItem(claveTalleresVistos(userId)), t.id);
+        getStorageBackend()?.setItem(claveTalleresVistos(userId), guardado);
+        setTalleresVistos(leerTalleresVistos(guardado));
+        onNavigate?.("talleres",{openTaller:t.id});
+      },
     })),
   ];
 
