@@ -30,7 +30,7 @@ import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector } from "../../components";
 import { EmojiPicker } from "../shared";
 import { useToast } from "../../hooks/useToast";
-import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
+import { authAdminCreate, authAdminUpdate, authAdminFind, mensajeErrorAuth } from "../../lib/authAdmin";
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { Comedor } from "../comedor";
@@ -400,7 +400,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         auth_id = newId || null;
       } catch(e) {
         console.error("Error creando en Auth:", e);
-        showToast(`No se pudo crear el acceso: ${e.message||e}`, "error");
+        showToast(`No se pudo crear el acceso: ${mensajeErrorAuth(e)}`, "error");
         return;
       }
       // id generado en el cliente: un colegio_admin no puede leer de vuelta el
@@ -533,14 +533,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       try {
         const { auth_id: newId } = await authAdminCreate(sanitize(form.email).toLowerCase(), form.pass);
         auth_id = newId || null;
-      } catch(e) { console.error("Error creando en Auth:", e); showToast("Error al crear la cuenta en Auth","error"); return; }
+      } catch(e) { console.error("Error creando en Auth:", e); showToast(`No se pudo crear la cuenta: ${mensajeErrorAuth(e)}`,"error"); return; }
       const { error } = await supabase.from("usuarios").insert({
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolFijo, colegio_id: colegioIdFijo,
         avatar, activo: true, auth_id,
         ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles)}:{}),
       });
-      if(error) { showToast("Error al crear la cuenta","error"); return; }
+      if(error) { showToast(`No se pudo guardar la cuenta: ${error.message}`,"error"); return; }
     } else {
       const passNueva = form._passNueva && form._passNueva.trim();
       const emailNuevo = sanitize(form.email).toLowerCase();
@@ -775,7 +775,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     let auth_id = null;
     try {
       ({ auth_id } = await authAdminCreate(email, form.accesoPass.trim()));
-    } catch(e) { showToast(`No se pudo crear el acceso: ${e.message||e}`, "error"); return false; }
+    } catch(e) { showToast(`No se pudo crear el acceso: ${mensajeErrorAuth(e)}`, "error"); return false; }
     const usuarioId = uuidLite();
     const apellido = form.apellido||"";
     const { error: eU } = await supabase.from("usuarios").insert({
