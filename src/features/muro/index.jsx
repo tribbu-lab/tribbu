@@ -260,12 +260,6 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       vence:ev.fecha, urgencia:avisoVencimiento("Es", ev.fecha, fechaHoy),
       accion:"Confirmar asistencia", ir:()=>setFestejoDetalle(ev),
     })),
-    ...(datos.talleresAbiertos||[]).map(({taller:t,hijos:hs})=>({
-      key:`tal-${t.id}`, tipo:"Inscripción abierta", tag:null, titulo:t.nombre,
-      dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta&&!avisoVencimiento("x", t.inscripcion_hasta, fechaHoy)?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null), detalle:null,
-      vence:t.inscripcion_hasta||null, urgencia:avisoVencimiento("Inscripción hasta", t.inscripcion_hasta, fechaHoy),
-      accion:"Ver el taller", ir:()=>onNavigate?.("talleres",{openTaller:t.id}),
-    })),
     ...(datos.encuestasPend||[]).map(e=>({
       key:`enc-${e.id}`, tipo:"Encuesta", tag:tagDe(e.curso_id), titulo:e.pregunta,
       dato:e.fecha_cierre&&!avisoVencimiento("x", e.fecha_cierre, fechaHoy)?`Cierra el ${fechaCorta(e.fecha_cierre)}`:null, detalle:null,
@@ -280,12 +274,23 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
   ]);
   const [destacado, ...resto] = pendientes;
 
-  // ── Comunicaciones: avisos sin leer (leerlo lo marca como leído en Avisos).
+  // ── Novedades: avisos sin leer (leerlo lo marca como leído en Avisos) y
+  // talleres con inscripción abierta. Un taller es optativo: se informa acá,
+  // no va en "respuestas pendientes" (si no lo anotan, no hay nada que responder).
   const avisos = datos.recordatorios.filter(r=>!r.tipo||r.tipo==="recordatorio"||r.tipo==="general").map(r=>({
-    key:`r-${r.id}`, tag:tagDe(r.curso_id), titulo:r.titulo||textoPlano(r.texto),
+    key:`r-${r.id}`, etiqueta:"Sin leer", accion:"Leer aviso", tag:tagDe(r.curso_id), titulo:r.titulo||textoPlano(r.texto),
     dato:unir(r.grupo_id?"Comunicación del colegio":docenteDe(r.creado_por)?etiquetaDocente(docenteDe(r.creado_por)).replace(/^👩‍🏫\s*/,""):"Aviso del curso", r.fecha?fechaCorta(r.fecha):null, fmtRangoHora(r.hora_inicio,r.hora_fin)||null),
     ir:()=>onNavigate?.("recordatorios",{openAviso:r.id}),
   }));
+
+  const novedades = [
+    ...avisos,
+    ...(datos.talleresAbiertos||[]).map(({taller:t,hijos:hs})=>({
+      key:`tal-${t.id}`, etiqueta:"Inscripción abierta", etiquetaGris:true, accion:"Ver el taller", tag:null, titulo:t.nombre,
+      dato:unir(`Para ${hs.map(h=>h.nombre?.split(" ")[0]).join(" y ")}`, t.inscripcion_hasta?`hasta el ${fechaCorta(t.inscripcion_hasta)}`:null),
+      ir:()=>onNavigate?.("talleres",{openTaller:t.id}),
+    })),
+  ];
 
   // ── Próximos días: eventos + cumpleaños de los próximos 15 días.
   const agenda = [
@@ -354,24 +359,24 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   const bloqueComunicaciones = (
     <div style={{marginBottom:28}}>
-      <Encabezado titulo="Novedades" cuenta={avisos.length}
+      <Encabezado titulo="Novedades" cuenta={novedades.length}
         derecha={<button onClick={()=>onNavigate?.("mensajes")} style={{...enlace,fontSize:13}}><span style={{color:"#2563EB"}}>Mensajes</span></button>}/>
-      {!avisos.length&&<div style={{fontSize:13,color:"#64748B",margin:"-6px 0 12px"}}>No tenés avisos sin leer.</div>}
-      {(avisos.length>0||datos.encontradosSemana>0)&&(
+      {!novedades.length&&<div style={{fontSize:13,color:"#64748B",margin:"-6px 0 12px"}}>No tenés avisos sin leer.</div>}
+      {(novedades.length>0||datos.encontradosSemana>0)&&(
         <div style={card}>
-          {avisos.map((a,i)=>(
+          {novedades.map((a,i)=>(
             <div key={a.key} style={{padding:"14px 18px",borderTop:i?"1px solid #F1F5F9":"none"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
-                <span style={{fontSize:12,fontWeight:700,color:"#2563EB"}}>Sin leer</span>
+                <span style={{fontSize:12,fontWeight:a.etiquetaGris?600:700,color:a.etiquetaGris?"#64748B":"#2563EB"}}>{a.etiqueta}</span>
                 <Hijo tag={a.tag}/>
               </div>
               <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{a.titulo}</div>
               {a.dato&&<div style={{fontSize:12.5,color:"#64748B",marginTop:3}}>{a.dato}</div>}
-              <Enlace texto="Leer aviso" onClick={a.ir} style={{marginTop:10}}/>
+              <Enlace texto={a.accion} onClick={a.ir} style={{marginTop:10}}/>
             </div>
           ))}
           {datos.encontradosSemana>0&&(
-            <div style={{padding:"14px 18px",borderTop:avisos.length?"1px solid #F1F5F9":"none"}}>
+            <div style={{padding:"14px 18px",borderTop:novedades.length?"1px solid #F1F5F9":"none"}}>
               <span style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Lost &amp; Found</span>
               <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginTop:4,lineHeight:1.3}}>{datos.encontradosSemana} {datos.encontradosSemana===1?"objeto encontrado":"objetos encontrados"} esta semana</div>
               <div style={{fontSize:12.5,color:"#64748B",marginTop:3}}>¿{datos.encontradosSemana===1?"Es":"Alguno es"} de tu hijo?</div>

@@ -349,12 +349,6 @@ export function Muro() {
       vence: ev.fecha, urgencia: avisoVencimiento("Es", ev.fecha, fechaHoy),
       accion: "Confirmar asistencia", ir: () => router.push({ pathname: "/(tabs)/cumples", params: { openFestejo: String(ev.id) } }),
     })),
-    ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
-      key: `tal-${x.id}`, tipo: "Inscripción abierta", tag: null, titulo: x.nombre,
-      dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta && !avisoVencimiento("x", x.inscripcion_hasta, fechaHoy) ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null), detalle: null,
-      vence: x.inscripcion_hasta || null, urgencia: avisoVencimiento("Inscripción hasta", x.inscripcion_hasta, fechaHoy),
-      accion: "Ver el taller", ir: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
-    })),
     ...datos.encuestasPend.map((e) => ({
       key: `enc-${e.id}`, tipo: "Encuesta", tag: tagDeCurso(e.curso_id), titulo: e.pregunta,
       dato: e.fecha_cierre && !avisoVencimiento("x", e.fecha_cierre, fechaHoy) ? `Cierra el ${fechaCorta(e.fecha_cierre)}` : null, detalle: null,
@@ -369,14 +363,25 @@ export function Muro() {
   ]);
   const [destacado, ...resto] = pendientes;
 
-  // ── Comunicaciones: avisos sin leer (leerlo en Avisos lo marca como leído).
-  const avisos = datos.recordatorios
+  // ── Novedades: avisos sin leer (leerlo en Avisos lo marca como leído) y
+  // talleres con inscripción abierta. Un taller es optativo: se informa acá,
+  // no va en "respuestas pendientes" (si no lo anotan, no hay nada que responder).
+  const avisosSinLeer = datos.recordatorios
     .filter((r) => !r.tipo || r.tipo === "recordatorio" || r.tipo === "general")
     .map((r) => ({
-      key: `r-${r.id}`, tag: tagDeCurso(r.curso_id), titulo: r.titulo || textoPlano(r.texto),
+      key: `r-${r.id}`, etiqueta: "Sin leer", accion: "Leer aviso", tag: tagDeCurso(r.curso_id), titulo: r.titulo || textoPlano(r.texto),
       dato: unir(r.grupo_id ? "Comunicación del colegio" : "Aviso del curso", r.fecha ? fechaCorta(r.fecha) : null, fmtRangoHora(r.hora_inicio, r.hora_fin) || null),
       ir: () => router.push({ pathname: "/(tabs)/recordatorios", params: { openAviso: String(r.id), t: String(Date.now()) } }),
     }));
+
+  const avisos = [
+    ...avisosSinLeer,
+    ...(datos.talleresAbiertos || []).map(({ taller: x, hijos: hs }) => ({
+      key: `tal-${x.id}`, etiqueta: "Inscripción abierta", etiquetaGris: true, accion: "Ver el taller", tag: null, titulo: x.nombre,
+      dato: unir(`Para ${hs.map((h) => h.nombre?.split(" ")[0]).join(" y ")}`, x.inscripcion_hasta ? `hasta el ${fechaCorta(x.inscripcion_hasta)}` : null),
+      ir: () => router.push({ pathname: "/(tabs)/talleres", params: { openTaller: String(x.id), t: String(Date.now()) } }),
+    })),
+  ];
 
   // ── Próximos días: eventos + cumpleaños de los próximos 15 días.
   const agenda = [
@@ -513,12 +518,12 @@ export function Muro() {
           {avisos.map((a, i) => (
             <View key={a.key} style={[styles.fila, i > 0 && styles.filaBorde]}>
               <View style={styles.filaTop}>
-                <Text style={styles.sinLeer}>Sin leer</Text>
+                <Text style={a.etiquetaGris ? styles.etiquetaGris : styles.sinLeer}>{a.etiqueta}</Text>
                 <Hijo tag={a.tag} />
               </View>
               <Text style={styles.filaTitulo}>{a.titulo}</Text>
               {a.dato ? <Text style={styles.dato}>{a.dato}</Text> : null}
-              <Enlace texto="Leer aviso" onPress={a.ir} />
+              <Enlace texto={a.accion} onPress={a.ir} />
             </View>
           ))}
           {datos.encontradosSemana > 0 ? (
@@ -692,6 +697,7 @@ const styles = StyleSheet.create({
   filaTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   tipo: { fontSize: 12.5, fontWeight: "600", color: t.textMuted },
   sinLeer: { fontSize: 12, fontWeight: "700", color: BLUE[600] },
+  etiquetaGris: { fontSize: 12, fontWeight: "600", color: SLATE[500] },
   urgencia: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 4, paddingHorizontal: 10, borderRadius: RADIUS.sm, backgroundColor: "#FEF2F2" },
   urgenciaTxt: { fontSize: 12.5, fontWeight: "700", color: "#B91C1C" },
   destTitulo: { fontSize: 18, fontWeight: "800", color: t.textStrong, marginTop: 10, lineHeight: 23 },
