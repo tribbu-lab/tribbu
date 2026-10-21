@@ -157,7 +157,7 @@ export function MiCuenta({ usuario, foto, onFoto, cursosRoom = [], esDocente, on
       )}
       <div style={tituloGrupo}>Cuenta</div>
       <div style={tarjeta}>
-        <Fila icono="salvavidas" label="Ayuda y soporte" desc="Escribile al equipo de tribbu" primera onClick={onSoporte} />
+        <Fila icono="salvavidas" label="Ayuda y soporte" desc={esDocente ? "Escribile al equipo de tribbu" : "Preguntas frecuentes y contacto con tribbu"} primera onClick={onSoporte} />
         <Fila icono="llave" label="Cambiar contraseña" desc={usuario?.email || ""} onClick={onCambiarPass} />
         <Fila icono="salir" label="Cerrar sesión" onClick={onCerrarSesion} peligro derecha={null} />
         <Fila icono="papelera" label="Eliminar mi cuenta" desc="Borra tu cuenta y tus datos de forma permanente" onClick={onEliminar} peligro derecha={null} />

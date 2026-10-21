@@ -192,11 +192,11 @@ export default function CuentaScreen() {
 
       <Text style={styles.label}>Cuenta</Text>
       <View style={styles.card}>
-        <Pressable onPress={() => router.push({ pathname: "/(tabs)/mensajes", params: { soporte: "1", t: String(Date.now()) } })} style={styles.crow}>
+        <Pressable onPress={() => (esDocente ? router.push({ pathname: "/(tabs)/mensajes", params: { soporte: "1", t: String(Date.now()) } }) : router.push("/(tabs)/ayuda"))} style={styles.crow}>
           <MaterialCommunityIcons name="lifebuoy" size={19} color={t.textMuted} />
           <View style={styles.flex1}>
             <Text style={styles.crowTitulo}>Ayuda y soporte</Text>
-            <Text style={styles.crowMeta}>Escribile al equipo de tribbu</Text>
+            <Text style={styles.crowMeta}>{esDocente ? "Escribile al equipo de tribbu" : "Preguntas frecuentes y contacto con tribbu"}</Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
         </Pressable>

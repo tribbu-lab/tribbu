@@ -37,6 +37,7 @@ const Mensajes         = aLazy(() => import("./features/mensajes"), "Mensajes");
 const AlumnosDocente   = aLazy(() => import("./features/docente"), "AlumnosDocente");
 const Curso            = aLazy(() => import("./features/curso"), "Curso");
 const MiCuenta         = aLazy(() => import("./features/curso"), "MiCuenta");
+const Ayuda            = aLazy(() => import("./features/ayuda"), "Ayuda");
 import { SubSeccion } from "./components/SubSeccion";
 import { SelectorHijos } from "./components/SelectorHijos";
 import { Icono } from "./components/Icono";
@@ -59,7 +60,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta"]);
+const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta","ayuda"]);
 // Navegación en 4 secciones (Hoy · Agenda · Comunicaciones · Curso), igual
 // que mobile. Cada una agrupa tabs: queda marcada en cualquiera de ellas y
 // tocarla va a la primera. Lo que no está en las tres primeras es de Curso.
@@ -69,7 +70,7 @@ const SECCIONES = [
   { id:"comunicaciones", label:"Comunicaciones", icono:"comunicaciones", tabs:["recordatorios","mensajes"] },
   { id:"curso",          label:"Curso",          icono:"curso", tabs:["curso"] },
 ];
-const seccionDe = (t) => t==="cuenta" ? null : (SECCIONES.find(x=>x.tabs.includes(t)) || SECCIONES[3]).id;
+const seccionDe = (t) => t==="cuenta"||t==="ayuda" ? null : (SECCIONES.find(x=>x.tabs.includes(t)) || SECCIONES[3]).id;
 // Sub-secciones de Comunidad: cada una tiene su ?tab= propio, pero en el menú
 // se marca el ítem "comunidad".
 const SUBS_COMUNIDAD = new Set(["comunidad","marketplace","servicios"]);
@@ -547,7 +548,7 @@ function App() {
       <span style={{fontSize:14,fontWeight:700,color:"#2563EB"}}>Curso</span>
     </button>
   );
-  const renderSelectorSeccion = () => (tab==="muro"||tab==="cuenta"||items.length<2) ? null : <div style={{marginBottom:14}}>{selectorHijos}</div>;
+  const renderSelectorSeccion = () => (tab==="muro"||tab==="cuenta"||tab==="ayuda"||items.length<2) ? null : <div style={{marginBottom:14}}>{selectorHijos}</div>;
   const cerrarSesion = async () => { await supabase.auth.signOut(); setUsuario(null); };
 
   // Compartida entre Muro y la búsqueda global (header desktop): navegar a
@@ -592,7 +593,9 @@ function App() {
       case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
       case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA}/>;
-      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
+      // Preguntas frecuentes de las familias (src/lib/ayuda.js) + "Escribile al equipo de tribbu".
+      case "ayuda":    return <Ayuda onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
+      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>esDocente?navegarA("mensajes",{soporte:true}):navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
       default: return null;
     }
   };
