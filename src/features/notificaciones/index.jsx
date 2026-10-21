@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
 import { useCargar } from "../../hooks/useCargar";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
 import { textoPlano } from "../../lib/formato";
@@ -31,6 +31,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
+        .or(filtroNoPropios(userId))
         .order("fecha", { ascending: true, nullsFirst: false }),
       supabase.from("alertas").select("*").in("curso_id", cursoIds).eq("activa", true)
         .order("creado_en", { ascending: false }).limit(3),
@@ -67,7 +68,8 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     const { data } = await supabase.from("recordatorios").select("id")
       .in("curso_id", cursoIds)
       .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
-      .or(`fecha.is.null,fecha.gte.${fmtLocalDate()}`);
+      .or(`fecha.is.null,fecha.gte.${fmtLocalDate()}`)
+      .or(filtroNoPropios(userId));
     if(data) setRecIds(p => ({ ids: data.map(r => r.id), v: p.v + 1 }));
   }, [cursoIds, userId]);
   useEffect(() => {

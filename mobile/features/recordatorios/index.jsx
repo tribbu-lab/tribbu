@@ -23,7 +23,7 @@ import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { sanitize, fmtLocalDate, ordenPorEnviado, coincideTexto } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, conPropiosLeidos } from "@shared/leidos";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { Paginador } from "../../components/Paginador";
@@ -266,7 +266,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       .order("creado_en", { ascending: false });
     const { recs, leidos } = separarLeidos(data);
     setRecordatorios(recs);
-    setLeidosSet(leidos);
+    setLeidosSet(conPropiosLeidos(recs, leidos, userId));
   }, [cursoIds, userId]);
 
   useEffect(() => {

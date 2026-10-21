@@ -35,6 +35,7 @@ export const recordatoriosPendientes = (recordatorios, leidosIds, userId, hoyStr
     .filter((r) => {
       if (r.tipo === "regalo_cumple" || r.tipo === "colecta_vence") return false;
       if (leidosIds.has(r.id)) return false;
+      if (userId && r.creado_por === userId) return false; // lo que publiqué yo no es novedad
       if (r.para_usuario_id && r.para_usuario_id !== userId) return false;
       if (r.fecha && r.fecha < hoyStr) return false;
       return true;

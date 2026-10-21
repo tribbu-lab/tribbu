@@ -27,3 +27,14 @@ export const separarLeidos = (rows) => {
  *  no filtra: la RLS igual devuelve solo filas propias, o sea ninguna). */
 export const conLeidoDe = (query, userId) =>
   userId ? query.eq("recordatorio_leidos.usuario_id", userId) : query;
+
+/**
+ * Lo que uno mismo publicó no es una novedad para uno: cuenta como leído (no
+ * suma al contador, no va a "Requiere tu atención" ni a Novedades). Pasó con
+ * la maestra que veía su propio aviso como sin leer.
+ */
+export const conPropiosLeidos = (recs, leidos, userId) =>
+  new Set([...(leidos || []), ...(recs || []).filter((r) => userId && r.creado_por === userId).map((r) => r.id)]);
+
+/** Filtro .or() de PostgREST: avisos que NO publiqué yo (los sin autor también). */
+export const filtroNoPropios = (userId) => `creado_por.is.null,creado_por.neq.${userId}`;

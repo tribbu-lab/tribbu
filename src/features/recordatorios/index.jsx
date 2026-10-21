@@ -22,7 +22,7 @@ import { separarAvisos, haceCuanto, fechaCortaAviso, fechaDelAviso, origenAviso,
 
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, conPropiosLeidos } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { useMembretes } from "../../hooks/useMembretes";
 import { textoPlano } from "../../lib/formato";
@@ -94,7 +94,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
     ]);
     const { recs, leidos } = separarLeidos(recsRes.data);
     setRecordatorios(recs);
-    setLeidosSet(leidos);
+    setLeidosSet(conPropiosLeidos(recs, leidos, userId));
     setAlerta((al.data||[])[0]||null);
   }, [cursoId, cursoIds, userId]);
   useCargar(cargar, active); // también al volver a la pestaña

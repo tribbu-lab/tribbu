@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
 import { fmtLocalDate } from "@shared/helpers";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios } from "@shared/leidos";
 
 // Contexto para compartir el resultado de useNotificaciones (levantado una sola
 // vez en app/(tabs)/_layout.jsx) con las pantallas de tabs. Sin esto, la tab
@@ -40,6 +40,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .in("curso_id", cursoIds)
         .or(`para_usuario_id.is.null,para_usuario_id.eq.${userId}`)
         .or(`fecha.is.null,fecha.gte.${hoy}`)
+        .or(filtroNoPropios(userId))
         .order("fecha", { ascending: true, nullsFirst: false })
         .limit(30),
       supabase
