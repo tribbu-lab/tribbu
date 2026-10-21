@@ -136,7 +136,7 @@ Dos cosas que dependen del nivel:
   el administrador en esta etapa (son de todo el colegio): la Secretaría no ve
   esas secciones.
 - Los **niveles del colegio** y las **cuentas de Secretaría** se configuran en
-  la web (Super Admin → Colegio). En mobile la Secretaría usa el panel, pero
+  la web (Super Admin → Personas → 🧭 Directivos). En mobile la Secretaría usa el panel, pero
   el nivel de un curso y las Secretarías no se editan desde ahí.
 - **Transición**: al aplicar el SQL, la versión vieja de la app mobile no puede
   subir el menú (usa `onConflict:"colegio_id,fecha"`) hasta el build nuevo, y

@@ -54,6 +54,7 @@ const SECCIONES = [
     {id:"usuarios",l:"👤 Apoderados"},
     {id:"maestros",l:"👨‍🏫 Maestros"},
     {id:"alumnos",l:"🎒 Alumnos"},
+    {id:"directivos",l:"🧭 Directivos"},
   ]},
   { grupo: "Cursos", items: [
     {id:"cursos",l:"🏫 Cursos"},
@@ -83,7 +84,7 @@ const SECCIONES = [
 
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve. Ver
 // specs/roles-por-nivel.md → Permisos.
-const SOLO_ADMIN_COLEGIO = new Set(["maestros","cursos","promocion","materias","uniformes","marketplace","talleres","perdidos","denuncias","colegio","menu"]);
+const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion","materias","uniformes","marketplace","talleres","perdidos","denuncias","colegio","menu"]);
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
@@ -93,7 +94,7 @@ const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"�
 // título + descripción de qué gestiona la pantalla — reemplaza el título
 // fijo "Panel Super Admin" que no cambiaba entre módulos.
 const SECCION_INFO = {
-  usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores del colegio se gestionan en 🏫 Colegio, y los Super Admin de plataforma en 👑 Super Admins." },
+  usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores y las Secretarías se gestionan en 🧭 Directivos, y los Super Admin de plataforma en 👑 Super Admins." },
   maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
   cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
@@ -113,6 +114,7 @@ const SECCION_INFO = {
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
+  directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y las Secretarías, que gestionan solo los cursos de sus niveles." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
   colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
@@ -1872,7 +1874,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         </div>
       )}
 
-      {sec==="colegio"&&(() => {
+      {(sec==="colegio"||sec==="directivos")&&(() => {
         const colegioIdActivo = esStaffColegio?miColegioId:colegioId;
         // Solo super gestiona los colegio_admin de un colegio (RLS bloquea a
         // un colegio_admin crear/editar pares suyos — ver usuarios_insert/
@@ -1889,6 +1891,37 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         };
         return (
           <>
+            {sec==="directivos"&&<>
+            {(
+              <div style={{marginBottom:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:900}}>🔑 Administradores de {colegioNombre}</div>
+                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.{esSuper?"":" Los da de alta el equipo de tribbu."}</div>
+                  </div>
+                  {esSuper&&<button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>}
+                </div>
+                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+                  {adminsDelColegio.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay administradores para este colegio.</div>}
+                  {adminsDelColegio.map(u=>(
+                    <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                        <div style={{width:34,height:34,borderRadius:999,background:ROL_BG.colegio_admin,color:ROL_COLOR.colegio_admin,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
+                          <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
+                        {esSuper&&<button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>}
+                        {esSuper&&<button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:15,fontWeight:900}}>Niveles</div>
               <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y dar acceso de Secretaría por nivel.</div>
@@ -1899,7 +1932,6 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 })}
               </div>
             </div>
-            <MembreteColegio colegioId={colegioIdActivo} colegioNombre={colegioNombre} niveles={colegioNiveles} valor={membrete} onGuardado={setMembrete} showToast={showToast}/>
             {colegioNiveles.length>1&&(
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
@@ -1927,37 +1959,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 </div>
               </div>
             )}
-            {esSuper&&(
-              <div style={{marginBottom:24}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
-                  <div>
-                    <div style={{fontSize:15,fontWeight:900}}>🔑 Administradores de {colegioNombre}</div>
-                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.</div>
-                  </div>
-                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>
-                </div>
-                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
-                  {adminsDelColegio.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay administradores para este colegio.</div>}
-                  {adminsDelColegio.map(u=>(
-                    <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                        <div style={{width:34,height:34,borderRadius:999,background:ROL_BG.colegio_admin,color:ROL_COLOR.colegio_admin,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
-                        <div style={{minWidth:0}}>
-                          <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
-                          <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
-                        </div>
-                      </div>
-                      <div style={{display:"flex",gap:6,flexShrink:0}}>
-                        {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                        <button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                        <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {colegioNiveles.length<2&&(
+              <div style={{marginBottom:24,padding:"12px 14px",borderRadius:12,background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:12.5,color:"#64748B"}}>Para dar de alta Secretarías por nivel, marcá al menos dos niveles arriba.</div>
             )}
+            </>}
+            {sec==="colegio"&&<>
+            <MembreteColegio colegioId={colegioIdActivo} colegioNombre={colegioNombre} niveles={colegioNiveles} valor={membrete} onGuardado={setMembrete} showToast={showToast}/>
             <Contacto isSuperAdmin={true} colegioId={colegioIdActivo}/>
+            </>}
           </>
         );
       })()}
