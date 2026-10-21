@@ -18,6 +18,7 @@ import { SignedImage } from "./SignedImage";
 import { colorColegio } from "@shared/helpers";
 import { AvatarPerfil } from "./AvatarPerfil";
 import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
+import { ANCHO_MAX_CONTENIDO } from "../lib/layout";
 
 const dk = THEMES.dark; // superficie de marca fija (misma paleta que el login)
 
@@ -54,7 +55,9 @@ export function AppHeader() {
   const headerBg = colorCustomDeItem(itemActual) || dk.bg;
 
   return (
-    <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6 }]}>
+    // Fondo de borde a borde; el contenido se alinea con la columna centrada
+    // de las secciones en pantallas anchas (lib/layout).
+    <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6, paddingLeft: SPACE.lg + insets.left, paddingRight: SPACE.lg + insets.right }]}>
       <View style={styles.topRow}>
         <View style={styles.brandRow}>
           {/* Punto del wordmark en el color de marca del colegio (si tiene uno válido). */}
@@ -156,7 +159,9 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 // (el mismo set de tokens del login).
 const styles = StyleSheet.create({
   header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
-  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  // Ancho de la columna menos su padding (SPACE.lg por lado), para que el logo
+  // y Mi cuenta queden alineados con el contenido de abajo.
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: ANCHO_MAX_CONTENIDO - 2 * SPACE.lg, alignSelf: "center" },
   brandRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   colegioLogo: { width: TYPE.h1.fontSize, height: TYPE.h1.fontSize, borderRadius: RADIUS.sm, backgroundColor: "rgba(255,255,255,0.9)" },
   actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },

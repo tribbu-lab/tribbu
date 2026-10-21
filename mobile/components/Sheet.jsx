@@ -10,6 +10,7 @@ import { useTecladoAbierto } from "../lib/useTecladoAbierto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TYPE, RADIUS, SPACE, MIN_TOUCH, SHADOW } from "@shared/tokens";
 import { makeThemedStyles } from "../context/Theme";
+import { columnaCentrada } from "../lib/layout";
 
 const useStyles = makeThemedStyles((t) => ({
   // El velo va en el KeyboardAvoidingView: así también cubre la franja del
@@ -22,6 +23,8 @@ const useStyles = makeThemedStyles((t) => ({
     backgroundColor: t.surfaceRaised,
     padding: SPACE.lg,
     maxHeight: "88%",
+    // Tablet/plegable: la hoja no se estira a todo el ancho (lib/layout).
+    ...columnaCentrada,
     ...SHADOW.raised,
   },
   cardBottom: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl },

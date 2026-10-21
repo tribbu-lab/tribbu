@@ -12,6 +12,7 @@ import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
 import { useNotificaciones, NotificacionesProvider, avisosSinLeer } from "../../features/notificaciones";
 import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
+import { columnaCentrada, useInsetsLaterales } from "../../lib/layout";
 
 export default function TabsLayout() {
   const { usuario, cursoIds } = useSession();
@@ -23,6 +24,7 @@ export default function TabsLayout() {
   const mensajes = useMensajesNoLeidos(usuario?.id ?? null);
   // Comunicaciones = avisos sin leer + mensajes sin leer.
   const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0);
+  const laterales = useInsetsLaterales();
   useNotificationRouting(true);
 
   // Oculta del bottom-bar las secundarias (se alcanzan desde "Más").
@@ -35,6 +37,10 @@ export default function TabsLayout() {
     <MensajesProvider value={mensajes}>
     <View style={styles.root}>
       <AppHeader notif={notif} />
+      {/* Tablet/plegable: secciones y barra inferior en una columna centrada
+          (lib/layout). En el celular ocupa todo el ancho, como siempre. */}
+      <View style={[styles.flex1, laterales]}>
+      <View style={styles.columna}>
       <Tabs
         // freezeOnBlur: las pestañas que no se ven no se re-renderizan (cada
         // cambio de sesión/notificaciones re-renderizaba TODAS las montadas);
@@ -67,6 +73,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="mensajes" options={hidden} />
         <Tabs.Screen name="alumnos" options={hidden} />
       </Tabs>
+      </View>
+      </View>
     </View>
     </MensajesProvider>
     </NotificacionesProvider>
@@ -75,4 +83,6 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
+  flex1: { flex: 1 },
+  columna: { flex: 1, ...columnaCentrada },
 });

@@ -128,6 +128,17 @@ npx -y eas-cli@latest build -p android --profile production --local \
   - **APK**: `unzip -p <artefacto> resources.arsc | grep -a -c 943309263680`
 
   Si da 0, el build salió sin Firebase — no lo distribuyas.
+- **R8 (desde 2026-10-21)**: el AAB tiene que traer
+  `BUNDLE-METADATA/com.android.tools/r8.json` (no `d8.json`) y
+  `BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`:
+  `unzip -l <aab> | grep -E "r8.json|obfuscation/proguard.map"` tiene que dar
+  2 líneas. Si sale con `d8.json`, el build no aplicó `expo-build-properties`
+  (Play vuelve a marcar "DEX code optimization below threshold"): no lo subas.
+  Para probar en local un cambio de módulos nativos o plugins hay que
+  regenerar `mobile/android/` (`npx expo prebuild --clean -p android` y
+  reaplicar `debuggableVariants = []`). `./gradlew assembleRelease` dentro de
+  `mobile/android` da un APK minificado firmado con la clave de debug, sin
+  usar EAS ni gastar un versionCode.
 - Submit (does **not** consume build quota; targets come from `eas.json > submit`,
   Play **internal** track, `play-service-account.json` must exist locally):
 
