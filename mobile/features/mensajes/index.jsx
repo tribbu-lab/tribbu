@@ -1216,8 +1216,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
           </View>
         }
         ListEmptyComponent={convs ? (
-          <EmptyState icon="message-outline" title="Todavía no tenés conversaciones" note={esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."}
-            actionLabel="Escribir un mensaje" onAction={() => setNuevo(true)} />
+          <EmptyState icon="message-outline" title="Todavía no tenés conversaciones" note={esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
         ) : null}
         renderItem={({ item: c }) => (
           <View style={s.cardFila}>

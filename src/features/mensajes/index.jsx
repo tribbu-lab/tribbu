@@ -13,6 +13,7 @@ import { useTabActiva } from "../../hooks/useTabActiva";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Buscador } from "../../components/Buscador";
+import { EmptyState } from "../../components/EmptyState";
 import { safeUrl, uuidLite } from "../../lib/helpers";
 import { THEMES, SLATE, BLUE, withAlpha } from "../../lib/tokens";
 import { borrarArchivos } from "../../lib/storageUrl";
@@ -1263,12 +1264,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
         ) : null}
         {convs === null ? <Spinner /> : null}
         {convs && !otras.length ? (
-          <div style={{ border: `1.5px dashed ${C.borderStrong}`, borderRadius: 16, padding: "24px 16px", textAlign: "center", margin: "8px 4px" }}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>💬</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.textStrong, marginBottom: 4 }}>Todavía no tenés conversaciones</div>
-            <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 12 }}>{esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."}</div>
-            <button onClick={() => setNuevo(true)} style={btnPri}>Escribir un mensaje</button>
-          </div>
+          // Sin botón propio: se escribe con "+ Nuevo", que está arriba.
+          <EmptyState icono="mensaje" titulo="Todavía no tenés conversaciones" style={{ margin: "8px 4px" }}
+            nota={esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
         ) : null}
         {otras.map((c) => (
           <FilaConversacion key={c.id} c={c} activa={activa?.id === c.id} userId={userId} tagDeCurso={tagDeCurso} esDocente={esDocente} onClick={() => setActiva(c)} />
