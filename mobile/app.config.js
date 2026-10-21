@@ -19,6 +19,8 @@ export default {
     owner: "albatross-tech",
     scheme: "tribbu",
     version: "1.13.0",
+    // Vale para iOS. En Android lo reemplaza plugins/withPantallasGrandes
+    // (celular en vertical desde el código, tablets libres).
     orientation: "portrait",
     userInterfaceStyle: "light",
     newArchEnabled: true,
@@ -82,6 +84,25 @@ export default {
       // Xcode 27 falla el archive si algún target de Pods declara un deployment
       // target < 15.0 (SDWebImage, RNCAsyncStorage); los sube a 15.1.
       "./plugins/withPodsDeploymentTarget",
+      [
+        // R8 en los builds release de Android (ofusca + optimiza el dex y quita
+        // recursos sin usar). Google Play exige >= 25% de ofuscación (1.13.0
+        // estaba en 2%, plazo feb 2027). El AAB lleva el mapping
+        // (BUNDLE-METADATA/…/obfuscation/proguard.map) y Play desofusca solo
+        // los crashes. Si R8 rompe algo, regla puntual en extraProguardRules.
+        // Ver specs/calidad-tecnica-para-google-play.md.
+        "expo-build-properties",
+        {
+          android: {
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+          },
+        },
+      ],
+      // Android: tablets y plegables pueden rotar (sin screenOrientation en el
+      // manifest); los celulares siguen solo en vertical. iOS no cambia
+      // (sigue `orientation: "portrait"` de arriba).
+      "./plugins/withPantallasGrandes",
       [
         // media.js pide permiso de fototeca (subida de invitaciones de cumples);
         // sin este string en Info.plist, iOS crashea al pedirlo.

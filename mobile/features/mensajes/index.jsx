@@ -20,6 +20,7 @@ import { pickImages, uploadImage } from "../../lib/media";
 import { EVENTO_MENSAJE, EVENTO_RESYNC, useMensajesCtx } from "../../lib/useMensajesNoLeidos";
 import { useRecarga } from "../../lib/useRecarga";
 import { useTecladoAbierto } from "../../lib/useTecladoAbierto";
+import { columnaCentrada, useInsetsLaterales } from "../../lib/layout";
 import { uuidLite, safeUrl } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE, MIN_TOUCH, withAlpha } from "@shared/tokens";
 import {
@@ -993,9 +994,15 @@ function MenuFila({ icono, texto, onPress, peligro }) {
 
 /** Chat a pantalla completa (tapa header y tab bar). */
 export function ChatModal({ conv, onClose, ...rest }) {
+  const laterales = useInsetsLaterales();
   return (
     <Modal visible={!!conv} animationType="slide" onRequestClose={onClose} statusBarTranslucent presentationStyle="fullScreen">
-      {conv ? <ChatConversacion key={conv.id} conv={conv} onCerrar={onClose} {...rest} /> : null}
+      {/* Tablet/plegable: el chat en la misma columna centrada que las secciones. */}
+      <View style={[s.chatModalFondo, laterales]}>
+        <View style={s.chatModalColumna}>
+          {conv ? <ChatConversacion key={conv.id} conv={conv} onCerrar={onClose} {...rest} /> : null}
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -1551,6 +1558,8 @@ const s = StyleSheet.create({
   pillOk: { backgroundColor: t.successSoft, color: t.success },
   // chat
   chatRoot: { flex: 1, backgroundColor: t.bg },
+  chatModalFondo: { flex: 1, backgroundColor: t.bg },
+  chatModalColumna: { flex: 1, ...columnaCentrada },
   chatHeader: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, paddingHorizontal: SPACE.sm, paddingVertical: SPACE.sm, backgroundColor: t.surface, borderBottomWidth: 1, borderBottomColor: t.border },
   chatTitulo: { fontSize: 16, fontWeight: "800", color: t.textStrong },
   chatSub: { fontSize: 12, color: t.textMuted },
