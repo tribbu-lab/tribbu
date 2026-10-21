@@ -556,7 +556,8 @@ export function SuperAdmin() {
   };
 
   // ── List controls ──────────────────────────────────────────────────────────
-  const ctrlUsuarios = useListControls(usuarios, {
+  // Las docentes se manejan desde Maestros (web), no en Usuarios.
+  const ctrlUsuarios = useListControls(usuarios.filter((u) => u.rol !== "docente"), {
     searchFn: (u, q) => u.nombre.toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q),
     sortOptions: [
       { key: "nombre", label: "Nombre", val: (u) => u.nombre },
@@ -613,7 +614,7 @@ export function SuperAdmin() {
   const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
 
   const stats = [
-    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
+    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "docente").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
     { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos", c: "#94A3B8", bg: "#F8FAFC" },
     { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },

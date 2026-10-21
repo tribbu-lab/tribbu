@@ -194,7 +194,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   // super y colegio_admin se gestionan aparte (👑 Super Admins / 🏫 Colegio →
   // Administradores) — esta lista es solo apoderado/Room Parent de este colegio.
-  const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin");
+  // Las docentes se manejan desde Maestros → "Acceso a Mensajes", no acá.
+  const usuariosNormales = usuarios.filter(u=>u.rol!=="super"&&u.rol!=="colegio_admin"&&u.rol!=="docente");
   const ctrlUsuarios = useListControls(usuariosNormales, {
     searchFn: (u,q)=> u.nombre.toLowerCase().includes(q)||u.email.toLowerCase().includes(q),
     sortOptions: [
