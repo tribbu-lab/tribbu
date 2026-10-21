@@ -13,7 +13,7 @@ import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { LecturasModal } from "../../components/Lecturas";
 import { unirLecturasPorFamilia } from "../../lib/lecturas";
-import { NIVELES, nombreNivel, textoSecretaria, textoNiveles, ordenarNiveles, CARGOS, CARGO_DEFECTO } from "../../lib/niveles";
+import { NIVELES, nombreNivel, textoSecretaria, ordenarNiveles, CARGOS, CARGO_DEFECTO } from "../../lib/niveles";
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
@@ -1936,7 +1936,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:15,fontWeight:900}}>Niveles</div>
-              <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y dar acceso de Secretaría por nivel.</div>
+              <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y sumar directivos por nivel (Dirección, Secretaría…).</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {NIVELES.map(n=>{
                   const on=colegioNiveles.includes(n.k);
