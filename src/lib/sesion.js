@@ -9,12 +9,14 @@
 
 export const SELECT_USUARIO_SESION =
   "*, usuario_hijos(hijo_id, hijos(*, cursos(nombre,color,avatar,colegio_id))), usuario_cursos(curso_id, rol), " +
-  "maestros(id, clases(curso_id, materias(nombre), cursos(id,nombre,color,avatar,colegio_id,año_lectivo)))";
+  "maestros(id, clases(curso_id, materias(nombre), cursos(id,nombre,color,avatar,colegio_id,año_lectivo,colegios(año_lectivo_actual))))";
 
 /**
  * Cursos de una docente (uno por curso, con las materias que da ahí). Solo
- * los del año lectivo más nuevo entre sus cursos: al duplicar un curso para
- * el año siguiente, las clases del año anterior siguen existiendo.
+ * los del año lectivo vigente de su colegio: al duplicar un curso para el año
+ * siguiente se copian sus clases, y con "el año más nuevo" la docente quedaba
+ * mudada al curso del año que viene (vacío) antes de tiempo. Si no se pudo
+ * leer el año vigente, el más nuevo entre sus cursos.
  */
 export const cursosDeDocente = (data) => {
   const porCurso = new Map();
@@ -27,6 +29,8 @@ export const cursosDeDocente = (data) => {
     }
   }
   const cursos = [...porCurso.values()];
+  const vigentes = cursos.filter((c) => c.colegios?.["año_lectivo_actual"] && c["año_lectivo"] === c.colegios["año_lectivo_actual"]);
+  if (vigentes.length) return vigentes.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   const ultimo = Math.max(0, ...cursos.map((c) => c["año_lectivo"] || 0));
   return cursos.filter((c) => !ultimo || c["año_lectivo"] === ultimo).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 };
