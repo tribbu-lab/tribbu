@@ -1,11 +1,11 @@
 # Release notes 1.13.0 (es-419)
 
-Android vc46 · iOS build 40 · commits `a91bf4d..1bfd635` (desde 1.12.0)
+Android vc48 · iOS build 42 · commits `a91bf4d..c4dd095` (desde 1.12.0)
 
-> **Reemplaza a vc45 / build 39** (2026-10-15 tarde, `a91bf4d..cf9ba55`), vc44 / build 38 (2026-10-14) y vc43 / build 37 (2026-10-13), que se subieron pero nunca se promovieron.
-> vc45 / build 39 no tenían `1bfd635` (avisos en tarjetas, "Ya transferí" en colectas, Novedades en el Inicio), que entró a origin después del build. Promover **solo vc46 / build 40**.
-> Antes: vc45 → Play interno (submission `36f31718`), build 39 → ASC (submission `3f9e66b4`). En ASC la versión 1.13.0 todavía no existe, así que no hace falta bump.
-> Subidos el 2026-10-15 (noche): Android vc46 → Play interno (submission `040dc023`, Firebase ×2 en `base/resources.pb`, AAB 56 MB); iOS build 40 → ASC (submission `ddd38a12`, `DTSDKName=iphoneos26.2`).
+> **Reemplaza a vc47 / build 41** (2026-10-16 mañana, `a91bf4d..fd98303`), vc46 / build 40 (2026-10-15 noche), vc45 / build 39 (2026-10-15 tarde), vc44 / build 38 (2026-10-14) y vc43 / build 37 (2026-10-13), que se subieron pero nunca se promovieron.
+> vc47 / build 41 no tenían `8a227cc` (Lost & Found con Perdidos primero) ni `c4dd095` (Próximos de Agenda como "Próximos días", platos largos del menú que se salían de la tabla), que entraron a origin el 2026-10-16 después del build. Promover **solo vc48 / build 42**.
+> Antes: vc47 → Play interno (submission `426d673a`), build 41 → ASC (submission `5cd2b8f1`, ERRORED en Expo por errores 500 de Apple pero subido — confirmado en `buildUploads`). En ASC la versión 1.13.0 todavía no existe, así que no hace falta bump.
+> Subidos el 2026-10-16 (noche): Android vc48 → Play interno (submission `215bbb4f`, Firebase ×2 en `base/resources.pb`, AAB 56 MB); iOS build 42 → ASC (submission `c3707cc7`, `DTSDKName=iphoneos26.2`, IPA 15 MB).
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
@@ -44,13 +44,45 @@ Llegan los Mensajes y los Talleres, las maestras se suman a tribbu y estrenamos 
 • Borrá un chat de tu lista, o eliminá un grupo que creaste.
 • Cuidamos la convivencia: antes de escribirle a otra familia aceptás las normas del chat, y podés silenciar un chat, bloquear a un usuario y denunciar un mensaje. Los chats entre familias son privados: el colegio solo ve los mensajes denunciados.
 • Talleres: mirá los talleres extraprogramáticos que ofrece el colegio y anotá a tus hijos desde la app. Si no hay cupo quedás en lista de espera, y te avisamos el día antes de que cierre la inscripción.
-• Horario: ahora tiene su propia pestaña en Agenda, con los talleres de tus hijos, también los del sábado.
+• Horario: ahora tiene su propia pestaña en Agenda y muestra un día por vez, empezando por hoy, con los talleres de tus hijos, también los del sábado.
 • Las maestras en tribbu: ven sus cursos, publican avisos, eventos, encuestas y autorizaciones, y ven los cumpleaños de sus alumnos.
 • Room Parents: nuevo editor del horario del curso, que carga un bloque en varios días a la vez.
 • Cumpleaños: "Mis invitaciones" ya no muestra festejos que ya pasaron.
 • Ayuda y soporte: si algo no anda, escribile directamente al equipo de tribbu desde tu cuenta.
 • Arreglamos el teclado en Android, que dejaba un espacio vacío al cerrarse en el chat y en los formularios.
 ```
+
+## App Review — "Notas" (App Store Connect → Información de la revisión de la app)
+
+`/store-promote` carga este bloque en la versión de ASC (solo el campo de notas: el contacto y la cuenta demo, usuario y contraseña, quedan como están). Reemplaza a las de 1.12.0, que mandaban a "Más → Eliminar mi cuenta" y "Más" ya no existe (riesgo de rechazo 5.1.1(v)). Login y alta de cuentas no cambiaron: la cuenta demo (demo@tribbu.app, sin código) sigue valiendo.
+
+```
+tribbu is a school-community app for parents and guardians of school-age children. Any school can adopt it; it is not built for or restricted to a single organization.
+
+HOW TO REVIEW
+Sign in with the demo account provided above. It belongs to "María", parent of Sofía in the demo classroom "3°A - Primaria" of "Colegio Demo tribbu" (a sample school with no real families). María is also that classroom's Room Parent (the volunteer parent who coordinates the class), so she can create content too. The account is pre-loaded with sample data. The app has four sections in the bottom bar:
+• Hoy (Today): anything waiting for the family's answer (permission slips, class fundraisers, party invitations, polls), most urgent first; then Novedades (unread notices and found items), the next five days and today's lunch menu. When nothing is pending it shows "Estás al día" (you're all caught up).
+• Agenda: Calendario (class events), Horario (the weekly class timetable, one day at a time) and Cumpleaños (classmates' birthdays and party invitations).
+• Comunicaciones: Avisos (class and school notices, with read receipts) and Mensajes (chat).
+• Curso: Autorizaciones (permission slips), Comedor (lunch menu), Talleres (after-school workshops), Info útil, Contacto, Colectas (class fundraisers), Encuestas (polls), Marketplace (used items among families of the same school) and Lost & Found.
+The account menu (Mi cuenta) opens from the circle with the user's initials (or profile photo) at the top right; the chat bubble icon next to it opens Mensajes.
+
+USER-GENERATED CONTENT (Mensajes)
+Families of the same classroom can message each other and the classroom group, and write to their children's teachers and to the school office. Before writing to other families, users must accept the chat rules (no offensive content, no spam). Any message from another family can be reported (tap the message → Denunciar), and any user can be blocked (from the menu of a one-to-one chat, or by tapping their message in a group → Bloquear). Reports are reviewed by the school; blocked users are managed in Mi cuenta → Usuarios bloqueados. Phone numbers and emails are never shown in the chat. The demo classroom has another family, so a chat can be started from Comunicaciones → Mensajes → + Nuevo.
+
+HOW USERS GET AN ACCOUNT
+Accounts are created by the school: the school's administrator adds each family from the school's admin panel (one by one or by importing a spreadsheet) and gives the family its login. There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
+
+PAYMENTS
+The app is free: no in-app purchases, subscriptions or ads, and no money is processed through the app. "Colectas" only keeps track of a class collection (for example, a gift for the teacher): families pay outside the app (for example, by bank transfer), can tap "Ya transferí" to let the organizer know, and the organizer confirms it. In "Marketplace", families of the same school can list used items (uniforms, books); buyer and seller arrange the exchange directly, outside the app.
+
+Account deletion is available in-app under Mi cuenta (circle at the top right) → Eliminar mi cuenta (guideline 5.1.1(v)). Push notifications are scoped to the user's own classrooms. Web version: https://www.tribbu.ar/app · Website: https://www.tribbu.ar
+```
+
+Revisado 2026-10-19 contra el código de build 42 y los datos de la cuenta demo:
+- Rutas verificadas en `mobile/`: círculo de Mi cuenta arriba a la derecha con el ícono de Mensajes al lado (`AppHeader`), "Usuarios bloqueados" y "Eliminar mi cuenta" en `cuenta.jsx`, "Denunciar" (y "Bloquear" en grupos) al tocar un mensaje de otra familia (`tocarMensaje`), "Bloquear" desde el menú del chat 1 a 1 (`cambiarBloqueo`), "Ya transferí" en Colectas.
+- La línea de Hoy describe la pantalla sin prometer pendientes concretos: al 2026-10-19 la cuenta demo casi no tiene (autorización cerrada el 13/10, colecta de Sofía pagada, cumple de Mateo el 10/10, encuesta que cierra el 20/10, ningún evento hasta el 10/11). Si se corren las fechas del colegio demo, se pueden volver a nombrar.
+- Apple 1.2: la otra familia del curso (Carolina) no tiene login, así que el revisor no tiene ningún mensaje ajeno sobre el que probar "Denunciar"/"Bloquear" salvo que se le cargue uno en el grupo del curso.
 
 ## Qué entró realmente (interno, no publicar)
 
@@ -84,34 +116,13 @@ Sólo commits que tocan `mobile/` o `src/lib/`.
 - `cf9ba55` — foto de perfil: `usuarios.foto_url` + RPC `actualizar_mi_foto` (SQL `perfil-foto.sql`, aplicado en prod), `lib/fotoPerfil.js` + `AvatarPerfil` en el header y en Mi cuenta. "Room Parent" deja de ser cartel del header: "Room Parent de 4°B" en Mi cuenta.
 - **Agregado en vc46 / build 40** (2026-10-15 noche; `16ee672` es la landing):
 - `1bfd635` — Avisos en tarjetas (`mobile/features/recordatorios`): "Requiere tu atención" = prioridad alta/urgente sin leer (`AvisoAtencion`, "Ver comunicado" / "Entendido"), "Recientes" paginado con "Marcar todos como leídos", pill de prioridad, origen, `haceCuanto`, punto de no leído, miniatura de la primera foto (`@shared/avisosLista`: `separarAvisos`, `fechaDelAviso`, `origenAviso`, `fotoDelAviso`). Sale `HistorialComunicados` (el desplegable de alertas pasadas al pie de Avisos). Colectas: `colecta_pagos.estado` `informado` — la familia toca "Ya transferí", quien recauda confirma desde "Ver pagos"; push `colecta_pago` → `(tabs)/finanzas` con `openColecta` (`useNotificationRouting`); `informado` deja de contar como pendiente (`estadoPago`/`avisarPagoA` en `@shared/muro`). SQL `colectas-informar-pago.sql` aplicado y `send-push`/`avisos-automaticos` redeployadas **antes** del build: las versiones viejas (1.12.0 en producción, build 39) no se rompen — la familia nunca escribía el estado desde la app — pero muestran un pago `informado` como deuda y el push `colecta_pago` no abre la colecta. Inicio: "Comunicaciones" pasa a "Novedades" (Lost & Found adentro), Próximos días a `DIAS_PROXIMOS` = 5, todas las acciones de pendientes como enlace (colecta: "Ver datos para pagar").
+- **Agregado en vc47 / build 41** (2026-10-16; `1ccecc3` = claves nuevas de Supabase, solo Edge Functions/web/scripts — la app de tiendas ya usaba la publishable `sb_publishable_…` en `eas.json` desde julio, así que la desactivación de las claves legacy no rompe 1.12.0 ni este build):
+- `fd98303` — `EmptyState` único con ícono de línea (sin emojis) en Avisos, Mensajes, Marketplace, Lost & Found, Encuestas (con "Crear encuesta"), Calendario y Cumpleaños. Horario de la familia: un día por vez (`DiasHorario`/`HorarioDia`, pestañas Lun–Vie(+Sáb), arranca en hoy o en el primer día con clases, color de la materia como rayita) en vez de la grilla con scroll horizontal. Cumpleaños sin título repetido (lo da la pestaña), monto del regalo en el subtítulo, acciones como enlaces ("Ver festejo →", "Crear festejo →", "Armar colecta →"), maestras en gris. Admin del Room Parent: "Administrar el curso", alerta urgente como tarjeta, pestañas como `SubTabs`; "Familias sin registrar" ya no menciona el código de invitación. Encuestas: ícono `chart-box-outline` y bajada "Consultas entre las familias del curso". Sin cambios de datos ni de SQL.
+- **Agregados en vc48 / build 42** (2026-10-16 tarde; las capturas de `public/` son de la landing):
+- `8a227cc` — Lost & Found: pestañas Perdidos · Encontrados (antes Encontrados · Buscan), abre en Perdidos; el "Ver" de encontrados del Inicio abre Encontrados (`(tabs)/perdidos` acepta `tab`, con nonce `t`). La etiqueta de los posts "perdido" pasa de "Buscan" a "Perdido".
+- `c4dd095` — Agenda → Próximos: fecha en columna (como "Próximos días" del Inicio), sin emoji ni raya de color, tipo/rango/hora como texto, lugar con ícono de línea, "Invitados →" / "Asistencia →" como enlaces, editar/borrar con íconos de línea; lo mismo en los eventos del día de la vista Mes. Menú: `platoCortable` (`@shared/menu`) mete un espacio de ancho cero después de cada "/" para que "Tomate/Jamon/Huevo/Cebolla" corte en vez de salirse de `TablaMenu` (Inicio y Comedor).
+- Las Novedades públicas no cambian: son ajustes visuales de pantallas que ya están en las notas.
 - QA 2026-10-13 en emulador Android: grupo, difusión, Secretaría, soporte y vista docente (cuenta real de una maestra) — todo OK; los datos de prueba se borraron.
-- **Falta** probar en un iPhone real desde TestFlight (build 40) antes de enviar a review: el chat (teclado, Modal del chat, `Sheet` encadenados, normas dentro del chat), la navegación nueva (Hoy, "Todos mis hijos", Mi cuenta → Eliminar mi cuenta, "‹ Curso"), la `FiltrosSheet`, subir/quitar la foto de perfil (picker de imágenes + Storage), Avisos en tarjetas y "Ya transferí" → push a quien recauda → Confirmar. Nada de 1.13.0 se probó en un dispositivo todavía.
+- **Falta** probar en un iPhone real desde TestFlight (build 42) antes de enviar a review: el chat (teclado, Modal del chat, `Sheet` encadenados, normas dentro del chat), la navegación nueva (Hoy, "Todos mis hijos", Mi cuenta → Eliminar mi cuenta, "‹ Curso"), la `FiltrosSheet`, subir/quitar la foto de perfil (picker de imágenes + Storage), Avisos en tarjetas, "Ya transferí" → push a quien recauda → Confirmar, y el Horario de a un día. Nada de 1.13.0 se probó en un dispositivo todavía.
 
-**Review Notes de ASC — HAY QUE ACTUALIZARLAS antes de `/store-promote`.** `promover-release.mjs` reusa las de 1.12.0, que quedaron **inválidas con la navegación nueva**: describen pestañas Inicio / Calendario / Cumpleaños / Avisos / Más, y dicen que la baja de cuenta está en **"Más → Eliminar mi cuenta"** — "Más" ya no existe (ahora es Mi cuenta, desde el círculo con las iniciales). Un revisor que no encuentra la baja de cuenta rechaza por 5.1.1(v). No cambia el login ni el alta de cuentas: la cuenta demo (demo@tribbu.app, sin código) sigue siendo válida. Además este release agrega **contenido generado por usuarios** (chat, Apple 1.2): normas que se aceptan antes de escribir a otras familias, denunciar mensaje, bloquear usuario, y las denuncias las revisa el colegio. La cuenta demo tiene otra familia en su curso (verificado 2026-10-13), así que el revisor puede abrir un chat y ver el grupo del curso. Ajustado 2026-10-15 a build 40 ("Novedades" en Hoy) y antes a build 39: Horario es pestaña propia de Agenda, el círculo puede mostrar la foto de perfil y el chat se abre con "+ Nuevo" (o el ícono de Mensajes del header).
-
-Texto propuesto (reemplaza las Review Notes completas):
-
-```
-tribbu is a school-community app for parents and guardians of school-age children. Any school can adopt it; it is not built for or restricted to a single organization.
-
-HOW TO REVIEW
-Sign in with the demo account provided above. It belongs to "María", parent of Sofía in the demo classroom "3°A - Primaria" of "Colegio Demo tribbu" (a sample school with no real families). María is also that classroom's Room Parent (the volunteer parent who coordinates the class), so she can create content too. The app has four sections in the bottom bar, pre-loaded with sample data:
-• Hoy (Today): what is waiting for the family's answer (a permission slip, a class fundraiser, a birthday party invitation, a poll), Novedades (unread notices and found items), the next five days and today's lunch menu.
-• Agenda: Calendario (class events), Horario (the weekly class timetable) and Cumpleaños (classmates' birthdays and party invitations).
-• Comunicaciones: Avisos (class and school notices, with read receipts) and Mensajes (chat).
-• Curso: Autorizaciones (permission slips), Comedor (lunch menu), Talleres (after-school workshops), Info útil, Contacto, Colectas (fundraisers), Encuestas (polls), Marketplace (used items among families of the same school) and Lost & Found.
-The account menu (Mi cuenta) opens from the circle with the user's initials (or profile photo), top right. The chat bubble icon next to it opens Mensajes.
-
-USER-GENERATED CONTENT (Mensajes)
-Families of the same classroom can message each other, the classroom group, the teachers and the school office. Before writing to other families, users must accept the chat rules (no offensive content, no spam). Any message can be reported (tap a message → Denunciar) and any user can be blocked (from the chat menu in a one-to-one chat, or by tapping their message in a group → Bloquear); reports are reviewed by the school, and blocked users can be managed in Mi cuenta → Usuarios bloqueados. Phone numbers and emails are never shown in the chat. The demo classroom has another family, so a chat can be opened from Comunicaciones → Mensajes → + Nuevo.
-
-HOW USERS GET AN ACCOUNT
-Accounts are created by the school: the school's administrator adds each family from the school's admin panel (one by one or by importing a spreadsheet) and gives the family its login. There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
-
-PAYMENTS
-The app is free: no in-app purchases, subscriptions or ads. "Colectas" only records which families have already contributed to a class gift; no money is processed through the app. In "Marketplace", families of the same school can list used items (uniforms, books); buyer and seller arrange the exchange directly, outside the app.
-
-Account deletion is available in-app under Mi cuenta (circle with the initials or profile photo, top right) → Eliminar mi cuenta (guideline 5.1.1(v)). Push notifications are scoped to the user's own classrooms. Web version: https://www.tribbu.ar/app · Website: https://www.tribbu.ar
-```
-
-Antes de pegarlo, verificar en la app con la cuenta demo: (1) Denunciar al tocar un mensaje y Bloquear desde el menú del chat 1 a 1 (verificado en el código: `tocarMensaje` / `cambiarBloqueo`; "Usuarios bloqueados" está en `cuenta.jsx`), (2) que Hoy de la cuenta demo tenga lo que dice el texto (los datos demo tienen fechas oct–nov 2026).
+**Review Notes**: ver la sección "App Review" de arriba; `/store-promote` las carga solo.

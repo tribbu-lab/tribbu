@@ -57,17 +57,19 @@ sin commit). Qué valida e imprime:
   versión editable (ASC admite una sola) o crea una nueva. Si la versión ya
   está enviada/aprobada con ese build → "nada que hacer"; con **otro** build →
   aborta (sacarla de review es manual y fuera de alcance).
-- **Review Notes**: imprime las actuales. Si mencionan `Y5WPT2` o un "código de
-  invitación/demo" ("invitation/demo code"), marca **envío a review
-  BLOQUEADO**. Esas notas describen el registro con código que se sacó en 1.6.1
-  y el revisor no tiene dónde usarlo. El script igual deja la versión lista,
-  pero **no la envía**.
+- **Review Notes**: si `release-notes-<versión>.md` trae la sección
+  `## App Review` (un bloque ```), esas notas reemplazan a las que tenga ASC:
+  el plan las imprime y al aplicar se cargan en el campo `notes` de la
+  "Información de la revisión de la app" de la versión (contacto y cuenta demo
+  quedan como están). Sin esa sección, imprime las actuales y las reusa. Si las
+  notas que van a quedar mencionan `Y5WPT2` o un "código de invitación/demo"
+  ("invitation/demo code"), marca **envío a review BLOQUEADO** (con la sección,
+  directamente aborta al leer las notas): describen el registro con código que
+  se sacó en 1.6.1 y el revisor no tiene dónde usarlo.
 
 Pegá el plan en el chat tal cual. Si hay bloqueo de Review Notes, decilo
-primero: el usuario tiene que editarlas en ASC (App → versión → "Información de
-la revisión de la app"), describiendo la cuenta demo usuario+contraseña y sin
-código. Después se vuelve a correr el skill. No las edites vos: está fuera del
-alcance.
+primero. El arreglo es corregir la sección `## App Review` de las notas de
+release y volver a correr el skill (no hace falta tocar ASC a mano).
 
 ## Phase 2 — Aplicar (con OK explícito)
 

@@ -20,6 +20,7 @@ Hoy `/store-release` deja cada versión de tribbu mobile en el track interno de 
 - [x] **iOS, contenido**: asigna el build a la versión (`PATCH relationships/build`) y escribe el texto de ASC en `whatsNew` de **todas** las `appStoreVersionLocalizations` de la versión. El plan lista los locales.
 - [x] **iOS, export compliance**: si el build tiene `usesNonExemptEncryption = null` y `mobile/app.config.js` no declara `ITSAppUsesNonExemptEncryption`, aborta antes de enviar. El script no declara cumplimiento de exportación por su cuenta.
 - [x] **iOS, Review Notes**: el plan imprime las `notes` actuales de `appStoreReviewDetail`. Si contienen `Y5WPT2` o coinciden con `/c[óo]digo\s+(de\s+invitaci[óo]n|demo)/i`, no envía a review (el resto de los pasos de iOS sí se aplican) y le indica al usuario que actualice las notas en ASC y vuelva a correr el skill.
+- [x] **iOS, Review Notes desde las notas de release** (2026-10-19): si `release-notes-<versión>.md` trae la sección `## App Review` con un bloque de código, ese texto reemplaza las `notes` (máx. 4000): al aplicar, `PATCH appStoreReviewDetails` solo con `notes` sobre el detalle de la versión (o `POST` copiando contacto y cuenta demo de la versión de origen, si ASC no lo copió al crearla). Si el texto nuevo menciona el código demo, aborta al leer las notas. Sin la sección, se comporta como antes.
 - [x] **iOS, envío**: reusa una `reviewSubmission` abierta de la app (`READY_FOR_REVIEW`) o crea una, le agrega la `appStoreVersion` como `reviewSubmissionItem` y hace `PATCH submitted:true`. Si la versión ya está en la submission, no la duplica.
 - [x] El script es **idempotente**: correrlo dos veces seguidas con `--aplicar` no crea versiones, submissions ni releases duplicados. La segunda corrida termina informando "ya promovido / ya en review".
 - [x] Credenciales: Play usa `mobile/play-service-account.json` (OAuth con JWT firmado, scope `androidpublisher`). ASC usa la `.p8` de `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`, con `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_KEY_PATH` sobreescribibles por env y los valores actuales (`332U7L8KB5`, issuer del equipo) como default en el script. Ninguna credencial ni contenido de `.p8`/`.json` termina en el repo ni en el output.
@@ -41,7 +42,7 @@ Hoy `/store-release` deja cada versión de tribbu mobile en el track interno de 
 ## Out of Scope
 
 - Rollout escalonado en Play (`inProgress` + `userFraction`), y pausar o detener un rollout.
-- Editar las Review Notes, la ficha (descripción, keywords, screenshots), las respuestas de App Privacy/Data safety o cualquier metadata fuera de "Novedades".
+- Editar la ficha (descripción, keywords, screenshots), el contacto o la cuenta demo de App Review, las respuestas de App Privacy/Data safety o cualquier metadata fuera de "Novedades".
 - Liberación manual en iOS (`releaseType: MANUAL`), lanzamiento por fases (phased release) y TestFlight externo.
 - Sacar una versión de review (`IN_REVIEW` → cancelar) para cambiarle el build.
 - Builds y submits (siguen siendo `/store-release`) y la APK compartible.

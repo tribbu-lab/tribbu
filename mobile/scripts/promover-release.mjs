@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Promueve una versión ya subida por /store-release a producción en ambas
-// tiendas, con las "Novedades" de mobile/stores/release-notes-<versión>.md.
+// tiendas, con las "Novedades" (y las Review Notes de ASC, si la sección
+// "App Review" está) de mobile/stores/release-notes-<versión>.md.
 // Spec: specs/promover-release-a-produccion.md · Skill: /store-promote.
 //
 //   node scripts/promover-release.mjs [--version 1.11.0] [--plataforma all|ios|android] [--aplicar]
@@ -24,6 +25,7 @@ const ASC_KEY_PATH = process.env.ASC_KEY_PATH
   || path.join(os.homedir(), ".appstoreconnect/private_keys", `AuthKey_${ASC_KEY_ID}.p8`);
 const MAX_PLAY = 500;
 const MAX_ASC = 4000;
+const MAX_REVIEW = 4000; // appStoreReviewDetail.notes
 const TIMEOUT_MS = 40_000;
 
 // Review Notes vencidas: el código demo de cuando existía el registro con código
@@ -80,16 +82,22 @@ function leerNotas(version) {
   const md = fs.readFileSync(archivo, "utf8");
   const play = bloqueDeSeccion(md, "Google Play");
   const asc = bloqueDeSeccion(md, "App Store Connect");
+  // Opcional: sin la sección se reusan las Review Notes que ya tiene ASC.
+  const review = bloqueDeSeccion(md, "App Review");
   if (!play) throw new Aborto("Falta el bloque ``` de la sección '## Google Play' en las notas");
   if (!asc) throw new Aborto("Falta el bloque ``` de la sección '## App Store Connect' en las notas");
   if ([...play].length > MAX_PLAY) throw new Aborto(`Las notas de Play tienen ${[...play].length} caracteres (máx. ${MAX_PLAY})`);
   if ([...asc].length > MAX_ASC) throw new Aborto(`Las notas de ASC tienen ${[...asc].length} caracteres (máx. ${MAX_ASC})`);
+  if (review && [...review].length > MAX_REVIEW) throw new Aborto(`Las Review Notes tienen ${[...review].length} caracteres (máx. ${MAX_REVIEW})`);
+  if (review && NOTAS_VENCIDAS.some((re) => re.test(review))) {
+    throw new Aborto("Las Review Notes de las notas mencionan un código de invitación/demo que ya no existe");
+  }
   // El encabezado ("Android vc41 · iOS build 31 · …") nombra los binarios de
   // ESTA versión; los paréntesis posteriores hablan de builds descartados.
   const cabecera = md.split("\n").find((l) => /Android vc\d+|iOS build \d+/.test(l)) || "";
   const vc = cabecera.match(/Android vc(\d+)/)?.[1];
   const build = cabecera.match(/iOS build (\d+)/)?.[1];
-  return { play, asc, vc: vc ? Number(vc) : null, build: build ? Number(build) : null };
+  return { play, asc, review, vc: vc ? Number(vc) : null, build: build ? Number(build) : null };
 }
 
 // ─── http ────────────────────────────────────────────────────────────────────
@@ -209,6 +217,8 @@ async function ios({ version, notas, aplicar, log }) {
   const app = ascAppId();
   const g = (p) => pedir(`${API}${p}`, { token });
   const w = (p, method, data) => pedir(`${API}${p}`, { method, token, body: { data } });
+  // Recurso que puede no existir (404 → null); cualquier otro error corta.
+  const gOpcional = (p) => g(p).catch((e) => { if (/→ 404\b/.test(e.message)) return null; throw e; });
 
   // 1. Build
   const builds = (await g(`/builds?filter[app]=${app}&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=50`)).data;
@@ -252,14 +262,19 @@ async function ios({ version, notas, aplicar, log }) {
   log(accion);
 
   // Review Notes: de la versión que se va a usar, o de la última si todavía no existe.
+  // Si las notas de release traen la sección "App Review", esas reemplazan a las actuales.
   const fuenteNotas = versionObj || editable || versiones[0];
-  const detalle = fuenteNotas ? (await g(`/appStoreVersions/${fuenteNotas.id}/appStoreReviewDetail`).catch(() => null))?.data : null;
+  const detalle = fuenteNotas ? (await gOpcional(`/appStoreVersions/${fuenteNotas.id}/appStoreReviewDetail`))?.data : null;
   const reviewNotes = detalle?.attributes?.notes || "";
-  log(`Review Notes actuales (de ${fuenteNotas?.attributes.versionString || "—"}):\n${reviewNotes ? reviewNotes.replace(/^/gm, "    │ ") : "    │ (vacías)"}`);
+  const reemplazarNotas = !!notas.review && notas.review !== reviewNotes.trim();
+  const origen = fuenteNotas?.attributes.versionString || "—";
+  if (!notas.review) log(`Review Notes actuales (de ${origen}):\n${reviewNotes ? reviewNotes.replace(/^/gm, "    │ ") : "    │ (vacías)"}`);
+  else if (!reemplazarNotas) log(`Review Notes: las de ${origen} ya son las de release-notes-${version}.md`);
+  else log(`Review Notes: se reemplazan las de ${origen} por las de release-notes-${version}.md (${[...notas.review].length} chars):\n${notas.review.replace(/^/gm, "    │ ")}`);
   if (detalle?.attributes?.demoAccountRequired != null) {
     log(`cuenta demo: ${detalle.attributes.demoAccountRequired ? `sí (${detalle.attributes.demoAccountName || "sin usuario"})` : "no requerida"}`);
   }
-  const notasVencidas = NOTAS_VENCIDAS.some((re) => re.test(reviewNotes));
+  const notasVencidas = NOTAS_VENCIDAS.some((re) => re.test(notas.review || reviewNotes));
   if (notasVencidas) log("⚠ Las Review Notes mencionan un código de invitación/demo que ya no existe — NO se envía a review");
 
   log(`asignar build ${nBuild} y cargar "Novedades" (${[...notas.asc].length} chars) en todos los locales`);
@@ -296,6 +311,28 @@ async function ios({ version, notas, aplicar, log }) {
     });
   }
   log(`✔ Novedades cargadas en ${locs.map((l) => l.attributes.locale).join(", ")}`);
+
+  if (reemplazarNotas) {
+    // Solo el campo notes: contacto y cuenta demo quedan como estén. ASC copia la
+    // "Información de la revisión" al crear la versión; si no lo hizo, se crea
+    // copiando esos datos de la versión de origen.
+    const det = (await gOpcional(`/appStoreVersions/${versionObj.id}/appStoreReviewDetail`))?.data;
+    if (det) {
+      await w(`/appStoreReviewDetails/${det.id}`, "PATCH", {
+        type: "appStoreReviewDetails", id: det.id, attributes: { notes: notas.review },
+      });
+    } else {
+      const a = detalle?.attributes || {};
+      const campos = ["contactFirstName", "contactLastName", "contactPhone", "contactEmail",
+        "demoAccountName", "demoAccountPassword", "demoAccountRequired"];
+      await w("/appStoreReviewDetails", "POST", {
+        type: "appStoreReviewDetails",
+        attributes: { ...Object.fromEntries(campos.filter((k) => a[k] != null).map((k) => [k, a[k]])), notes: notas.review },
+        relationships: { appStoreVersion: { data: { type: "appStoreVersions", id: versionObj.id } } },
+      });
+    }
+    log("✔ Review Notes cargadas");
+  }
 
   if (notasVencidas) {
     return { estado: `versión ${version} lista con build ${nBuild}, SIN enviar (Review Notes vencidas)`, bloqueado: true };
