@@ -659,9 +659,9 @@ export function SuperAdmin() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.titleRow}>
-        <Text style={styles.h1}>{esSecretaria ? textoSecretaria(usuario?.niveles) : esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
+        <Text style={styles.h1}>{esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
         <Pill
-          label={esSecretaria ? ROL_LABEL.nivel_admin : esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
+          label={esSecretaria ? (usuario?.cargo || ROL_LABEL.nivel_admin) : esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
           color={esColegioAdmin ? ROL_COLOR.colegio_admin : "#8B5CF6"}
           bg={esColegioAdmin ? ROL_BG.colegio_admin : "#F5F3FF"}
         />

@@ -13,7 +13,7 @@ import { AdjuntosInput } from "../../components/Adjuntos";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { LecturasModal } from "../../components/Lecturas";
 import { unirLecturasPorFamilia } from "../../lib/lecturas";
-import { NIVELES, nombreNivel, textoSecretaria, textoNiveles, ordenarNiveles } from "../../lib/niveles";
+import { NIVELES, nombreNivel, textoSecretaria, textoNiveles, ordenarNiveles, CARGOS, CARGO_DEFECTO } from "../../lib/niveles";
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
@@ -114,7 +114,7 @@ const SECCION_INFO = {
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
-  directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y las Secretarías, que gestionan solo los cursos de sus niveles." },
+  directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y los directivos por nivel (Dirección, Secretaría, Coordinación…), que gestionan solo los cursos de sus niveles." },
   colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
   colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
@@ -538,7 +538,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: sanitize(form.email).toLowerCase(), rol: rolFijo, colegio_id: colegioIdFijo,
         avatar, activo: true, auth_id,
-        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles)}:{}),
+        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles),cargo:sanitize(form.cargo||"")||CARGO_DEFECTO}:{}),
       });
       if(error) { showToast(`No se pudo guardar la cuenta: ${error.message}`,"error"); return; }
     } else {
@@ -547,7 +547,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       await supabase.from("usuarios").update({
         nombre: sanitize(form.nombre), apellido: sanitize(form.apellido)||null,
         email: emailNuevo, activo: form.activo,
-        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles)}:{}),
+        ...(rolFijo==="nivel_admin"?{niveles:ordenarNiveles(form.niveles),cargo:sanitize(form.cargo||"")||CARGO_DEFECTO}:{}),
       }).eq("id", form.id);
       const emailCambio = emailNuevo !== sanitize(form._emailOriginal||"").toLowerCase();
       if(passNueva || emailCambio) {
@@ -1046,8 +1046,20 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modalAdmin==="nuevo"||modalAdmin?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{formAdmin.rol==="nivel_admin"?(modalAdmin==="nuevo"?"Nueva Secretaría":"Editar Secretaría"):(modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador")}</div>
-            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>{formAdmin.rol==="nivel_admin"?`Secretaría de ${colegioNombre}: gestiona solo los cursos de sus niveles.`:`Administrador de ${colegioNombre}.`}</div>
+            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{formAdmin.rol==="nivel_admin"?(modalAdmin==="nuevo"?"Nuevo directivo por nivel":"Editar directivo"):(modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador")}</div>
+            <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>{formAdmin.rol==="nivel_admin"?`Directivo de ${colegioNombre}: gestiona solo los cursos de sus niveles. El cargo es solo el nombre que se ve; todos pueden lo mismo.`:`Administrador de ${colegioNombre}.`}</div>
+            {formAdmin.rol==="nivel_admin"&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Cargo</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                  {CARGOS.map(c=>{
+                    const on=(formAdmin.cargo||CARGO_DEFECTO)===c;
+                    return <button key={c} onClick={()=>setFormAdmin(p=>({...p,cargo:c}))} style={{padding:"6px 12px",borderRadius:999,border:`1px solid ${on?"#3B82F6":"#E2E8F0"}`,background:on?"#EFF6FF":"white",color:on?"#1D4ED8":"#64748B",cursor:"pointer",fontSize:12,fontWeight:700}}>{on?"✓ ":""}{c}</button>;
+                  })}
+                </div>
+                <input value={CARGOS.includes(formAdmin.cargo||CARGO_DEFECTO)?"":(formAdmin.cargo||"")} onChange={e=>setFormAdmin(p=>({...p,cargo:e.target.value}))} placeholder="Otro cargo (opcional): Ej. Vicedirección" style={inp}/>
+              </div>
+            )}
             {formAdmin.rol==="nivel_admin"&&(
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Niveles</div>
@@ -1085,7 +1097,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <button onClick={()=>{
                 if(formAdmin.rol==="nivel_admin"&&!(formAdmin.niveles||[]).length){ showToast("Elegí al menos un nivel","error"); return; }
                 guardarCuentaEspecial(formAdmin.rol||"colegio_admin",colegioId,modalAdmin==="nuevo",formAdmin,setFormAdmin,()=>setModalAdmin(null));
-              }} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?(formAdmin.rol==="nivel_admin"?"Crear Secretaría":"Crear administrador"):"Guardar cambios"}</button>
+              }} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?(formAdmin.rol==="nivel_admin"?"Crear directivo":"Crear administrador"):"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1335,7 +1347,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <Wordmark size={20} letterSpacing={-0.8}/>
             <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
               <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
-              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":esSecretaria?textoSecretaria(usuario?.niveles):"Admin del colegio"}</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":esSecretaria?textoSecretaria(usuario?.niveles, usuario?.cargo):"Admin del colegio"}</span>
             </div>
           </div>
           <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"0 12px",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
@@ -1936,22 +1948,22 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:900}}>Secretarías</div>
-                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan solo los cursos de sus niveles: comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
+                    <div style={{fontSize:15,fontWeight:900}}>Directivos por nivel</div>
+                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Dirección, Secretaría, Coordinación… Gestionan solo los cursos de sus niveles (todos pueden lo mismo, el cargo es el nombre que se ve): comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
                   </div>
-                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[]}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nueva Secretaría</button>
+                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[],cargo:CARGO_DEFECTO}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo directivo</button>
                 </div>
                 <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
-                  {secretarias.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay Secretarías.</div>}
+                  {secretarias.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay directivos por nivel.</div>}
                   {secretarias.map(u=>(
                     <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
                       <div style={{minWidth:0}}>
                         <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
-                        <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{textoNiveles(u.niveles)||"Sin niveles"} · {u.email}</div>
+                        <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{textoSecretaria(u.niveles, u.cargo)} · {u.email}</div>
                       </div>
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                        <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
+                        <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],cargo:u.cargo||CARGO_DEFECTO,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
                         <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
                       </div>
                     </div>
@@ -1960,7 +1972,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
             {colegioNiveles.length<2&&(
-              <div style={{marginBottom:24,padding:"12px 14px",borderRadius:12,background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:12.5,color:"#64748B"}}>Para dar de alta Secretarías por nivel, marcá al menos dos niveles arriba.</div>
+              <div style={{marginBottom:24,padding:"12px 14px",borderRadius:12,background:"#F8FAFC",border:"1px solid #E2E8F0",fontSize:12.5,color:"#64748B"}}>Para dar de alta directivos por nivel (Dirección, Secretaría…), marcá al menos dos niveles arriba.</div>
             )}
             </>}
             {sec==="colegio"&&<>

@@ -19,10 +19,15 @@ export const textoNiveles = (lista) => {
   return nombres.length > 1 ? `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}` : nombres[0] || "";
 };
 
-/** Etiqueta del rol: "Secretaría · Primaria". */
-export const textoSecretaria = (niveles) => {
+/** Cargos de un directivo por nivel: solo se muestran, los permisos son los mismos. */
+export const CARGOS = ["Dirección", "Secretaría", "Coordinación"];
+export const CARGO_DEFECTO = "Secretaría";
+
+/** Etiqueta del directivo: "Dirección · Primaria" (sin cargo = "Secretaría"). */
+export const textoSecretaria = (niveles, cargo) => {
+  const c = (cargo || "").trim() || CARGO_DEFECTO;
   const t = textoNiveles(niveles);
-  return t ? `Secretaría · ${t}` : "Secretaría";
+  return t ? `${c} · ${t}` : c;
 };
 
 /** Niveles presentes en una lista de cursos (para mostrar los chips solo si hay más de uno). */
