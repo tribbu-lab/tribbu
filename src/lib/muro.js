@@ -24,18 +24,19 @@ export const proximoCumple = (fechaNacimiento, hoy = new Date()) => {
 
 /**
  * Recordatorios que van a Pendientes: no leídos, para todo el curso o para
- * este usuario, sin fecha o con fecha entre hoy y `hasta`. Excluye los
+ * este usuario, sin fecha o con fecha de hoy en adelante (un aviso de una
+ * fecha lejana, p. ej. una Open Class en un mes, se ve desde que se publica
+ * hasta que se lee — antes recién aparecía 15 días antes). Excluye los
  * automáticos (regalo de cumple / vencimiento de colecta), que ya tienen su
  * propia card. Más nuevos primero.
  */
-export const recordatoriosPendientes = (recordatorios, leidosIds, userId, hoyStr, hasta) =>
+export const recordatoriosPendientes = (recordatorios, leidosIds, userId, hoyStr) =>
   recordatorios
     .filter((r) => {
       if (r.tipo === "regalo_cumple" || r.tipo === "colecta_vence") return false;
       if (leidosIds.has(r.id)) return false;
       if (r.para_usuario_id && r.para_usuario_id !== userId) return false;
       if (r.fecha && r.fecha < hoyStr) return false;
-      if (r.fecha && r.fecha > hasta) return false;
       return true;
     })
     .sort((a, b) => (b.creado_en || "").localeCompare(a.creado_en || ""));

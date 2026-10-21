@@ -266,7 +266,7 @@ export function Alumnos() {
     if (ids.length) {
       const { data: uh } = await supabase
         .from("usuario_hijos")
-        .select("hijo_id, usuario_id, usuarios(id,nombre,apellido,email,telefono)")
+        .select("hijo_id, usuario_id, usuarios(id,nombre,apellido)") // sin mail ni teléfono: se escribe por tribbu
         .in("hijo_id", ids);
       const m = {};
       (uh || []).forEach((r) => {
@@ -321,12 +321,6 @@ export function Alumnos() {
                 <View style={styles.apodDot} />
                 <View style={styles.flex1}>
                   <Text style={styles.apodNombre}>{fmtNombre(a)}</Text>
-                  {a.telefono ? <Text style={styles.apodDato}>{a.telefono}</Text> : null}
-                  {a.email ? (
-                    <Text style={styles.apodDato} numberOfLines={1}>
-                      {a.email}
-                    </Text>
-                  ) : null}
                 </View>
                 {a.id !== usuario?.id ? (
                   <Pressable
@@ -477,6 +471,5 @@ const styles = StyleSheet.create({
   escribirTxt: { fontSize: 12, fontWeight: "700", color: BLUE[700] },
   apodDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: t.accent, marginTop: 5 },
   apodNombre: { fontSize: 12.5, fontWeight: "600", color: t.textStrong, lineHeight: 16 },
-  apodDato: { fontSize: 11.5, color: t.textMuted, marginTop: 1 },
   sinApod: { fontSize: 12, color: SLATE[300] },
 });

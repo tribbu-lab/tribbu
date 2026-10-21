@@ -1,23 +1,24 @@
 // Marketplace de cosas usadas (sección Comunidad — ver specs/marketplace.md).
 // Las familias publican lo que ya no usan (uniformes, libros, disfraces…) con
 // precio o "Lo regalo", hasta 3 fotos, y eligen si lo ve su curso o todo el
-// colegio. "Me interesa" le avisa al vendedor (push) y recién ahí se comparten
-// los contactos (RPCs contacto_articulo / interesados_articulo). Etapa 1 sin
-// pagos: el vendedor marca "Vendido" (y opcionalmente a quién) — eso queda
-// guardado para cobrar comisión más adelante. Vence a los 60 días; lo vendido
-// se sigue viendo una semana, marcado.
+// colegio. "Me interesa" abre un chat 1 a 1 con quien lo publicó, por Mensajes
+// de tribbu (RPC abrir_conversacion_articulo): nunca se comparten teléfono ni
+// mail. Etapa 1 sin pagos: el vendedor marca "Vendido" (y opcionalmente a
+// quién) — eso queda guardado para cobrar comisión más adelante. Vence a los 60
+// días; lo vendido se sigue viendo una semana, marcado. El colegio solo mira
+// (y puede quitar una publicación que no permite): no publica ni se interesa.
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { borrarArchivos } from "../../lib/storageUrl";
-import { sanitize } from "../../lib/helpers";
-import { sendPush } from "../../lib/push";
-import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio } from "../../lib/marketplace";
+import { sanitize, fmtNombre } from "../../lib/helpers";
+import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio, borradorInteres, borradorVendedor } from "../../lib/marketplace";
 import { Card } from "../../components/Card";
 import { SignedImg } from "../../components/SignedImg";
 import { subirImagen } from "../../lib/imagenesWeb";
 import { useCargar } from "../../hooks/useCargar";
+import { useConfirmar } from "../../hooks/useConfirmar";
 
 const MAX_FOTO_BYTES = 10 * 1024 * 1024;
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
@@ -32,12 +33,13 @@ const hace = (iso) => {
 
 // colegios ya viene resuelto por quien llama (de "Mi acceso"/items o del
 // propio listado del colegio) — evita repetir la consulta a "cursos".
-async function cargarDatos(cursoIds, colegios, userId) {
+// conAutor: el colegio ve quién publicó cada cosa (para moderar).
+async function cargarDatos(cursoIds, colegios, userId, conAutor) {
   if (!cursoIds.length) return { articulos: [], misInteres: new Set(), interesadosDe: {} };
   const hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data } = await supabase
     .from("marketplace_articulos")
-    .select("*")
+    .select(conAutor ? "*, autor:usuarios!publicado_por(nombre, apellido)" : "*")
     .or(filtroAlcance(cursoIds, colegios))
     .or(`vence_en.gt.${new Date().toISOString()},vendido_en.gt.${hace7}`)
     .order("creado_en", { ascending: false });
@@ -101,16 +103,15 @@ function Modal({ titulo, onClose, children, ancho = 460 }) {
   );
 }
 
-function ContactoCard({ c }) {
-  if (!c) return <div style={{ fontSize: 13, color: "#94A3B8" }}>Cargando…</div>;
+// Quien marcó "Me interesa", con "Escribir" (chat por tribbu, sin teléfono ni mail).
+function InteresadoFila({ c, onEscribir }) {
   return (
-    <div style={{ padding: 12, borderRadius: 12, background: "#F8FAFC", marginBottom: 8 }}>
-      <div style={{ fontSize: 14, fontWeight: 700 }}>{c.nombre}</div>
-      {c.telefono && <a href={`tel:${c.telefono}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 4 }}>{c.telefono}</a>}
-      {c.telefono && <a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: "#16A34A", marginTop: 2 }}>💬 WhatsApp</a>}
-      {c.email && <a href={`mailto:${c.email}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 2 }}>✉️ {c.email}</a>}
-      {!c.telefono && !c.email && <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>No cargó teléfono ni email.</div>}
-      {c.mensaje && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 6 }}>“{c.mensaje}”</div>}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "#F8FAFC", marginBottom: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{c.nombre}</div>
+        {c.mensaje && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>“{c.mensaje}”</div>}
+      </div>
+      {onEscribir && <button onClick={() => onEscribir(c)} style={{ ...btnSec, padding: "6px 12px", color: "#1D4ED8", borderColor: "#BFDBFE", background: "#EFF6FF" }}>Escribir</button>}
     </div>
   );
 }
@@ -139,7 +140,8 @@ function Tarjeta({ a, tag, onAbrir }) {
   );
 }
 
-function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
+// soloMirar = el colegio: ve todo (y quién lo publicó) y solo puede quitarlo.
+function Detalle({ a, userId, soloMirar, yaMeInteresa, nInteresados, tag, onClose, onEscribir, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
   const [ampliada, setAmpliada] = useState(false);
   const cat = categoria(a.categoria);
@@ -177,20 +179,30 @@ function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose
       </div>
       {a.descripcion && <div style={{ fontSize: 13.5, color: "#334155", lineHeight: 1.5, marginBottom: 8, whiteSpace: "pre-wrap" }}>{a.descripcion}</div>}
       <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 14 }}>
-        {[tag?.nombre, a.alcance === "colegio" ? "todo el colegio" : "su curso", `publicado ${hace(a.creado_en)}`, propio && !vendido ? (dias > 0 ? `vence en ${dias} días` : "venció") : null].filter(Boolean).join(" · ")}
+        {[soloMirar && a.autor ? `publicó ${fmtNombre(a.autor)}` : null, tag?.nombre, a.alcance === "colegio" ? "todo el colegio" : "su curso", `publicado ${hace(a.creado_en)}`, propio && !vendido ? (dias > 0 ? `vence en ${dias} días` : "venció") : null].filter(Boolean).join(" · ")}
       </div>
 
-      {!propio && !vendido && !yaMeInteresa && estaDisponible(a) && (
-        <button onClick={() => onMeInteresa(a)} style={{ ...btnPri, width: "100%" }}>Me interesa</button>
+      {soloMirar ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ flex: 1, fontSize: 12, color: "#64748B" }}>El colegio ve el Marketplace para controlar lo que se ofrece. Si algo no está permitido, lo puede quitar.</div>
+          <button onClick={() => onBorrar(a)} style={{ ...btnSec, color: "#EF4444", borderColor: "#FEE2E2" }}>Quitar publicación</button>
+        </div>
+      ) : null}
+
+      {!soloMirar && !propio && !vendido && !yaMeInteresa && estaDisponible(a) && (
+        <>
+          <button onClick={() => onEscribir(a)} style={{ ...btnPri, width: "100%" }}>Me interesa</button>
+          <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 6, textAlign: "center" }}>Se abre un chat con quien lo publicó. Tu teléfono y tu mail no se comparten.</div>
+        </>
       )}
-      {!propio && yaMeInteresa && (
-        <button onClick={() => onVerContacto(a)} style={{ ...btnSec, width: "100%", color: "#1D4ED8", borderColor: "#BFDBFE", background: "#EFF6FF" }}>Ver contacto del vendedor</button>
+      {!soloMirar && !propio && yaMeInteresa && (
+        <button onClick={() => onEscribir(a)} style={{ ...btnSec, width: "100%", color: "#1D4ED8", borderColor: "#BFDBFE", background: "#EFF6FF" }}>Escribir a quien lo publicó</button>
       )}
-      {!propio && !yaMeInteresa && nInteresados > 0 && !vendido && (
+      {!soloMirar && !propio && !yaMeInteresa && nInteresados > 0 && !vendido && (
         <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, textAlign: "center" }}>{nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</div>
       )}
 
-      {gestiona && (
+      {propio && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
           {nInteresados > 0 && <button onClick={() => onVerInteresados(a)} style={{ ...btnSec, color: "#047857", borderColor: "#BBF7D0", background: "#F0FDF4" }}>{nInteresados} {nInteresados === 1 ? "interesado" : "interesados"}</button>}
           {!vendido && <button onClick={() => onVendido(a)} style={btnSec}>Vendido</button>}
@@ -207,10 +219,8 @@ function Detalle({ a, userId, gestiona, yaMeInteresa, nInteresados, tag, onClose
 // Publicar o editar (`articulo`). Cada foto es { path } (ya subida) o { file,
 // preview } (nueva, se sube recién al guardar). La primera es la principal (la
 // de la tarjeta): tocar otra la pasa adelante.
-function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioProp, userId, onClose, onGuardado }) {
+function ArticuloModal({ articulo, cursos, userId, onClose, onGuardado }) {
   const editando = !!articulo;
-  // Al editar manda la publicación: el colegio que modera un aviso de una familia no lo convierte en "del colegio".
-  const comoColegio = editando ? !!articulo.es_colegio : comoColegioProp;
   const [form, setForm] = useState(() =>
     editando
       ? { titulo: articulo.titulo || "", descripcion: articulo.descripcion || "", categoria: articulo.categoria, condicion: articulo.condicion, talle: articulo.talle || "", es_regalo: !!articulo.es_regalo, precio: articulo.precio != null ? String(Number(articulo.precio)) : "", alcance: articulo.alcance, curso_id: articulo.curso_id || cursos[0]?.id || null }
@@ -236,7 +246,7 @@ function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioPr
     if (!fotos.length) { setError("Subí al menos una foto: es lo primero que se mira."); return; }
     if (form.alcance === "curso" && !form.curso_id) { setError("Elegí el curso."); return; }
     setGuardando(true); setError(null);
-    const colegio = editando ? articulo.colegio_id : comoColegio ? colegioId : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
+    const colegio = editando ? articulo.colegio_id : cursos.find((c) => c.id === form.curso_id)?.colegio_id;
     const paths = [];
     const subidas = [];
     const base = Date.now();
@@ -252,11 +262,11 @@ function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioPr
       titulo: sanitize(form.titulo), descripcion: sanitize(form.descripcion) || null, categoria: form.categoria,
       condicion: form.condicion, talle: sanitize(form.talle) || null, es_regalo: form.es_regalo,
       precio: form.es_regalo ? null : precio, fotos: paths, alcance: form.alcance,
-      curso_id: form.alcance === "curso" || !comoColegio ? form.curso_id : null,
+      curso_id: form.curso_id,
     };
     const { error: err } = editando
       ? await supabase.from("marketplace_articulos").update(campos).eq("id", articulo.id)
-      : await supabase.from("marketplace_articulos").insert({ ...campos, colegio_id: colegio, publicado_por: userId, es_colegio: !!comoColegio });
+      : await supabase.from("marketplace_articulos").insert({ ...campos, colegio_id: colegio, publicado_por: userId });
     if (err) { borrarArchivos(subidas, "adjuntos"); setGuardando(false); setError((editando ? "No se pudo guardar: " : "No se pudo publicar: ") + err.message); return; }
     if (editando) borrarArchivos(fotosQuitadas(articulo.fotos, paths), "adjuntos");
     setGuardando(false);
@@ -329,17 +339,17 @@ function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioPr
       <div style={{ marginBottom: 12 }}>
         <div style={lbl}>¿QUIÉN LO VE?</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-          {[["colegio", "Todo el colegio"], ["curso", comoColegio ? "Un curso" : "Mi curso"]].map(([k, t]) => (
+          {[["colegio", "Todo el colegio"], ["curso", "Mi curso"]].map(([k, t]) => (
             <button key={k} onClick={() => set("alcance", k)} style={chip(form.alcance === k)}>{t}</button>
           ))}
         </div>
-        {(form.alcance === "curso" || !comoColegio) && cursos.length > 1 && (!form.curso_id || cursos.some((c) => c.id === form.curso_id)) && (
+        {cursos.length > 1 && (!form.curso_id || cursos.some((c) => c.id === form.curso_id)) && (
           <select value={form.curso_id || ""} onChange={(e) => set("curso_id", e.target.value)} style={inp} aria-label="Curso">
             {cursos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         )}
       </div>
-      {!editando && <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca "Me interesa" te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</div>}
+      {!editando && <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Quien esté interesado te escribe por Mensajes de tribbu, sin ver tu teléfono ni tu mail. El pago lo arreglan entre ustedes.</div>}
       {error && <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 8 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onClose} style={{ ...btnSec, flex: 1, color: "#94A3B8" }}>Cancelar</button>
@@ -349,8 +359,13 @@ function ArticuloModal({ articulo, cursos, colegioId, comoColegio: comoColegioPr
   );
 }
 
-/** Lista + acciones, compartida por la pestaña de las familias y la sección del colegio. */
-function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, puedeModerar, tagDeCurso }) {
+/**
+ * Lista + acciones, compartida por la pestaña de las familias y la sección del
+ * colegio. soloMirar (el colegio): ve todo con quién lo publicó y solo puede
+ * quitar; no publica ni se interesa. onEscribir({ id, usuarioId?, borrador })
+ * abre el chat por Mensajes (familias).
+ */
+function Tablero({ cursoIds, cursosPublicar, soloMirar = false, userId, tagDeCurso, onEscribir }) {
   const [datos, setDatos] = useState(null);
   const [cat, setCat] = useState("todas");
   const [soloRegalos, setSoloRegalos] = useState(false);
@@ -359,37 +374,23 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
   const gruposFiltro = [
     { key: "cat", label: "Categoría", value: cat, onChange: setCat, options: [{ value: "todas", label: "Todo" }, ...CATEGORIAS.map((c) => ({ value: c.k, label: c.l }))] },
     { key: "precio", label: "Precio", value: soloRegalos ? "regalos" : "todos", onChange: (v) => setSoloRegalos(v === "regalos"), options: [{ value: "todos", label: "Todos" }, { value: "regalos", label: "Solo regalos" }] },
-    { key: "mios", label: "Publicaciones", value: mios ? "mias" : "todas", onChange: (v) => setMios(v === "mias"), options: [{ value: "todas", label: "Todas" }, { value: "mias", label: "Mis publicaciones" }] },
+    ...(soloMirar ? [] : [{ key: "mios", label: "Publicaciones", value: mios ? "mias" : "todas", onChange: (v) => setMios(v === "mias"), options: [{ value: "todas", label: "Todas" }, { value: "mias", label: "Mis publicaciones" }] }]),
   ];
   const [busqueda, setBusqueda] = useState("");
   const [editor, setEditor] = useState(null); // { articulo } — articulo null = nueva publicación
   const [abierto, setAbierto] = useState(null);
-  const [interesando, setInteresando] = useState(null);
-  const [mensaje, setMensaje] = useState("");
-  const [contacto, setContacto] = useState(null); // { articulo, c }
   const [interesados, setInteresados] = useState(null); // { articulo, lista }
   const [vendiendo, setVendiendo] = useState(null); // { articulo, lista, comprador }
+  const [confirmar, confirmUI] = useConfirmar();
 
   const colegios = useMemo(() => [...new Set(cursosPublicar.map((c) => c.colegio_id).filter(Boolean))], [cursosPublicar]);
-  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, colegios, userId)), [cursoIds, colegios, userId]);
+  const cargar = useCallback(async () => setDatos(await cargarDatos(cursoIds, colegios, userId, soloMirar)), [cursoIds, colegios, userId, soloMirar]);
   useCargar(cargar);
 
-  const gestiona = (a) => a.publicado_por === userId || puedeModerar(a);
-
-  const meInteresa = async () => {
-    const a = interesando;
-    const { error } = await supabase.from("marketplace_interesados").insert({ articulo_id: a.id, usuario_id: userId, mensaje: sanitize(mensaje) || null });
-    if (error) { alert("No se pudo avisar. Probá de nuevo."); return; }
-    if (a.publicado_por) await sendPush({ type: "marketplace", payload: { titulo: `Alguien está interesado en: ${a.titulo}`, userIds: [a.publicado_por] } });
-    setInteresando(null); setMensaje(""); setAbierto(null);
-    await cargar();
-    verContacto(a);
-  };
-  const verContacto = async (a) => {
-    setContacto({ articulo: a, c: null });
-    const { data } = await supabase.rpc("contacto_articulo", { p_id: a.id });
-    setContacto({ articulo: a, c: data?.[0] || { nombre: "—" } });
-  };
+  // "Me interesa" / "Escribir": el chat lo abre Mensajes (RPC
+  // abrir_conversacion_articulo, que además la anota como interesada).
+  const escribirAlVendedor = (a) => { setAbierto(null); onEscribir?.({ id: a.id, borrador: borradorInteres(a) }); };
+  const escribirAInteresado = (a, c) => { setInteresados(null); setAbierto(null); onEscribir?.({ id: a.id, usuarioId: c.usuario_id, borrador: borradorVendedor(a) }); };
   const verInteresados = async (a) => {
     setInteresados({ articulo: a, lista: null });
     const { data } = await supabase.rpc("interesados_articulo", { p_id: a.id });
@@ -412,7 +413,10 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
     cargar();
   };
   const borrar = async (a) => {
-    if (!confirm("¿Borrar esta publicación?")) return;
+    const ok = await confirmar(soloMirar
+      ? { titulo: "¿Quitar esta publicación?", detalle: `«${a.titulo}» deja de verse en el Marketplace.`, textoConfirmar: "Quitar" }
+      : { titulo: "¿Borrar esta publicación?", detalle: `«${a.titulo}»`, textoConfirmar: "Borrar" });
+    if (!ok) return;
     const { error } = await supabase.from("marketplace_articulos").delete().eq("id", a.id);
     if (error) { alert("No se pudo borrar."); return; }
     borrarArchivos(a.fotos, "adjuntos");
@@ -427,32 +431,23 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 
   return (
     <div>
-      {editor && <ArticuloModal articulo={editor.articulo} cursos={cursosPublicar} colegioId={colegioId} comoColegio={comoColegio} userId={userId} onClose={() => setEditor(null)} onGuardado={() => cargar()} />}
+      {confirmUI}
+      {editor && <ArticuloModal articulo={editor.articulo} cursos={cursosPublicar} userId={userId} onClose={() => setEditor(null)} onGuardado={() => cargar()} />}
       {abierto && (
         <Detalle
-          a={abierto} userId={userId} gestiona={gestiona(abierto)} yaMeInteresa={datos.misInteres.has(abierto.id)}
+          a={abierto} userId={userId} soloMirar={soloMirar} yaMeInteresa={datos.misInteres.has(abierto.id)}
           nInteresados={datos.interesadosDe[abierto.id] || 0} tag={tagDeCurso?.(abierto.curso_id)}
-          onClose={() => setAbierto(null)} onMeInteresa={(a) => { setInteresando(a); setMensaje(""); }} onVerContacto={verContacto}
+          onClose={() => setAbierto(null)} onEscribir={escribirAlVendedor}
           onVerInteresados={verInteresados} onVendido={abrirVendido} onEditar={(a) => { setAbierto(null); setEditor({ articulo: a }); }} onRenovar={renovar} onBorrar={borrar}
         />
-      )}
-      {interesando && (
-        <Modal titulo="Me interesa" onClose={() => setInteresando(null)}>
-          <div style={{ fontSize: 13, color: "#475569", marginBottom: 10, lineHeight: 1.5 }}>Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.</div>
-          <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={2} placeholder="Mensaje (opcional): ej. ¿sigue disponible? Lo puedo retirar el viernes" style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-          <button onClick={meInteresa} style={{ ...btnPri, width: "100%" }}>Avisar y ver el contacto</button>
-        </Modal>
-      )}
-      {contacto && (
-        <Modal titulo="Contacto del vendedor" onClose={() => setContacto(null)} ancho={380}>
-          <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{contacto.articulo.titulo} · {fmtPrecio(contacto.articulo)}</div>
-          <ContactoCard c={contacto.c} />
-        </Modal>
       )}
       {interesados && (
         <Modal titulo="Interesados" onClose={() => setInteresados(null)} ancho={400}>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 8 }}>{interesados.articulo.titulo}</div>
-          {!interesados.lista ? <ContactoCard c={null} /> : interesados.lista.map((x) => <ContactoCard key={x.usuario_id} c={x} />)}
+          {!interesados.lista
+            ? <div style={{ fontSize: 13, color: "#94A3B8" }}>Cargando…</div>
+            : interesados.lista.map((x) => <InteresadoFila key={x.usuario_id} c={x} onEscribir={onEscribir ? (c) => escribirAInteresado(interesados.articulo, c) : null} />)}
+          <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 4 }}>Se escriben por Mensajes de tribbu: nadie ve el teléfono ni el mail del otro.</div>
         </Modal>
       )}
       {vendiendo && (
@@ -475,14 +470,14 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
         <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: buzo, talle 10, libro de inglés…" aria-label="Buscar en el Marketplace" style={{ ...inp, flex: "1 1 120px", minWidth: 0, background: "white" }} />
         <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
-        <BotonNuevo onClick={() => setEditor({ articulo: null })} ariaLabel="Publicar un artículo" />
+        {!soloMirar && <BotonNuevo onClick={() => setEditor({ articulo: null })} ariaLabel="Publicar un artículo" />}
       </div>
       {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
       {!lista.length ? (
         <Card style={{ padding: 28, textAlign: "center" }}>
           <div style={{ fontSize: 30 }}>🛍️</div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>{visibles.length ? "No hay nada con esos filtros" : "Todavía no hay nada publicado"}</div>
-          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>¿Tenés un uniforme que ya no le entra, libros del año pasado o un disfraz? Publicalo.</div>
+          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>{soloMirar ? "Acá vas a ver lo que publiquen las familias." : "¿Tenés un uniforme que ya no le entra, libros del año pasado o un disfraz? Publicalo."}</div>
         </Card>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 12 }}>
@@ -494,7 +489,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
 }
 
 /** Pestaña de las familias (dentro de Comunidad). */
-export function Marketplace({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, userId, items = [] }) {
+export function Marketplace({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, userId, items = [], onEscribir }) {
   // nombre/colegio_id de cada curso ya vienen en "Mi acceso" (items[].cursos) —
   // evita una consulta a "cursos" en cada carga.
   const cursos = useMemo(() => {
@@ -506,16 +501,16 @@ export function Marketplace({ cursoId, cursoIds = [], esVistaTodos = false, tagD
       })
       .filter(Boolean);
   }, [items, esVistaTodos, cursoIds, cursoId]);
-  return <Tablero cursoIds={cursoIds} cursosPublicar={cursos} colegioId={cursos[0]?.colegio_id} comoColegio={false} userId={userId} puedeModerar={() => false} tagDeCurso={esVistaTodos ? tagDeCurso : null} />;
+  return <Tablero cursoIds={cursoIds} cursosPublicar={cursos} userId={userId} tagDeCurso={esVistaTodos ? tagDeCurso : null} onEscribir={onEscribir} />;
 }
 
-/** Sección del Super Admin: el colegio publica (feria de uniformes, etc.) y modera todo lo del colegio. */
-export function MarketplaceColegio({ cursos, colegioId, userId }) {
+/** Sección del Super Admin: el colegio ve todo lo de su colegio y quita lo que no permite. No publica ni se interesa. */
+export function MarketplaceColegio({ cursos, userId }) {
   const clave = cursos.map((c) => c.id).join(",");
   const ids = useMemo(() => (clave ? clave.split(",") : []), [clave]);
   const tag = (cid) => {
     const c = cursos.find((x) => x.id === cid);
     return c ? { nombre: c.nombre, color: c.color || "#94A3B8" } : null;
   };
-  return <Tablero cursoIds={ids} cursosPublicar={cursos} colegioId={colegioId} comoColegio userId={userId} puedeModerar={() => true} tagDeCurso={tag} />;
+  return <Tablero cursoIds={ids} cursosPublicar={cursos} soloMirar userId={userId} tagDeCurso={tag} />;
 }

@@ -32,7 +32,7 @@ import { etiquetaDocente } from "../../lib/docentes";
 // dice además cuándo se envió (fmtEnviado).
 const ordenAvisos = ordenPorEnviado;
 
-export function RecordatoriosTab({ items=[], cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
+export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -120,7 +120,8 @@ export function RecordatoriosTab({ items=[], cursoId, cursoIds=[], esVistaTodos=
       await supabase.from("recordatorios").update(upd).eq("id",modal.id);
     } else {
       const { data: creado } = await supabase.from("recordatorios").insert({...payload, creado_por:userId}).select("id").single();
-      if(isAdmin) {
+      // Avisan con push la Room Parent y la maestra del curso (no cualquier familia).
+      if(isAdmin || cursosDocente.includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
         await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||form.texto, id:creado?.id, userIds } });

@@ -98,7 +98,7 @@ const SECCION_INFO = {
   comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
   eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para un curso." },
   talleres:       { titulo:"Talleres", descripcion:"Talleres extraprogramáticos: publicalos para los cursos o edades que elijas, decidí cómo se asignan los lugares (orden de llegada, aprobación o sorteo) y gestioná inscriptos y lista de espera." },
-  marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio también puede publicar (por ejemplo, la feria de uniformes) y borrar lo que no corresponda." },
+  marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
   mensajes_familias:{ titulo:"Mensajes de familias", descripcion:"Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras." },
@@ -1720,7 +1720,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper}/>
       )}
       {sec==="marketplace"&&(
-        <MarketplaceColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
+        <MarketplaceColegio cursos={cursosAnoActual} userId={usuario?.id}/>
       )}
       {sec==="inicio"&&(
         <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esColegioAdmin} onIr={setSec}/>

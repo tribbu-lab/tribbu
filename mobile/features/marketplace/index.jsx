@@ -1,18 +1,19 @@
 // Marketplace de cosas usadas (puerto RN de src/features/marketplace — ver
 // specs/marketplace.md). Grilla de 2 columnas; tocar abre el detalle (fotos,
-// precio, "Me interesa" / gestión). "Me interesa" avisa al vendedor (push) y
-// comparte los contactos; el vendedor marca Vendido (y opcionalmente a quién).
-// Lo que publica el colegio se carga desde el panel del colegio web.
+// precio, "Me interesa" / gestión). "Me interesa" abre un chat 1 a 1 con quien
+// lo publicó, por Mensajes (nunca teléfono ni mail); el vendedor le escribe a
+// los interesados y marca Vendido (y opcionalmente a quién). El colegio no
+// publica: solo mira y quita desde el panel web.
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, Image, Modal, useWindowDimensions, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, RefreshControl, Image, Modal, useWindowDimensions, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
-import { sendPush } from "../../lib/push";
 import { pickImages, uploadImage } from "../../lib/media";
 import { useRecarga } from "../../lib/useRecarga";
 import { sanitize } from "@shared/helpers";
-import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio } from "@shared/marketplace";
+import { CATEGORIAS, categoria, CONDICIONES, condicion, MAX_FOTOS, DIAS_VIGENCIA, estaDisponible, estaVisible, ordenar, fmtPrecio, diasParaVencer, coincideBusqueda, filtroAlcance, hacerPrincipal, fotosQuitadas, parsearPrecio, borradorInteres, borradorVendedor } from "@shared/marketplace";
 import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -40,9 +41,9 @@ export function Marketplace() {
   const [busqueda, setBusqueda] = useState("");
   const [editor, setEditor] = useState(null); // { articulo } — articulo null = nueva publicación
   const [abierto, setAbierto] = useState(null);
-  const [interesando, setInteresando] = useState(null);
-  const [contactos, setContactos] = useState(null); // { titulo, lista, interesados }
+  const [interesados, setInteresados] = useState(null); // { articulo, lista }
   const [vendiendo, setVendiendo] = useState(null); // { articulo, lista }
+  const router = useRouter();
 
   const cursosPublicar = useMemo(() => {
     const ids = esVistaTodos ? cursoIds : cursoId ? [cursoId] : [];
@@ -84,15 +85,13 @@ export function Marketplace() {
   }, [cargar]);
   const { refrescando, onRefresh } = useRecarga(cargar);
 
-  const verContacto = async (a) => {
-    setContactos({ titulo: `${a.titulo} · ${fmtPrecio(a)}`, lista: null });
-    const { data } = await supabase.rpc("contacto_articulo", { p_id: a.id });
-    setContactos({ titulo: `${a.titulo} · ${fmtPrecio(a)}`, lista: data?.length ? data : [{ nombre: "—" }] });
-  };
+  // "Me interesa" / "Escribir": abre el chat en Mensajes (RPC
+  // abrir_conversacion_articulo, que además la anota como interesada).
+  const escribir = (articulo) => router.push({ pathname: "/(tabs)/mensajes", params: { articulo: JSON.stringify(articulo), t: String(Date.now()) } });
   const verInteresados = async (a) => {
-    setContactos({ titulo: a.titulo, lista: null, interesados: true });
+    setInteresados({ articulo: a, lista: null });
     const { data } = await supabase.rpc("interesados_articulo", { p_id: a.id });
-    setContactos({ titulo: a.titulo, lista: data || [], interesados: true });
+    setInteresados({ articulo: a, lista: data || [] });
   };
   const abrirVendido = async (a) => {
     setVendiendo({ articulo: a, lista: null });
@@ -169,8 +168,7 @@ export function Marketplace() {
           nInteresados={datos.interesadosDe[abierto.id] || 0}
           tag={tagDeCurso(abierto.curso_id)}
           onClose={() => setAbierto(null)}
-          onMeInteresa={() => { setInteresando(abierto); setAbierto(null); }}
-          onVerContacto={() => { const a = abierto; setAbierto(null); verContacto(a); }}
+          onEscribir={() => { const a = abierto; setAbierto(null); escribir({ id: a.id, borrador: borradorInteres(a) }); }}
           onVerInteresados={() => { const a = abierto; setAbierto(null); verInteresados(a); }}
           onVendido={() => { const a = abierto; setAbierto(null); abrirVendido(a); }}
           onEditar={() => { const a = abierto; setAbierto(null); setEditor({ articulo: a }); }}
@@ -178,19 +176,18 @@ export function Marketplace() {
           onBorrar={() => borrar(abierto)}
         />
       ) : null}
-      {interesando ? (
-        <InteresSheet
-          a={interesando}
-          userId={userId}
-          onClose={() => setInteresando(null)}
-          onListo={() => { const a = interesando; setInteresando(null); cargar(); verContacto(a); }}
-        />
-      ) : null}
-      {contactos ? (
-        <Sheet visible onClose={() => setContactos(null)} title={contactos.interesados ? "Interesados" : "Contacto del vendedor"}>
-          <Text style={styles.contactoTitulo}>{contactos.titulo}</Text>
+      {interesados ? (
+        <Sheet visible onClose={() => setInteresados(null)} title="Interesados">
+          <Text style={styles.contactoTitulo}>{interesados.articulo.titulo}</Text>
           <ScrollView style={styles.sheetScroll}>
-            {!contactos.lista ? <Text style={styles.cargando}>Cargando…</Text> : contactos.lista.map((c, i) => <ContactoCard key={c.usuario_id || i} c={c} />)}
+            {!interesados.lista ? <Text style={styles.cargando}>Cargando…</Text> : interesados.lista.map((c) => (
+              <InteresadoFila key={c.usuario_id} c={c} onEscribir={() => {
+                const a = interesados.articulo;
+                setInteresados(null);
+                escribir({ id: a.id, usuarioId: c.usuario_id, borrador: borradorVendedor(a) });
+              }} />
+            ))}
+            <Text style={styles.hint}>Se escriben por Mensajes de tribbu: nadie ve el teléfono ni el mail del otro.</Text>
           </ScrollView>
         </Sheet>
       ) : null}
@@ -272,7 +269,7 @@ function VisorFotos({ fotos, inicial, onClose }) {
   );
 }
 
-function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onMeInteresa, onVerContacto, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
+function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onEscribir, onVerInteresados, onVendido, onEditar, onRenovar, onBorrar }) {
   const [foto, setFoto] = useState(0);
   const [ampliada, setAmpliada] = useState(false);
   const cat = categoria(a.categoria);
@@ -313,8 +310,13 @@ function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onM
           {[tag?.nombre, a.alcance === "colegio" ? "todo el colegio" : "su curso", `publicado ${hace(a.creado_en)}`, propio && !vendido ? (dias > 0 ? `vence en ${dias} días` : "venció") : null].filter(Boolean).join(" · ")}
         </Text>
 
-        {!propio && !vendido && !yaMeInteresa && estaDisponible(a) ? <Button title="Me interesa" onPress={onMeInteresa} style={styles.mtMd} /> : null}
-        {!propio && yaMeInteresa ? <Button title="Ver contacto del vendedor" variant="secondary" onPress={onVerContacto} style={styles.mtMd} /> : null}
+        {!propio && !vendido && !yaMeInteresa && estaDisponible(a) ? (
+          <>
+            <Button title="Me interesa" onPress={onEscribir} style={styles.mtMd} />
+            <Text style={styles.yaHay}>Se abre un chat con quien lo publicó. Tu teléfono y tu mail no se comparten.</Text>
+          </>
+        ) : null}
+        {!propio && yaMeInteresa ? <Button title="Escribir a quien lo publicó" variant="secondary" onPress={onEscribir} style={styles.mtMd} /> : null}
         {!propio && !yaMeInteresa && nInteresados > 0 && !vendido ? (
           <Text style={styles.yaHay}>{nInteresados === 1 ? "Ya hay 1 interesado" : `Ya hay ${nInteresados} interesados`}</Text>
         ) : null}
@@ -333,43 +335,16 @@ function DetalleSheet({ a, userId, yaMeInteresa, nInteresados, tag, onClose, onM
   );
 }
 
-function ContactoCard({ c }) {
-  const abrir = (url) => Linking.openURL(url).catch(() => {});
+// Quien marcó "Me interesa", con "Escribir" (chat por tribbu, sin teléfono ni mail).
+function InteresadoFila({ c, onEscribir }) {
   return (
-    <View style={styles.contacto}>
-      <Text style={styles.contactoNombre}>{c.nombre}</Text>
-      {c.telefono ? (
-        <View style={styles.contactoRow}>
-          <Pressable onPress={() => abrir(`tel:${c.telefono}`)}><Text style={styles.contactoLink}>{c.telefono}</Text></Pressable>
-          <Pressable onPress={() => abrir(`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`)}><Text style={styles.contactoWa}>💬 WhatsApp</Text></Pressable>
-        </View>
-      ) : null}
-      {c.email ? <Pressable onPress={() => abrir(`mailto:${c.email}`)}><Text style={styles.contactoLink}>✉️ {c.email}</Text></Pressable> : null}
-      {!c.telefono && !c.email ? <Text style={styles.meta}>No cargó teléfono ni email.</Text> : null}
-      {c.mensaje ? <Text style={styles.desc}>“{c.mensaje}”</Text> : null}
+    <View style={[styles.contacto, styles.contactoRow]}>
+      <View style={styles.flex1}>
+        <Text style={styles.contactoNombre}>{c.nombre}</Text>
+        {c.mensaje ? <Text style={styles.desc}>“{c.mensaje}”</Text> : null}
+      </View>
+      <Button title="Escribir" variant="secondary" size="sm" onPress={onEscribir} />
     </View>
-  );
-}
-
-function InteresSheet({ a, userId, onClose, onListo }) {
-  const [mensaje, setMensaje] = useState("");
-  const [enviando, setEnviando] = useState(false);
-  const enviar = async () => {
-    setEnviando(true);
-    const { error } = await supabase.from("marketplace_interesados").insert({ articulo_id: a.id, usuario_id: userId, mensaje: sanitize(mensaje) || null });
-    if (error) { setEnviando(false); Alert.alert("No se pudo avisar", "Probá de nuevo."); return; }
-    if (a.publicado_por) await sendPush({ type: "marketplace", payload: { titulo: `Alguien está interesado en: ${a.titulo}`, userIds: [a.publicado_por] } });
-    setEnviando(false);
-    onListo();
-  };
-  return (
-    <Sheet visible onClose={onClose} title="Me interesa">
-      <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
-        <Text style={styles.hint}>Le avisamos a quien lo publicó y se comparten los contactos de los dos para que se pongan de acuerdo.</Text>
-        <TextInput value={mensaje} onChangeText={setMensaje} placeholder="Mensaje (opcional): ¿sigue disponible?" placeholderTextColor={t.placeholder} multiline style={[styles.input, styles.textarea, styles.mtMd]} />
-        <Button title={enviando ? "Avisando…" : "Avisar y ver el contacto"} onPress={enviar} disabled={enviando} style={styles.mtMd} />
-      </ScrollView>
-    </Sheet>
   );
 }
 
@@ -493,7 +468,7 @@ function ArticuloSheet({ articulo, cursos, colegioDe, userId, onClose, onGuardad
           {chip(form.alcance === "curso", "Mi curso", () => set("alcance", "curso"))}
         </View>
         {cursos.length > 1 ? <View style={styles.wrap}>{cursos.map((c) => chip(form.curso_id === c.id, c.nombre, () => set("curso_id", c.id), c.id))}</View> : null}
-        {editando ? null : <Text style={styles.hint}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Cuando alguien toca “Me interesa” te avisamos y se comparten los contactos. El pago lo arreglan entre ustedes.</Text>}
+        {editando ? null : <Text style={styles.hint}>Se ve {DIAS_VIGENCIA} días (lo podés renovar). Quien esté interesado te escribe por Mensajes de tribbu, sin ver tu teléfono ni tu mail. El pago lo arreglan entre ustedes.</Text>}
         <Button title={guardando ? (editando ? "Guardando…" : "Publicando…") : editando ? "Guardar cambios" : "Publicar"} onPress={guardar} disabled={guardando || eligiendo} style={styles.mtMd} />
       </ScrollView>
     </Sheet>
@@ -568,7 +543,5 @@ const styles = StyleSheet.create({
   contactoTitulo: { fontSize: 12.5, color: t.textMuted, marginBottom: SPACE.sm },
   contacto: { padding: SPACE.md, borderRadius: RADIUS.lg, backgroundColor: "#F8FAFC", marginBottom: SPACE.sm },
   contactoNombre: { fontSize: 14, fontWeight: "700", color: t.text },
-  contactoRow: { flexDirection: "row", gap: SPACE.md, marginTop: 4 },
-  contactoLink: { fontSize: 13, color: "#2563EB", marginTop: 2 },
-  contactoWa: { fontSize: 13, color: "#16A34A", marginTop: 2 },
+  contactoRow: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
 });

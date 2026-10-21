@@ -520,7 +520,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [hayMas, setHayMas] = useState(false);
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(conv.borrador || ""); // borrador: primer mensaje sugerido (Marketplace)
   const [fotos, setFotos] = useState([]); // assets de pickImages
   const [enviandoAlgo, setEnviandoAlgo] = useState(false);
   const [seleccionado, setSeleccionado] = useState(null);
@@ -1036,7 +1036,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   );
 });
 
-export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, abrirDocente = null, abrirSecretaria = null, nonce = null }) {
+export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, abrirDocente = null, abrirSecretaria = null, abrirArticulo = null, nonce = null }) {
   const { usuario, items, tagDeCurso, esDocente, hijoActivoId, cursoIds, esVistaTodos } = useSession();
   const cursoPerfil = !esVistaTodos && cursoIds?.length === 1 ? cursoIds[0] : null;
   const userId = usuario?.id ?? null;
@@ -1122,18 +1122,29 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     { tipo: "colegio", titulo: "Secretaría", subtitulo: `Sobre ${h.nombre}` });
   const onAlumno = (a) => abrirPorRpc("abrir_conversacion_docente", { p_hijo: a.hijo_id, p_maestro: a.maestro_id },
     { tipo: "docente", titulo: `Familia de ${a.nombre} ${a.apellido || ""}`.trim(), subtitulo: a.curso_nombre });
+  // Marketplace: 1 a 1 por un artículo, aunque no compartan curso. El primer
+  // mensaje queda escrito (borrador) para mandarlo o cambiarlo.
+  const onArticulo = async ({ id: articulo, usuarioId, borrador }) => {
+    const { data, error } = await supabase.rpc("abrir_conversacion_articulo", { p_articulo: articulo, p_usuario: usuarioId || null });
+    const fila = data?.[0];
+    if (error || !fila) { Alert.alert("No se pudo abrir el chat", error?.message || "Probá de nuevo."); return; }
+    const existente = (convs || []).find((c) => c.id === fila.conversacion_id);
+    setActiva({ ...(existente || { id: fila.conversacion_id, tipo: "directo", otro_id: fila.otro_id, titulo: fila.nombre, subtitulo: "Marketplace" }), borrador });
+  };
 
   // Deep links: push (c), "Ayuda y soporte" (soporte), Alumnos (usuario). Una vez por nonce.
   useEffect(() => {
     if (!convs) return;
-    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}|${abrirAlumno?.hijo_id}|${abrirDocente?.maestro_id}|${abrirSecretaria?.id}`;
-    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario && !abrirAlumno && !abrirDocente && !abrirSecretaria)) return;
+    const clave = `${nonce}|${abrirConv}|${pedirSoporte}|${abrirUsuario}|${abrirAlumno?.hijo_id}|${abrirDocente?.maestro_id}|${abrirSecretaria?.id}|${abrirArticulo?.id}|${abrirArticulo?.usuarioId}`;
+    if (visto.current === clave || (!abrirConv && !pedirSoporte && !abrirUsuario && !abrirAlumno && !abrirDocente && !abrirSecretaria && !abrirArticulo)) return;
     visto.current = clave;
     if (pedirSoporte) { abrirSoporte(); return; }
     if (abrirAlumno) { onAlumno(abrirAlumno); return; }
     // Desde Contacto: chat con una maestra o con Secretaría.
     if (abrirDocente) { onDocente(abrirDocente); return; }
     if (abrirSecretaria) { onSecretaria(abrirSecretaria); return; }
+    // Desde el Marketplace: chat con quien publicó (o con un interesado).
+    if (abrirArticulo) { conNormas(() => onArticulo(abrirArticulo)); return; }
     if (abrirConv) {
       const c = convs.find((x) => x.id === abrirConv);
       if (c) setActiva(c);
@@ -1164,10 +1175,15 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const enPerfil = (c) => {
     if (!cursoPerfil) return true;
     if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
-    return !c.curso_id || c.curso_id === cursoPerfil;
+    // Un 1 a 1 anclado a un curso que no es mío (Marketplace con otro curso) se ve en todos los perfiles.
+    return !c.curso_id || c.curso_id === cursoPerfil || !cursosMios.some((x) => x.id === c.curso_id);
   };
   const otras = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
-  const activaFresca = activa ? lista.find((c) => c.id === activa.id) || activa : null;
+  const activaFresca = useMemo(() => {
+    if (!activa) return null;
+    const fresca = (convs || []).find((c) => c.id === activa.id) || activa;
+    return activa.borrador && fresca !== activa ? { ...fresca, borrador: activa.borrador } : fresca;
+  }, [activa, convs]);
 
   return (
     <View style={s.screen}>

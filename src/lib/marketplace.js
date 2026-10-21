@@ -65,5 +65,13 @@ export const hacerPrincipal = (fotos, i) => (i <= 0 || i >= fotos.length ? fotos
 /** Paths que estaban en la publicación y ya no (para borrarlos de Storage al guardar). */
 export const fotosQuitadas = (antes, despues) => (antes || []).filter((p) => !(despues || []).includes(p));
 
+// Primer mensaje del chat del Marketplace (queda escrito, la familia lo manda o
+// lo cambia): el contacto es siempre por Mensajes, nunca teléfono ni mail.
+const precioTexto = (a) => (a.es_regalo ? "lo regalás" : fmtPrecio(a));
+/** Lo escribe quien tocó "Me interesa". */
+export const borradorInteres = (a) => `Hola, me interesa «${a.titulo}» (${precioTexto(a)}) del Marketplace. ¿Sigue disponible?`;
+/** Lo escribe quien publicó, a alguien que marcó "Me interesa". */
+export const borradorVendedor = (a) => `Hola, te escribo por «${a.titulo}» del Marketplace.`;
+
 /** Precio tipeado ("15.000", "1500,50") → número, o NaN. */
 export const parsearPrecio = (s) => Number(String(s ?? "").replace(/\./g, "").replace(",", "."));

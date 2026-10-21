@@ -197,7 +197,7 @@ function AvisoAtencion({ r, origen, resaltado = false, onEntendido }) {
 }
 
 export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null }) {
-  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso, cursosDocente } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab + el punto de la campana (mismo hook levantado
   // en _layout.jsx) cuando acá cambia el estado de leídos / se borra un aviso.
@@ -301,7 +301,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       await supabase.from("recordatorios").update(upd).eq("id", modal.id);
     } else {
       const { data: creado } = await supabase.from("recordatorios").insert({ ...payload, creado_por: userId }).select("id").single();
-      if (isAdmin) {
+      // Avisan con push la Room Parent y la maestra del curso (no cualquier familia).
+      if (isAdmin || (cursosDocente || []).includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
         await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || form.texto, id: creado?.id, userIds } });

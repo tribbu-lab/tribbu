@@ -41,3 +41,7 @@ RLS por columnas de la fila, RPCs `contacto_articulo`, `interesados_articulo`,
 
 ## Fuera de alcance (etapa 2)
 Pagos con Mercado Pago y comisión; Servicios; Carpool.
+
+## Cambio 2026-10-21: contacto por tribbu y el colegio solo mira
+
+Pedido de Yanina: el contacto entre familias es por Mensajes de tribbu (nunca teléfono, mail ni WhatsApp) y el colegio no interviene: ve todo lo de su colegio para controlar lo que se ofrece y puede quitar una publicación, pero no publica, no edita, no se interesa ni ve quiénes se interesaron. SQL `supabase/marketplace-por-tribbu.sql` (RPC `abrir_conversacion_articulo`). Detalle en CLAUDE.md → Comunidad + Marketplace.

@@ -118,12 +118,12 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       supabase.from("menu").select("*").eq("fecha",fechaHoy).maybeSingle(),
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
-      // fecha o dentro de los próximos 15 días, para todos o para mí — no
+      // fecha o de hoy en adelante, para todos o para mí — no
       // el historial completo del año.
       // "¿Lo leí?" viene embebido (lib/leidos): sin pedir aparte todos mis leídos.
       conLeidoDe(supabase.from("recordatorios").select(SELECT_REC_CON_LEIDO), userId).in("curso_id",cursoIds)
         .or(`para_usuario_id.is.null${userId?`,para_usuario_id.eq.${userId}`:""}`)
-        .or(`fecha.is.null,and(fecha.gte.${fechaHoy},fecha.lte.${fecha15})`)
+        .or(`fecha.is.null,fecha.gte.${fechaHoy}`)
         .order("creado_en",{ascending:false}),
       supabase.from("cumples").select("*").in("curso_id",cursoIds).order("id"),
       supabase.from("colectas").select("*").in("curso_id",cursoIds),
@@ -178,7 +178,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     ].filter(a=>a.dias<=15)
      .sort((a,b)=>a.dias-b.dias);
     const { recs: recsVigentes, leidos: leidosIds } = separarLeidos(recordatorios.data);
-    const recsNoLeidos = recordatoriosPendientes(recsVigentes, leidosIds, userId, fechaHoy, fecha15);
+    const recsNoLeidos = recordatoriosPendientes(recsVigentes, leidosIds, userId, fechaHoy);
     // Colectas pendientes: cada colecta se evalúa contra MIS hijos de SU curso
     // (en vista Todos hay colectas de varios cursos; un hijo de otro curso no
     // cuenta como "impago"). Mismo patrón que mobile/features/muro.

@@ -319,7 +319,6 @@ export function ApoderadosModal({ alumno, onClose, canEdit=true }) {
 }
 
 export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, userId, onEscribir }) {
-  const { showToast, Toast } = useToast();
   const [hijos,    setHijos]    = useState([]);
   const [apodMap,  setApodMap]  = useState({});
   const [busqueda, setBusqueda] = useState("");
@@ -334,7 +333,7 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, userId, onEscribir
     if(ids.length) {
       const { data: uh } = await supabase
         .from("usuario_hijos")
-        .select("hijo_id, usuario_id, usuarios(id,nombre,apellido,email,telefono)")
+        .select("hijo_id, usuario_id, usuarios(id,nombre,apellido)") // sin mail ni teléfono: se escribe por tribbu
         .in("hijo_id", ids);
       const m = {};
       (uh||[]).forEach(r=>{
@@ -384,11 +383,6 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, userId, onEscribir
                       <button onClick={()=>onEscribir(a.id)} aria-label={`Escribirle a ${fmtNombre(a)}`} style={{border:"1px solid #BFDBFE",background:"#EFF6FF",color:"#1D4ED8",borderRadius:999,padding:"4px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",flexShrink:0,minHeight:28}}>💬 Escribir</button>
                     ):null}
                   </div>
-                  {(a.telefono||a.email)&&(
-                    <div style={{fontSize:11,marginTop:2,display:"flex",flexWrap:"wrap",columnGap:12,rowGap:1}}>
-                      <ContactoDatos email={a.email} telefono={a.telefono} showToast={showToast} style={{fontSize:11}}/>
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
@@ -404,7 +398,6 @@ export function Alumnos({ cursoIds, esVistaTodos, tagDeCurso, userId, onEscribir
 
   return (
     <div>
-      <Toast />
       <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Alumnos</div>
       <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar alumno..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"white",boxSizing:"border-box",marginBottom:12}}/>
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:10}}>{filtrados.length} alumnos</div>
