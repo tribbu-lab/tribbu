@@ -37,6 +37,7 @@ import { Buscador } from "../../components/Buscador";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
+import { FotoZoom } from "../../components/FotoZoom";
 import { sendPush } from "../../lib/push";
 
 const t = THEMES.light;
@@ -78,12 +79,13 @@ function VisorFoto({ path, onClose }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={!!path} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.visor} onPress={onClose}>
-        {path ? <SignedImage src={path} bucket="adjuntos" style={s.visorImg} resizeMode="contain" /> : null}
+      {/* Pellizcar o doble toque para hacer zoom; un toque sin zoom cierra. */}
+      <View style={s.visor}>
+        {path ? <FotoZoom src={path} bucket="adjuntos" onTocar={onClose} /> : null}
         <Pressable onPress={onClose} style={[s.visorCerrar, { top: insets.top + 12 }]} accessibilityRole="button" accessibilityLabel="Cerrar">
           <MaterialCommunityIcons name="close" size={22} color="white" />
         </Pressable>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -1764,6 +1766,5 @@ const s = StyleSheet.create({
   previewImg: { width: 56, height: 56, borderRadius: 8 },
   quitarFoto: { position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: SLATE[800], alignItems: "center", justifyContent: "center" },
   visor: { flex: 1, backgroundColor: "rgba(0,0,0,0.94)", alignItems: "center", justifyContent: "center" },
-  visorImg: { width: "100%", height: "80%" },
   visorCerrar: { position: "absolute", right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
 });

@@ -14,6 +14,7 @@ import { THEMES, SPACE, RADIUS } from "@shared/tokens";
 import { pickAndUploadImage, pickAndUploadDocument } from "../lib/media";
 import { signStorageUrl } from "../lib/storageUrl";
 import { SignedImage } from "./SignedImage";
+import { FotoZoom } from "./FotoZoom";
 
 export const MAX_ADJUNTOS = 3;
 const t = THEMES.light;
@@ -109,9 +110,13 @@ export function ImagenAmpliable({ src, bucket = "adjuntos", style, resizeMode = 
         <SignedImage src={src} bucket={bucket} style={style} resizeMode={resizeMode} miniatura />
       </Pressable>
       <Modal visible={abierta} transparent animationType="fade" onRequestClose={() => setAbierta(false)}>
-        <Pressable style={styles.lightbox} onPress={() => setAbierta(false)}>
-          {abierta ? <SignedImage src={src} bucket={bucket} style={styles.lightboxImg} resizeMode="contain" /> : null}
-        </Pressable>
+        {/* Pellizcar o doble toque para hacer zoom; un toque sin zoom cierra. */}
+        <View style={styles.lightbox}>
+          {abierta ? <FotoZoom src={src} bucket={bucket} onTocar={() => setAbierta(false)} /> : null}
+          <Pressable onPress={() => setAbierta(false)} style={styles.lightboxCerrar} accessibilityRole="button" accessibilityLabel="Cerrar">
+            <MaterialCommunityIcons name="close" size={22} color="white" />
+          </Pressable>
+        </View>
       </Modal>
     </>
   );
@@ -216,7 +221,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.88)",
     alignItems: "center",
     justifyContent: "center",
-    padding: SPACE.xl,
   },
-  lightboxImg: { width: "100%", height: "80%", borderRadius: RADIUS.lg },
+  lightboxCerrar: { position: "absolute", top: 48, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
 });

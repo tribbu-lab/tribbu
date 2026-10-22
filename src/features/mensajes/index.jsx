@@ -65,7 +65,13 @@ function Avatar({ texto, emoji, color = BLUE[500], size = 40 }) {
   );
 }
 
+// Clic en la foto: la amplía 2,5x en ese punto y sigue al mouse; otro clic la vuelve.
 function VisorFoto({ path, onClose }) {
+  const [zoom, setZoom] = useState(null); // null | { x, y } en % de la foto
+  const punto = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 };
+  };
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -73,7 +79,11 @@ function VisorFoto({ path, onClose }) {
   }, [onClose]);
   return (
     <div onClick={onClose} role="dialog" aria-label="Foto" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 16px" }}>
-      <SignedImg src={path} bucket="adjuntos" alt="Foto del mensaje" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8, display: "block" }} />
+      <div onClick={(e) => { e.stopPropagation(); setZoom(zoom ? null : punto(e)); }} onMouseMove={(e) => { if (zoom) setZoom(punto(e)); }}
+        style={{ maxWidth: "100%", maxHeight: "100%", overflow: "hidden", borderRadius: 8, cursor: zoom ? "zoom-out" : "zoom-in" }}>
+        <SignedImg src={path} bucket="adjuntos" alt="Foto del mensaje"
+          style={{ maxWidth: "100%", maxHeight: "calc(100vh - 112px)", objectFit: "contain", display: "block", transition: "transform 0.15s", transformOrigin: zoom ? `${zoom.x}% ${zoom.y}%` : "center", transform: zoom ? "scale(2.5)" : "none" }} />
+      </div>
       <button onClick={onClose} aria-label="Cerrar" style={{ position: "absolute", top: 12, right: 14, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.15)", color: "white", fontSize: 18, cursor: "pointer" }}>✕</button>
     </div>
   );
