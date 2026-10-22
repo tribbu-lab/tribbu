@@ -217,3 +217,16 @@ export function colorAutor(id, autores = null) {
   return COLORES_AUTOR[h % COLORES_AUTOR.length];
 }
 
+
+// Sin leer del panel del colegio, para los globitos de la sección Mensajes
+// (web y app): `bandeja` = filas de bandeja_colegio (lo que las familias le
+// escriben a Secretaría), `convs` = mis_conversaciones (chats del personal y
+// el hilo de soporte con tribbu).
+export function noLeidosPanel(bandeja = [], convs = []) {
+  const suma = (filas) => filas.reduce((s, r) => s + (r.no_leidos || 0), 0);
+  return {
+    familias: suma(bandeja || []),
+    personal: suma((convs || []).filter((c) => c.tipo === "personal")),
+    soporte: suma((convs || []).filter((c) => c.tipo === "soporte")),
+  };
+}

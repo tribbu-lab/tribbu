@@ -26,6 +26,7 @@ import { TalleresColegio } from "../talleres/colegio";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
+import { useNoLeidosPanel } from "../../hooks/useNoLeidosPanel";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { HorarioCurso, SemanaMaestra } from "./horarios";
 import { InicioColegio } from "./inicio";
@@ -89,6 +90,11 @@ const SECCIONES = [
     {id:"colegio",l:"Datos y membrete"},
   ]},
 ];
+
+// Globito rojo de no leídos (mismo que la barra lateral del apoderado).
+function Globito({ n }) {
+  return n > 0 ? <span style={{background:"#EF4444",color:"white",borderRadius:20,fontSize:10,fontWeight:700,padding:"1px 6px",minWidth:18,textAlign:"center",lineHeight:"16px",boxSizing:"border-box",flexShrink:0}}>{n>99?"99+":n}</span> : null;
+}
 
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve. Ver
 // specs/roles-por-nivel.md → Permisos.
@@ -206,6 +212,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [asignarCursoModal,setAsignarCursoModal] = useState(false);
   const isMobile = useIsMobile();
   const [confirmar, confirmUI] = useConfirmar();
+  // Sin leer de Mensajes (familias / personal) y de Ayuda y soporte: solo el
+  // staff del colegio los tiene. Se recalcula al cambiar de pantalla.
+  const noLeidos = useNoLeidosPanel(esStaffColegio, sec);
   const { showToast, Toast } = useToast();
 
   const activeColegioId = esStaffColegio ? miColegioId : colegioId;
@@ -883,6 +892,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec)) || null;
   const irAGrupo = (g) => { setSec(g.items[0].id); setNavAbierta(false); };
   const irA = (id) => { setSec(id); setNavAbierta(false); };
+  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="soporte_colegio" ? noLeidos.soporte : 0;
+  const badgeGrupo = (g) => g.items.reduce((n,i)=>n+badgeDe(i.id),0);
+  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.soporte;
   const rolTexto = esSuper ? "Super Admin" : esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : "Administración del colegio";
   const inicialesUsuario = `${(usuario?.nombre||"?").slice(0,1)}${(usuario?.apellido||"").slice(0,1)}`.toUpperCase();
 
@@ -1331,6 +1343,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           <button onClick={()=>setNavAbierta(a=>!a)} aria-expanded={navAbierta} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 14px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",marginBottom:navAbierta?8:16,fontFamily:"inherit"}}>
             <Icono nombre={grupoActivo?.icono||(sec==="cuenta"?"usuarios":"salvavidas")} size={18} color="#475569"/>
             <span style={{flex:1,textAlign:"left",fontSize:14,fontWeight:800,color:"#0F172A"}}>{grupoActivo?.l || SECCION_INFO[sec]?.titulo || "Secciones"}</span>
+            {navAbierta ? null : <Globito n={totalNoLeidos}/>}
             <Icono nombre="chevron" size={16} color="#64748B" style={{transform:navAbierta?"rotate(180deg)":"none"}}/>
           </button>
           {navAbierta&&(
@@ -1341,6 +1354,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:on?"#F8FAFC":"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                     <Icono nombre={g.icono} size={18} color={on?"#1D4ED8":"#475569"}/>
                     <span style={{flex:1,fontSize:14,fontWeight:on?800:600,color:on?"#1D4ED8":"#0F172A"}}>{g.l}</span>
+                    <Globito n={badgeGrupo(g)}/>
                   </button>
                 );
               })}
@@ -1348,6 +1362,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <button onClick={()=>irA("soporte_colegio")} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:"1px solid #F1F5F9",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                   <Icono nombre="salvavidas" size={18} color="#475569"/>
                   <span style={{flex:1,fontSize:14,fontWeight:600,color:"#0F172A"}}>Ayuda y soporte</span>
+                  <Globito n={noLeidos.soporte}/>
                 </button>
               )}
             </nav>
@@ -1369,6 +1384,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"11px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:on?"rgba(255,255,255,0.12)":"transparent",marginBottom:2}}>
                   <Icono nombre={g.icono} size={18} color={on?"white":"rgba(255,255,255,0.55)"}/>
                   <span style={{flex:1,fontSize:13.5,fontWeight:on?700:500,color:on?"white":"rgba(255,255,255,0.6)"}}>{g.l}</span>
+                  <Globito n={badgeGrupo(g)}/>
                 </button>
               );
             })}
@@ -1377,7 +1393,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             {esStaffColegio&&(
               <button onClick={()=>irA("soporte_colegio")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:sec==="soporte_colegio"?"rgba(255,255,255,0.12)":"transparent",marginBottom:6}}>
                 <Icono nombre="salvavidas" size={18} color={sec==="soporte_colegio"?"white":"rgba(255,255,255,0.55)"}/>
-                <span style={{fontSize:13,fontWeight:sec==="soporte_colegio"?700:500,color:sec==="soporte_colegio"?"white":"rgba(255,255,255,0.6)"}}>Ayuda y soporte</span>
+                <span style={{flex:1,fontSize:13,fontWeight:sec==="soporte_colegio"?700:500,color:sec==="soporte_colegio"?"white":"rgba(255,255,255,0.6)"}}>Ayuda y soporte</span>
+                <Globito n={noLeidos.soporte}/>
               </button>
             )}
             <button onClick={()=>irA("cuenta")} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:sec==="cuenta"?"rgba(255,255,255,0.14)":"rgba(255,255,255,0.06)",textAlign:"left",fontFamily:"inherit"}}>
@@ -1410,7 +1427,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {/* En el celular el título ya está en el selector de sección de arriba. */}
             {isMobile ? null : <div style={{fontSize:isMobile?24:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginBottom:pestanas?14:6}}>{titulo}</div>}
-            {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l}))} activo={sec} onIr={setSec}/>}
+            {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l,badge:badgeDe(i.id)}))} activo={sec} onIr={setSec}/>}
             {info.descripcion&&(
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginTop:pestanas?-4:0}}>
                 <div style={{fontSize:13,color:"#64748B",lineHeight:1.5,maxWidth:640,flex:"1 1 320px"}}>{info.descripcion}</div>
@@ -1459,12 +1476,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             {[
               {icono:"llave", l:"Cambiar contraseña", fn:()=>setCambiarPass(true)},
-              esStaffColegio ? {icono:"salvavidas", l:"Ayuda y soporte", fn:()=>irA("soporte_colegio")} : null,
+              esStaffColegio ? {icono:"salvavidas", l:"Ayuda y soporte", fn:()=>irA("soporte_colegio"), n:noLeidos.soporte} : null,
               {icono:"salir", l:"Cerrar sesión", fn:onCerrarSesion},
             ].filter(Boolean).map((f,i)=>(
               <button key={f.l} onClick={f.fn} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"14px 18px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                 <Icono nombre={f.icono} size={18} color="#475569"/>
                 <span style={{flex:1,fontSize:14.5,fontWeight:600,color:"#0F172A"}}>{f.l}</span>
+                <Globito n={f.n||0}/>
                 <Icono nombre="flecha" size={15} color="#94A3B8"/>
               </button>
             ))}

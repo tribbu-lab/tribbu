@@ -44,6 +44,7 @@ import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
 import { CambiarPasswordModal } from "../auth";
 import { BLUE } from "@shared/tokens";
@@ -90,11 +91,16 @@ const SECCIONES = [
 const TITULO_SUELTA = { soporte_colegio: "Ayuda y soporte", cuenta: "Mi cuenta" };
 
 // Fila de lista con ícono de línea (inicio del panel y Mi cuenta).
-function Fila({ icono, label, onPress, primera }) {
+function Fila({ icono, label, onPress, primera, n = 0 }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.fila, !primera && styles.filaBorde, pressed && { backgroundColor: "#F8FAFC" }]} accessibilityRole="button">
       <MaterialCommunityIcons name={icono} size={21} color="#475569" />
       <Text style={styles.filaTxt}>{label}</Text>
+      {n > 0 ? (
+        <View style={styles.globito}>
+          <Text style={styles.globitoTxt}>{n > 99 ? "99+" : n}</Text>
+        </View>
+      ) : null}
       <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" />
     </Pressable>
   );
@@ -137,6 +143,8 @@ export function SuperAdmin() {
   const [elegirColegio, setElegirColegio] = useState(false);
   const activeColegioId = esColegioAdmin ? miColegioId : colegioSel;
   const [sec, setSec] = useState(null);
+  // Sin leer de Mensajes (familias / personal) y Ayuda: solo el staff del colegio.
+  const noLeidos = useNoLeidosPanel(esColegioAdmin, sec);
   const [anoActual, setAnoActual] = useState(null); // colegios.año_lectivo_actual del colegio activo
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
@@ -644,6 +652,7 @@ export function SuperAdmin() {
   const seccionesVisibles = SECCIONES
     .map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) }))
     .filter((g) => g.items.length);
+  const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
   const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
   const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || "";
@@ -682,11 +691,11 @@ export function SuperAdmin() {
 
           <View style={styles.lista}>
             {seccionesVisibles.map((g, i) => (
-              <Fila key={g.id} icono={g.icono} label={g.l} primera={i === 0} onPress={() => setSec(g.items[0].id)} />
+              <Fila key={g.id} icono={g.icono} label={g.l} primera={i === 0} n={g.items.reduce((t, it) => t + badgeDe(it.id), 0)} onPress={() => setSec(g.items[0].id)} />
             ))}
           </View>
           <View style={styles.lista}>
-            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera onPress={() => setSec("soporte_colegio")} /> : null}
+            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera n={noLeidos.soporte} onPress={() => setSec("soporte_colegio")} /> : null}
             <Fila icono="account-circle-outline" label="Mi cuenta" primera={!esColegioAdmin} onPress={() => setSec("cuenta")} />
           </View>
         </View>
@@ -698,7 +707,7 @@ export function SuperAdmin() {
           </Pressable>
           <Text style={[styles.h1, { marginBottom: 12 }]}>{grupoActivo?.l || TITULO_SUELTA[sec] || ""}</Text>
           {grupoActivo && grupoActivo.items.length > 1 ? (
-            <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l }))} activo={sec} onIr={setSec} />
+            <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l, badge: badgeDe(i.id) }))} activo={sec} onIr={setSec} />
           ) : null}
 
       {sec === "cuenta" ? (
@@ -710,7 +719,7 @@ export function SuperAdmin() {
           </View>
           <View style={styles.lista}>
             <Fila icono="key-outline" label="Cambiar contraseña" primera onPress={() => setCambiarPass(true)} />
-            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" onPress={() => setSec("soporte_colegio")} /> : null}
+            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" n={noLeidos.soporte} onPress={() => setSec("soporte_colegio")} /> : null}
             <Fila icono="logout" label="Cerrar sesión" onPress={logout} />
           </View>
           <CambiarPasswordModal visible={cambiarPass} onClose={() => setCambiarPass(false)} />
@@ -2446,6 +2455,8 @@ const styles = StyleSheet.create({
   fila: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
   filaBorde: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
   filaTxt: { flex: 1, fontSize: 15, fontWeight: "600", color: "#0F172A" },
+  globito: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 999, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+  globitoTxt: { color: "white", fontSize: 11, fontWeight: "700" },
   filaNuevo: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 12 },
   cuentaCard: { backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", padding: 16, marginBottom: 14, gap: 2 },
   statBorde: { borderLeftWidth: 1, borderLeftColor: "#F1F5F9" },

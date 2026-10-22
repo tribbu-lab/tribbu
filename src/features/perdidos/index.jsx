@@ -55,7 +55,7 @@ async function cargarDatos(cursoIds, colegios, userId) {
   return { objetos, misAvisos, avisosDe, reclamados };
 }
 
-function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugerencias, onAvisar, onVerContacto, onVerAvisos, onResuelto, onBorrar, onVerSugerencia }) {
+function Tarjeta({ o, userId, gestiona, comoColegio = false, yaAvise, reclamado, nAvisos, tag, sugerencias, onAvisar, onVerContacto, onVerAvisos, onResuelto, onBorrar, onVerSugerencia }) {
   const cat = categoria(o.categoria);
   const propio = o.publicado_por === userId;
   const resuelta = o.estado === "resuelto";
@@ -96,7 +96,8 @@ function Tarjeta({ o, userId, gestiona, yaAvise, reclamado, nAvisos, tag, sugere
       )}
       {(!propio || gestiona) && (
         <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: "1px solid #F1F5F9", flexWrap: "wrap", alignItems: "center" }}>
-          {!propio && !yaAvise && !resuelta && (
+          {/* El colegio modera y publica; no reclama ni dice que lo tiene. */}
+          {!propio && !comoColegio && !yaAvise && !resuelta && (
             <button onClick={() => onAvisar(o)} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#2563EB", cursor: "pointer", fontFamily: "inherit" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{o.tipo === "encontrado" ? "¡Es mío!" : "Lo tengo yo"}</span>
             </button>
@@ -373,6 +374,7 @@ function Tablero({ cursoIds, cursosPublicar, colegioId, comoColegio, userId, pue
             o={o}
             userId={userId}
             gestiona={gestiona(o)}
+            comoColegio={comoColegio}
             yaAvise={datos.misAvisos.has(o.id)}
             nAvisos={datos.avisosDe[o.id] || 0}
             tag={tagDeCurso?.(o.curso_id)}

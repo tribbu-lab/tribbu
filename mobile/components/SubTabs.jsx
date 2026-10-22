@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   badge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: RADIUS.full, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
   panelScroll: { flexGrow: 0, marginBottom: SPACE.md },
   panelBar: { flexDirection: "row", backgroundColor: SLATE[100], borderRadius: RADIUS.full, padding: 4 },
-  panelItem: { paddingHorizontal: 14, alignItems: "center", justifyContent: "center", minHeight: 38, borderRadius: RADIUS.full },
+  panelItem: { flexDirection: "row", gap: 6, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", minHeight: 38, borderRadius: RADIUS.full },
   badgeTxt: { ...TYPE.pill, fontSize: 10, fontWeight: "700", color: t.textInverse, lineHeight: 14 },
 });
 
@@ -91,6 +91,11 @@ export function PestanasPanel({ items, activo, onIr }) {
             accessibilityState={{ selected: on }}
           >
             <Text style={[styles.lbl, on && styles.lblOn]}>{it.label}</Text>
+            {it.badge > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeTxt}>{it.badge > 9 ? "9+" : it.badge}</Text>
+              </View>
+            ) : null}
           </Pressable>
         );
       })}
