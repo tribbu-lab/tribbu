@@ -85,6 +85,18 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 
+- [ ] **Rediseño del perfil del colegio** (administrador, Secretaría/Dirección
+      por nivel; web + app), pedido 2026-10-21. Hoy el panel usa el layout
+      viejo, lleno de íconos/emojis, y la barra lateral tiene demasiadas
+      opciones. Llevarlo al mismo criterio que el apoderado: pocas secciones,
+      íconos de línea (`Icono`), `BotonNuevo`/`Filtros`/`EmptyState`, sin colores
+      de más.
+- [x] **El directivo ve los chats maestra ↔ familia** de sus niveles: ya
+      estaba hecho con roles por nivel (Mensajes de familias, solo lectura).
+- [x] **Mensajes entre el personal del colegio** (2026-10-22,
+      `supabase/mensajes-personal.sql`): 1 a 1 y grupos entre maestras,
+      Secretarías, Dirección y administración. Falta: que tocar el push abra
+      el panel en el celular del administrador/Secretaría.
 - [ ] **Fotos por evento**: galería privada por evento (acto, excursión) donde
       las familias suben y ven fotos. Reusar el bucket privado `adjuntos` /
       `SignedImg`. Definir: quién sube, moderación, límite por evento.

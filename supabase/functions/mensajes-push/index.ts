@@ -112,6 +112,15 @@ async function pushMensaje(sb: SupabaseClient, mensajeId: string) {
     const autor = await nombreConFamilia(sb, m.autor_id, null);
     title = c.nombre || "Grupo";
     body = recortar(`${autor.nombre.split(" ")[0]}: ${texto}`);
+  } else if (c.tipo === "personal") {
+    // entre el personal del colegio: grupo con nombre, o 1 a 1 con el nombre de quien escribe
+    const autor = await nombreConFamilia(sb, m.autor_id, null);
+    if (c.nombre) {
+      title = c.nombre;
+      body = recortar(`${autor.nombre.split(" ")[0]}: ${texto}`);
+    } else {
+      title = autor.nombre;
+    }
   } else if (c.tipo === "docente") {
     const [{ data: ma }, { data: h }, autor] = await Promise.all([
       sb.from("maestros").select("nombre,apellido,materia").eq("id", c.maestro_id).maybeSingle(),

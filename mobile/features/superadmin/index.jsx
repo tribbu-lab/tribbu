@@ -32,7 +32,7 @@ import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { TalleresColegio } from "../talleres/colegio";
 import { EventosColegio } from "../calendario";
-import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
+import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
 import { HorarioCurso, SemanaMaestra } from "../horarios";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
@@ -65,6 +65,7 @@ const SECCIONES = [
     { id: "autorizaciones", l: "✍️ Autorizaciones" },
     { id: "talleres", l: "🎨 Talleres" },
     { id: "mensajes_familias", l: "💬 Mensajes de familias", soloColegioAdmin: true },
+    { id: "mensajes_personal", l: "🗨️ Mensajes del personal", soloColegioAdmin: true },
     { id: "denuncias", l: "🚩 Denuncias" },
     { id: "adopcion", l: "📈 Adopción" },
   ]},
@@ -879,6 +880,7 @@ export function SuperAdmin() {
       {sec === "soporte" && !esColegioAdmin ? <BandejaSoporte /> : null}
       {sec === "soporte_colegio" ? <SoporteColegioAdmin /> : null}
       {sec === "mensajes_familias" && esColegioAdmin ? <BandejaColegio /> : null}
+      {sec === "mensajes_personal" && esColegioAdmin ? <Mensajes soloPersonal /> : null}
       {sec === "menu" ? (
         <View>
           <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>

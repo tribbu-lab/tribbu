@@ -27,7 +27,7 @@ import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
   fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
-  hijosDeFamilia, metaSoporte, pathFotoMensaje,
+  hijosDeFamilia, metaSoporte, pathFotoMensaje, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
 } from "@shared/mensajes";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -170,7 +170,12 @@ const PESTANAS_NUEVO = [
   { k: "maestras", l: "Maestras" },
   { k: "secretaria", l: "Secretaría" },
 ];
+const PESTANAS_DOCENTE = [
+  { k: "alumnos", l: "Familias" },
+  { k: "personal", l: "Personal" },
+];
 const AYUDA_NUEVO = {
+  personal: "Maestras, Secretarías, Dirección y administración de tu colegio. Las familias no ven estos chats.",
   familias: "Podés escribirle a las familias de los cursos de tus hijos.",
   maestras: "Un chat por cada hijo con cada maestra. El colegio puede leer estas conversaciones.",
   secretaria: "Un chat por cada hijo con la secretaría del colegio.",
@@ -196,15 +201,18 @@ function FilaOpcion({ titulo, sub, avatar, onPress, deshabilitada, abriendo, not
   );
 }
 
-function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null, onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, tagDeCurso }) {
-  const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
+// soloPersonal: el administrador o la Secretaría (panel), que solo le escriben al
+// personal del colegio. La docente ve Familias (de sus alumnos) y Personal.
+function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [], cursosVista = null, onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, tagDeCurso }) {
+  const pestanas = soloPersonal ? [] : esDocente ? PESTANAS_DOCENTE : PESTANAS_NUEVO;
+  const [pestana, setPestana] = useState(soloPersonal ? "personal" : esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({});
   const [q, setQ] = useState("");
   const [abriendo, setAbriendo] = useState(null);
 
   useEffect(() => {
     if (!visible) return undefined;
-    const rpc = { familias: "familias_para_mensaje", maestras: "docentes_para_mensaje", alumnos: "alumnos_para_docente" }[pestana];
+    const rpc = { familias: "familias_para_mensaje", maestras: "docentes_para_mensaje", alumnos: "alumnos_para_docente", personal: "personal_para_mensaje" }[pestana];
     if (!rpc || datos[pestana]) return undefined;
     let vivo = true;
     // Solo lo del perfil elegido en "Mi acceso" (en "Todos", todo).
@@ -247,6 +255,9 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null,
   } else if (pestana === "secretaria") {
     items = hijos.map((h) => ({ key: h.id, titulo: `Secretaría · sobre ${h.nombre}`, sub: h.curso,
       avatar: <Iniciales icono="school-outline" color={SLATE[600]} size={40} />, onPress: () => abrir(h.id, () => onSecretaria(h)) }));
+  } else if (pestana === "personal" && datos.personal) {
+    items = filtrarPersonal(datos.personal, q).map((p) => ({ key: p.usuario_id, titulo: p.nombre, sub: p.cargo,
+      avatar: <Iniciales texto={p.nombre} color={SLATE[600]} size={40} />, onPress: () => abrir(p.usuario_id, () => onPersonal(p)) }));
   } else if (pestana === "alumnos" && datos.alumnos) {
     items = datos.alumnos.filter((a) => coincide(a.nombre, a.apellido, a.curso_nombre)).map((a) => {
       const k = `${a.hijo_id}-${a.maestro_id}`;
@@ -258,9 +269,9 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null,
 
   return (
     <Sheet visible={visible} onClose={onCerrar} title="Nuevo mensaje" style={s.sheetAlto}>
-      {!esDocente ? (
+      {pestanas.length ? (
         <View style={s.tabs} accessibilityRole="tablist">
-          {PESTANAS_NUEVO.map((p) => (
+          {pestanas.map((p) => (
             <Pressable key={p.k} onPress={() => { setPestana(p.k); setQ(""); }} style={[s.tab, pestana === p.k && s.tabOn]} accessibilityRole="tab" accessibilityState={{ selected: pestana === p.k }}>
               <Text style={[s.tabTxt, pestana === p.k && s.tabTxtOn]}>{p.l}</Text>
             </Pressable>
@@ -277,13 +288,18 @@ function NuevoMensajeSheet({ visible, esDocente, hijos = [], cursosVista = null,
           <Button title="A varias familias" icon="📣" variant="outline" size="sm" onPress={onDifusion} full={false} style={s.flex1} />
         </View>
       ) : null}
+      {pestana === "personal" && onCrearGrupoPersonal ? (
+        <View style={s.sheetBotones}>
+          <Button title="Crear un grupo del personal" icon="👥" variant="outline" size="sm" onPress={onCrearGrupoPersonal} full={false} style={s.flex1} />
+        </View>
+      ) : null}
       {cargando ? <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} /> : (
         <FlatList
           data={items}
           keyExtractor={(i) => i.key}
           keyboardShouldPersistTaps="handled"
           style={s.flexShrink}
-          ListEmptyComponent={<Text style={s.vacioTxt}>{tq ? "No encontramos a nadie con ese nombre." : pestana === "maestras" ? "Tu colegio todavía no cargó las maestras de este curso." : "No hay nadie acá todavía."}</Text>}
+          ListEmptyComponent={<Text style={s.vacioTxt}>{tq ? "No encontramos a nadie con ese nombre." : pestana === "maestras" ? "Tu colegio todavía no cargó las maestras de este curso." : pestana === "personal" ? "Todavía no hay más personal del colegio con cuenta." : "No hay nadie acá todavía."}</Text>}
           renderItem={({ item: i }) => <FilaOpcion {...i} abriendo={abriendo === i.key} />}
         />
       )}
@@ -355,7 +371,53 @@ function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir 
   );
 }
 
-function GrupoSheet({ visible, grupo = null, cursos, cursoId = null, onCerrar, onListo }) {
+/** Elegir personal del colegio para un grupo (sin familias). */
+function SelectorPersonal({ seleccion, onChange, max = 50, excluir = SIN_EXCLUIR }) {
+  const [personal, setPersonal] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc("personal_para_mensaje").then(({ data }) => {
+      if (vivo) setPersonal((data || []).filter((p) => !excluir.includes(p.usuario_id)));
+    });
+    return () => { vivo = false; };
+  }, [excluir]);
+  const lista = useMemo(() => filtrarPersonal(personal || [], q), [personal, q]);
+  const sel = new Set(seleccion);
+  const toggle = (id) => {
+    if (sel.has(id)) onChange(seleccion.filter((x) => x !== id));
+    else if (seleccion.length < max) onChange([...seleccion, id]);
+  };
+  if (personal === null) return <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} />;
+  return (
+    <View style={s.flexShrink}>
+      <TextInput value={q} onChangeText={setQ} placeholder="Buscar por nombre o cargo" placeholderTextColor={t.placeholder} style={s.input} autoCorrect={false} accessibilityLabel="Buscar" />
+      <Text style={[s.notaChica, { marginTop: 6 }]}>{seleccion.length} {seleccion.length === 1 ? "elegida" : "elegidas"}{seleccion.length >= max ? ` (máximo ${max})` : ""}</Text>
+      <FlatList
+        data={lista}
+        keyExtractor={(p) => p.usuario_id}
+        keyboardShouldPersistTaps="handled"
+        style={s.flexShrink}
+        ListEmptyComponent={<Text style={s.vacioTxt}>{q ? "No encontramos a nadie con ese nombre." : "No hay más personal para sumar."}</Text>}
+        renderItem={({ item: p }) => {
+          const on = sel.has(p.usuario_id);
+          return (
+            <Pressable onPress={() => toggle(p.usuario_id)} style={[s.filaFamilia, on && s.filaOn]} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+              <MaterialCommunityIcons name={on ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={on ? t.accent : SLATE[400]} />
+              <View style={s.flex1}>
+                <Text style={s.filaTitulo} numberOfLines={1}>{p.nombre}</Text>
+                <Text style={s.filaSub} numberOfLines={1}>{p.cargo}</Text>
+              </View>
+            </Pressable>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
+// personal: grupo del personal del colegio (crear_grupo_personal), sin familias.
+function GrupoSheet({ visible, grupo = null, personal = false, cursos, cursoId = null, onCerrar, onListo }) {
   const [nombre, setNombre] = useState("");
   const [seleccion, setSeleccion] = useState([]);
   const [actuales, setActuales] = useState(null);
@@ -372,11 +434,13 @@ function GrupoSheet({ visible, grupo = null, cursos, cursoId = null, onCerrar, o
   const excluir = useMemo(() => (actuales || []).map((p) => p.usuario_id), [actuales]);
   const guardar = async () => {
     if (!nombre.trim()) { Alert.alert("Poné un nombre al grupo"); return; }
-    if (!grupo && !seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
+    if (!grupo && !seleccion.length) { Alert.alert(personal ? "Elegí al menos una persona" : "Elegí al menos una familia"); return; }
     setGuardando(true);
     const { data, error } = grupo
       ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
-      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
+      : personal
+        ? await supabase.rpc("crear_grupo_personal", { p_nombre: nombre.trim(), p_usuarios: seleccion })
+        : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
     setGuardando(false);
     if (error) { Alert.alert("No se pudo guardar el grupo", error.message); return; }
     onListo(grupo ? grupo.id : data);
@@ -384,7 +448,7 @@ function GrupoSheet({ visible, grupo = null, cursos, cursoId = null, onCerrar, o
   const lugar = MAX_GRUPO - Math.max(0, (actuales?.length || 1) - 1 - quitar.length);
   return (
     <Sheet visible={visible} onClose={onCerrar} title={grupo ? "Editar grupo" : "Nuevo grupo"} style={s.sheetAlto}>
-      <TextInput value={nombre} onChangeText={(v) => setNombre(v.slice(0, 60))} placeholder="Nombre del grupo (ej: Cumple de Juan)" placeholderTextColor={t.placeholder} style={[s.input, { marginBottom: SPACE.sm }]} accessibilityLabel="Nombre del grupo" />
+      <TextInput value={nombre} onChangeText={(v) => setNombre(v.slice(0, 60))} placeholder={personal ? "Nombre del grupo (ej: Equipo de Primaria)" : "Nombre del grupo (ej: Cumple de Juan)"} placeholderTextColor={t.placeholder} style={[s.input, { marginBottom: SPACE.sm }]} accessibilityLabel="Nombre del grupo" />
       {grupo && actuales ? (
         <View style={s.chipsRow}>
           {actuales.filter((p) => !quitar.includes(p.usuario_id)).map((p) => (
@@ -394,8 +458,10 @@ function GrupoSheet({ visible, grupo = null, cursos, cursoId = null, onCerrar, o
           ))}
         </View>
       ) : null}
-      <Text style={s.notaChica}>{grupo ? "Sumar familias:" : "Elegí las familias:"}</Text>
-      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />
+      <Text style={s.notaChica}>{personal ? (grupo ? "Sumar personas:" : "Elegí quiénes participan:") : grupo ? "Sumar familias:" : "Elegí las familias:"}</Text>
+      {personal
+        ? <SelectorPersonal seleccion={seleccion} onChange={setSeleccion} max={Math.max(0, lugar)} excluir={excluir} />
+        : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />}
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
         <Button title={grupo ? "Guardar" : "Crear grupo"} onPress={guardar} loading={guardando} full={false} style={s.flex1} />
@@ -539,7 +605,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   // Lado institucional: qué rol_autor cuenta como "mío" (soporte / colegio).
   const rolStaff = rolPropio || (staff ? "soporte" : null);
   // Hilos con más de dos personas: cada mensaje lleva quién lo firmó.
-  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente";
+  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente" || esGrupoPersonal(conv);
   // Grupos de familias: bloquear autores (se ocultan sus mensajes); modera la
   // Room Parent (curso) o quien creó el grupo (conv.modero).
   const grupal = conv.tipo === "curso" || conv.tipo === "grupo";
@@ -864,11 +930,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       <Sheet visible={menu} onClose={() => setMenu(false)} title="Opciones">
         {!staff ? <MenuFila icono={silenciado ? "bell-outline" : "bell-off-outline"} texto={silenciado ? "Activar notificaciones" : "Silenciar"} onPress={toggleSilencio} /> : null}
         {conv.tipo === "directo" ? <MenuFila icono={bloqueado ? "account-check-outline" : "account-cancel-outline"} texto={bloqueado ? "Desbloquear" : "Bloquear"} peligro={!bloqueado} onPress={toggleBloqueo} /> : null}
-        {conv.tipo === "grupo" ? <MenuFila icono="account-group-outline" texto="Participantes" onPress={() => { setMenu(false); setVerParticipantes(true); }} /> : null}
-        {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuFila icono="pencil-outline" texto="Editar grupo" onPress={() => { setMenu(false); onEditarGrupo(); }} /> : null}
-        {conv.tipo === "grupo" ? <MenuFila icono="exit-run" texto="Salir del grupo" peligro onPress={salirDelGrupo} /> : null}
-        {conv.tipo === "grupo" && conv.creado_por === userId ? <MenuFila icono="trash-can-outline" texto="Eliminar grupo" peligro onPress={eliminarGrupo} /> : null}
-        {conv.tipo === "directo" ? <MenuFila icono="trash-can-outline" texto="Borrar chat" peligro onPress={borrarChat} /> : null}
+        {esGrupoPropio(conv) ? <MenuFila icono="account-group-outline" texto="Participantes" onPress={() => { setMenu(false); setVerParticipantes(true); }} /> : null}
+        {esGrupoPropio(conv) && conv.creado_por === userId && onEditarGrupo ? <MenuFila icono="pencil-outline" texto="Editar grupo" onPress={() => { setMenu(false); onEditarGrupo(); }} /> : null}
+        {esGrupoPropio(conv) ? <MenuFila icono="exit-run" texto="Salir del grupo" peligro onPress={salirDelGrupo} /> : null}
+        {esGrupoPropio(conv) && conv.creado_por === userId ? <MenuFila icono="trash-can-outline" texto="Eliminar grupo" peligro onPress={eliminarGrupo} /> : null}
+        {conv.tipo === "directo" || (conv.tipo === "personal" && !esGrupoPersonal(conv)) ? <MenuFila icono="trash-can-outline" texto="Borrar chat" peligro onPress={borrarChat} /> : null}
         {staff && esSoporte ? <MenuFila icono={estado === "resuelta" ? "restore" : "check-circle-outline"} texto={estado === "resuelta" ? "Reabrir" : "Marcar resuelto"} onPress={cambiarEstadoSoporte} /> : null}
       </Sheet>
 
@@ -1014,7 +1080,7 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   const esSoporte = c.tipo === "soporte";
   return (
     <Pressable onPress={onPress} style={s.fila} accessibilityRole="button" accessibilityLabel={`${c.titulo}${c.no_leidos ? `, ${c.no_leidos} sin leer` : ""}`}>
-      {esSoporte ? <Iniciales icono="lifebuoy" color={SLATE[700]} /> : c.tipo === "curso" ? <Iniciales icono="account-group-outline" color={BLUE[600]} /> : c.tipo === "grupo" ? <Iniciales icono="forum-outline" color={SLATE[600]} /> : c.tipo === "colegio" ? <Iniciales icono="school-outline" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Iniciales icono="human-male-board" color={SLATE[600]} /> : <Iniciales texto={c.titulo} />}
+      {esSoporte ? <Iniciales icono="lifebuoy" color={SLATE[700]} /> : c.tipo === "curso" ? <Iniciales icono="account-group-outline" color={BLUE[600]} /> : esGrupoPropio(c) ? <Iniciales icono="forum-outline" color={SLATE[600]} /> : c.tipo === "colegio" ? <Iniciales icono="school-outline" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Iniciales icono="human-male-board" color={SLATE[600]} /> : <Iniciales texto={c.titulo} />}
       <View style={s.flex1}>
         <View style={s.rowCenter}>
           <Text style={[s.filaTitulo, s.flex1, c.no_leidos ? s.bold : null]} numberOfLines={1}>{c.titulo}{c.silenciado ? " 🔕" : ""}</Text>
@@ -1037,7 +1103,9 @@ const FilaConversacion = memo(function FilaConversacion({ c, userId, tag, onPres
   );
 });
 
-export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, abrirDocente = null, abrirSecretaria = null, abrirArticulo = null, nonce = null }) {
+// soloPersonal: panel del colegio (administrador / Secretaría) → solo los chats
+// con el personal; los de familias siguen en "Mensajes de familias".
+export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false, abrirUsuario = null, abrirAlumno = null, abrirDocente = null, abrirSecretaria = null, abrirArticulo = null, nonce = null, soloPersonal = false }) {
   const { usuario, items, tagDeCurso, esDocente, hijoActivoId, cursoIds, esVistaTodos } = useSession();
   const cursoPerfil = !esVistaTodos && cursoIds?.length === 1 ? cursoIds[0] : null;
   const userId = usuario?.id ?? null;
@@ -1047,7 +1115,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null);
   const [nuevo, setNuevo] = useState(false);
-  const [grupoSheet, setGrupoSheet] = useState(null); // { grupo: null | conv }
+  const [grupoSheet, setGrupoSheet] = useState(null); // { grupo: null | conv, personal? }
   const [difusion, setDifusion] = useState(false);
   const [normas, setNormas] = useState(null); // callback tras aceptar
   const visto = useRef(null);
@@ -1121,6 +1189,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     { tipo: "docente", titulo: `${d.nombre} ${d.apellido || ""}`.trim(), subtitulo: [d.materia, `Sobre ${d.hijo_nombre}`].filter(Boolean).join(" · ") });
   const onSecretaria = (h) => abrirPorRpc("abrir_conversacion_colegio", { p_hijo: h.id },
     { tipo: "colegio", titulo: "Secretaría", subtitulo: `Sobre ${h.nombre}` });
+  const onPersonal = (p) => abrirPorRpc("abrir_conversacion_personal", { p_usuario: p.usuario_id },
+    { tipo: "personal", otro_id: p.usuario_id, titulo: p.nombre, subtitulo: p.cargo });
   const onAlumno = (a) => abrirPorRpc("abrir_conversacion_docente", { p_hijo: a.hijo_id, p_maestro: a.maestro_id },
     { tipo: "docente", titulo: `Familia de ${a.nombre} ${a.apellido || ""}`.trim(), subtitulo: a.curso_nombre });
   // Marketplace: 1 a 1 por un artículo, aunque no compartan curso. El primer
@@ -1176,7 +1246,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const soporte = lista.find((c) => c.tipo === "soporte") || SOPORTE_VACIO;
   // Perfil elegido: la lista muestra solo lo de ese hijo (soporte siempre).
   const enPerfil = (c) => {
-    if (!cursoPerfil) return true;
+    if (soloPersonal) return c.tipo === "personal";
+    if (!cursoPerfil || c.tipo === "personal") return true;
     if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
     // Un 1 a 1 anclado a un curso que no es mío (Marketplace con otro curso) se ve en todos los perfiles.
     return !c.curso_id || c.curso_id === cursoPerfil || !cursosMios.some((x) => x.id === c.curso_id);
@@ -1196,36 +1267,34 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         // no se puede presentar un Modal arriba de otro.
         onEditarGrupo={() => { const g = activaFresca; setActiva(null); setGrupoSheet({ grupo: g }); }}
         onSalioGrupo={() => { setActiva(null); onCambio(); }} />
-      <NuevoMensajeSheet key={`${esDocente ? "doc" : "fam"}-${hijoActivoId || (esVistaTodos ? "todos" : cursoIds.join(","))}`} visible={nuevo} esDocente={esDocente}
+      <NuevoMensajeSheet key={`${soloPersonal ? "per" : esDocente ? "doc" : "fam"}-${hijoActivoId || (esVistaTodos ? "todos" : cursoIds.join(","))}`} visible={nuevo} esDocente={esDocente} soloPersonal={soloPersonal}
         hijos={hijoActivoId ? hijos.filter((h) => h.id === hijoActivoId) : hijos} cursosVista={esVistaTodos ? null : cursoIds} onCerrar={() => setNuevo(false)} tagDeCurso={tagDeCurso}
-        onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
+        onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} onPersonal={onPersonal}
+        onCrearGrupoPersonal={esDocente || soloPersonal ? () => { setNuevo(false); setTimeout(() => setGrupoSheet({ grupo: null, personal: true }), 350); } : null}
         onCrearGrupo={esDocente ? null : () => { setNuevo(false); setTimeout(() => conNormas(() => setGrupoSheet({ grupo: null })), 350); }}
         onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />
-      <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoSheet(null)}
-        onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: "grupo", titulo: "Grupo", creado_por: userId }); }} />
+      <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} personal={!!grupoSheet?.personal || esGrupoPersonal(grupoSheet?.grupo)} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoSheet(null)}
+        onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: grupoSheet?.personal ? "personal" : "grupo", titulo: "Grupo", creado_por: userId }); }} />
       <DifusionSheet visible={difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setDifusion(false)}
         onListo={(n, omitidos) => { setDifusion(false); onCambio(); Alert.alert("Mensaje enviado", `Le llegó a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       <NormasSheet visible={!!normas} userId={userId} onCerrar={() => setNormas(null)}
         onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn?.(); }} />
 
-      <FlatList
-        data={otras}
-        keyExtractor={(c) => c.id}
-        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
-        contentContainerStyle={s.listaContenido}
-        ListHeaderComponent={
+      {soloPersonal ? (
+        // Dentro del panel (que ya es un ScrollView): lista común, sin FlatList anidada.
+        <View>
           <View>
             <View style={s.tituloRow}>
               {/* El título lo da la pestaña "Mensajes" de Comunicaciones. */}
               <View style={s.flex1}>
-                <Text style={s.subFila}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</Text>
+                <Text style={s.subFila}>{soloPersonal ? "Con maestras, Secretarías y Dirección" : esDocente ? "Con las familias de tus alumnos y el personal" : "Con familias, maestras y Secretaría"}</Text>
               </View>
               <BotonNuevo onPress={() => setNuevo(true)} accessibilityLabel="Nuevo mensaje" />
             </View>
             <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar en mensajes…" />
             {/* Soporte tribbu se abre desde Mi cuenta → Ayuda y soporte; acá solo
                 aparece cuando el equipo respondió y está sin leer. */}
-            {soporte.no_leidos > 0 ? (
+            {!soloPersonal && soporte.no_leidos > 0 ? (
               <View style={s.card}>
                 <FilaConversacion c={soporte} userId={userId} onPress={abrirSoporte} />
               </View>
@@ -1233,16 +1302,51 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
             {convs === null ? <ActivityIndicator style={{ marginTop: SPACE.xl }} color={t.accent} /> : null}
             {otras.length ? <Text style={s.label}>Conversaciones</Text> : null}
           </View>
-        }
-        ListEmptyComponent={convs ? (
-          <EmptyState icon="message-outline" title="Todavía no tenés conversaciones" note={esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
+          {otras.length ? otras.map((c) => (
+            <View key={c.id} style={s.cardFila}>
+              <FilaConversacion c={c} userId={userId} esDocente={esDocente} onPress={() => setActiva(c)} />
+            </View>
+          )) : convs ? (
+          <EmptyState icon="message-outline" title="Todavía no tenés conversaciones" note={soloPersonal ? "Escribile a una maestra, a otra Secretaría o a Dirección, o armá un grupo del personal." : esDocente ? "Escribile a la familia de un alumno o a alguien del personal del colegio, sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
         ) : null}
-        renderItem={({ item: c }) => (
-          <View style={s.cardFila}>
-            <FilaConversacion c={c} userId={userId} esDocente={esDocente} tag={c.tipo === "directo" ? tagDeCurso?.(c.curso_id) : null} onPress={() => setActiva(c)} />
-          </View>
-        )}
-      />
+        </View>
+      ) : (
+        <FlatList
+          data={otras}
+          keyExtractor={(c) => c.id}
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}
+          contentContainerStyle={s.listaContenido}
+          ListHeaderComponent={
+            <View>
+              <View style={s.tituloRow}>
+                {/* El título lo da la pestaña "Mensajes" de Comunicaciones. */}
+                <View style={s.flex1}>
+                  <Text style={s.subFila}>{soloPersonal ? "Con maestras, Secretarías y Dirección" : esDocente ? "Con las familias de tus alumnos y el personal" : "Con familias, maestras y Secretaría"}</Text>
+                </View>
+                <BotonNuevo onPress={() => setNuevo(true)} accessibilityLabel="Nuevo mensaje" />
+              </View>
+              <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar en mensajes…" />
+              {/* Soporte tribbu se abre desde Mi cuenta → Ayuda y soporte; acá solo
+                  aparece cuando el equipo respondió y está sin leer. */}
+              {!soloPersonal && soporte.no_leidos > 0 ? (
+                <View style={s.card}>
+                  <FilaConversacion c={soporte} userId={userId} onPress={abrirSoporte} />
+                </View>
+              ) : null}
+              {convs === null ? <ActivityIndicator style={{ marginTop: SPACE.xl }} color={t.accent} /> : null}
+              {otras.length ? <Text style={s.label}>Conversaciones</Text> : null}
+            </View>
+          }
+          ListEmptyComponent={convs ? (
+            <EmptyState icon="message-outline" title="Todavía no tenés conversaciones" note={soloPersonal ? "Escribile a una maestra, a otra Secretaría o a Dirección, o armá un grupo del personal." : esDocente ? "Escribile a la familia de un alumno o a alguien del personal del colegio, sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
+          ) : null}
+          renderItem={({ item: c }) => (
+            <View style={s.cardFila}>
+              <FilaConversacion c={c} userId={userId} esDocente={esDocente} tag={c.tipo === "directo" ? tagDeCurso?.(c.curso_id) : null} onPress={() => setActiva(c)} />
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }

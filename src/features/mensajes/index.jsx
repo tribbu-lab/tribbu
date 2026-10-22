@@ -28,7 +28,7 @@ import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
   fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
-  hijosDeFamilia, metaSoporte, pathFotoMensaje,
+  hijosDeFamilia, metaSoporte, pathFotoMensaje, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
 } from "../../lib/mensajes";
 
 const C = THEMES.light;
@@ -181,16 +181,23 @@ const PESTANAS_NUEVO = [
   { k: "maestras", l: "Maestras" },
   { k: "secretaria", l: "Secretaría" },
 ];
+const PESTANAS_DOCENTE = [
+  { k: "alumnos", l: "Familias" },
+  { k: "personal", l: "Personal" },
+];
 
-function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamilia, onDocente, onSecretaria, onAlumno, onCrearGrupo, onDifusion, onCerrar, tagDeCurso }) {
-  const [pestana, setPestana] = useState(esDocente ? "alumnos" : "familias");
+// soloPersonal: el administrador o la Secretaría (panel del colegio), que solo
+// le escriben al personal. La docente ve Familias (de sus alumnos) y Personal.
+function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursosVista = null, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, onCerrar, tagDeCurso }) {
+  const pestanas = soloPersonal ? [] : esDocente ? PESTANAS_DOCENTE : PESTANAS_NUEVO;
+  const [pestana, setPestana] = useState(soloPersonal ? "personal" : esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({}); // por pestaña
   const [q, setQ] = useState("");
   const [abriendo, setAbriendo] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const rpc = { familias: "familias_para_mensaje", maestras: "docentes_para_mensaje", alumnos: "alumnos_para_docente" }[pestana];
+    const rpc = { familias: "familias_para_mensaje", maestras: "docentes_para_mensaje", alumnos: "alumnos_para_docente", personal: "personal_para_mensaje" }[pestana];
     if (!rpc || datos[pestana]) return undefined;
     let vivo = true;
     supabase.rpc(rpc).then(({ data, error: e }) => {
@@ -256,6 +263,13 @@ function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamili
         avatar={<Avatar emoji="🏫" color={SLATE[600]} />} sub={h.curso || null}
         onClick={() => abrir(h.id, () => onSecretaria(h))} />
     )) : <Vacio texto="No tenés hijos cargados." />;
+  } else if (pestana === "personal" && datos.personal) {
+    const lista = filtrarPersonal(datos.personal, q);
+    contenido = lista.length ? lista.map((p) => (
+      <FilaOpcion key={p.usuario_id} titulo={p.nombre} sub={p.cargo} abriendo={abriendo === p.usuario_id}
+        avatar={<Avatar texto={p.nombre} color={SLATE[600]} />}
+        onClick={() => abrir(p.usuario_id, () => onPersonal(p))} />
+    )) : <Vacio texto={t ? "No encontramos a nadie con ese nombre." : "Todavía no hay más personal del colegio con cuenta."} />;
   } else if (pestana === "alumnos" && datos.alumnos) {
     const lista = datos.alumnos.filter((a) => coincide(a.nombre, a.apellido, a.curso_nombre));
     contenido = lista.length ? lista.map((a) => (
@@ -271,6 +285,7 @@ function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamili
     maestras: "Un chat por cada hijo con cada maestra. El colegio puede leer estas conversaciones.",
     secretaria: "Un chat por cada hijo con la secretaría del colegio.",
     alumnos: "Escribile a la familia de un alumno. El colegio puede leer estas conversaciones.",
+    personal: "Maestras, Secretarías, Dirección y administración de tu colegio. Las familias no ven estos chats.",
   }[pestana];
 
   return (
@@ -281,9 +296,9 @@ function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamili
             <div id="nuevo-titulo" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>Nuevo mensaje</div>
             <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
           </div>
-          {!esDocente ? (
+          {pestanas.length ? (
             <div role="tablist" style={{ display: "flex", gap: 4, background: C.surface2, borderRadius: 10, padding: 3, marginBottom: 10 }}>
-              {PESTANAS_NUEVO.map((p) => (
+              {pestanas.map((p) => (
                 <button key={p.k} role="tab" aria-selected={pestana === p.k} onClick={() => { setPestana(p.k); setQ(""); setError(""); }}
                   style={{ flex: 1, padding: "8px 6px", borderRadius: 8, border: "none", background: pestana === p.k ? C.surface : "transparent", color: pestana === p.k ? C.textStrong : C.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: pestana === p.k ? "0 1px 2px rgba(15,23,42,0.08)" : "none" }}>{p.l}</button>
               ))}
@@ -304,8 +319,54 @@ function NuevoMensajeModal({ esDocente, hijos = [], cursosVista = null, onFamili
               <button type="button" onClick={onDifusion} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>📣 A varias familias</button>
             </div>
           ) : null}
+          {pestana === "personal" && onCrearGrupoPersonal ? (
+            <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px" }}>
+              <button type="button" onClick={onCrearGrupoPersonal} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>👥 Crear un grupo del personal</button>
+            </div>
+          ) : null}
           {contenido}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Elegir personal del colegio para un grupo (sin familias). */
+function SelectorPersonal({ seleccion, onChange, max = 50, excluir = SIN_EXCLUIR }) {
+  const [personal, setPersonal] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc("personal_para_mensaje").then(({ data }) => {
+      if (vivo) setPersonal((data || []).filter((p) => !excluir.includes(p.usuario_id)));
+    });
+    return () => { vivo = false; };
+  }, [excluir]);
+  const lista = useMemo(() => filtrarPersonal(personal || [], q), [personal, q]);
+  const sel = new Set(seleccion);
+  const toggle = (id) => {
+    if (sel.has(id)) onChange(seleccion.filter((x) => x !== id));
+    else if (seleccion.length < max) onChange([...seleccion, id]);
+  };
+  if (personal === null) return <Spinner />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o cargo" aria-label="Buscar"
+        style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", outline: "none", background: C.surfaceSunken, marginBottom: 6 }} />
+      <div style={{ fontSize: 11.5, color: seleccion.length >= max ? C.warning : C.textFaint, marginBottom: 6 }}>
+        {seleccion.length} {seleccion.length === 1 ? "elegida" : "elegidas"}{seleccion.length >= max ? ` (máximo ${max})` : ""}
+      </div>
+      <div style={{ overflowY: "auto", flex: 1, minHeight: 120 }}>
+        {!lista.length ? <Vacio texto={q ? "No encontramos a nadie con ese nombre." : "No hay más personal para sumar."} /> : null}
+        {lista.map((p) => (
+          <label key={p.usuario_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderRadius: 10, cursor: "pointer", background: sel.has(p.usuario_id) ? C.accentSoft : "transparent" }}>
+            <input type="checkbox" checked={sel.has(p.usuario_id)} onChange={() => toggle(p.usuario_id)} />
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: C.textStrong }}>{p.nombre}</span>
+              <span style={{ display: "block", fontSize: 12, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.cargo}</span>
+            </span>
+          </label>
+        ))}
       </div>
     </div>
   );
@@ -380,7 +441,8 @@ function SelectorFamilias({ seleccion, onChange, cursos = [], max = 50, excluir 
 }
 
 /** Crear un grupo propio, o editarlo (grupo = { id, titulo }). */
-function GrupoModal({ grupo = null, cursos, cursoId = null, onCerrar, onListo }) {
+// personal: grupo del personal del colegio (crear_grupo_personal), sin familias.
+function GrupoModal({ grupo = null, personal = false, cursos, cursoId = null, onCerrar, onListo }) {
   const [nombre, setNombre] = useState(grupo?.titulo || "");
   const [seleccion, setSeleccion] = useState([]);
   const [actuales, setActuales] = useState(null); // participantes (solo editar)
@@ -396,11 +458,13 @@ function GrupoModal({ grupo = null, cursos, cursoId = null, onCerrar, onListo })
   const excluir = useMemo(() => (actuales || []).map((p) => p.usuario_id), [actuales]);
   const guardar = async () => {
     if (!nombre.trim()) { setError("Poné un nombre al grupo."); return; }
-    if (!grupo && !seleccion.length) { setError("Elegí al menos una familia."); return; }
+    if (!grupo && !seleccion.length) { setError(personal ? "Elegí al menos una persona." : "Elegí al menos una familia."); return; }
     setGuardando(true); setError("");
     const { data, error: e } = grupo
       ? await supabase.rpc("editar_grupo", { p_conv: grupo.id, p_nombre: nombre.trim(), p_agregar: seleccion, p_quitar: quitar })
-      : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
+      : personal
+        ? await supabase.rpc("crear_grupo_personal", { p_nombre: nombre.trim(), p_usuarios: seleccion })
+        : await supabase.rpc("crear_grupo", { p_nombre: nombre.trim(), p_usuarios: seleccion, p_curso: cursoId });
     setGuardando(false);
     if (e) { setError(e.message || "No se pudo guardar el grupo."); return; }
     onListo(grupo ? grupo.id : data);
@@ -413,7 +477,7 @@ function GrupoModal({ grupo = null, cursos, cursoId = null, onCerrar, onListo })
           <div id="grupo-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{grupo ? "Editar grupo" : "Nuevo grupo"}</div>
           <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
         </div>
-        <input value={nombre} onChange={(e) => setNombre(e.target.value.slice(0, 60))} placeholder="Nombre del grupo (ej: Cumple de Juan)" aria-label="Nombre del grupo"
+        <input value={nombre} onChange={(e) => setNombre(e.target.value.slice(0, 60))} placeholder={personal ? "Nombre del grupo (ej: Equipo de Primaria)" : "Nombre del grupo (ej: Cumple de Juan)"} aria-label="Nombre del grupo"
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", outline: "none", marginBottom: 10 }} />
         {grupo && actuales ? (
           <div style={{ marginBottom: 10 }}>
@@ -428,8 +492,10 @@ function GrupoModal({ grupo = null, cursos, cursoId = null, onCerrar, onListo })
             </div>
           </div>
         ) : null}
-        <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>{grupo ? "Sumar familias" : "Elegí las familias"}</div>
-        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>{personal ? (grupo ? "Sumar personas" : "Elegí quiénes participan") : grupo ? "Sumar familias" : "Elegí las familias"}</div>
+        {personal
+          ? <SelectorPersonal seleccion={seleccion} onChange={setSeleccion} max={Math.max(0, lugar)} excluir={excluir} />
+          : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={Math.max(0, lugar)} excluir={excluir} soloDe={cursoId ? [cursoId] : null} />}
         {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
@@ -543,7 +609,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const rolStaff = rolPropio || (staff ? "soporte" : null);
   const esSoporte = conv.tipo === "soporte";
   // Hilos con más de dos personas: cada mensaje lleva quién lo firmó.
-  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente";
+  const multi = conv.tipo === "curso" || conv.tipo === "grupo" || conv.tipo === "colegio" || conv.tipo === "docente" || esGrupoPersonal(conv);
   // Grupos de familias: se pueden bloquear autores (sus mensajes se ocultan) y
   // modera la Room Parent (curso) o quien creó el grupo.
   const grupal = conv.tipo === "curso" || conv.tipo === "grupo";
@@ -838,11 +904,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
               <div role="menu" style={{ position: "absolute", right: 0, top: 44, zIndex: 21, background: C.surface, border: `1px solid ${C.borderStrong}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", minWidth: 220, overflow: "hidden" }}>
                 {!staff ? <MenuItem onClick={toggleSilencio}>{silenciado ? "🔔 Activar notificaciones" : "🔕 Silenciar"}</MenuItem> : null}
                 {conv.tipo === "directo" ? <MenuItem onClick={toggleBloqueo} peligro={!bloqueado}>{bloqueado ? "Desbloquear" : "🚫 Bloquear"}</MenuItem> : null}
-                {conv.tipo === "grupo" ? <MenuItem onClick={() => { setMenu(false); setVerParticipantes(true); }}>👥 Participantes</MenuItem> : null}
-                {conv.tipo === "grupo" && conv.creado_por === userId && onEditarGrupo ? <MenuItem onClick={() => { setMenu(false); onEditarGrupo(); }}>✏️ Editar grupo</MenuItem> : null}
-                {conv.tipo === "grupo" ? <MenuItem onClick={salirDelGrupo} peligro>🚪 Salir del grupo</MenuItem> : null}
-                {conv.tipo === "grupo" && conv.creado_por === userId ? <MenuItem onClick={eliminarGrupo} peligro>🗑 Eliminar grupo</MenuItem> : null}
-                {conv.tipo === "directo" ? <MenuItem onClick={borrarChat} peligro>🗑 Borrar chat</MenuItem> : null}
+                {esGrupoPropio(conv) ? <MenuItem onClick={() => { setMenu(false); setVerParticipantes(true); }}>👥 Participantes</MenuItem> : null}
+                {esGrupoPropio(conv) && conv.creado_por === userId && onEditarGrupo ? <MenuItem onClick={() => { setMenu(false); onEditarGrupo(); }}>✏️ Editar grupo</MenuItem> : null}
+                {esGrupoPropio(conv) ? <MenuItem onClick={salirDelGrupo} peligro>🚪 Salir del grupo</MenuItem> : null}
+                {esGrupoPropio(conv) && conv.creado_por === userId ? <MenuItem onClick={eliminarGrupo} peligro>🗑 Eliminar grupo</MenuItem> : null}
+                {conv.tipo === "directo" || (conv.tipo === "personal" && !esGrupoPersonal(conv)) ? <MenuItem onClick={borrarChat} peligro>🗑 Borrar chat</MenuItem> : null}
                 {staff && esSoporte ? <MenuItem onClick={cambiarEstadoSoporte}>{estado === "resuelta" ? "↩︎ Reabrir" : "✓ Marcar resuelto"}</MenuItem> : null}
               </div>
             </>
@@ -1058,7 +1124,7 @@ function FilaConversacion({ c, activa, userId, onClick, tagDeCurso, esDocente })
   return (
     <button onClick={onClick} aria-current={activa ? "true" : undefined}
       style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "none", background: activa ? C.accentSoft : "transparent", borderRadius: 12, cursor: "pointer", textAlign: "left", minHeight: 64, fontFamily: "inherit" }}>
-      {esSoporte ? <Avatar emoji="🛟" color={SLATE[700]} /> : c.tipo === "curso" ? <Avatar emoji="👥" color={BLUE[600]} /> : c.tipo === "grupo" ? <Avatar emoji="💬" color={SLATE[600]} /> : c.tipo === "colegio" ? <Avatar emoji="🏫" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Avatar emoji="👩‍🏫" color={SLATE[600]} /> : <Avatar texto={c.titulo} />}
+      {esSoporte ? <Avatar emoji="🛟" color={SLATE[700]} /> : c.tipo === "curso" ? <Avatar emoji="👥" color={BLUE[600]} /> : esGrupoPropio(c) ? <Avatar emoji="💬" color={SLATE[600]} /> : c.tipo === "colegio" ? <Avatar emoji="🏫" color={SLATE[600]} /> : c.tipo === "docente" && !esDocente ? <Avatar emoji="👩‍🏫" color={SLATE[600]} /> : <Avatar texto={c.titulo} />}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: c.no_leidos ? 800 : 700, color: C.textStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1093,7 +1159,9 @@ const SOPORTE_VACIO = { id: null, tipo: "soporte", titulo: "Soporte tribbu", ult
 // muestra solo lo de ese hijo (maestras, Secretaría) y de su curso (familias);
 // en "Todos" (hijoActivoId null) muestra todo. La lista de conversaciones no se
 // filtra: un chat no depende del hijo activo.
-export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false, hijoActivoId = null, cursoIds = null }) {
+// soloPersonal: panel del colegio (administrador / Secretaría) → solo los chats
+// con el personal del colegio; los de familias siguen en "Mensajes de familias".
+export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false, soloPersonal = false, hijoActivoId = null, cursoIds = null }) {
   const [convs, setConvs] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [normasOk, setNormasOk] = useState(true);
@@ -1118,7 +1186,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", medir); };
   }, [isMobile, tabVisible]);
   const [nuevo, setNuevo] = useState(false);
-  const [grupoModal, setGrupoModal] = useState(null); // { grupo: null | conv } — crear/editar grupo propio
+  const [grupoModal, setGrupoModal] = useState(null); // { grupo: null | conv, personal? } — crear/editar grupo propio
   const [difusion, setDifusion] = useState(false);
   const [aviso, setAviso] = useState("");
   const [normas, setNormas] = useState(null); // callback tras aceptar
@@ -1211,6 +1279,8 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     { tipo: "docente", titulo: `${d.nombre} ${d.apellido || ""}`.trim(), subtitulo: [d.materia, `Sobre ${d.hijo_nombre}`].filter(Boolean).join(" · ") });
   const onSecretaria = (h) => abrirPorRpc("abrir_conversacion_colegio", { p_hijo: h.id },
     { tipo: "colegio", titulo: "Secretaría", subtitulo: `Sobre ${h.nombre}` });
+  const onPersonal = (p) => abrirPorRpc("abrir_conversacion_personal", { p_usuario: p.usuario_id },
+    { tipo: "personal", otro_id: p.usuario_id, titulo: p.nombre, subtitulo: p.cargo });
   const onAlumno = (a) => abrirPorRpc("abrir_conversacion_docente", { p_hijo: a.hijo_id, p_maestro: a.maestro_id },
     { tipo: "docente", titulo: `Familia de ${a.nombre} ${a.apellido || ""}`.trim(), subtitulo: a.curso_nombre });
 
@@ -1251,7 +1321,8 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   // Perfil elegido en "Mi acceso": la lista muestra solo lo de ese hijo (sus
   // cursos; Secretaría/maestras por hijo). Soporte siempre. En "Todos", todo.
   const enPerfil = (c) => {
-    if (!cursoPerfil) return true;
+    if (soloPersonal) return c.tipo === "personal";
+    if (!cursoPerfil || c.tipo === "personal") return true;
     if (c.tipo === "colegio" || (c.tipo === "docente" && !esDocente)) return !hijoActivoId || c.hijo_id === hijoActivoId;
     // Un 1 a 1 anclado a un curso que no es mío (Marketplace con otro curso) se ve en todos los perfiles.
     return !c.curso_id || c.curso_id === cursoPerfil || !cursosMios.some((x) => x.id === c.curso_id);
@@ -1271,7 +1342,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: isMobile ? "0 0 12px" : "4px 4px 12px" }}>
         {/* El título lo da la pestaña "Mensajes" de Comunicaciones. */}
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.textMuted }}>{esDocente ? "Con las familias de tus alumnos" : "Con familias, maestras y Secretaría"}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.textMuted }}>{soloPersonal ? "Con maestras, Secretarías y Dirección" : esDocente ? "Con las familias de tus alumnos y el personal" : "Con familias, maestras y Secretaría"}</div>
         <BotonNuevo onClick={() => setNuevo(true)} ariaLabel="Nuevo mensaje" />
       </div>
       <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar en mensajes…" style={{ marginBottom: 8 }} />
@@ -1280,7 +1351,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
         {/* Soporte tribbu se abre desde Mi cuenta → Ayuda y soporte; acá solo
             aparece cuando el equipo respondió y está sin leer (o está abierto). */}
-        {soporte.no_leidos > 0 || activa?.tipo === "soporte" ? (
+        {!soloPersonal && (soporte.no_leidos > 0 || activa?.tipo === "soporte") ? (
           <>
             <FilaConversacion c={soporte} activa={activa?.tipo === "soporte"} userId={userId} onClick={abrirSoporte} />
             <div style={{ height: 1, background: C.border, margin: "6px 12px" }} />
@@ -1290,7 +1361,7 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
         {convs && !otras.length ? (
           // Sin botón propio: se escribe con "+ Nuevo", que está arriba.
           <EmptyState icono="mensaje" titulo="Todavía no tenés conversaciones" style={{ margin: "8px 4px" }}
-            nota={esDocente ? "Escribile a la familia de un alumno sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
+            nota={soloPersonal ? "Escribile a una maestra, a otra Secretaría o a Dirección, o armá un grupo del personal." : esDocente ? "Escribile a la familia de un alumno o a alguien del personal del colegio, sin compartir tu teléfono." : "Escribile a otra familia, a una maestra o a Secretaría sin compartir tu teléfono."} />
         ) : null}
         {otras.map((c) => (
           <FilaConversacion key={c.id} c={c} activa={activa?.id === c.id} userId={userId} tagDeCurso={tagDeCurso} esDocente={esDocente} onClick={() => setActiva(c)} />
@@ -1315,14 +1386,15 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   return (
     <>
       {nuevo ? (
-        <NuevoMensajeModal esDocente={esDocente} hijos={hijoActivoId ? hijos.filter((h) => h.id === hijoActivoId) : hijos} cursosVista={cursoIds} tagDeCurso={tagDeCurso} onCerrar={() => setNuevo(false)}
-          onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno}
+        <NuevoMensajeModal esDocente={esDocente} soloPersonal={soloPersonal} hijos={hijoActivoId ? hijos.filter((h) => h.id === hijoActivoId) : hijos} cursosVista={cursoIds} tagDeCurso={tagDeCurso} onCerrar={() => setNuevo(false)}
+          onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} onPersonal={onPersonal}
+          onCrearGrupoPersonal={esDocente || soloPersonal ? () => { setNuevo(false); setGrupoModal({ grupo: null, personal: true }); } : null}
           onCrearGrupo={esDocente ? null : () => { setNuevo(false); conNormas(() => setGrupoModal({ grupo: null })); }}
           onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }} />
       ) : null}
       {grupoModal ? (
-        <GrupoModal grupo={grupoModal.grupo} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoModal(null)}
-          onListo={(id) => { setGrupoModal(null); recargar(); setActiva((a) => (a?.id === id ? a : { id, tipo: "grupo", titulo: "Grupo" })); }} />
+        <GrupoModal grupo={grupoModal.grupo} personal={!!grupoModal.personal || esGrupoPersonal(grupoModal.grupo)} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoModal(null)}
+          onListo={(id) => { const tipo = grupoModal.personal || esGrupoPersonal(grupoModal.grupo) ? "personal" : "grupo"; setGrupoModal(null); recargar(); setActiva((a) => (a?.id === id ? a : { id, tipo, titulo: "Grupo", creado_por: userId })); }} />
       ) : null}
       {difusion ? (
         <DifusionModal cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setDifusion(false)}

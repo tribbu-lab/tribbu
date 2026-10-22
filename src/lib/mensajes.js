@@ -132,6 +132,19 @@ export function filtrarFamilias(familias, q) {
   });
 }
 
+// Chats entre el personal del colegio (supabase/mensajes-personal.sql):
+// tipo "personal", 1 a 1 (con otro_id) o grupo (con nombre, sin otro_id).
+export const ROLES_PERSONAL = ["docente", "colegio_admin", "nivel_admin"];
+export const esGrupoPersonal = (c) => c?.tipo === "personal" && !c.otro_id;
+/** Grupo con participantes elegidos: de familias ("grupo") o del personal. */
+export const esGrupoPropio = (c) => c?.tipo === "grupo" || esGrupoPersonal(c);
+/** Personal del buscador: por nombre o cargo, sin acentos. */
+export function filtrarPersonal(personal, q) {
+  const t = sinAcentos(q).trim();
+  if (!t) return personal;
+  return personal.filter((p) => sinAcentos(`${p.nombre} ${p.cargo || ""}`).includes(t));
+}
+
 /** "Juan y Sofía" */
 export const hijosDeFamilia = (f) => [...new Set((f?.hijos || []).map((h) => h.nombre).filter(Boolean))].join(" y ");
 

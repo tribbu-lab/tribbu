@@ -19,7 +19,7 @@ import { AutorizacionesColegio } from "../autorizaciones";
 import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
 import { TalleresColegio } from "../talleres/colegio";
-import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin } from "../mensajes";
+import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
@@ -72,6 +72,7 @@ const SECCIONES = [
     {id:"talleres",l:"🎨 Talleres"},
     {id:"perdidos",l:"🧦 Lost & Found"},
     {id:"mensajes_familias",l:"💬 Mensajes de familias",soloColegioAdmin:true},
+    {id:"mensajes_personal",l:"🗨️ Mensajes del personal",soloColegioAdmin:true},
     {id:"denuncias",l:"🚩 Denuncias"},
     {id:"adopcion",l:"📈 Adopción"},
     {id:"soporte_colegio",l:"🛟 Ayuda y soporte",soloColegioAdmin:true},
@@ -110,6 +111,7 @@ const SECCION_INFO = {
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
   mensajes_familias:{ titulo:"Mensajes de familias", descripcion:"Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras." },
+  mensajes_personal:{ titulo:"Mensajes del personal", descripcion:"Chats con las maestras, las Secretarías y Dirección del colegio, 1 a 1 o en grupo. Las familias no los ven." },
   denuncias:      { titulo:"Denuncias de Mensajes", descripcion:"Mensajes que una familia denunció en el chat. Ves solo el mensaje denunciado, nunca el resto de la conversación." },
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
@@ -1789,6 +1791,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="mensajes_familias"&&!esSuper&&(
         <BandejaColegio userId={usuario?.id} isMobile={isMobile}/>
+      )}
+      {sec==="mensajes_personal"&&!esSuper&&(
+        <Mensajes userId={usuario?.id} soloPersonal isMobile={isMobile}/>
       )}
       {sec==="denuncias"&&(
         <DenunciasColegio colegioId={activeColegioId}/>
