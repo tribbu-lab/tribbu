@@ -726,16 +726,15 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // es un duplicado recién creado que quedó vacío, así que: si el curso
     // tiene alumnos o contenido, se rechaza con un mensaje claro; si está
     // limpio, se borra junto con su config (lo que clona "Duplicar").
-    const [al,rec,ev,col,ale,enc] = await Promise.all([
+    // El contenido se cuenta en el servidor (contenido_de_curso): el colegio ya
+    // no ve las colectas ni las encuestas de las familias (colectas-encuestas-privadas.sql).
+    const [al,cont] = await Promise.all([
       supabase.from("hijos").select("id",{count:"exact",head:true}).eq("curso_id",id),
-      supabase.from("recordatorios").select("id",{count:"exact",head:true}).eq("curso_id",id),
-      supabase.from("eventos").select("id",{count:"exact",head:true}).eq("curso_id",id),
-      supabase.from("colectas").select("id",{count:"exact",head:true}).eq("curso_id",id),
-      supabase.from("alertas").select("id",{count:"exact",head:true}).eq("curso_id",id),
-      supabase.from("encuestas").select("id",{count:"exact",head:true}).eq("curso_id",id),
+      supabase.rpc("contenido_de_curso",{p_curso:id}),
     ]);
+    if(cont.error) { showToast(`No se pudo revisar el curso: ${cont.error.message}`,"error"); setConfirm(null); return; }
     const alumnos = al.count||0;
-    const contenido = (rec.count||0)+(ev.count||0)+(col.count||0)+(ale.count||0)+(enc.count||0);
+    const contenido = cont.data||0;
     if(alumnos>0 || contenido>0) {
       const partes = [alumnos>0?`${alumnos} alumno${alumnos!==1?"s":""}`:null, contenido>0?`${contenido} elemento${contenido!==1?"s":""} de contenido`:null].filter(Boolean).join(" y ");
       showToast(`No se puede borrar: el curso tiene ${partes}. Promové/movés los alumnos y archivá el contenido primero.`, "error");
@@ -1864,15 +1863,21 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {sec==="colegios"&&esSuper&&(
         <div>
           {colegios.length===0&&<EmptyState icono="escuela" titulo="Todavía no hay colegios" nota="Creá el primero con “Nuevo”."/>}
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-            {colegios.map(c=>(
-              <Card key={c.id} style={{padding:18,cursor:"pointer"}} onClick={()=>{ setColegioId(c.id); setSec("inicio"); }}>
-                <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{c.nombre||"(sin nombre)"}</div>
-                <div style={{fontSize:12,color:"#94A3B8"}}>Año lectivo vigente: {c.año_lectivo_actual}</div>
-                <div style={{fontSize:12,fontWeight:700,color:"#3B82F6",marginTop:10}}>Entrar a administrar →</div>
-              </Card>
-            ))}
-          </div>
+          {colegios.length>0&&(
+            <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
+              {colegios.map((c,i)=>(
+                <button key={c.id} onClick={()=>{ setColegioId(c.id); setSec("inicio"); }} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"14px 18px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                  <Icono nombre="escuela" size={20} color="#475569"/>
+                  <span style={{flex:1,minWidth:0,display:"block"}}>
+                    <span style={{display:"block",fontSize:14.5,fontWeight:700,color:"#0F172A"}}>{c.nombre||"(sin nombre)"}</span>
+                    <span style={{display:"block",fontSize:12.5,color:"#64748B",marginTop:2}}>Año lectivo {c.año_lectivo_actual}</span>
+                  </span>
+                  <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Entrar</span>
+                  <Icono nombre="flecha" size={15} color="#2563EB"/>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1882,10 +1887,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           {superAdmins.map(u=>(
             <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"14px 18px",borderBottom:"1px solid #F1F5F9"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                <div style={{width:38,height:38,borderRadius:999,background:ROL_BG.super,color:ROL_COLOR.super,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
+                <div style={{width:38,height:38,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{`${(u.nombre||"")[0]||""}${(u.apellido||"")[0]||""}`.toUpperCase()}</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
-                  <div style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                  <div style={{fontSize:12.5,color:"#64748B",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
@@ -1902,29 +1907,29 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:4}}>Nuevo colegio</div>
-            <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Crea el colegio y, opcionalmente, su primer administrador (colegio_admin).</div>
+            <div style={{fontSize:12.5,color:"#64748B",marginBottom:16}}>Crea el colegio y, si querés, su primer administrador.</div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Nombre del colegio</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre del colegio</div>
               <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Colegio San Martín" style={inp}/>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Año lectivo inicial</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Año lectivo inicial</div>
               <input type="number" value={form.año_lectivo_actual||""} onChange={e=>setForm(p=>({...p,año_lectivo_actual:e.target.value}))} style={inp}/>
             </div>
-            <div style={{fontSize:11,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8,borderTop:"1px solid #F1F5F9",paddingTop:12}}>Primer administrador (opcional)</div>
+            <div style={{fontSize:14,fontWeight:800,color:"#0F172A",marginBottom:8,borderTop:"1px solid #F1F5F9",paddingTop:12}}>Primer administrador (opcional)</div>
             {[{l:"Nombre",k:"adminNombre"},{l:"Apellido",k:"adminApellido"},{l:"Email",k:"adminEmail"}].map(f=>(
               <div key={f.k} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>{f.l}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.l}</div>
                 <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
               </div>
             ))}
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Contraseña</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Contraseña</div>
               <input type="password" value={form.adminPass||""} onChange={e=>setForm(p=>({...p,adminPass:e.target.value}))} style={inp}/>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModalColegio(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardarColegioNuevo} disabled={savingColegio} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingColegio?"Creando...":"Crear colegio"}</button>
+              <button onClick={()=>setModalColegio(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={guardarColegioNuevo} disabled={savingColegio} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{savingColegio?"Creando...":"Crear colegio"}</button>
             </div>
           </Card>
         </div>

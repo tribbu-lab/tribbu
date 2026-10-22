@@ -88,6 +88,22 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 
+- [x] **Panel del colegio: pantallas del super** (hecho 2026-10-22) (pedido 2026-10-22, al retomar):
+      Plataforma → Colegios, Super Admins y Soporte al mismo estilo sobrio que
+      el resto del panel (web; en mobile solo hay Soporte). También revisar con
+      el administrador lo que la Secretaría no ve (Cursos, Uniformes, Menú,
+      Datos, Marketplace, Lost & Found, Denuncias).
+- [x] **Archivar los chats al cambiar de año lectivo** (hecho y aplicado 2026-10-22; falta probarlo cuando cambie el año) (pedido 2026-10-22,
+      decidido con Yanina): hoy `mensajes-retencion` **borra** los chats de
+      cursos de años cerrados (directo, curso, colegio, docente, grupo). Pasa a:
+      **cerrados (solo lectura, no se puede escribir) y ocultos** de la lista
+      principal, en una sección "Archivados"; se borran recién pasado un tiempo
+      (a definir, propuesta 6 meses). Los chats del **personal** del colegio
+      **no** se archivan (siguen abiertos de un año a otro). Hay que tocar RLS
+      de `mensajes` (insert solo en conversaciones vigentes), `mis_conversaciones`
+      (marcar archivada), la retención y la UI de Mensajes (web + app).
+      Aplicado 2026-10-22: SQL, retención redeployada y UI web + app.
+
 - [x] **Rediseño del panel del colegio** (2026-10-22, web + app, sin
       commitear): Inicio · Comunicación · Mensajes · Comunidad · Personas ·
       Colegio (+ Plataforma para super), pestañas internas, Ayuda y soporte y

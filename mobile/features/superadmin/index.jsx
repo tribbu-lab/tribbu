@@ -529,16 +529,15 @@ export function SuperAdmin() {
     // Solo se borra un curso sin alumnos ni contenido (el caso real: un
     // duplicado vacío). Si tiene, se rechaza — el cascade completo desde el
     // cliente sería enorme y frágil.
-    const [al, rec, ev, col, ale, enc] = await Promise.all([
+    // El contenido se cuenta en el servidor (contenido_de_curso): el colegio ya
+    // no ve las colectas ni las encuestas de las familias.
+    const [al, cont] = await Promise.all([
       supabase.from("hijos").select("id", { count: "exact", head: true }).eq("curso_id", id),
-      supabase.from("recordatorios").select("id", { count: "exact", head: true }).eq("curso_id", id),
-      supabase.from("eventos").select("id", { count: "exact", head: true }).eq("curso_id", id),
-      supabase.from("colectas").select("id", { count: "exact", head: true }).eq("curso_id", id),
-      supabase.from("alertas").select("id", { count: "exact", head: true }).eq("curso_id", id),
-      supabase.from("encuestas").select("id", { count: "exact", head: true }).eq("curso_id", id),
+      supabase.rpc("contenido_de_curso", { p_curso: id }),
     ]);
+    if (cont.error) { setConfirm(null); Alert.alert("No se pudo revisar el curso", cont.error.message); return; }
     const alumnos = al.count || 0;
-    const contenido = (rec.count || 0) + (ev.count || 0) + (col.count || 0) + (ale.count || 0) + (enc.count || 0);
+    const contenido = cont.data || 0;
     if (alumnos > 0 || contenido > 0) {
       setConfirm(null);
       Alert.alert("No se puede borrar", `El curso tiene ${alumnos} alumno(s) y ${contenido} elemento(s) de contenido. Promové/movés los alumnos y archivá el contenido primero.`);

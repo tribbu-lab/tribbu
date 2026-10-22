@@ -14,6 +14,7 @@ import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Buscador } from "../../components/Buscador";
 import { EmptyState } from "../../components/EmptyState";
+import { Icono } from "../../components/Icono";
 import { safeUrl, uuidLite } from "../../lib/helpers";
 import { THEMES, SLATE, BLUE, withAlpha } from "../../lib/tokens";
 import { borrarArchivos } from "../../lib/storageUrl";
@@ -372,7 +373,8 @@ function SelectorPersonal({ seleccion, onChange, max = 50, excluir = SIN_EXCLUIR
   );
 }
 
-const Vacio = ({ texto }) => <div style={{ fontSize: 13, color: C.textMuted, padding: 16, textAlign: "center" }}>{texto}</div>;
+// Lista vacía: el formato sobrio de siempre (EmptyState sin tarjeta).
+const Vacio = ({ texto }) => <EmptyState sinBorde icono="bandeja" titulo={texto} style={{ padding: 16 }} />;
 
 // ── Grupos propios y difusión (specs/docentes-clases-y-grupos.md, Fase C) ──
 
@@ -597,6 +599,14 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [menu, setMenu] = useState(false);
   const [aviso, setAviso] = useState("");
   const [silenciado, setSilenciado] = useState(!!conv.silenciado);
+  // Chat de un año lectivo que ya terminó: se lee, no se escribe.
+  const [archivada, setArchivada] = useState(false);
+  useEffect(() => {
+    if (!conv.id || conv.tipo === "soporte" || conv.tipo === "personal") return undefined;
+    let vivo = true;
+    supabase.rpc("conversacion_archivada", { p_conv: conv.id }).then(({ data }) => { if (vivo) setArchivada(!!data); });
+    return () => { vivo = false; };
+  }, [conv.id, conv.tipo]);
   const [bloqueado, setBloqueado] = useState(!!conv.bloqueado);
   const [estado, setEstado] = useState(conv.estado || "abierta");
   const [confirmar, confirmUI] = useConfirmar();
@@ -961,7 +971,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       {error ? <div role="alert" style={{ margin: "0 12px 6px", fontSize: 12.5, color: C.danger }}>{error}</div> : null}
 
       {/* Composer */}
-      {soloLectura ? (
+      {archivada ? (
+        <div style={{ padding: 14, background: C.surface, borderTop: `1px solid ${C.border}`, textAlign: "center", fontSize: 13, color: C.textMuted }}>
+          Chat archivado: es de un año lectivo que ya terminó. Se puede leer, pero no escribir.
+        </div>
+      ) : soloLectura ? (
         <div style={{ padding: 14, background: C.surface, borderTop: `1px solid ${C.border}`, textAlign: "center", fontSize: 13, color: C.textMuted }}>
           Solo lectura: esta conversación es entre la familia y la docente.
         </div>
@@ -1163,6 +1177,8 @@ const SOPORTE_VACIO = { id: null, tipo: "soporte", titulo: "Soporte tribbu", ult
 // con el personal del colegio; los de familias siguen en "Mensajes de familias".
 export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCambio, pantallaOrigen, esDocente = false, soloPersonal = false, hijoActivoId = null, cursoIds = null }) {
   const [convs, setConvs] = useState(null);
+  const [archivadas, setArchivadas] = useState(() => new Set()); // ids (mis_conversaciones_archivadas)
+  const [verArchivados, setVerArchivados] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null); // objeto conversación
@@ -1195,12 +1211,14 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   const recargaTimer = useRef(null);
 
   const cargar = useCallback(async () => {
-    const [{ data, error: e }, { data: normasRow }] = await Promise.all([
+    const [{ data, error: e }, { data: normasRow }, { data: arch }] = await Promise.all([
       supabase.rpc("mis_conversaciones"),
       supabase.from("normas_chat_aceptadas").select("usuario_id").eq("usuario_id", userId).maybeSingle(),
+      supabase.rpc("mis_conversaciones_archivadas"),
     ]);
     if (e) { setError("No se pudieron cargar tus mensajes."); setConvs((c) => c || []); return null; }
     setError("");
+    setArchivadas(new Set((arch || []).map((x) => (typeof x === "string" ? x : x.mis_conversaciones_archivadas))));
     setConvs(data || []);
     setNormasOk(!!normasRow);
     return data || [];
@@ -1327,7 +1345,9 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
     // Un 1 a 1 anclado a un curso que no es mío (Marketplace con otro curso) se ve en todos los perfiles.
     return !c.curso_id || c.curso_id === cursoPerfil || !cursosMios.some((x) => x.id === c.curso_id);
   };
-  const otras = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
+  const todas = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
+  const otras = todas.filter((c) => !archivadas.has(c.id));
+  const archivados = todas.filter((c) => archivadas.has(c.id));
 
   const meta = useCallback(() => metaSoporte({
     plataforma: "web",
@@ -1366,6 +1386,20 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
         {otras.map((c) => (
           <FilaConversacion key={c.id} c={c} activa={activa?.id === c.id} userId={userId} tagDeCurso={tagDeCurso} esDocente={esDocente} onClick={() => setActiva(c)} />
         ))}
+        {/* Chats de años lectivos que ya terminaron: de solo lectura, plegados. */}
+        {archivados.length ? (
+          <>
+            <button onClick={() => setVerArchivados((v) => !v)} aria-expanded={verArchivados}
+              style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 4px 4px", padding: "8px 8px", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <Icono nombre="bandeja" size={16} color={C.textMuted} />
+              <span style={{ flex: 1, textAlign: "left", fontSize: 13, fontWeight: 700, color: C.textMuted }}>Archivados ({archivados.length})</span>
+              <Icono nombre="chevron" size={15} color={C.textMuted} style={{ transform: verArchivados ? "rotate(180deg)" : "none" }} />
+            </button>
+            {verArchivados ? archivados.map((c) => (
+              <FilaConversacion key={c.id} c={c} activa={activa?.id === c.id} userId={userId} tagDeCurso={tagDeCurso} esDocente={esDocente} onClick={() => setActiva(c)} />
+            )) : null}
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -1496,7 +1530,7 @@ export function BandejaSoporte({ userId, isMobile }) {
         style={{ padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
         {hilos === null ? <Spinner /> : null}
-        {hilos && !visibles.length ? <div style={{ fontSize: 13, color: C.textMuted, padding: 16, textAlign: "center" }}>No hay consultas acá. 🎉</div> : null}
+        {hilos && !visibles.length ? <Vacio texto="No hay consultas acá." /> : null}
         {visibles.map((h) => (
           <button key={h.id} onClick={() => setActiva(h)}
             style={{ width: "100%", textAlign: "left", display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", border: "none", borderRadius: 12, background: activa?.id === h.id ? C.accentSoft : "transparent", cursor: "pointer", minHeight: 60 }}>

@@ -1,15 +1,19 @@
 // supabase/functions/mensajes-retencion/index.ts
 //
 // Retención de Mensajes (specs/mensajes.md). La corre pg_cron una vez por día
-// (supabase/mensajes.sql → llamar_mensajes_retencion). Borra:
+// (supabase/mensajes.sql → llamar_mensajes_retencion).
+// Archiva (desde 2026-10-22, supabase/mensajes-archivo.sql):
 //   · conversaciones directo/curso/colegio/docente/grupo de cursos de años lectivos
-//     cerrados (cursos.año_lectivo < colegios.año_lectivo_actual)
+//     cerrados (cursos.año_lectivo < colegios.año_lectivo_actual): les pone
+//     archivada_en. Quedan de solo lectura y la app las muestra en "Archivados".
+// Borra:
+//   · las archivadas hace más de 180 días (antes se borraban apenas cerraba el año)
 //   · hilos de soporte sin mensajes hace más de 180 días
 //   · denuncias resueltas hace más de 180 días
 // Las fotos (bucket privado `adjuntos`, `mensajes/<conversacion_id>/…`) se
 // borran por la API de Storage antes de las filas (no se puede por SQL).
 //
-// `?dry=1` no borra: devuelve qué borraría.
+// `?dry=1` no archiva ni borra: devuelve qué haría.
 // Deploy: supabase functions deploy mensajes-retencion --no-verify-jwt
 // Auth: header x-cron-secret = CRON_SECRET.
 
@@ -22,6 +26,7 @@ const SUPABASE_SERVICE = CLAVE_SERVICIO;
 const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
 const DIAS_SOPORTE = 180;
 const DIAS_DENUNCIAS = 180;
+const DIAS_ARCHIVO = 180;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -57,15 +62,25 @@ serve(async (req) => {
     })
     .map((c) => c.id);
 
-  const vencidas: { id: string; motivo: string }[] = [];
+  // Chats de años cerrados que todavía no están marcados: se archivan.
+  const aArchivar: string[] = [];
   for (let i = 0; i < cursosCerrados.length; i += 100) {
     const { data } = await sb
       .from("conversaciones")
       .select("id")
       .in("tipo", ["directo", "curso", "colegio", "docente", "grupo"])
-      .in("curso_id", cursosCerrados.slice(i, i + 100));
-    for (const c of data || []) vencidas.push({ id: c.id, motivo: "año lectivo cerrado" });
+      .in("curso_id", cursosCerrados.slice(i, i + 100))
+      .is("archivada_en", null);
+    for (const c of data || []) aArchivar.push(c.id);
   }
+
+  const vencidas: { id: string; motivo: string }[] = [];
+  const limiteArchivo = new Date(Date.now() - DIAS_ARCHIVO * 86400_000).toISOString();
+  const { data: archivadasViejas } = await sb
+    .from("conversaciones")
+    .select("id")
+    .lt("archivada_en", limiteArchivo);
+  for (const c of archivadasViejas || []) vencidas.push({ id: c.id, motivo: "archivada hace más de 180 días" });
   const limiteSoporte = new Date(Date.now() - DIAS_SOPORTE * 86400_000).toISOString();
   const { data: soporte } = await sb
     .from("conversaciones")
@@ -88,7 +103,13 @@ serve(async (req) => {
     .eq("estado", "resuelta")
     .lt("resuelta_en", limiteDenuncias);
 
-  if (dry) return json({ dry: true, conversaciones: vencidas, denuncias: denunciasViejas ?? 0 });
+  if (dry) return json({ dry: true, archivar: aArchivar.length, conversaciones: vencidas, denuncias: denunciasViejas ?? 0 });
+
+  const ahora = new Date().toISOString();
+  for (let i = 0; i < aArchivar.length; i += 100) {
+    const { error } = await sb.from("conversaciones").update({ archivada_en: ahora }).in("id", aArchivar.slice(i, i + 100));
+    if (error) console.error("retención: archivar conversaciones", error.message);
+  }
 
   let archivos = 0;
   for (const v of vencidas) archivos += await borrarCarpeta(sb, v.id);
@@ -99,5 +120,5 @@ serve(async (req) => {
   }
   await sb.from("mensaje_denuncias").delete().eq("estado", "resuelta").lt("resuelta_en", limiteDenuncias);
 
-  return json({ conversaciones: ids.length, archivos, denuncias: denunciasViejas ?? 0 });
+  return json({ archivadas: aArchivar.length, conversaciones: ids.length, archivos, denuncias: denunciasViejas ?? 0 });
 });

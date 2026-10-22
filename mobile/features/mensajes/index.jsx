@@ -596,6 +596,14 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
   const [visor, setVisor] = useState(null);
   const [menu, setMenu] = useState(false);
   const [silenciado, setSilenciado] = useState(!!conv.silenciado);
+  // Chat de un año lectivo que ya terminó: se lee, no se escribe (supabase/mensajes-archivo.sql).
+  const [archivada, setArchivada] = useState(false);
+  useEffect(() => {
+    if (!conv.id || conv.tipo === "soporte" || conv.tipo === "personal") return undefined;
+    let vivo = true;
+    supabase.rpc("conversacion_archivada", { p_conv: conv.id }).then(({ data }) => { if (vivo) setArchivada(!!data); });
+    return () => { vivo = false; };
+  }, [conv.id, conv.tipo]);
   const [bloqueado, setBloqueado] = useState(!!conv.bloqueado);
   const [estado, setEstado] = useState(conv.estado || "abierta");
   const mensajesRef = useRef([]);
@@ -967,7 +975,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
           />
         )}
 
-        {soloLectura ? (
+        {archivada ? (
+          <View style={[s.composerBloq, { paddingBottom: insets.bottom + SPACE.md }]}>
+            <Text style={s.nota}>Chat archivado: es de un año lectivo que ya terminó. Se puede leer, pero no escribir.</Text>
+          </View>
+        ) : soloLectura ? (
           <View style={[s.composerBloq, { paddingBottom: insets.bottom + SPACE.md }]}>
             <Text style={s.nota}>Solo lectura: esta conversación es entre la familia y la docente.</Text>
           </View>
@@ -1111,6 +1123,8 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
   const userId = usuario?.id ?? null;
   const { recargar: recargarBadge } = useMensajesCtx();
   const [convs, setConvs] = useState(null);
+  const [archivadas, setArchivadas] = useState(() => new Set());
+  const [verArchivados, setVerArchivados] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [normasOk, setNormasOk] = useState(true);
   const [activa, setActiva] = useState(null);
@@ -1123,11 +1137,13 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
 
   const cargar = useCallback(async () => {
     if (!userId) return;
-    const [{ data, error }, { data: n }] = await Promise.all([
+    const [{ data, error }, { data: n }, { data: arch }] = await Promise.all([
       supabase.rpc("mis_conversaciones"),
       supabase.from("normas_chat_aceptadas").select("usuario_id").eq("usuario_id", userId).maybeSingle(),
+      supabase.rpc("mis_conversaciones_archivadas"),
     ]);
     if (error) { setConvs((c) => c || []); return; }
+    setArchivadas(new Set((arch || []).map((x) => (typeof x === "string" ? x : x.mis_conversaciones_archivadas))));
     setConvs(data || []);
     setNormasOk(!!n);
   }, [userId]);
@@ -1252,7 +1268,9 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     // Un 1 a 1 anclado a un curso que no es mío (Marketplace con otro curso) se ve en todos los perfiles.
     return !c.curso_id || c.curso_id === cursoPerfil || !cursosMios.some((x) => x.id === c.curso_id);
   };
-  const otras = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
+  const todas = filtrarConversaciones(lista.filter((c) => c.tipo !== "soporte" && enPerfil(c)), busqueda);
+  const otras = todas.filter((c) => !archivadas.has(c.id));
+  const archivados = todas.filter((c) => archivadas.has(c.id));
   const activaFresca = useMemo(() => {
     if (!activa) return null;
     const fresca = (convs || []).find((c) => c.id === activa.id) || activa;
@@ -1345,6 +1363,21 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
               <FilaConversacion c={c} userId={userId} esDocente={esDocente} tag={c.tipo === "directo" ? tagDeCurso?.(c.curso_id) : null} onPress={() => setActiva(c)} />
             </View>
           )}
+          ListFooterComponent={archivados.length ? (
+            <View>
+              {/* Chats de años lectivos que ya terminaron: de solo lectura, plegados. */}
+              <Pressable onPress={() => setVerArchivados((v) => !v)} style={s.archivadosBtn} accessibilityRole="button" accessibilityState={{ expanded: verArchivados }}>
+                <MaterialCommunityIcons name="archive-outline" size={18} color={t.textMuted} />
+                <Text style={s.archivadosTxt}>Archivados ({archivados.length})</Text>
+                <MaterialCommunityIcons name={verArchivados ? "chevron-up" : "chevron-down"} size={18} color={t.textMuted} />
+              </Pressable>
+              {verArchivados ? archivados.map((c) => (
+                <View key={c.id} style={s.cardFila}>
+                  <FilaConversacion c={c} userId={userId} esDocente={esDocente} tag={c.tipo === "directo" ? tagDeCurso?.(c.curso_id) : null} onPress={() => setActiva(c)} />
+                </View>
+              )) : null}
+            </View>
+          ) : null}
         />
       )}
     </View>
@@ -1442,7 +1475,7 @@ export function BandejaSoporte() {
           </Pressable>
         ))}
       </View>
-      {hilos === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? <Text style={s.vacioTxt}>No hay consultas acá. 🎉</Text> : visibles.map((h) => (
+      {hilos === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? <Text style={s.vacioTxt}>No hay consultas acá.</Text> : visibles.map((h) => (
         <Pressable key={h.id} onPress={() => setActiva(h)} style={[s.card, s.filaPanel]} accessibilityRole="button">
           <Iniciales texto={h.nombre} color={SLATE[600]} size={40} />
           <View style={s.flex1}>
@@ -1617,6 +1650,8 @@ const s = StyleSheet.create({
   label: { ...TYPE.label, color: t.textFaint, marginTop: SPACE.lg, marginBottom: SPACE.sm },
   card: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: SPACE.xs },
   cardFila: { backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, marginBottom: SPACE.sm, padding: SPACE.xs },
+  archivadosBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: SPACE.md, paddingHorizontal: SPACE.xs, marginTop: SPACE.sm },
+  archivadosTxt: { flex: 1, fontSize: 13.5, fontWeight: "700", color: t.textMuted },
   fila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.sm, minHeight: 64 },
   filaPanel: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: SPACE.md, marginBottom: SPACE.sm },
   filaFamilia: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingVertical: SPACE.sm, minHeight: MIN_TOUCH + 8 },
