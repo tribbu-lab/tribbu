@@ -1643,7 +1643,7 @@ export function DenunciasColegio({ colegioId }) {
             {d.detalle ? <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 8 }}>Comentario: “{d.detalle}”</div> : null}
             {d.estado === "pendiente" ? (
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <button onClick={() => resolver(d, true)} disabled={trabajando === d.id || !d.mensaje_id} style={{ ...btnPri, background: C.danger, opacity: trabajando === d.id ? 0.6 : 1 }}>🗑 Eliminar mensaje</button>
+                <button onClick={() => resolver(d, true)} disabled={trabajando === d.id || !d.mensaje_id} style={{ ...btnPri, background: C.danger, opacity: trabajando === d.id ? 0.6 : 1 }}>Eliminar mensaje</button>
                 <button onClick={() => resolver(d, false)} disabled={trabajando === d.id} style={btnSec}>Marcar resuelta</button>
               </div>
             ) : null}
@@ -1719,11 +1719,11 @@ export function BandejaColegio({ userId, isMobile }) {
       {error ? <div role="alert" style={{ color: C.danger, fontSize: 13 }}>{error}</div> : null}
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
         {hilos === null ? <Spinner /> : null}
-        {hilos && !visibles.length ? <Vacio texto={filtro === "sin_responder" ? "No hay mensajes sin responder. 🎉" : "No hay conversaciones acá."} /> : null}
+        {hilos && !visibles.length ? <Vacio texto={filtro === "sin_responder" ? "No hay mensajes sin responder." : "No hay conversaciones acá."} /> : null}
         {visibles.map((h) => (
           <button key={h.id} onClick={() => setActiva(h)}
             style={{ width: "100%", textAlign: "left", display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", border: "none", borderRadius: 12, background: activa?.id === h.id ? C.accentSoft : "transparent", cursor: "pointer", minHeight: 60 }}>
-            <Avatar emoji={h.tipo === "docente" ? "👩‍🏫" : "🏫"} color={SLATE[600]} />
+            <Avatar texto={h.alumno} color={SLATE[600]} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 800, color: C.textStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Familia de {h.alumno}</span>

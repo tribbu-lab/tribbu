@@ -437,16 +437,16 @@ export function AutorizacionesColegio({ cursos, userId }) {
         return (
           <Card key={g.grupo_id || g.id} style={styles.card}>
             <View style={styles.cardHead}>
-              <Text style={styles.titulo}>✍️ {g.titulo}</Text>
+              <Text style={styles.titulo}>{g.titulo}</Text>
               <View style={[styles.estado, !abierta && styles.estadoCerrada]}>
                 <Text style={[styles.estadoTxt, !abierta && styles.estadoTxtCerrada]}>{abierta ? "Abierta" : "Cerrada"}</Text>
               </View>
             </View>
             <Text style={styles.meta}>{g.filas.map((f) => nombreCurso.get(f.curso_id)).filter(Boolean).join(", ")}</Text>
-            {g.fecha_evento ? <Text style={styles.meta}>📅 {fmtFecha(g.fecha_evento)}</Text> : null}
-            {g.fecha_limite ? <Text style={styles.meta}>⏰ Hasta el {fmtFecha(g.fecha_limite)}</Text> : null}
+            {g.fecha_evento ? <Text style={styles.meta}>Salida: {fmtFecha(g.fecha_evento)}</Text> : null}
+            {g.fecha_limite ? <Text style={styles.meta}>Responder hasta el {fmtFecha(g.fecha_limite)}</Text> : null}
             <Pressable onPress={() => setDetalle(g)} style={styles.resumenBtn} hitSlop={4}>
-              <Text style={styles.resumenTxt}>✅ {s.autorizados} · ❌ {s.noAutorizados} · ⏳ {s.sinResponder} sin responder — ver respuestas</Text>
+              <Text style={styles.resumenTxt}>{s.autorizados} {s.autorizados === 1 ? "autorizado" : "autorizados"} · {s.noAutorizados} no · {s.sinResponder} sin responder — Ver respuestas</Text>
             </Pressable>
           </Card>
         );

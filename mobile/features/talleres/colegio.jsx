@@ -101,8 +101,8 @@ function Detalle({ taller, cupos, onCambio }) {
       <View style={[s.wrap, { marginTop: SPACE.sm }]}>
         {taller.estado === "publicado" ? <Pressable onPress={() => cambiarEstado("cerrado")} style={s.btnSec}><Text style={s.btnSecTxt}>Cerrar inscripción</Text></Pressable> : null}
         {taller.estado === "cerrado" ? <Pressable onPress={() => cambiarEstado("publicado")} style={s.btnSec}><Text style={s.btnSecTxt}>Reabrir</Text></Pressable> : null}
-        {puedeSortear ? <Pressable onPress={sortear} disabled={ocupado} style={s.btnPri}><Text style={s.btnPriTxt}>🎲 Sortear</Text></Pressable> : null}
-        {lista?.length ? <Pressable onPress={exportar} style={s.btnSec}><Text style={s.btnSecTxt}>📥 Excel</Text></Pressable> : null}
+        {puedeSortear ? <Pressable onPress={sortear} disabled={ocupado} style={s.btnPri}><Text style={s.btnPriTxt}>Sortear</Text></Pressable> : null}
+        {lista?.length ? <Pressable onPress={exportar} style={s.btnSec}><Text style={s.btnSecTxt}>Exportar Excel</Text></Pressable> : null}
         {taller.estado !== "cancelado" && taller.estado !== "borrador" ? <Pressable onPress={() => cambiarEstado("cancelado")} style={s.btnSec}><Text style={[s.btnSecTxt, { color: t.danger }]}>Cancelar taller</Text></Pressable> : null}
       </View>
       <View style={[s.wrap, { marginTop: SPACE.md }]}>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Icono } from "../../components/Icono";
 import { EmptyState } from "../../components/EmptyState";
+import { Buscador } from "../../components/Buscador";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
@@ -839,7 +840,8 @@ function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
     setPublicando(true);
     setError(null);
     try {
-      const grupo_id = uuidLite();
+      // grupo_id solo cuando son varios: con uno es un evento común del curso.
+      const grupo_id = cursosSel.length > 1 ? uuidLite() : null;
       const payloadBase = { ...form, fecha_fin: form.fecha_fin || null };
       const rows = cursosSel.map(curso_id => ({ ...payloadBase, curso_id, grupo_id, creado_por: userId }));
       const { data: creados, error: insertErr } = await supabase.from("eventos").insert(rows).select();
@@ -871,10 +873,10 @@ function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Card style={{padding:24,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{fontSize:16,fontWeight:900,marginBottom:4}}>Evento para varios cursos</div>
-        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Se publica como un evento independiente en cada curso elegido.</div>
+        <div style={{fontSize:17,fontWeight:800,color:"#0F172A",marginBottom:4}}>Nuevo evento</div>
+        <div style={{fontSize:12.5,color:"#64748B",marginBottom:16}}>Elegí uno o varios cursos: en cada uno se publica como un evento propio.</div>
 
-        {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,fontWeight:700,color:"#EF4444"}}>⚠️ {error}</div>}
+        {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12.5,fontWeight:700,color:"#B91C1C"}}>{error}</div>}
 
         <div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
@@ -958,7 +960,8 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const [tipoSel, setTipoSel] = useState("");
   const [periodo, setPeriodo] = useState("proximos");
   const [busqueda, setBusqueda] = useState("");
-  const [editando, setEditando] = useState(null); // evento | "nuevo"
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [editando, setEditando] = useState(null); // evento a editar
   const [multiCurso, setMultiCurso] = useState(false);
   const [borrando, setBorrando] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
@@ -1009,16 +1012,19 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
     cargar();
   };
 
-  const sel = { padding: "8px 10px", borderRadius: 10, border: "1px solid #E2E8F0", fontSize: 13, background: "white", color: "#0F172A" };
-  const chip = (activo) => ({ padding: "7px 12px", borderRadius: 20, border: activo ? "1.5px solid #3B82F6" : "1px solid #E2E8F0", background: activo ? "#EFF6FF" : "white", color: activo ? "#1D4ED8" : "#64748B", cursor: "pointer", fontSize: 12.5, fontWeight: 700 });
+  const gruposFiltro = [
+    { key: "periodo", label: "Cuándo", value: periodo, onChange: setPeriodo, options: [{ value: "proximos", label: "Próximos" }, { value: "pasados", label: "Pasados" }] },
+    { key: "curso", label: "Curso", value: cursoSel, onChange: setCursoSel, options: [{ value: "", label: "Todos" }, ...cursos.map(c => ({ value: c.id, label: c.nombre }))] },
+    { key: "tipo", label: "Tipo", value: tipoSel, onChange: setTipoSel, options: [{ value: "", label: "Todos" }, ...Object.entries(TIPO_CONFIG).filter(([k]) => k !== "cumple").map(([k, v]) => ({ value: k, label: v.label }))] },
+  ];
 
   return (
     <div>
       <Toast />
       {editando && (
         <EventoModal
-          evento={editando === "nuevo" ? null : editando}
-          cursoId={editando === "nuevo" ? cursoSel : editando.curso_id}
+          evento={editando}
+          cursoId={editando.curso_id}
           userId={userId}
           onClose={() => setEditando(null)}
           onSave={() => { setEditando(null); showToast("Evento guardado"); cargar(); }}
@@ -1043,55 +1049,33 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
         />
       )}
 
-      <Card style={{ padding: 14, marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={cursoSel} onChange={e => setCursoSel(e.target.value)} style={sel} aria-label="Curso">
-            <option value="">Todos los cursos</option>
-            {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
-          <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} style={sel} aria-label="Tipo">
-            <option value="">Todos los tipos</option>
-            {Object.entries(TIPO_CONFIG).filter(([k]) => k !== "cumple").map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
-          </select>
-          <button onClick={() => setPeriodo("proximos")} style={chip(periodo === "proximos")}>Próximos</button>
-          <button onClick={() => setPeriodo("pasados")} style={chip(periodo === "pasados")}>Pasados</button>
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar…" style={{ ...sel, flex: 1, minWidth: 140 }} aria-label="Buscar evento" />
-          <button
-            onClick={() => cursoSel ? setEditando("nuevo") : showToast("Elegí un curso para crear el evento", "error")}
-            title={cursoSel ? "" : "Elegí un curso primero"}
-            style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: cursoSel ? "#3B82F6" : "#93C5FD", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
-          >+ Nuevo evento</button>
-          <button
-            onClick={() => setMultiCurso(true)}
-            title="Publicar el mismo evento en varios cursos a la vez (ej. un feriado)"
-            style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #BFDBFE", background: "#EFF6FF", color: "#1D4ED8", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
-          >+ Evento para varios cursos</button>
-        </div>
-      </Card>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar evento…" style={{ flex: "1 1 200px", minWidth: 0, marginBottom: 0 }} />
+        <BotonFiltros grupos={gruposFiltro} onClick={() => setFiltrosAbiertos(true)} />
+        <BotonNuevo ariaLabel="Nuevo evento" onClick={() => setMultiCurso(true)} />
+      </div>
+      {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
 
       {eventos === null ? <Spinner /> : lista.length === 0 ? (
-        <Card style={{ padding: 30, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-          {periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}{cursoSel ? " en este curso" : ""}.
-        </Card>
+        <EmptyState icono="agenda" titulo={`${periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}${cursoSel ? " en este curso" : ""}`} accion="Nuevo evento" onAccion={() => setMultiCurso(true)} />
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
           {lista.map((e, i) => {
             const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
             return (
               <div key={e.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderTop: i ? "1px solid #F1F5F9" : "none" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>{cfg.emoji}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{e.titulo}</div>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label, e.grupo_id ? "🏫 varios cursos" : null].filter(Boolean).join(" · ")}
+                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label, e.grupo_id ? "varios cursos" : null].filter(Boolean).join(" · ")}
                   </div>
-                  <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 1 }}>Creado por {autor(e.creado_por)}</div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 1 }}>Creado por {autor(e.creado_por)}</div>
                 </div>
                 {puede(e) ? <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                   {e.tipo !== "festejo" && (
-                    <button onClick={() => setEditando(e)} aria-label="Editar evento" style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 12 }}>✏️</button>
+                    <button onClick={() => setEditando(e)} aria-label="Editar evento" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer" }}><Icono nombre="lapiz" size={15} color="#475569" style={{ margin: "0 auto" }} /></button>
                   )}
-                  <button onClick={() => setBorrando(e)} aria-label="Eliminar evento" style={{ padding: "5px 9px", borderRadius: 8, border: "1px solid #FEE2E2", background: "#FEF2F2", cursor: "pointer", fontSize: 12, color: "#EF4444" }}>🗑</button>
+                  <button onClick={() => setBorrando(e)} aria-label="Eliminar evento" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "white", cursor: "pointer" }}><Icono nombre="papelera" size={15} color="#DC2626" style={{ margin: "0 auto" }} /></button>
                 </div> : null}
               </div>
             );

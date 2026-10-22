@@ -1789,7 +1789,7 @@ function ComunicacionesAdmin({ cursos }) {
       ) : null}
       {error ? (
         <View style={comStyles.errorBox}>
-          <Text style={comStyles.errorTxt}>⚠️ {error}</Text>
+          <Text style={comStyles.errorTxt}>{error}</Text>
         </View>
       ) : null}
 
@@ -1997,10 +1997,10 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
           ) : null}
           {!cargando &&
             comunicaciones.map((c) => (
-              <View key={c.grupo_id} style={[comStyles.historialCard, c.urgente && { borderLeftColor: "#EF4444" }]}>
+              <View key={c.grupo_id} style={comStyles.historialCard}>
                 {editando === c.grupo_id ? (
                   <View style={{ marginBottom: 10 }}>
-                    {editError ? <Text style={{ fontSize: 11, fontWeight: "700", color: "#EF4444", marginBottom: 6 }}>⚠️ {editError}</Text> : null}
+                    {editError ? <Text style={{ fontSize: 11, fontWeight: "700", color: "#B91C1C", marginBottom: 6 }}>{editError}</Text> : null}
                     <Text style={comStyles.editLabel}>TÍTULO</Text>
                     <TextInput value={editForm.titulo} onChangeText={(v) => setEditForm((p) => ({ ...p, titulo: v }))} style={comStyles.editInput} />
                     <Text style={comStyles.editLabel}>DESCRIPCIÓN</Text>
@@ -2068,8 +2068,8 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                 </View>
                 {c.fecha || c.hora_inicio ? (
                   <Text style={comStyles.historialMeta}>
-                    📅 {c.fecha ? new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" }) : "Sin fecha"}
-                    {fmtRangoHora(c.hora_inicio, c.hora_fin) ? ` · 🕐 ${fmtRangoHora(c.hora_inicio, c.hora_fin)}` : ""}
+                    {c.fecha ? new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" }) : "Sin fecha"}
+                    {fmtRangoHora(c.hora_inicio, c.hora_fin) ? ` · ${fmtRangoHora(c.hora_inicio, c.hora_fin)}` : ""}
                   </Text>
                 ) : null}
                 <View style={comStyles.historialCursosRow}>
@@ -2106,7 +2106,7 @@ const comStyles = StyleSheet.create({
   historialToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white" },
   historialToggleTxt: { fontSize: 13, fontWeight: "700", color: T.text },
   historialToggleArrow: { fontSize: 16, color: "#94A3B8" },
-  historialCard: { padding: 14, marginBottom: 6, borderRadius: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderLeftWidth: 3, borderLeftColor: "#3B82F6" },
+  historialCard: { padding: 14, marginBottom: 8, borderRadius: 16, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0" },
   historialTexto: { fontSize: 13, fontWeight: "700", color: T.text, lineHeight: 18, marginBottom: 2 },
   historialDescripcion: { fontSize: 12, color: "#64748B", lineHeight: 17, marginBottom: 6 },
   historialHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
@@ -2115,9 +2115,9 @@ const comStyles = StyleSheet.create({
   editLabel: { fontSize: 10, fontWeight: "700", color: "#94A3B8", marginBottom: 3 },
   editInput: { width: "100%", padding: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", fontSize: 12.5, backgroundColor: "#F8FAFC", marginBottom: 8, color: T.text },
   historialMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  historialMeta: { fontSize: 11, color: "#94A3B8" },
-  historialBadge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#EFF6FF" },
-  historialBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#3B82F6" },
+  historialMeta: { fontSize: 12, color: "#64748B" },
+  historialBadge: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#F1F5F9" },
+  historialBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#475569" },
   historialCursosRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 6 },
   historialCursoChip: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 8, backgroundColor: "#F1F5F9" },
   historialCursoChipTxt: { fontSize: 10, fontWeight: "700", color: "#64748B" },

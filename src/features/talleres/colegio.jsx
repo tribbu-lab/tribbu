@@ -22,12 +22,14 @@ import { CursoListSelector } from "../../components/CursoListSelector";
 import { useListControls } from "../../hooks/useListControls";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { useToast } from "../../hooks/useToast";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
 
 const C = THEMES.light;
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, outline: "none", fontFamily: "inherit", background: C.surfaceSunken, boxSizing: "border-box", color: C.text };
 const btnPri = { padding: "9px 16px", borderRadius: 10, border: "none", background: C.accent, color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
 const btnSec = { padding: "8px 13px", borderRadius: 10, border: `1px solid ${C.borderStrong}`, background: C.surface, cursor: "pointer", fontSize: 12.5, color: SLATE[700], fontWeight: 700, whiteSpace: "nowrap" };
-const lbl = { fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 };
+const lbl = { fontSize: 12.5, fontWeight: 600, color: C.textMuted, marginBottom: 6 };
 const COLOR_ESTADO = { borrador: ["#F1F5F9", "#475569"], publicado: ["#F0FDF4", "#047857"], cerrado: ["#FFFBEB", "#B45309"], cancelado: ["#FEF2F2", "#B91C1C"] };
 const sinAcentos = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
@@ -389,13 +391,13 @@ function TallerDetalle({ taller, cupos, onClose, onEditar, onCambio, showToast }
   return (
     <Modal titulo={taller.nombre} subtitulo={[textoHorario(taller.taller_horarios), taller.lugar, textoLugares(taller, cupos)].filter(Boolean).join(" · ")} onClose={onClose} ancho={760}
       pie={<>
-        <button onClick={onEditar} style={btnSec}>✏️ Editar</button>
+        <button onClick={onEditar} style={btnSec}>Editar</button>
         {taller.estado === "publicado" ? <button onClick={() => cambiarEstado("cerrado")} style={btnSec}>Cerrar inscripción</button> : null}
         {taller.estado === "cerrado" ? <button onClick={() => cambiarEstado("publicado")} style={btnSec}>Reabrir inscripción</button> : null}
         {taller.estado !== "cancelado" && taller.estado !== "borrador" ? <button onClick={() => cambiarEstado("cancelado")} style={{ ...btnSec, color: C.danger }}>Cancelar taller</button> : null}
         <span style={{ flex: 1 }} />
-        <button onClick={exportar} disabled={!lista?.length} style={btnSec}>📥 Excel</button>
-        {puedeSortear ? <button onClick={sortear} disabled={ocupado} style={btnPri}>🎲 Sortear</button> : null}
+        <button onClick={exportar} disabled={!lista?.length} style={btnSec}>Exportar Excel</button>
+        {puedeSortear ? <button onClick={sortear} disabled={ocupado} style={btnPri}>Sortear</button> : null}
       </>}>
       {confirmUI}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
@@ -534,15 +536,13 @@ export function TalleresColegio({ colegioId, cursos = [], anoActual = null }) {
   return (
     <div>
       <Toast />
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, fontSize: 13, color: C.textMuted, minWidth: 220 }}>Talleres fuera del horario de clase. Las familias de los cursos (o edades) que elijas los ven en la app y anotan a sus hijos.</div>
-        <button onClick={() => setForm({})} style={btnPri}>+ Nuevo taller</button>
+      {/* La explicación ya está en el encabezado del panel. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <BotonNuevo ariaLabel="Nuevo taller" onClick={() => setForm({})} />
       </div>
       <ListToolbar {...ctrl} sortOptions={ORDEN} placeholder="Buscar taller, profe o lugar…" />
       {!talleres.length ? (
-        <div style={{ textAlign: "center", padding: "40px 16px", border: `1.5px dashed ${C.borderStrong}`, borderRadius: 16, color: C.textMuted, fontSize: 13.5, marginTop: 12 }}>
-          Todavía no hay talleres. Creá el primero con “+ Nuevo taller”.
-        </div>
+        <EmptyState icono="paleta" titulo="Todavía no hay talleres" nota="Publicá uno para los cursos o las edades que elijas; las familias lo ven en la app y anotan a sus hijos." accion="Nuevo taller" onAccion={() => setForm({})} style={{ marginTop: 12 }} />
       ) : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 12, marginTop: 12 }}>
         {ctrl.items.map((t) => {
@@ -557,10 +557,8 @@ export function TalleresColegio({ colegioId, cursos = [], anoActual = null }) {
                 </div>
                 <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 4 }}>{[textoHorario(t.taller_horarios), textoProfe(t, t.profe)].filter(Boolean).join(" · ") || "Sin horario"}</div>
                 <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>{textoElegibilidad(t, (t.taller_cursos || []).map((x) => nombresCursos[x.curso_id]).filter(Boolean))}</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 8, background: "#F0FDF4", color: "#047857" }}>{cu.inscriptos || 0}{t.cupo ? `/${t.cupo}` : ""} inscriptos</span>
-                  {cu.pendientes ? <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 8, background: "#EFF6FF", color: "#1D4ED8" }}>{cu.pendientes} pendientes</span> : null}
-                  {cu.espera ? <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 8, background: "#FFFBEB", color: "#B45309" }}>{cu.espera} en espera</span> : null}
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text, marginTop: 8 }}>
+                  {[`${cu.inscriptos || 0}${t.cupo ? `/${t.cupo}` : ""} inscriptos`, cu.pendientes ? `${cu.pendientes} pendientes` : null, cu.espera ? `${cu.espera} en espera` : null].filter(Boolean).join(" · ")}
                 </div>
               </div>
             </button>

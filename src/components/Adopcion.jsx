@@ -51,7 +51,7 @@ export function AdopcionTabla({ cursos }) {
     .map((c) => porCurso.get(c.id) || { curso_id: c.id, familias: 0, con_app: 0, con_calendario: 0, activas_30d: 0 })
     .sort((a, b) => (nombre.get(a.curso_id) || "").localeCompare(nombre.get(b.curso_id) || "", "es"));
   const tot = orden.reduce((a, f) => ({ familias: a.familias + f.familias, con_app: a.con_app + f.con_app, con_calendario: a.con_calendario + f.con_calendario, activas_30d: a.activas_30d + f.activas_30d }), { familias: 0, con_app: 0, con_calendario: 0, activas_30d: 0 });
-  const th = { fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, color: "#94A3B8", textTransform: "uppercase", textAlign: "left", padding: "0 10px 8px" };
+  const th = { fontSize: 12, fontWeight: 600, color: "#64748B", textAlign: "left", padding: "0 10px 8px" };
   const td = { padding: "10px", borderTop: "1px solid #F1F5F9", verticalAlign: "middle" };
 
   return (

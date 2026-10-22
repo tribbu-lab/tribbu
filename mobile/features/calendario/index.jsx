@@ -24,6 +24,7 @@ import { DateField } from "../../components/DateField";
 import BotonAgregarCalendario from "./BotonAgregarCalendario";
 import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { Buscador } from "../../components/Buscador";
 import { FestejoDetalleModal } from "../cumples";
 import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/horarios";
 import { bloquesDeTalleres } from "@shared/talleres";
@@ -1131,6 +1132,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const [cursoSel, setCursoSel] = useState("");
   const [periodo, setPeriodo] = useState("proximos");
   const [busqueda, setBusqueda] = useState("");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [editando, setEditando] = useState(null); // evento | "nuevo"
 
   const ids = cursos.map((c) => c.id).join(",");
@@ -1184,8 +1186,14 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
       ]
     );
 
+  const gruposFiltro = [
+    { key: "periodo", label: "Cuándo", value: periodo, onChange: setPeriodo, options: [{ value: "proximos", label: "Próximos" }, { value: "pasados", label: "Pasados" }] },
+    { key: "curso", label: "Curso (para crear un evento, elegí uno)", value: cursoSel, onChange: setCursoSel, options: [{ value: "", label: "Todos" }, ...cursos.map((c) => ({ value: c.id, label: c.nombre }))] },
+  ];
+
   const nuevo = () => {
-    if (!cursoSel) { Alert.alert("Elegí un curso", "Tocá un curso arriba para crear el evento ahí."); return; }
+    // Un evento es de un curso: se elige en Filtros → Curso (en la web también se puede para varios a la vez).
+    if (!cursoSel) { setFiltrosAbiertos(true); return; }
     setEditando("nuevo");
   };
 
@@ -1201,37 +1209,23 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
         />
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ec.chips}>
-        {[{ id: "", nombre: "Todos los cursos" }, ...cursos].map((c) => (
-          <Pressable key={c.id || "todos"} onPress={() => setCursoSel(c.id)} style={[ec.chip, cursoSel === c.id && ec.chipOn]}>
-            <Text style={[ec.chipTxt, cursoSel === c.id && ec.chipTxtOn]}>{c.nombre}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
       <View style={ec.fila}>
-        {[["proximos", "Próximos"], ["pasados", "Pasados"]].map(([k, l]) => (
-          <Pressable key={k} onPress={() => setPeriodo(k)} style={[ec.chip, periodo === k && ec.chipOn]}>
-            <Text style={[ec.chipTxt, periodo === k && ec.chipTxtOn]}>{l}</Text>
-          </Pressable>
-        ))}
-        <View style={styles.flex1} />
-        <Pressable onPress={nuevo} style={[ec.btnNuevo, !cursoSel && ec.btnNuevoOff]}>
-          <Text style={ec.btnNuevoTxt}>+ Nuevo</Text>
-        </Pressable>
+        <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar evento…" style={ec.buscador} />
+        <BotonFiltros activos={filtrosActivos(gruposFiltro)} onPress={() => setFiltrosAbiertos(true)} />
+        <BotonNuevo accessibilityLabel="Nuevo evento" onPress={nuevo} />
       </View>
-      <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar evento…" placeholderTextColor={t.placeholder} style={ec.buscar} />
+      <FiltrosSheet visible={filtrosAbiertos} onClose={() => setFiltrosAbiertos(false)} grupos={gruposFiltro} />
 
       {eventos === null ? (
         <Text style={ec.vacio}>Cargando…</Text>
       ) : lista.length === 0 ? (
-        <Text style={ec.vacio}>{periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}{cursoSel ? " en este curso" : ""}.</Text>
+        <EmptyState icon="calendar-blank-outline" title={`${periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}${cursoSel ? " en este curso" : ""}`} />
       ) : (
         <Card style={ec.card}>
           {lista.map((e, i) => {
             const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
             return (
               <View key={e.id} style={[ec.row, i > 0 && ec.rowBorde]}>
-                <View style={[ec.icono, { backgroundColor: cfg.bg }]}><Text style={ec.iconoTxt}>{cfg.emoji}</Text></View>
                 <View style={styles.flex1}>
                   <Text style={ec.titulo}>{e.titulo}</Text>
                   <Text style={ec.meta}>
@@ -1262,6 +1256,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
 
 const ec = StyleSheet.create({
   chips: { gap: SPACE.sm, paddingBottom: SPACE.sm },
+  buscador: { flex: 1, marginBottom: 0 },
   fila: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.sm },
   chip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
   chipOn: { borderColor: BLUE[500], backgroundColor: BLUE[50] },

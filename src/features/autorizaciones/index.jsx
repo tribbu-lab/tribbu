@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
 import { sanitize, fmtLocalDate, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { estaAbierta, estadoPorAlumno, resumenRespuestas, estadoConvocatoria, limiteCercano, textoConfirmacion, textoRespuesta, fechaAut } from "../../lib/autorizaciones";
@@ -42,13 +43,12 @@ async function exportarExcel(titulo, filas) {
 
 function Resumen({ alumnos, respuestas }) {
   const r = resumenRespuestas(alumnos, respuestas);
-  const pill = (n, txt, bg, c) => <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 8, background: bg, color: c }}>{n} {txt}</span>;
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {pill(r.autorizados, r.autorizados === 1 ? "autorizado" : "autorizados", "#F0FDF4", "#047857")}
-      {pill(r.noAutorizados, "no", "#FEF2F2", "#B91C1C")}
-      {pill(r.sinResponder, "sin responder", "#F1F5F9", "#475569")}
-    </div>
+    <span style={{ fontSize: 12.5, fontWeight: 600, color: "#334155" }}>
+      {r.autorizados} {r.autorizados === 1 ? "autorizado" : "autorizados"}
+      <span style={{ color: r.noAutorizados ? "#B91C1C" : "#334155" }}> · {r.noAutorizados} no</span>
+      <span style={{ color: "#64748B" }}> · {r.sinResponder} sin responder</span>
+    </span>
   );
 }
 
@@ -60,11 +60,11 @@ function DetalleRespuestas({ titulo, grupos }) {
     <div style={{ marginTop: 10 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <Resumen alumnos={grupos.flatMap((g) => g.alumnos)} respuestas={grupos.flatMap((g) => g.respuestas)} />
-        <button onClick={() => setAbierto((p) => !p)} style={{ border: "none", background: "none", color: "#3B82F6", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0 }}>
+        <button onClick={() => setAbierto((p) => !p)} style={{ border: "none", background: "none", color: "#2563EB", cursor: "pointer", fontSize: 13, fontWeight: 700, padding: 0, fontFamily: "inherit" }}>
           {abierto ? "Ocultar respuestas" : "Ver respuestas"}
         </button>
-        <button onClick={() => exportarExcel(titulo, filas)} style={{ border: "1px solid #E2E8F0", background: "white", color: "#475569", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 8 }}>
-          ⬇ Exportar Excel
+        <button onClick={() => exportarExcel(titulo, filas)} style={{ border: "none", background: "none", color: "#2563EB", cursor: "pointer", fontSize: 13, fontWeight: 700, padding: 0, fontFamily: "inherit" }}>
+          Exportar Excel
         </button>
       </div>
       {abierto && (
@@ -379,6 +379,7 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
 export function AutorizacionesColegio({ cursos, userId }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
+  const [confirmar, confirmUI] = useConfirmar();
   // `cursos` se recalcula en cada render del Super Admin: ids estables por clave.
   const clave = cursos.map((c) => c.id).join(",");
   const ids = useMemo(() => (clave ? clave.split(",") : []), [clave]);
@@ -399,26 +400,29 @@ export function AutorizacionesColegio({ cursos, userId }) {
   return (
     <div>
       {nueva && <NuevaAutorizacion cursosDestino={cursos} userId={userId} onClose={() => setNueva(false)} onCreada={cargar} />}
-      <button onClick={() => setNueva(true)} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "#3B82F6", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>+ Nueva autorización</button>
+      {confirmUI}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <BotonNuevo onClick={() => setNueva(true)} ariaLabel="Nueva autorización" />
+      </div>
       {!datos ? <div style={{ color: "#94A3B8", fontSize: 13 }}>Cargando…</div> : !grupos.length ? (
-        <div style={{ color: "#94A3B8", fontSize: 13 }}>Todavía no hay autorizaciones en este colegio.</div>
+        <EmptyState icono="firma" titulo="Todavía no hay autorizaciones" nota="Pedí permiso para una salida o actividad a uno o varios cursos; cada familia responde por hijo." accion="Nueva autorización" onAccion={() => setNueva(true)} />
       ) : grupos.map((g) => (
         <Card key={g.grupo_id || g.id} style={{ padding: 16, marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>✍️ {g.titulo}</div>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: estaAbierta(g, hoyStr) ? "#F0FDF4" : "#F1F5F9", color: estaAbierta(g, hoyStr) ? "#10B981" : "#94A3B8", flexShrink: 0 }}>{estaAbierta(g, hoyStr) ? "Abierta" : "Cerrada"}</span>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A" }}>{g.titulo}</div>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: "#F1F5F9", color: estaAbierta(g, hoyStr) ? "#334155" : "#94A3B8", flexShrink: 0 }}>{estaAbierta(g, hoyStr) ? "Abierta" : "Cerrada"}</span>
           </div>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
             {g.filas.map((f) => nombreCurso.get(f.curso_id)).filter(Boolean).join(", ")}
-            {g.fecha_evento ? ` · 📅 ${fmtFecha(g.fecha_evento)}` : ""}
-            {g.fecha_limite ? ` · ⏰ hasta el ${fmtFecha(g.fecha_limite)}` : ""}
+            {g.fecha_evento ? ` · Salida ${fmtFecha(g.fecha_evento)}` : ""}
+            {g.fecha_limite ? ` · Responder hasta el ${fmtFecha(g.fecha_limite)}` : ""}
           </div>
           <DetalleRespuestas titulo={g.titulo} grupos={g.filas.map((f) => ({
             nombreCurso: nombreCurso.get(f.curso_id) || "",
             alumnos: datos.alumnos.filter((h) => h.curso_id === f.curso_id),
             respuestas: datos.respuestas.filter((r) => r.autorizacion_id === f.id),
           }))} />
-          <button onClick={async () => { if (!confirm("¿Eliminar esta autorización (en todos sus cursos) y sus respuestas?")) return; await supabase.from("autorizaciones").delete().in("id", g.filas.map((f) => f.id)); cargar(); }} style={{ marginTop: 10, border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: 0 }}>Eliminar</button>
+          <button onClick={async () => { if (!(await confirmar({ titulo: "Eliminar autorización", detalle: "Se borra en todos sus cursos, con sus respuestas.", textoConfirmar: "Eliminar" }))) return; await supabase.from("autorizaciones").delete().in("id", g.filas.map((f) => f.id)); cargar(); }} style={{ marginTop: 10, border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: 0 }}>Eliminar</button>
         </Card>
       ))}
     </div>

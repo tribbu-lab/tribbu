@@ -93,9 +93,11 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
       Colegio (+ Plataforma para super), pestañas internas, Ayuda y soporte y
       Mi cuenta abajo, íconos de línea, Inicio estilo "Hoy" con los mensajes
       del personal. Falta: probarlo en la app en un teléfono (solo se validó
-      lint + bundle) y revisar la vista de la Secretaría en la web. Quedan
-      emojis en contenido interno de algunas pantallas (Uniformes usa emojis
-      como dato, mensajes de éxito ✅/⚠️ de las cargas de Excel).
+      lint + bundle). Por dentro (2026-10-22): Personas, Colegio, Comunicación
+      y Comunidad sobrios, filtros iguales en toda la app (ListToolbar). Falta
+      revisar con el administrador lo que la Secretaría no ve (Cursos,
+      Uniformes, Menú, Datos, Marketplace, Lost & Found, Denuncias). Los emojis
+      que quedan son datos (prenda de uniforme, curso, títulos de festejos).
 - [x] **El directivo ve los chats maestra ↔ familia** de sus niveles: ya
       estaba hecho con roles por nivel (Mensajes de familias, solo lectura).
 - [x] **Mensajes entre el personal del colegio** (2026-10-22,

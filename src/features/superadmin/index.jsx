@@ -118,7 +118,7 @@ const SECCION_INFO = {
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicados", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
-  eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para un curso." },
+  eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para uno o varios cursos." },
   talleres:       { titulo:"Talleres", descripcion:"Talleres extraprogramáticos: publicalos para los cursos o edades que elijas, decidí cómo se asignan los lugares (orden de llegada, aprobación o sorteo) y gestioná inscriptos y lista de espera." },
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
@@ -2418,31 +2418,31 @@ export function ComunicacionesAdmin({ cursos }) {
       <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Se publica como un recordatorio independiente en cada curso elegido.</div>
 
       {ok&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#10B981"}}>✓ {ok}</div>}
-      {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#EF4444"}}>⚠️ {error}</div>}
+      {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12.5,fontWeight:700,color:"#B91C1C"}}>{error}</div>}
 
       <div style={{marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TÍTULO</div>
+        <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Título</div>
         <input value={form.titulo} onChange={e=>setForm(p=>({...p,titulo:e.target.value}))} placeholder="Ej: Reunión general de padres" style={inp}/>
       </div>
       <div style={{marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>DESCRIPCIÓN</div>
+        <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Descripción</div>
         <EditorFormato value={form.texto} onChange={v=>setForm(p=>({...p,texto:v}))} placeholder="Ej: El viernes 15 a las 18hs, en el SUM." rows={6} style={{...inp,resize:"vertical"}}/>
       </div>
       <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:140}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>FECHA</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Fecha</div>
           <input type="date" value={form.fecha||""} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp}/>
         </div>
         <div style={{minWidth:100}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA INICIO (opcional)</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Hora inicio (opcional)</div>
           <input type="time" value={form.hora_inicio||""} onChange={e=>setForm(p=>({...p,hora_inicio:e.target.value}))} style={inp}/>
         </div>
         <div style={{minWidth:100}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>HORA FIN (opcional)</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Hora fin (opcional)</div>
           <input type="time" value={form.hora_fin||""} onChange={e=>setForm(p=>({...p,hora_fin:e.target.value}))} style={inp}/>
         </div>
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>PRIORIDAD</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Prioridad</div>
           <div style={{display:"flex",gap:6}}>
             {["alta","media","baja"].map(p=>(
               <button key={p} onClick={()=>setForm(f=>({...f,prioridad:p}))} style={{padding:"7px 12px",borderRadius:8,border:`1.5px solid ${form.prioridad===p?PRIO[p].c:"#E2E8F0"}`,background:form.prioridad===p?PRIO[p].bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.prioridad===p?PRIO[p].c:"#94A3B8"}}>{PRIO[p].l}</button>
@@ -2468,7 +2468,7 @@ export function ComunicacionesAdmin({ cursos }) {
         </button>
       </div>
       <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ADJUNTOS (opcional)</div>
+        <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Adjuntos (opcional)</div>
         <AdjuntosInput adjuntos={form.adjuntos||[]} onChange={adj=>setForm(p=>({...p,adjuntos:adj}))} cursoId="comunicaciones" onUploadingChange={setSubiendoAdj}/>
       </div>
 
@@ -2609,21 +2609,21 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
             <EmptyState sinBorde icono="comunicaciones" titulo="Todavía no hay comunicados este año" nota="Lo que publiques para varios cursos aparece acá, con quién lo leyó." style={{padding:16}}/>
           )}
           {!cargando && comunicaciones.map(c=>(
-            <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",borderLeft:`3px solid ${c.urgente?"#EF4444":"#3B82F6"}`}}>
+            <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0"}}>
               {editando===c.grupo_id ? (
                 <div style={{marginBottom:10}}>
-                  {editError&&<div style={{fontSize:11,fontWeight:700,color:"#EF4444",marginBottom:6}}>⚠️ {editError}</div>}
-                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>TÍTULO</div>
+                  {editError&&<div style={{fontSize:12.5,fontWeight:700,color:"#B91C1C",marginBottom:6}}>{editError}</div>}
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Título</div>
                   <input value={editForm.titulo} onChange={e=>setEditForm(p=>({...p,titulo:e.target.value}))} style={{...inpEdit,marginBottom:8}}/>
-                  <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>DESCRIPCIÓN</div>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Descripción</div>
                   <textarea value={editForm.texto} onChange={e=>setEditForm(p=>({...p,texto:e.target.value}))} rows={3} style={{...inpEdit,resize:"vertical",marginBottom:8}}/>
                   <div style={{display:"flex",gap:8,marginBottom:8}}>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>HORA INICIO (opcional)</div>
+                      <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Hora inicio (opcional)</div>
                       <input type="time" value={editForm.hora_inicio} onChange={e=>setEditForm(p=>({...p,hora_inicio:e.target.value}))} style={inpEdit}/>
                     </div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",marginBottom:3}}>HORA FIN (opcional)</div>
+                      <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Hora fin (opcional)</div>
                       <input type="time" value={editForm.hora_fin} onChange={e=>setEditForm(p=>({...p,hora_fin:e.target.value}))} style={inpEdit}/>
                     </div>
                   </div>
@@ -2640,8 +2640,8 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
               )}
               {editando!==c.grupo_id&&c.titulo&&<div style={{fontSize:12,color:"#64748B",lineHeight:1.4,marginBottom:6}}>{textoPlano(c.texto)}</div>}
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span style={{fontSize:11,color:"#94A3B8"}}>Publicado {fmtFecha(c.creado_en)}</span>
-                <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#EFF6FF",color:"#3B82F6"}}>{c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>
+                <span style={{fontSize:12,color:"#64748B"}}>Publicado {fmtFecha(c.creado_en)}</span>
+                <span style={{fontSize:12,color:"#64748B"}}>· {c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>
                 {c.urgente&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8}}>Urgente</span>}
               </div>
               {(c.fecha||c.hora_inicio)&&(
@@ -2830,11 +2830,11 @@ export function UniformesAdmin({ cursos }) {
             <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>{modalTitle}{modal.u?" — "+modal.u.tipo:""}</div>
             {(modal.mode==="newU"||modal.mode==="editU")&&(<>
               <div style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>NOMBRE</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre</div>
                 <input value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))} placeholder="Ej: Deportivo, Formal..." style={inp} autoFocus/>
               </div>
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:8}}>EMOJI</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Emoji</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   {EMOJIS_UNI.map(e=>(
                     <button key={e} onClick={()=>setForm(p=>({...p,emoji:e}))} style={{width:36,height:36,borderRadius:8,border:form.emoji===e?"2.5px solid #3B82F6":"1.5px solid #E2E8F0",background:form.emoji===e?"#EFF6FF":"white",fontSize:18,cursor:"pointer"}}>{e}</button>
@@ -2844,7 +2844,7 @@ export function UniformesAdmin({ cursos }) {
             </>)}
             {(modal.mode==="newItem"||modal.mode==="editItem")&&(
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>ÍTEM</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Ítem</div>
                 <input value={form.item} onChange={e=>setForm(p=>({...p,item:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&guardar()} placeholder="Ej: Remera blanca manga corta" style={inp} autoFocus/>
               </div>
             )}

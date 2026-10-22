@@ -1584,7 +1584,7 @@ export function BandejaColegio() {
         })}
       </View>
       {hilos === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? (
-        <Text style={s.vacioTxt}>{filtro === "sin_responder" ? "No hay mensajes sin responder. 🎉" : "No hay conversaciones acá."}</Text>
+        <Text style={s.vacioTxt}>{filtro === "sin_responder" ? "No hay mensajes sin responder." : "No hay conversaciones acá."}</Text>
       ) : visibles.map((h) => (
         <Pressable key={h.id} onPress={() => setActiva(h)} style={[s.card, s.filaPanel]} accessibilityRole="button">
           <Iniciales icono={h.tipo === "docente" ? "human-male-board" : "school-outline"} color={SLATE[600]} size={40} />

@@ -136,9 +136,9 @@ function Contacto({ c }) {
   return (
     <div style={{ padding: 12, borderRadius: 12, background: "#F8FAFC", marginBottom: 8 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{c.nombre}</div>
-      {c.telefono && <a href={`tel:${c.telefono}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 4 }}>📞 {c.telefono}</a>}
-      {c.telefono && <a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: "#16A34A", marginTop: 2 }}>💬 WhatsApp</a>}
-      {c.email && <a href={`mailto:${c.email}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 2 }}>✉️ {c.email}</a>}
+      {c.telefono && <a href={`tel:${c.telefono}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 4 }}>Tel. {c.telefono}</a>}
+      {c.telefono && <a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 2 }}>WhatsApp</a>}
+      {c.email && <a href={`mailto:${c.email}`} style={{ display: "block", fontSize: 13, color: "#2563EB", marginTop: 2 }}>{c.email}</a>}
       {!c.telefono && !c.email && <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>No cargó teléfono ni email.</div>}
       {c.mensaje && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 6 }}>“{c.mensaje}”</div>}
     </div>
