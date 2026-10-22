@@ -19,7 +19,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { MAX_OPCIONES, MIN_OPCIONES, estaCerrada as cerradaEl, estaEliminada, resultadoOpcion } from "../../lib/encuestas";
 
 
-export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin }) {
+export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, esDocente = false }) {
   const [encuestas, setEncuestas] = useState([]);
   const [opciones,  setOpciones]  = useState([]);
   const [votos,     setVotos]     = useState([]);
@@ -267,12 +267,13 @@ export function Encuestas({ cursoId, cursoIds = [], esVistaTodos = false, tagDeC
         {filtrosAbiertos && <FiltrosModal grupos={gruposFiltro} onClose={() => setFiltrosAbiertos(false)} />}
       </div>
 
-      {error && !modal && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>⚠️ {error}</div>}
+      {error && !modal && <div style={{ fontSize: 12, color: "#EF4444", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>{error}</div>}
 
       {cargando && <div style={{ textAlign: "center", padding: "32px 0", color: "#94A3B8", fontSize: 13 }}>Cargando...</div>}
       {!cargando && filtro !== "eliminadas" && visibles.length === 0 && (
-        <EmptyState icono="grafico" titulo={filtro === "activas" ? "Sin encuestas activas" : "Sin encuestas cerradas"}
-          nota={filtro === "activas" ? "Creá la primera para consultar al curso." : null}
+        // La maestra ve solo las que manda el colegio (supabase/colectas-encuestas-privadas.sql).
+        <EmptyState icono="grafico" titulo={filtro === "activas" ? (esDocente ? "Todavía no hay encuestas del colegio" : "Sin encuestas activas") : "Sin encuestas cerradas"}
+          nota={filtro === "activas" ? (esDocente ? "Acá ves las encuestas que el colegio (o vos) les manda a las familias de tus cursos. Las que arman las familias entre ellas no se muestran." : "Creá la primera para consultar al curso.") : null}
           accion={filtro === "activas" ? "Crear encuesta" : null} onAccion={abrirModal} />
       )}
       {!cargando && filtro === "eliminadas" && eliminadas.length === 0 && (

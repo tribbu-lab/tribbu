@@ -82,12 +82,13 @@ const SECCIONES = [
   ]},
   { id:"g_colegio", l:"Colegio", icono:"escuela", items: [
     {id:"cursos",l:"Cursos"},
-    {id:"promocion",l:"Promoción"},
     {id:"materias",l:"Materias"},
     {id:"horarios",l:"Horarios"},
     {id:"uniformes",l:"Uniformes"},
     {id:"menu",l:"Menú"},
     {id:"colegio",l:"Datos y membrete"},
+    // Última: se usa una vez por año, al pasar a los alumnos al año siguiente.
+    {id:"promocion",l:"Promoción"},
   ]},
 ];
 
@@ -118,7 +119,7 @@ const SECCION_INFO = {
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicados", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
-  eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para uno o varios cursos." },
+  eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, salidas…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para uno o varios cursos." },
   talleres:       { titulo:"Talleres", descripcion:"Talleres extraprogramáticos: publicalos para los cursos o edades que elijas, decidí cómo se asignan los lugares (orden de llegada, aprobación o sorteo) y gestioná inscriptos y lista de espera." },
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
@@ -883,7 +884,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // del personal son del staff; el super atiende Plataforma → Soporte). La
   // Secretaría no ve lo que es de todo el colegio. Una sección que se queda
   // sin pestañas no se muestra.
-  const filtrarSecciones = (lista, ok) => lista.map(g=>({ ...g, items: g.items.filter(ok) })).filter(g=>g.items.length);
+  // Una sección que queda con una sola pantalla (p. ej. la Secretaría en
+  // Colegio solo tiene Horarios) toma el nombre y el ícono de esa pantalla:
+  // "Colegio" con un horario adentro confundía.
+  const ICONO_PANTALLA = { horarios:"reloj", usuarios:"usuarios", talleres:"paleta", adopcion:"grafico" };
+  const filtrarSecciones = (lista, ok) => lista.map(g=>({ ...g, items: g.items.filter(ok) })).filter(g=>g.items.length)
+    .map(g=>g.items.length===1&&g.id!=="g_inicio" ? { ...g, l:g.items[0].l, icono:ICONO_PANTALLA[g.items[0].id]||g.icono } : g);
   const seccionesVisibles = esSuper
     ? (colegioId ? [SECCION_PLATAFORMA, ...filtrarSecciones(SECCIONES, i=>!i.soloColegioAdmin)] : [SECCION_PLATAFORMA])
     : esSecretaria
@@ -2455,22 +2461,21 @@ export function ComunicacionesAdmin({ cursos }) {
           </div>
         </div>
       </div>
-      <div style={{marginBottom:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-        <button onClick={()=>setForm(p=>({...p,urgente:!p.urgente}))} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.urgente?"#EF4444":"#E2E8F0"}`,background:form.urgente?"#FEF2F2":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.urgente?"#EF4444":"#94A3B8"}}>
-          {form.urgente?"Urgente":"Marcar urgente"}
-        </button>
-        <button onClick={()=>setForm(p=>({...p,enviarPush:!p.enviarPush}))} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.enviarPush?"#BFDBFE":"#E2E8F0"}`,background:form.enviarPush?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.enviarPush?"#2563EB":"#94A3B8"}}>
-          <span style={{width:28,height:16,borderRadius:999,background:form.enviarPush?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
-            <span style={{position:"absolute",top:2,left:form.enviarPush?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
-          </span>
-          {form.enviarPush?"Va a sonar (push)":"Sin notificación push"}
-        </button>
-        <button onClick={()=>setForm(p=>({...p,conMembrete:!p.conMembrete}))} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.conMembrete?"#BFDBFE":"#E2E8F0"}`,background:form.conMembrete?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.conMembrete?"#2563EB":"#94A3B8"}}>
-          <span style={{width:28,height:16,borderRadius:999,background:form.conMembrete?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
-            <span style={{position:"absolute",top:2,left:form.conMembrete?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
-          </span>
-          {form.conMembrete?"Con membrete del colegio":"Sin membrete"}
-        </button>
+      {/* Opciones como casillas con su explicación (antes, tres pastillas con colores). */}
+      <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:10}}>
+        {[
+          {k:"enviarPush", t:"Mandar notificación", n:"Les suena en el celular a las familias de los cursos elegidos."},
+          {k:"conMembrete", t:"Con membrete del colegio", n:"Al abrirlo se ve con el logo, la línea y la firma del colegio."},
+          {k:"urgente", t:"Marcar como urgente", n:"Aparece arriba de todo en Avisos, en rojo."},
+        ].map(o=>(
+          <label key={o.k} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={!!form[o.k]} onChange={()=>setForm(p=>({...p,[o.k]:!p[o.k]}))} style={{width:16,height:16,marginTop:2,accentColor:"#2563EB",cursor:"pointer",flexShrink:0}}/>
+            <span style={{display:"block"}}>
+              <span style={{display:"block",fontSize:13.5,fontWeight:600,color:"#0F172A"}}>{o.t}</span>
+              <span style={{display:"block",fontSize:12.5,color:"#64748B",marginTop:1}}>{o.n}</span>
+            </span>
+          </label>
+        ))}
       </div>
       <div style={{marginBottom:20}}>
         <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Adjuntos (opcional)</div>
@@ -2478,7 +2483,7 @@ export function ComunicacionesAdmin({ cursos }) {
       </div>
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700}}>¿A qué cursos aplica?</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>¿A qué cursos va?</div>
         {cursos.length>0&&<button onClick={seleccionarTodos} style={{border:"none",background:"none",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700}}>{todosSeleccionados?"Ninguno":"Seleccionar todos"}</button>}
       </div>
       <div style={{marginBottom:20}}>
@@ -2490,11 +2495,11 @@ export function ComunicacionesAdmin({ cursos }) {
           Publicar
         </button>
       ) : (
-        <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"14px 16px"}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>¿Publicar en {cursosSel.length} curso{cursosSel.length!==1?"s":""}?</div>
+        <div style={{background:"white",border:"1px solid #E2E8F0",borderRadius:12,padding:"14px 16px"}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:12}}>¿Publicar en {cursosSel.length} curso{cursosSel.length!==1?"s":""}?</div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
-            <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
+            <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
           </div>
         </div>
       )}

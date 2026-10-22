@@ -105,17 +105,17 @@ function BloqueSheet({ visible, borrador, setBorrador, curso, horarios, clases, 
   return (
     <Sheet visible={visible} onClose={() => { setQ(""); onClose(); }} title={alcance.length ? "Editar bloque" : "Agregar al horario"}>
       <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }}>
-        <Text style={s.label}>DÍAS</Text>
+        <Text style={s.label}>Días</Text>
         <PillsDias dias={dias} setDias={(v) => set({ dias: v })} mostrar={mostrar} />
 
         <View style={[s.row, { marginTop: SPACE.md }]}>
           <View style={s.flex1}>
-            <Text style={s.label}>EMPIEZA</Text>
+            <Text style={s.label}>Empieza</Text>
             <TextInput value={ini} onChangeText={(v) => set({ ini: v })} onBlur={() => { const n = normalizarHora(ini); if (n) set({ ini: n }); }}
               placeholder="08:00" placeholderTextColor={t.placeholder} keyboardType="numbers-and-punctuation" style={s.input} accessibilityLabel="Hora de inicio" />
           </View>
           <View style={s.flex1}>
-            <Text style={s.label}>TERMINA</Text>
+            <Text style={s.label}>Termina</Text>
             <TextInput value={fin} onChangeText={(v) => set({ fin: v })} onBlur={() => { const n = normalizarHora(fin); if (n) set({ fin: n }); }}
               placeholder="08:40" placeholderTextColor={t.placeholder} keyboardType="numbers-and-punctuation" style={s.input} accessibilityLabel="Hora de fin" />
           </View>
@@ -127,7 +127,7 @@ function BloqueSheet({ visible, borrador, setBorrador, curso, horarios, clases, 
           })}
         </View>
 
-        <Text style={[s.label, { marginTop: SPACE.md }]}>CLASE</Text>
+        <Text style={[s.label, { marginTop: SPACE.md }]}>Clase</Text>
         {alcance.length && !alcance[0].clase_id ? (
           <Text style={[s.aviso, { marginTop: 0, marginBottom: 8 }]}>
             Este bloque es de antes de las clases: dice “{[alcance[0].materia, alcance[0].docente].filter(Boolean).join(" · ")}” pero no está ligado a ninguna clase. Elegí la clase que corresponde (o creala) o tocá Quitar.
@@ -251,14 +251,14 @@ function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, 
   return (
     <Sheet visible={visible} onClose={onClose} title={clase ? "Editar clase" : "Nueva clase"}>
       <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }}>
-        <Text style={s.label}>MATERIA</Text>
+        <Text style={s.label}>Materia</Text>
         <TextInput value={qMat} onChangeText={setQMat} placeholder={materiaId ? activas.find((m) => m.id === materiaId)?.nombre : "Buscar o escribir una materia nueva…"} placeholderTextColor={t.placeholder} style={s.input} />
         <View style={[s.wrap, { marginTop: 8 }]}>
           {matF.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={m.id === materiaId} onPress={() => { setMateriaId(m.id); setQMat(""); setError(""); }} />)}
           {qMat.trim() && !existe ? <Chip dashed label={`+ Crear “${qMat.trim()}”`} onPress={crearMateria} /> : null}
         </View>
 
-        <Text style={[s.label, { marginTop: SPACE.md }]}>MAESTRA</Text>
+        <Text style={[s.label, { marginTop: SPACE.md }]}>Maestra</Text>
         <TextInput value={qMae} onChangeText={setQMae} placeholder="Buscar maestra…" placeholderTextColor={t.placeholder} style={s.input} />
         <View style={[s.wrap, { marginTop: 8 }]}>
           <Chip label="Sin maestra (recreo…)" on={!maestroId} onPress={() => setMaestroId("")} />
@@ -317,9 +317,9 @@ function CopiarDiaSheet({ visible, horarios, dias, onClose, onHecho }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="Copiar un día a otros">
       <ScrollView style={{ flexShrink: 1 }}>
-        <Text style={s.label}>COPIAR EL</Text>
+        <Text style={s.label}>Copiar el</Text>
         <View style={s.wrap}>{conBloques.map((d) => <Chip key={d} label={d} on={origen === d} onPress={() => { setOrigen(d); setDestinos((x) => x.filter((y) => y !== d)); }} />)}</View>
-        <Text style={[s.label, { marginTop: SPACE.md }]}>A ESTOS DÍAS</Text>
+        <Text style={[s.label, { marginTop: SPACE.md }]}>A estos días</Text>
         <PillsDias dias={destinos} setDias={(v) => setDestinos(v.filter((d) => d !== origen))} mostrar={dias.filter((d) => d !== origen)} />
         <View style={[s.row, { marginTop: SPACE.md }]}>
           <Text style={[s.flex1, s.claseTxt]}>Borrar lo que ya hay en esos días antes de copiar</Text>
@@ -364,7 +364,7 @@ function CopiarCursoSheet({ visible, curso, cursos, horarios, clases, onClose, o
   return (
     <Sheet visible={visible} onClose={onClose} title={`Copiar a ${curso.nombre}`}>
       <ScrollView style={{ flexShrink: 1 }}>
-        <Text style={s.label}>DESDE</Text>
+        <Text style={s.label}>Desde</Text>
         <View style={s.wrap}>{cursos.filter((c) => c.id !== curso.id).map((c) => <Chip key={c.id} label={c.nombre} on={origenId === c.id} onPress={() => { setOrigenId(c.id); setDatos(null); }} />)}</View>
         {origenId && !datos ? <ActivityIndicator color={t.accent} style={{ marginTop: 8 }} /> : null}
         {datos ? (
@@ -527,7 +527,7 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   flex1: { flex: 1 },
-  label: { fontSize: 11, fontWeight: "800", color: t.textFaint, letterSpacing: 0.5, marginBottom: 6 },
+  label: { fontSize: 12.5, fontWeight: "600", color: t.textMuted, marginBottom: 6 },
   muted: { fontSize: 12.5, color: t.textMuted },
   link: { fontSize: 13, fontWeight: "700", color: t.accent },
   input: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.md, paddingHorizontal: 12, minHeight: MIN_TOUCH, fontSize: 14, color: t.text, backgroundColor: t.surfaceSunken },

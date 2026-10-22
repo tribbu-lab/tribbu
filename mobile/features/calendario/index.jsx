@@ -1160,7 +1160,9 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
 
   const hoy = fmtLocalDate(new Date());
   const q = busqueda.trim().toLowerCase();
+  // Los festejos son entre familias: el colegio no los ve.
   const lista = (eventos || [])
+    .filter((e) => e.tipo !== "festejo")
     .filter((e) => !cursoSel || e.curso_id === cursoSel)
     .filter((e) => (periodo === "proximos" ? (e.fecha_fin || e.fecha) >= hoy : (e.fecha_fin || e.fecha) < hoy))
     .filter((e) => !q || `${e.titulo} ${e.descripcion || ""} ${e.lugar || ""}`.toLowerCase().includes(q));

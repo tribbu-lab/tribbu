@@ -27,7 +27,7 @@ const t = THEMES.light;
 const FORM_VACIO = { pregunta: "", opciones: ["", ""], fecha_cierre: "", curso_id: null };
 
 export function Encuestas() {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, items } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, items, esDocente } = useSession();
   const userId = usuario?.id ?? null;
 
   const [encuestas, setEncuestas] = useState([]);
@@ -238,8 +238,8 @@ export function Encuestas() {
           !cargando ? (
             <EmptyState
               icon="chart-box-outline"
-              title={filtro === "activas" ? "Sin encuestas activas" : filtro === "cerradas" ? "Sin encuestas cerradas" : "Sin encuestas eliminadas"}
-              note={filtro === "activas" ? "Creá la primera para consultar al curso." : null}
+              title={filtro === "activas" ? (esDocente ? "Todavía no hay encuestas del colegio" : "Sin encuestas activas") : filtro === "cerradas" ? "Sin encuestas cerradas" : "Sin encuestas eliminadas"}
+              note={filtro === "activas" ? (esDocente ? "Acá ves las encuestas que el colegio (o vos) les manda a las familias de tus cursos. Las que arman las familias entre ellas no se muestran." : "Creá la primera para consultar al curso.") : null}
               actionLabel={filtro === "activas" ? "Crear encuesta" : null}
               onAction={abrirModal}
             />

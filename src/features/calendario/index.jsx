@@ -991,7 +991,10 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
 
   const hoy = fmtLocalDate(new Date());
   const q = busqueda.trim().toLowerCase();
+  // Los festejos son entre familias: el colegio no los ve (festejos-sin-colegio.sql;
+  // super todavía sí por RLS, así que se filtran también acá).
   const lista = (eventos || [])
+    .filter(e => e.tipo !== "festejo")
     .filter(e => !cursoSel || e.curso_id === cursoSel)
     .filter(e => !tipoSel || e.tipo === tipoSel)
     .filter(e => periodo === "proximos" ? (e.fecha_fin || e.fecha) >= hoy : (e.fecha_fin || e.fecha) < hoy)
@@ -1015,7 +1018,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const gruposFiltro = [
     { key: "periodo", label: "Cuándo", value: periodo, onChange: setPeriodo, options: [{ value: "proximos", label: "Próximos" }, { value: "pasados", label: "Pasados" }] },
     { key: "curso", label: "Curso", value: cursoSel, onChange: setCursoSel, options: [{ value: "", label: "Todos" }, ...cursos.map(c => ({ value: c.id, label: c.nombre }))] },
-    { key: "tipo", label: "Tipo", value: tipoSel, onChange: setTipoSel, options: [{ value: "", label: "Todos" }, ...Object.entries(TIPO_CONFIG).filter(([k]) => k !== "cumple").map(([k, v]) => ({ value: k, label: v.label }))] },
+    { key: "tipo", label: "Tipo", value: tipoSel, onChange: setTipoSel, options: [{ value: "", label: "Todos" }, ...Object.entries(TIPO_CONFIG).filter(([k]) => k !== "cumple" && k !== "festejo").map(([k, v]) => ({ value: k, label: v.label }))] },
   ];
 
   return (

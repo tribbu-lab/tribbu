@@ -169,9 +169,9 @@ export function MateriasAdmin({ colegioId }) {
           <View style={s.modalCard}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={s.modalTitle}>Materia</Text>
-              <Text style={s.label}>NOMBRE</Text>
+              <Text style={s.label}>Nombre</Text>
               <TextInput value={nombre} onChangeText={setNombre} style={s.input} />
-              <Text style={s.label}>COLOR</Text>
+              <Text style={s.label}>Color</Text>
               <View style={s.wrap}>
                 {PALETA_MATERIAS.map((c) => (
                   <Pressable key={c} onPress={() => { actualizar({ color: c }); setSel((p) => ({ ...p, color: c })); }} style={[s.colorDot, { backgroundColor: c }, sel?.color === c && s.colorOn]} accessibilityLabel={`Color ${c}`} />
@@ -190,7 +190,7 @@ export function MateriasAdmin({ colegioId }) {
                   </Pressable>
                 </View>
               ))}
-              <Text style={s.label}>UNIFICAR CON OTRA (si es la misma materia)</Text>
+              <Text style={s.label}>Unificar con otra (si es la misma materia)</Text>
               <View style={s.wrap}>
                 {(materias || []).filter((m) => m.id !== sel?.id).map((m) => (
                   <Chip key={m.id} label={m.nombre} color={m.color} on={unificarCon?.id === m.id} onPress={() => setUnificarCon(unificarCon?.id === m.id ? null : m)} />
@@ -270,12 +270,12 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio 
       ))}
       {abierto ? (
         <View style={{ marginTop: SPACE.sm }}>
-          <Text style={s.label}>MATERIA</Text>
+          <Text style={s.label}>Materia</Text>
           <View style={s.wrap}>
             {activas.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={materiaId === m.id} onPress={() => setMateriaId(m.id)} />)}
           </View>
           {!activas.length ? <Text style={s.muted}>Primero cargá las materias en Colegio → Materias.</Text> : null}
-          <Text style={s.label}>MAESTRA</Text>
+          <Text style={s.label}>Maestra</Text>
           <View style={s.wrap}>
             <Chip label="Sin maestra" on={!maestroId} onPress={() => setMaestroId(null)} />
             {maestros.map((m) => <Chip key={m.id} label={fmtNombre(m)} on={maestroId === m.id} onPress={() => setMaestroId(m.id)} />)}
@@ -315,13 +315,13 @@ export function ClasesMaestroEditor({ colegioId, cursos, value, onChange }) {
           ))}
         </View>
       )}
-      <Text style={s.label}>AGREGAR: ELEGÍ EL CURSO…</Text>
+      <Text style={s.label}>Agregar: elegí el curso…</Text>
       <View style={s.wrap}>
         {(cursos || []).map((c) => <Chip key={c.id} label={c.nombre} on={cursoId === c.id} onPress={() => setCursoId(c.id)} />)}
       </View>
       {cursoId ? (
         <>
-          <Text style={s.label}>…Y LAS MATERIAS QUE DA AHÍ</Text>
+          <Text style={s.label}>…y las materias que da ahí</Text>
           <View style={s.wrap}>
             {activas.map((m) => (
               <Chip key={m.id} label={m.nombre} color={m.color} on={value.some((v) => v.curso_id === cursoId && v.materia_id === m.id)} onPress={() => toggle(m.id)} />
@@ -348,7 +348,7 @@ const s = StyleSheet.create({
   claseFila: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, minHeight: 36 },
   dot: { width: 9, height: 9, borderRadius: 5 },
   dotGrande: { width: 14, height: 14, borderRadius: 7 },
-  label: { fontSize: 11, fontWeight: "800", color: t.textFaint, letterSpacing: 0.6, marginTop: SPACE.md, marginBottom: 6 },
+  label: { fontSize: 12.5, fontWeight: "600", color: t.textMuted, marginTop: SPACE.md, marginBottom: 6 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
   chipOn: { borderColor: t.accent, backgroundColor: t.accentSoft },

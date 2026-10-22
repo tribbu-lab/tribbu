@@ -88,6 +88,7 @@ const SECCIONES = [
     { id: "soporte", l: "Soporte", soloSuper: true },
   ]},
 ];
+const ICONO_PANTALLA = { horarios: "clock-outline", talleres: "palette-outline", adopcion: "chart-bar", soporte: "lifebuoy" };
 // Pantallas sueltas, fuera de las secciones (abajo del inicio del panel).
 const TITULO_SUELTA = { soporte_colegio: "Ayuda y soporte", cuenta: "Mi cuenta" };
 
@@ -651,7 +652,10 @@ export function SuperAdmin() {
   ];
   const seccionesVisibles = SECCIONES
     .map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) }))
-    .filter((g) => g.items.length);
+    .filter((g) => g.items.length)
+    // Una sección con una sola pantalla (la Secretaría en Colegio solo tiene
+    // Horarios) toma el nombre y el ícono de esa pantalla.
+    .map((g) => (g.items.length === 1 ? { ...g, l: g.items[0].l, icono: ICONO_PANTALLA[g.items[0].id] || g.icono } : g));
   const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
   const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
@@ -1594,7 +1598,7 @@ function ColegioAdmin({ colegioId }) {
                   </View>
                 ))}
 
-                {err ? <Text style={styles.colegioErr}>⚠️ {err}</Text> : null}
+                {err ? <Text style={styles.colegioErr}>{err}</Text> : null}
 
                 <View style={styles.modalBtns}>
                   <Pressable onPress={() => setModal(false)} style={styles.cancelBtn}>
@@ -1833,25 +1837,27 @@ function ComunicacionesAdmin({ cursos }) {
         })}
       </View>
 
-      <Pressable
-        onPress={() => setForm((p) => ({ ...p, urgente: !p.urgente }))}
-        style={[styles.togglePill, form.urgente && { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
-      >
-        <Text style={[styles.toggleTxt, form.urgente && { color: "#EF4444" }]}>{form.urgente ? "Urgente" : "Marcar urgente"}</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setForm((p) => ({ ...p, conMembrete: !p.conMembrete }))}
-        style={[styles.togglePill, form.conMembrete && { borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" }]}
-        accessibilityState={{ selected: !!form.conMembrete }}
-      >
-        <Text style={[styles.toggleTxt, form.conMembrete && { color: "#2563EB" }]}>{form.conMembrete ? "✓ Con membrete del colegio" : "Sin membrete"}</Text>
-      </Pressable>
+      {/* Opciones como interruptores con su explicación (antes, pastillas de colores). */}
+      <View style={styles.switchFila}>
+        <View style={styles.flex1}>
+          <Text style={styles.switchTxt}>Con membrete del colegio</Text>
+          <Text style={styles.itemMeta}>Al abrirlo se ve con el logo, la línea y la firma del colegio.</Text>
+        </View>
+        <Switch value={!!form.conMembrete} onValueChange={(v) => setForm((p) => ({ ...p, conMembrete: v }))} />
+      </View>
+      <View style={styles.switchFila}>
+        <View style={styles.flex1}>
+          <Text style={styles.switchTxt}>Marcar como urgente</Text>
+          <Text style={styles.itemMeta}>Aparece arriba de todo en Avisos, en rojo.</Text>
+        </View>
+        <Switch value={!!form.urgente} onValueChange={(v) => setForm((p) => ({ ...p, urgente: v }))} />
+      </View>
 
       <Text style={styles.label}>Adjuntos (opcional)</Text>
       <AdjuntosInput adjuntos={form.adjuntos || []} onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))} cursoId="comunicaciones" onUploadingChange={setSubiendoAdj} />
 
       <View style={comStyles.sectionRow}>
-        <Text style={styles.cardTitle}>¿A qué cursos aplica?</Text>
+        <Text style={styles.cardTitle}>¿A qué cursos va?</Text>
         {cursos.length > 0 ? (
           <Pressable onPress={seleccionarTodos}>
             <Text style={comStyles.linkTxt}>{todosSeleccionados ? "Ninguno" : "Seleccionar todos"}</Text>
