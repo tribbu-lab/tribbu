@@ -14,7 +14,8 @@ import { MODOS, ESTADOS_TALLER, SELECT_TALLER, hoyAR, textoLugares, textoHorario
 
 const t = THEMES.light;
 const GRUPOS = [["inscripto", "Inscriptos"], ["pendiente", "Pendientes"], ["espera", "Espera"], ["rechazado", "Rechazados"], ["baja", "Bajas"]];
-const COLOR_ESTADO = { borrador: ["#F1F5F9", "#475569"], publicado: ["#F0FDF4", "#047857"], cerrado: ["#FFFBEB", "#B45309"], cancelado: ["#FEF2F2", "#B91C1C"] };
+// Estados en gris; solo "cancelado" se marca (mismo criterio que la web).
+const COLOR_ESTADO = { borrador: ["#F8FAFC", "#64748B"], publicado: ["#F1F5F9", "#334155"], cerrado: ["#F1F5F9", "#64748B"], cancelado: ["#FEF2F2", "#B91C1C"] };
 
 const avisar = (userIds, taller, mensaje) => {
   if (!userIds?.length) return Promise.resolve();

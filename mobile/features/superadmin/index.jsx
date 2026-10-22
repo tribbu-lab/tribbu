@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from "react";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLocalSearchParams } from "expo-router";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler, Switch } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
@@ -1113,8 +1113,8 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
             {ocultarAccesoEspecial ? null : (
               <>
                 <Text style={styles.label}>Acceso especial</Text>
-                <Pressable onPress={() => setForm((p) => ({ ...p, esSuper: !p.esSuper }))} style={[styles.togglePill, form.esSuper && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}>
-                  <Text style={[styles.toggleTxt, form.esSuper && { color: "#8B5CF6" }]}>{form.esSuper ? "★ Super Admin" : "◇ Super Admin"}</Text>
+                <Pressable onPress={() => setForm((p) => ({ ...p, esSuper: !p.esSuper }))} style={[styles.togglePill, form.esSuper && { borderColor: "#2563EB", backgroundColor: "#F5F3FF" }]}>
+                  <Text style={[styles.toggleTxt, form.esSuper && { color: "#1D4ED8" }]}>{form.esSuper ? "✓ Super Admin" : "Super Admin"}</Text>
                 </Pressable>
               </>
             )}
@@ -1192,13 +1192,10 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
               </>
             ) : null}
 
-            <Text style={styles.label}>Estado</Text>
-            <Pressable
-              onPress={() => setForm((p) => ({ ...p, activo: !p.activo }))}
-              style={[styles.togglePill, form.activo ? { borderColor: "#10B981", backgroundColor: "#F0FDF4" } : { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
-            >
-              <Text style={[styles.toggleTxt, { color: form.activo ? "#10B981" : "#EF4444" }]}>{form.activo ? "✓ Activo" : "✗ Inactivo"}</Text>
-            </Pressable>
+            <View style={styles.switchFila}>
+              <Text style={styles.switchTxt}>Cuenta activa (puede entrar a tribbu)</Text>
+              <Switch value={!!form.activo} onValueChange={(v) => setForm((p) => ({ ...p, activo: v }))} />
+            </View>
 
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
@@ -1309,13 +1306,10 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 })()}
               </>
             ) : null}
-            <Text style={styles.label}>Estado</Text>
-            <Pressable
-              onPress={() => setForm((p) => ({ ...p, activo: p.activo === false }))}
-              style={[styles.togglePill, form.activo !== false ? { borderColor: "#10B981", backgroundColor: "#F0FDF4" } : { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
-            >
-              <Text style={[styles.toggleTxt, { color: form.activo !== false ? "#10B981" : "#EF4444" }]}>{form.activo !== false ? "✓ Activo" : "✗ Inactivo"}</Text>
-            </Pressable>
+            <View style={styles.switchFila}>
+              <Text style={styles.switchTxt}>Activo</Text>
+              <Switch value={form.activo !== false} onValueChange={(v) => setForm((p) => ({ ...p, activo: v }))} />
+            </View>
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
@@ -2501,7 +2495,9 @@ const styles = StyleSheet.create({
   // Modales
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 16 },
   modalCard: { backgroundColor: "white", borderRadius: 20, padding: 20, maxHeight: "88%" },
-  modalTitle: { fontSize: 17, fontWeight: "900", color: T.text, marginBottom: 4 },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A", marginBottom: 4 },
+  switchFila: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 14, paddingVertical: 4 },
+  switchTxt: { flex: 1, fontSize: 14, color: "#0F172A" },
   confirmNombre: { fontSize: 14, fontWeight: "700", color: T.text, marginVertical: 4 },
   label: { fontSize: 12.5, fontWeight: "600", color: "#475569", marginTop: 12, marginBottom: 6 },
   input: { minHeight: 44, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: "#F8FAFC" },
@@ -2514,8 +2510,8 @@ const styles = StyleSheet.create({
   emojiBtn: { width: 40, height: 40, borderRadius: 8, borderWidth: 1.5, borderColor: "#E2E8F0", alignItems: "center", justifyContent: "center", backgroundColor: "white" },
   colorDot: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, borderColor: "transparent" },
   colorDotOn: { borderColor: T.primary },
-  togglePill: { alignSelf: "flex-start", borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14, marginTop: 4 },
-  toggleTxt: { fontSize: 12, fontWeight: "700", color: "#94A3B8" },
+  togglePill: { alignSelf: "flex-start", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14, marginTop: 4 },
+  toggleTxt: { fontSize: 13, fontWeight: "700", color: "#334155" },
   optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44, borderWidth: 2, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6, backgroundColor: "white" },
   optRowSel: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
   optTxt: { fontSize: 13, color: T.text, flex: 1 },
@@ -2523,7 +2519,7 @@ const styles = StyleSheet.create({
   hijoChipTxt: { fontSize: 12, fontWeight: "700", color: "#3B82F6" },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 18 },
   cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { fontSize: 13, fontWeight: "600", color: "#94A3B8" },
+  cancelTxt: { fontSize: 14, fontWeight: "700", color: "#334155" },
   saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
   saveTxt: { fontSize: 14, fontWeight: "700", color: "white" },
 

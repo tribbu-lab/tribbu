@@ -30,7 +30,8 @@ const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1.5
 const btnPri = { padding: "9px 16px", borderRadius: 10, border: "none", background: C.accent, color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
 const btnSec = { padding: "8px 13px", borderRadius: 10, border: `1px solid ${C.borderStrong}`, background: C.surface, cursor: "pointer", fontSize: 12.5, color: SLATE[700], fontWeight: 700, whiteSpace: "nowrap" };
 const lbl = { fontSize: 12.5, fontWeight: 600, color: C.textMuted, marginBottom: 6 };
-const COLOR_ESTADO = { borrador: ["#F1F5F9", "#475569"], publicado: ["#F0FDF4", "#047857"], cerrado: ["#FFFBEB", "#B45309"], cancelado: ["#FEF2F2", "#B91C1C"] };
+// Estados en gris; solo "cancelado" se marca (es lo que hay que ver).
+const COLOR_ESTADO = { borrador: ["#F8FAFC", "#64748B"], publicado: ["#F1F5F9", "#334155"], cerrado: ["#F1F5F9", "#64748B"], cancelado: ["#FEF2F2", "#B91C1C"] };
 const sinAcentos = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 function Modal({ titulo, subtitulo, onClose, children, pie, ancho = 640 }) {

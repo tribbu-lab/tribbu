@@ -918,7 +918,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             {confirm.nombre && <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:4}}>{confirm.nombre}</div>}
             <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>{confirm.msg}</div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
+              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
               <button onClick={confirm.action} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Eliminar</button>
             </div>
           </Card>
@@ -929,7 +929,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modal==="nuevo_usuario"||modal?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo apoderado":"Editar apoderado"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo apoderado":"Editar apoderado"}</div>
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"},{label:"DNI",key:"dni",type:"text",ph:"Ej: 12345678"},{label:"Teléfono",key:"telefono",type:"tel",ph:"Ej: +54 11 1234-5678"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
@@ -965,7 +965,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                         const h=hijos.find(x=>x.id===hid); if(!h) return null;
                         const c=cursos.find(x=>x.id===h.curso_id);
                         return (
-                          <div key={hid} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px 3px 10px",borderRadius:20,background:"#EFF6FF",border:"1.5px solid #BFDBFE"}}>
+                          <div key={hid} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px 3px 10px",borderRadius:20,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>
                             <span style={{fontSize:12,fontWeight:700,color:"#3B82F6"}}>{h.nombre} {h.apellido}</span>
                             {c&&<span style={{fontSize:10,color:"#94A3B8"}}>· {c.nombre}</span>}
                             <button onClick={()=>setForm(p=>{
@@ -988,7 +988,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       onChange={e=>setForm(p=>({...p,_busqHijo:e.target.value}))}
                       style={{...inp,paddingLeft:32}}
                     />
-                    <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13,pointerEvents:"none"}}>🔍</span>
+                    <Icono nombre="lupa" size={15} color="#94A3B8" style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}/>
                   </div>
                   {/* Dropdown con resultados */}
                   {(form._busqHijo||"").length>0&&(()=>{
@@ -1035,14 +1035,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                           const esAdmin=(form.cursosAdmin||[]).includes(cid);
                           const hijosAqui=(form.hijos||[]).filter(hid=>hijos.find(h=>h.id===hid)?.curso_id===cid).map(hid=>hijos.find(h=>h.id===hid)).filter(Boolean);
                           return (
-                            <div key={cid} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${esAdmin?"#10B981":"#E2E8F0"}`,background:esAdmin?"#F0FDF4":"white"}}>
+                            <div key={cid} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:12,border:`1px solid ${esAdmin?"#BFDBFE":"#E2E8F0"}`,background:esAdmin?"#F8FAFC":"white"}}>
                               <div>
-                                <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{c.avatar} {c.nombre}</div>
+                                <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{c.nombre}</div>
                                 <div style={{fontSize:11,color:"#64748B",marginTop:1}}>{hijosAqui.map(h=>`${h.nombre} ${h.apellido||""}`).join(", ")}</div>
                               </div>
                               <button onClick={()=>setForm(p=>({...p,cursosAdmin:esAdmin?p.cursosAdmin.filter(x=>x!==cid):[...(p.cursosAdmin||[]),cid]}))}
-                                style={{padding:"5px 12px",borderRadius:20,border:`1.5px solid ${esAdmin?"#10B981":"#E2E8F0"}`,background:esAdmin?"#10B981":"white",cursor:"pointer",fontSize:11,fontWeight:700,color:esAdmin?"white":"#94A3B8",flexShrink:0}}>
-                                {esAdmin?"✓ Room Parent":"+ Room Parent"}
+                                style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${esAdmin?"#2563EB":"#E2E8F0"}`,background:esAdmin?"#2563EB":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:esAdmin?"white":"#334155",flexShrink:0,fontFamily:"inherit"}}>
+                                {esAdmin?"✓ Room Parent":"Hacer Room Parent"}
                               </button>
                             </div>
                           );
@@ -1056,11 +1056,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
             <div style={{marginBottom:16}}>
               <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Estado</div>
-              <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.activo?"#10B981":"#EF4444"}`,background:form.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:form.activo?"#10B981":"#EF4444"}}>{form.activo?"✓ Activo":"✗ Inactivo"}</button>
+              <label style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={form.activo} onChange={()=>setForm(p=>({...p,activo:!(p.activo)}))} style={{width:16,height:16,accentColor:"#2563EB",cursor:"pointer"}}/><span style={{fontSize:13.5,color:"#0F172A"}}>Cuenta activa (puede entrar a tribbu)</span></label>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={conGuardando(guardarUsuario)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_usuario"?"Crear apoderado":"Guardar cambios"}</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={conGuardando(guardarUsuario)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#2563EB",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_usuario"?"Crear apoderado":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1072,7 +1072,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modalAdmin==="nuevo"||modalAdmin?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{formAdmin.rol==="nivel_admin"?(modalAdmin==="nuevo"?"Nuevo directivo por nivel":"Editar directivo"):(modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador")}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:4}}>{formAdmin.rol==="nivel_admin"?(modalAdmin==="nuevo"?"Nuevo directivo por nivel":"Editar directivo"):(modalAdmin==="nuevo"?"Nuevo administrador":"Editar administrador")}</div>
             <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>{formAdmin.rol==="nivel_admin"?`Directivo de ${colegioNombre}: gestiona solo los cursos de sus niveles. El cargo es solo el nombre que se ve; todos pueden lo mismo.`:`Administrador de ${colegioNombre}.`}</div>
             {formAdmin.rol==="nivel_admin"&&(
               <div style={{marginBottom:12}}>
@@ -1115,15 +1115,15 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             {modalAdmin?.edit&&(
               <div style={{marginBottom:16}}>
-                <button onClick={()=>setFormAdmin(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${formAdmin.activo?"#10B981":"#EF4444"}`,background:formAdmin.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:formAdmin.activo?"#10B981":"#EF4444"}}>{formAdmin.activo?"✓ Activo":"✗ Inactivo"}</button>
+                <label style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={formAdmin.activo} onChange={()=>setFormAdmin(p=>({...p,activo:!(p.activo)}))} style={{width:16,height:16,accentColor:"#2563EB",cursor:"pointer"}}/><span style={{fontSize:13.5,color:"#0F172A"}}>Cuenta activa (puede entrar a tribbu)</span></label>
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{ setModalAdmin(null); setFormAdmin({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>{ setModalAdmin(null); setFormAdmin({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
               <button onClick={()=>{
                 if(formAdmin.rol==="nivel_admin"&&!(formAdmin.niveles||[]).length){ showToast("Elegí al menos un nivel","error"); return; }
                 guardarCuentaEspecial(formAdmin.rol||"colegio_admin",colegioId,modalAdmin==="nuevo",formAdmin,setFormAdmin,()=>setModalAdmin(null));
-              }} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?(formAdmin.rol==="nivel_admin"?"Crear directivo":"Crear administrador"):"Guardar cambios"}</button>
+              }} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalAdmin==="nuevo"?(formAdmin.rol==="nivel_admin"?"Crear directivo":"Crear administrador"):"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1134,7 +1134,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modalSuper==="nuevo"||modalSuper?.edit) && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>{modalSuper==="nuevo"?"Nuevo Super Admin":"Editar Super Admin"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:4}}>{modalSuper==="nuevo"?"Nuevo Super Admin":"Editar Super Admin"}</div>
             <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>Acceso total a la plataforma — todos los colegios, sin restricción.</div>
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
@@ -1154,12 +1154,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             {modalSuper?.edit&&(
               <div style={{marginBottom:16}}>
-                <button onClick={()=>setFormSuper(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${formSuper.activo?"#10B981":"#EF4444"}`,background:formSuper.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:formSuper.activo?"#10B981":"#EF4444"}}>{formSuper.activo?"✓ Activo":"✗ Inactivo"}</button>
+                <label style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={formSuper.activo} onChange={()=>setFormSuper(p=>({...p,activo:!(p.activo)}))} style={{width:16,height:16,accentColor:"#2563EB",cursor:"pointer"}}/><span style={{fontSize:13.5,color:"#0F172A"}}>Cuenta activa (puede entrar a tribbu)</span></label>
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{ setModalSuper(null); setFormSuper({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={()=>guardarCuentaEspecial("super",null,modalSuper==="nuevo",formSuper,setFormSuper,()=>setModalSuper(null))} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#8B5CF6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalSuper==="nuevo"?"Crear Super Admin":"Guardar cambios"}</button>
+              <button onClick={()=>{ setModalSuper(null); setFormSuper({}); }} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={()=>guardarCuentaEspecial("super",null,modalSuper==="nuevo",formSuper,setFormSuper,()=>setModalSuper(null))} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modalSuper==="nuevo"?"Crear Super Admin":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1168,7 +1168,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modal==="nuevo_curso"||modal==="editar_curso") && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:380}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":form._duplicarDeId?"Duplicar curso":"Nuevo curso"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:18}}>{modal==="editar_curso"?"Editar curso":form._duplicarDeId?"Duplicar curso":"Nuevo curso"}</div>
             {form._duplicarDeId&&<div style={{fontSize:12,color:"#94A3B8",marginTop:-10,marginBottom:14}}>Se copian horarios, Room Parent, maestro, uniformes, útiles y libros al curso nuevo.</div>}
             <div style={{marginBottom:12}}>
                 <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre del curso</div>
@@ -1202,8 +1202,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <input type="number" value={form.año_lectivo||""} onChange={e=>setForm(p=>({...p,año_lectivo:Number(e.target.value)||""}))} placeholder="Ej: 2026" style={inp}/>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={conGuardando(modal==="editar_curso"?actualizarCurso:guardarCurso)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="editar_curso"?"Guardar cambios":form._duplicarDeId?"Crear duplicado":"Crear curso"}</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={conGuardando(modal==="editar_curso"?actualizarCurso:guardarCurso)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#2563EB",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="editar_curso"?"Guardar cambios":form._duplicarDeId?"Crear duplicado":"Crear curso"}</button>
             </div>
           </Card>
         </div>
@@ -1212,7 +1212,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modal==="nuevo_maestro"||modal==="editar_maestro") && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
             {[{label:"Nombre",key:"nombre",ph:"Ej: Carlos"},{label:"Apellido",key:"apellido",ph:"Ej: Gómez"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
                 <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
@@ -1265,11 +1265,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Estado</div>
-              <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.activo!==false?"#10B981":"#EF4444"}`,background:form.activo!==false?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:form.activo!==false?"#10B981":"#EF4444"}}>{form.activo!==false?"✓ Activo":"✗ Inactivo"}</button>
+              <label style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={form.activo!==false} onChange={()=>setForm(p=>({...p,activo:!(p.activo!==false)}))} style={{width:16,height:16,accentColor:"#2563EB",cursor:"pointer"}}/><span style={{fontSize:13.5,color:"#0F172A"}}>Cuenta activa (puede entrar a tribbu)</span></label>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={conGuardando(guardarMaestro)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_maestro"?"Crear maestro":"Guardar cambios"}</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={conGuardando(guardarMaestro)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#2563EB",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_maestro"?"Crear maestro":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1278,7 +1278,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {(modal==="nuevo_alumno"||modal==="editar_alumno") && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_alumno"?"Nuevo alumno":"Editar alumno"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:18}}>{modal==="nuevo_alumno"?"Nuevo alumno":"Editar alumno"}</div>
             <div style={{display:"flex",gap:10,marginBottom:12}}>
               <div style={{flex:1}}>
                 <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre</div>
@@ -1319,8 +1319,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </select>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={conGuardando(guardarAlumno)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_alumno"?"Crear alumno":"Guardar cambios"}</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
+              <button onClick={conGuardando(guardarAlumno)} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:guardando?"#93C5FD":"#2563EB",color:"white",cursor:guardando?"default":"pointer",fontSize:13,fontWeight:700}}>{guardando?"Guardando…":modal==="nuevo_alumno"?"Crear alumno":"Guardar cambios"}</button>
             </div>
           </Card>
         </div>
@@ -1901,7 +1901,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {modalColegio==="nuevo"&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>Nuevo colegio</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#0F172A",marginBottom:4}}>Nuevo colegio</div>
             <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Crea el colegio y, opcionalmente, su primer administrador (colegio_admin).</div>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",marginBottom:5}}>Nombre del colegio</div>
@@ -2226,7 +2226,7 @@ function AlertaModal({ onClose, onEnviar }) {
         <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Este mensaje se mostrará de forma destacada a todos los apoderados del curso.</div>
         <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Ej: Se suspenden las clases de mañana por paro docente." rows={4} style={{...inp,resize:"vertical",marginBottom:16}}/>
         <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+          <button onClick={onClose} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
           <button onClick={enviar} disabled={loading||!msg.trim()} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{loading?"Enviando...":"Enviar alerta"}</button>
         </div>
       </Card>
@@ -2351,7 +2351,7 @@ function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado,
           <div style={{flex:"1 1 220px"}}><div style={lbl}>Firma · {nombreNivel(k)}</div><input value={form.niveles?.[k]?.firma||""} onChange={e=>setNivel(k,"firma",e.target.value)} placeholder={`Ej: Dirección de ${nombreNivel(k)}`} style={inp}/></div>
         </div>
       ))}
-      <button onClick={guardar} disabled={guardando} style={{padding:"9px 16px",borderRadius:10,border:"none",background:guardando?"#93C5FD":"#3B82F6",color:"white",cursor:guardando?"default":"pointer",fontSize:12.5,fontWeight:700}}>{guardando?"Guardando…":"Guardar membrete"}</button>
+      <button onClick={guardar} disabled={guardando} style={{padding:"9px 16px",borderRadius:10,border:"none",background:guardando?"#93C5FD":"#2563EB",color:"white",cursor:guardando?"default":"pointer",fontSize:12.5,fontWeight:700}}>{guardando?"Guardando…":"Guardar membrete"}</button>
     </div>
   );
 }
@@ -2488,7 +2488,7 @@ export function ComunicacionesAdmin({ cursos }) {
         <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"14px 16px"}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>¿Publicar en {cursosSel.length} curso{cursosSel.length!==1?"s":""}?</div>
           <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+            <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
             <button onClick={publicar} disabled={publicando} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{publicando?"Publicando...":"Sí, publicar"}</button>
           </div>
         </div>
@@ -2628,7 +2628,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                     </div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setEditando(null)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+                    <button onClick={()=>setEditando(null)} style={{flex:1,padding:8,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#334155"}}>Cancelar</button>
                     <button onClick={guardarEdicion} disabled={guardandoEdit||!editForm.titulo?.trim()||!editForm.texto?.trim()} style={{flex:2,padding:8,borderRadius:8,border:"none",background:(guardandoEdit||!editForm.titulo?.trim()||!editForm.texto?.trim())?"#CBD5E1":"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>{guardandoEdit?"Guardando...":"Guardar"}</button>
                   </div>
                 </div>
@@ -2827,7 +2827,7 @@ export function UniformesAdmin({ cursos }) {
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:14,fontWeight:900,marginBottom:14}}>{modalTitle}{modal.u?" — "+modal.u.tipo:""}</div>
+            <div style={{fontSize:16,fontWeight:800,color:"#0F172A",marginBottom:14}}>{modalTitle}{modal.u?" — "+modal.u.tipo:""}</div>
             {(modal.mode==="newU"||modal.mode==="editU")&&(<>
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre</div>
@@ -2849,7 +2849,7 @@ export function UniformesAdmin({ cursos }) {
               </div>
             )}
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={()=>setModal(null)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155"}}>Cancelar</button>
               <button onClick={guardar} disabled={saving} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
             </div>
           </Card>
