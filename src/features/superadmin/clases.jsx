@@ -162,7 +162,9 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
   if (!colegioId) return <div style={{ color: C.textMuted, fontSize: 13 }}>Elegí un colegio primero.</div>;
   if (materias === null) return <Spinner />;
 
-  const visibles = materias.filter((m) => (verOcultas || m.activo) && (!q || sinAcentos(m.nombre).includes(sinAcentos(q)))
+  const visibles = materias.filter((m) => (verOcultas || m.activo)
+    // La Secretaría ve solo las de sus niveles y las compartidas.
+    && (!nivelesPropios || !m.nivel || nivelesPropios.includes(m.nivel)) && (!q || sinAcentos(m.nombre).includes(sinAcentos(q)))
     && (!filtroNivel || (filtroNivel === "todos" ? !m.nivel : m.nivel === filtroNivel)));
   const ocultas = materias.filter((m) => !m.activo).length;
   const dest = materias.find((m) => m.id === destino);
@@ -262,7 +264,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
         <Buscador value={q} onChange={setQ} placeholder="Buscar materia…" style={{ flex: "1 1 200px", minWidth: 0, marginBottom: 0 }} />
-        {conNiveles ? (
+        {conNiveles && !nivelesPropios ? (
           <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value)} aria-label="Ver materias de" style={{ ...inp, flex: "0 1 190px" }}>
             <option value="">Todos los niveles</option>
             <option value="todos">Solo las compartidas</option>

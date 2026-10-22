@@ -201,7 +201,7 @@ export function AdminPanel() {
           />
           {form.monto_regalo && familias.length > 0 ? (
             <Text style={styles.calculada}>
-              Con {familias.length} familia{familias.length !== 1 ? "s" : ""}, la colecta junta{" "}
+              Con {familias.length} alumno{familias.length !== 1 ? "s" : ""}, la colecta junta{" "}
               {form.moneda_regalo} {(Number(form.monto_regalo) * familias.length).toLocaleString("es-AR")}
             </Text>
           ) : null}
@@ -230,14 +230,14 @@ export function AdminPanel() {
           </View>
 
           <Text style={[styles.cardTitle, styles.familiasTitulo]}>
-            Familias sin registrar{familiasSinRegistrar.length ? ` · ${familiasSinRegistrar.length}` : ""}
+            Alumnos sin apoderado registrado{familiasSinRegistrar.length ? ` · ${familiasSinRegistrar.length}` : ""}
           </Text>
           <Text style={styles.familiasSub}>
             Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
           </Text>
           {familiasSinRegistrar.length === 0 ? (
             <View style={styles.card}>
-              <Text style={styles.muted}>Todas las familias ya se registraron ✨</Text>
+              <Text style={styles.muted}>Todos los alumnos tienen un apoderado registrado</Text>
             </View>
           ) : (
             familiasSinRegistrar.map((f) => (

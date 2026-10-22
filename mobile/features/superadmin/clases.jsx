@@ -69,6 +69,8 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
   const conNiveles = (niveles || []).length > 1;
   const nivelesElegibles = NIVELES.filter((n) => (niveles || []).includes(n.k) && (!nivelesPropios || nivelesPropios.includes(n.k)));
   const puede = (m) => puedeEditarMateria(m, nivelesPropios);
+  // La Secretaría ve solo las de sus niveles y las compartidas (las de otro nivel no le sirven).
+  const deMiNivel = (m) => !nivelesPropios || !m.nivel || nivelesPropios.includes(m.nivel);
   const { materias, recargar } = useMaterias(colegioId);
   const [usos, setUsos] = useState(null); // null = todavía cargando (no mostrar "sin clases")
   const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
@@ -162,7 +164,7 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
       </View>
       {/* Lista sobria: nombre y, en gris, nivel · clases; se toca para editar. */}
       <View style={s.card}>
-        {materias.map((m, i) => (
+        {materias.filter(deMiNivel).map((m, i) => (
           <Pressable key={m.id} onPress={() => (puede(m) ? (setSel(m), setNombre(m.nombre), setUnificarCon(null), setVerUnificar(false)) : null)} style={[s.fila, i > 0 && s.borde, !m.activo && s.off]} accessibilityRole="button">
             <View style={s.flex1}>
               <Text style={s.filaTxt}>{m.nombre}</Text>

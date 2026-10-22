@@ -60,7 +60,7 @@ export function AdopcionTabla({ cursos }) {
         <thead>
           <tr>
             <th style={th}>Curso</th>
-            <th style={th}>Familias</th>
+            <th style={th}>Apoderados</th>
             <th style={th} title="Les llegan las notificaciones">Con la app</th>
             <th style={th}>Calendario sincronizado</th>
             <th style={th}>Entraron (30 días)</th>
@@ -70,7 +70,7 @@ export function AdopcionTabla({ cursos }) {
           {orden.map((f) => (
             <tr key={f.curso_id}>
               <td style={{ ...td, fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{nombre.get(f.curso_id) || "—"}</td>
-              <td style={{ ...td, fontSize: 13, color: f.familias ? "#475569" : "#CBD5E1" }}>{f.familias || "Sin familias"}</td>
+              <td style={{ ...td, fontSize: 13, color: f.familias ? "#475569" : "#CBD5E1" }}>{f.familias || "Sin apoderados"}</td>
               <td style={td}><Barra n={f.con_app} total={f.familias} color="#3B82F6" /></td>
               <td style={td}><Barra n={f.con_calendario} total={f.familias} color="#8B5CF6" /></td>
               <td style={td}><Barra n={f.activas_30d} total={f.familias} color="#10B981" /></td>
@@ -88,8 +88,8 @@ export function AdopcionTabla({ cursos }) {
         </tbody>
       </table>
       <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 10, lineHeight: 1.5 }}>
-        "Con la app" = instalaron la app del celular y aceptaron notificaciones: son las familias a las que les llegan los avisos al instante.
-        Una familia con hijos en dos cursos cuenta en los dos.
+        "Con la app" = instalaron la app del celular y aceptaron notificaciones: son los apoderados a los que les llegan los avisos al instante.
+        Un apoderado con hijos en dos cursos cuenta en los dos.
       </div>
     </div>
   );

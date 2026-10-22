@@ -168,7 +168,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
           </div>
           {form.monto_regalo&&familias.length>0&&(
             <div style={{fontSize:12.5,color:"#3B82F6",fontWeight:600,marginBottom:16,lineHeight:1.5}}>
-              Con {familias.length} familia{familias.length!==1?"s":""}, la colecta junta {form.moneda_regalo} {(Number(form.monto_regalo)*familias.length).toLocaleString("es-AR")}
+              Con {familias.length} alumno{familias.length!==1?"s":""}, la colecta junta {form.moneda_regalo} {(Number(form.monto_regalo)*familias.length).toLocaleString("es-AR")}
             </div>
           )}
           <button onClick={guardarGeneral} disabled={saving} style={{width:"100%",padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
@@ -194,14 +194,14 @@ export function AdminPanel({ cursoId, cursoNombre }) {
           </Card>
 
           <div style={{fontSize:14,fontWeight:700,marginTop:4,marginBottom:2}}>
-            Familias sin registrar{familiasSinRegistrar.length?` · ${familiasSinRegistrar.length}`:""}
+            Alumnos sin apoderado registrado{familiasSinRegistrar.length?` · ${familiasSinRegistrar.length}`:""}
           </div>
           <div style={{fontSize:12,color:"#94A3B8",lineHeight:1.5,marginBottom:12}}>
             Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
           </div>
           {familiasSinRegistrar.length===0 ? (
             <Card style={{padding:20}}>
-              <div style={{fontSize:13,color:"#94A3B8",textAlign:"center"}}>Todas las familias ya se registraron ✨</div>
+              <div style={{fontSize:13,color:"#94A3B8",textAlign:"center"}}>Todos los alumnos tienen un apoderado registrado</div>
             </Card>
           ) : (
             familiasSinRegistrar.map(f=>(

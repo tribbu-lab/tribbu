@@ -56,7 +56,7 @@ export function AdopcionLista({ cursos }) {
           <View key={c.id} style={styles.card}>
             <View style={styles.cardHead}>
               <Text style={styles.curso}>{c.nombre}</Text>
-              <Text style={styles.familias}>{f.familias ? `${f.familias} familias` : "Sin familias"}</Text>
+              <Text style={styles.familias}>{f.familias ? `${f.familias} ${f.familias === 1 ? "apoderado" : "apoderados"}` : "Sin apoderados"}</Text>
             </View>
             {f.familias ? (
               <>
