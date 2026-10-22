@@ -17,7 +17,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
 import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite, colorColegio } from "@shared/helpers";
-import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
+import { T, ROL_LABEL } from "@shared/theme";
 import { pickAndUploadImage } from "../../lib/media";
 import { SignedImage } from "../../components/SignedImage";
 import { Pill } from "../../components/Pill";
@@ -747,7 +747,7 @@ export function SuperAdmin() {
                     {u.nombre}
                     {u.apellido ? ` ${u.apellido}` : ""}
                   </Text>
-                  <Pill label={ROL_LABEL[u.rol]} color={ROL_COLOR[u.rol]} bg={ROL_BG[u.rol]} />
+                  <Text style={styles.itemDato}>{ROL_LABEL[u.rol]}</Text>
                   {!u.activo ? <Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9" /> : null}
                 </View>
                 <Text style={styles.itemMeta}>{u.email}</Text>
@@ -853,9 +853,10 @@ export function SuperAdmin() {
               <View style={styles.flex1}>
                 <View style={styles.itemTop}>
                   <Text style={styles.itemNombre}>{fmtNombre(m)}</Text>
-                  {m.materia ? <Pill label={m.materia} color="#8B5CF6" bg="#F5F3FF" /> : null}
+                  
                   {!m.activo ? <Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9" /> : null}
                 </View>
+                {m.materia ? <Text style={styles.itemMeta}>{m.materia}</Text> : null}
                 {m.email ? <Text style={styles.itemMeta}>{m.email}</Text> : null}
                 {m.cursos.length > 0 ? (
                   <Text style={styles.itemMeta}>Cursos: {m.cursos.map((cid) => cursos.find((c) => c.id === cid)?.nombre).filter(Boolean).join(", ")}</Text>
@@ -903,14 +904,15 @@ export function SuperAdmin() {
                 <View style={styles.flex1}>
                   <View style={styles.itemTop}>
                     <Text style={styles.itemNombre}>{fmtNombre(a)}</Text>
-                    {curso ? <Pill label={curso.nombre} color={curso.color} bg={curso.color + "22"} /> : null}
+                    
                   </View>
-                  {a.fecha_nacimiento ? <Text style={styles.itemMeta}>🎂 {fmtF(a.fecha_nacimiento)}</Text> : null}
-                  {apods.length > 0 ? <Text style={styles.itemMeta}>👨‍👩‍👧 {apods.map((p) => fmtNombre(p)).join(", ")}</Text> : null}
+                  {curso ? <Text style={styles.itemMeta}>{curso.nombre}</Text> : null}
+                  {a.fecha_nacimiento ? <Text style={styles.itemMeta}>Cumpleaños: {fmtF(a.fecha_nacimiento)}</Text> : null}
+                  {apods.length > 0 ? <Text style={styles.itemMeta}>Familia: {apods.map((p) => fmtNombre(p)).join(", ")}</Text> : <Text style={[styles.itemMeta, { color: "#B45309" }]}>Sin apoderado vinculado</Text>}
                 </View>
                 <View style={styles.itemBtns}>
-                  <Pressable onPress={() => setVerApod(a)} style={styles.iconBtn}>
-                    <Text>👨‍👩‍👧</Text>
+                  <Pressable onPress={() => setVerApod(a)} style={styles.iconBtn} accessibilityLabel="Ver apoderados">
+                    <MaterialCommunityIcons name="account-multiple-outline" size={19} color="#475569" />
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -954,7 +956,7 @@ export function SuperAdmin() {
                     <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
           {colegioNiveles.length > 1 ? (
             <View style={{ marginBottom: 12 }}>
-              <Text style={styles.label}>MENÚ PARA</Text>
+              <Text style={styles.label}>Menú para</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                 {[{ k: null, l: "Todos los niveles" }, ...colegioNiveles.map((k) => ({ k, l: nombreNivel(k) }))].map((n) => {
                   const sel = nivelesParaGuardar(menuNiveles, colegioNiveles);
@@ -1111,7 +1113,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
             {ocultarAccesoEspecial ? null : (
               <>
-                <Text style={styles.label}>ACCESO ESPECIAL</Text>
+                <Text style={styles.label}>Acceso especial</Text>
                 <Pressable onPress={() => setForm((p) => ({ ...p, esSuper: !p.esSuper }))} style={[styles.togglePill, form.esSuper && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}>
                   <Text style={[styles.toggleTxt, form.esSuper && { color: "#8B5CF6" }]}>{form.esSuper ? "★ Super Admin" : "◇ Super Admin"}</Text>
                 </Pressable>
@@ -1120,7 +1122,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
             {!form.esSuper ? (
               <>
-                <Text style={styles.label}>HIJOS VINCULADOS</Text>
+                <Text style={styles.label}>Hijos vinculados</Text>
                 {(form.hijos || []).length > 0 ? (
                   <View style={styles.chipsWrap}>
                     {(form.hijos || []).map((hid) => {
@@ -1164,7 +1166,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
                 {cursosConHijos.length > 0 ? (
                   <>
-                    <Text style={styles.label}>ROOM PARENT</Text>
+                    <Text style={styles.label}>Room Parent</Text>
                     {cursosConHijos.map((cid) => {
                       const c = cursos.find((x) => x.id === cid);
                       if (!c) return null;
@@ -1191,7 +1193,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
               </>
             ) : null}
 
-            <Text style={styles.label}>ESTADO</Text>
+            <Text style={styles.label}>Estado</Text>
             <Pressable
               onPress={() => setForm((p) => ({ ...p, activo: !p.activo }))}
               style={[styles.togglePill, form.activo ? { borderColor: "#10B981", backgroundColor: "#F0FDF4" } : { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
@@ -1221,11 +1223,11 @@ function CursoModal({ esNuevo, niveles = [], form, setForm, onClose, onSave }) {
         <View style={styles.modalCard}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo curso" : "Editar curso"}</Text>
-            <Text style={styles.label}>NOMBRE DEL CURSO</Text>
+            <Text style={styles.label}>Nombre del curso</Text>
             <TextInput value={form.nombre || ""} onChangeText={(t) => setForm((p) => ({ ...p, nombre: t }))} placeholder="Ej: 4°B — Primaria" placeholderTextColor="#94A3B8" style={styles.input} />
-            <Text style={styles.label}>ÍCONO (EMOJI)</Text>
+            <Text style={styles.label}>Ícono (emoji)</Text>
             <TextInput value={form.avatar || "🏫"} onChangeText={(t) => setForm((p) => ({ ...p, avatar: t }))} maxLength={2} style={[styles.input, { fontSize: 22 }]} />
-            <Text style={styles.label}>COLOR</Text>
+            <Text style={styles.label}>Color</Text>
             <View style={styles.chipsWrap}>
               {COLORES.map((c) => (
                 <Pressable key={c} onPress={() => setForm((p) => ({ ...p, color: c }))} style={[styles.colorDot, { backgroundColor: c }, form.color === c && styles.colorDotOn]} />
@@ -1233,7 +1235,7 @@ function CursoModal({ esNuevo, niveles = [], form, setForm, onClose, onSave }) {
             </View>
             {niveles.length > 1 ? (
               <>
-                <Text style={styles.label}>NIVEL</Text>
+                <Text style={styles.label}>Nivel</Text>
                 <View style={styles.chipsWrap}>
                   {[...niveles.map((k) => ({ k, l: nombreNivel(k) })), { k: null, l: "Sin nivel" }].map((n) => {
                     const on = (form.nivel || null) === n.k;
@@ -1285,9 +1287,9 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 />
               </View>
             ))}
-            <Text style={styles.label}>CUMPLEAÑOS</Text>
+            <Text style={styles.label}>Cumpleaños</Text>
             <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
-            <Text style={styles.label}>CLASES QUE DA</Text>
+            <Text style={styles.label}>Clases que da</Text>
             {form.clases === null ? (
               <Text style={styles.muted}>Cargando clases…</Text>
             ) : (
@@ -1300,7 +1302,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
             )}
             {form.id ? (
               <>
-                <Text style={styles.label}>SU SEMANA</Text>
+                <Text style={styles.label}>Su semana</Text>
                 <SemanaMaestra maestroId={form.id} cursos={cursos} />
                 {(() => {
                   const n = (form.clases || []).filter((c) => c.id && !cursos.some((x) => x.id === c.curso_id)).length;
@@ -1308,7 +1310,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 })()}
               </>
             ) : null}
-            <Text style={styles.label}>ESTADO</Text>
+            <Text style={styles.label}>Estado</Text>
             <Pressable
               onPress={() => setForm((p) => ({ ...p, activo: p.activo === false }))}
               style={[styles.togglePill, form.activo !== false ? { borderColor: "#10B981", backgroundColor: "#F0FDF4" } : { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]}
@@ -1339,19 +1341,19 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo alumno" : "Editar alumno"}</Text>
             <View style={styles.row}>
               <View style={styles.flex1}>
-                <Text style={styles.label}>NOMBRE</Text>
+                <Text style={styles.label}>Nombre</Text>
                 <TextInput value={form.nombre || ""} onChangeText={(t) => setForm((p) => ({ ...p, nombre: t }))} placeholder="Ej: Sofía" placeholderTextColor="#94A3B8" style={styles.input} />
               </View>
               <View style={styles.flex1}>
-                <Text style={styles.label}>APELLIDO</Text>
+                <Text style={styles.label}>Apellido</Text>
                 <TextInput value={form.apellido || ""} onChangeText={(t) => setForm((p) => ({ ...p, apellido: t }))} placeholder="Ej: García" placeholderTextColor="#94A3B8" style={styles.input} />
               </View>
             </View>
-            <Text style={styles.label}>FECHA DE NACIMIENTO</Text>
+            <Text style={styles.label}>Fecha de nacimiento</Text>
             <DateField value={form.fecha_nacimiento || ""} onChange={(v) => setForm((p) => ({ ...p, fecha_nacimiento: v }))} clearable style={styles.input} />
             <Text style={styles.label}>DNI</Text>
             <TextInput value={form.dni || ""} onChangeText={(t) => setForm((p) => ({ ...p, dni: t }))} placeholder="Ej: 12345678" placeholderTextColor="#94A3B8" style={styles.input} />
-            <Text style={styles.label}>CURSO</Text>
+            <Text style={styles.label}>Curso</Text>
             <CursoListSelector cursos={cursos} seleccionados={form.curso_id ? [form.curso_id] : []} onToggle={(id) => setForm((p) => ({ ...p, curso_id: id }))} multi={false} />
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
@@ -1385,7 +1387,7 @@ function ApoderadosModal({ alumno, onClose }) {
             {apods.map((p) => (
               <View key={p.id} style={styles.apodRow}>
                 <Text style={styles.itemNombre}>{fmtNombre(p)}</Text>
-                {p.telefono ? <Text style={styles.itemMeta}>📞 {p.telefono}</Text> : null}
+                {p.telefono ? <Text style={styles.itemMeta}>Tel. {p.telefono}</Text> : null}
                 {p.email ? <Text style={styles.itemMeta}>{p.email}</Text> : null}
               </View>
             ))}
@@ -1549,7 +1551,7 @@ function ColegioAdmin({ colegioId }) {
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>Editar datos del colegio</Text>
 
-                <Text style={styles.label}>LOGO</Text>
+                <Text style={styles.label}>Logo</Text>
                 <View style={styles.logoRow}>
                   {form.logo_url ? (
                     <SignedImage src={form.logo_url} bucket="adjuntos" style={styles.logoPreview} resizeMode="contain" />
@@ -1566,7 +1568,7 @@ function ColegioAdmin({ colegioId }) {
                   ) : null}
                 </View>
 
-                <Text style={styles.label}>COLOR DEL COLEGIO</Text>
+                <Text style={styles.label}>Color del colegio</Text>
                 <View style={styles.colorRow}>
                   {COLORES_COLEGIO.map((c) => (
                     <Pressable
@@ -1791,7 +1793,7 @@ function ComunicacionesAdmin({ cursos }) {
         </View>
       ) : null}
 
-      <Text style={styles.label}>TÍTULO</Text>
+      <Text style={styles.label}>Título</Text>
       <TextInput
         value={form.titulo}
         onChangeText={(v) => setForm((p) => ({ ...p, titulo: v }))}
@@ -1800,7 +1802,7 @@ function ComunicacionesAdmin({ cursos }) {
         style={styles.input}
       />
 
-      <Text style={styles.label}>DESCRIPCIÓN</Text>
+      <Text style={styles.label}>Descripción</Text>
       <EditorFormato
         value={form.texto}
         onChange={(v) => setForm((p) => ({ ...p, texto: v }))}
@@ -1808,21 +1810,21 @@ function ComunicacionesAdmin({ cursos }) {
         style={[styles.input, { minHeight: 110, textAlignVertical: "top" }]}
       />
 
-      <Text style={styles.label}>FECHA</Text>
+      <Text style={styles.label}>Fecha</Text>
       <DateField value={form.fecha || ""} onChange={(v) => setForm((p) => ({ ...p, fecha: v }))} clearable style={styles.input} />
 
       <View style={comStyles.prioRow}>
         <View style={styles.flex1}>
-          <Text style={styles.label}>HORA INICIO (OPCIONAL)</Text>
+          <Text style={styles.label}>Hora inicio (opcional)</Text>
           <TextInput value={form.hora_inicio} onChangeText={(t) => setForm((p) => ({ ...p, hora_inicio: t }))} placeholder="18:00" placeholderTextColor="#94A3B8" style={styles.input} />
         </View>
         <View style={styles.flex1}>
-          <Text style={styles.label}>HORA FIN (OPCIONAL)</Text>
+          <Text style={styles.label}>Hora fin (opcional)</Text>
           <TextInput value={form.hora_fin} onChangeText={(t) => setForm((p) => ({ ...p, hora_fin: t }))} placeholder="19:00" placeholderTextColor="#94A3B8" style={styles.input} />
         </View>
       </View>
 
-      <Text style={styles.label}>PRIORIDAD</Text>
+      <Text style={styles.label}>Prioridad</Text>
       <View style={comStyles.prioRow}>
         {["alta", "media", "baja"].map((p) => {
           const active = form.prioridad === p;
@@ -1852,7 +1854,7 @@ function ComunicacionesAdmin({ cursos }) {
         <Text style={[styles.toggleTxt, form.conMembrete && { color: "#2563EB" }]}>{form.conMembrete ? "✓ Con membrete del colegio" : "Sin membrete"}</Text>
       </Pressable>
 
-      <Text style={styles.label}>ADJUNTOS (OPCIONAL)</Text>
+      <Text style={styles.label}>Adjuntos (opcional)</Text>
       <AdjuntosInput adjuntos={form.adjuntos || []} onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))} cursoId="comunicaciones" onUploadingChange={setSubiendoAdj} />
 
       <View style={comStyles.sectionRow}>
@@ -2253,7 +2255,7 @@ function UniformesAdmin({ cursos, colegioId }) {
                 </Pressable>
               </View>
             ))}
-            <Text style={[styles.label, { marginTop: 8 }]}>CURSOS QUE USAN ESTA CATEGORÍA</Text>
+            <Text style={[styles.label, { marginTop: 8 }]}>Cursos que usan esta categoría</Text>
             <CursoListSelector cursos={cursos} seleccionados={linked} onToggle={(id) => toggleCurso(u.id, id)} maxHeight={150} />
           </View>
         );
@@ -2267,9 +2269,9 @@ function UniformesAdmin({ cursos, colegioId }) {
                 <Text style={styles.modalTitle}>{modalTitle}{modal.u ? ` — ${modal.u.tipo}` : ""}</Text>
                 {modal.mode === "newU" || modal.mode === "editU" ? (
                   <>
-                    <Text style={styles.label}>NOMBRE</Text>
+                    <Text style={styles.label}>Nombre</Text>
                     <TextInput value={form.tipo} onChangeText={(t) => setForm((p) => ({ ...p, tipo: t }))} placeholder="Ej: Deportivo, Formal..." placeholderTextColor="#94A3B8" style={styles.input} />
-                    <Text style={styles.label}>EMOJI</Text>
+                    <Text style={styles.label}>Emoji</Text>
                     <View style={styles.chipsWrap}>
                       {EMOJIS.map((e) => (
                         <Pressable key={e} onPress={() => setForm((p) => ({ ...p, emoji: e }))} style={[styles.emojiBtn, form.emoji === e && styles.chipOn]}>
@@ -2280,7 +2282,7 @@ function UniformesAdmin({ cursos, colegioId }) {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.label}>ÍTEM</Text>
+                    <Text style={styles.label}>Ítem</Text>
                     <TextInput value={form.item} onChangeText={(t) => setForm((p) => ({ ...p, item: t }))} placeholder="Ej: Remera blanca manga corta" placeholderTextColor="#94A3B8" style={styles.input} />
                   </>
                 )}
@@ -2349,18 +2351,18 @@ function UploadAlumnosExcel({ cursos, onDone }) {
         else await supabase.from("hijos").insert(al);
         ok++;
       }
-      setMsg(`✅ ${ok} alumnos procesados`);
+      setMsg(`${ok} alumnos procesados`);
       onDone();
     } catch (err) {
-      setMsg(`❌ ${err.message}`);
+      setMsg(`Error: ${err.message}`);
     }
     setLoading(false);
   };
   return (
-    <Pressable onPress={handle} disabled={loading} style={[styles.uploadBtn, { borderColor: "#10B981", backgroundColor: "#F0FDF4" }]}>
-      <Text style={styles.uploadEmoji}>📤</Text>
+    <Pressable onPress={handle} disabled={loading} style={styles.uploadBtn}>
+      <MaterialCommunityIcons name="file-upload-outline" size={22} color="#475569" />
       <View style={styles.flex1}>
-        <Text style={[styles.uploadTitle, { color: "#10B981" }]}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
+        <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
         <Text style={styles.uploadHint}>{msg || "Columnas: nombre, apellido, curso_id, fecha_nacimiento, dni"}</Text>
       </View>
     </Pressable>
@@ -2411,20 +2413,20 @@ function UploadApoderadosExcel({ onDone }) {
         }
       }
       const avisoSinAuth = sinAuth.length
-        ? ` ⚠️ ${sinAuth.length} sin cuenta de Auth: ${sinAuth.join(", ")} — asignales una clave desde Usuarios.`
+        ? ` Atención: ${sinAuth.length} sin cuenta de Auth: ${sinAuth.join(", ")} — asignales una clave desde Usuarios.`
         : "";
-      setMsg(`✅ ${ok} apoderados procesados.${avisoSinAuth}`);
+      setMsg(`${ok} apoderados procesados.${avisoSinAuth}`);
       onDone();
     } catch (err) {
-      setMsg(`❌ ${err.message}`);
+      setMsg(`Error: ${err.message}`);
     }
     setLoading(false);
   };
   return (
-    <Pressable onPress={handle} disabled={loading} style={[styles.uploadBtn, { borderColor: "#3B82F6", backgroundColor: "#EFF6FF" }]}>
-      <Text style={styles.uploadEmoji}>📤</Text>
+    <Pressable onPress={handle} disabled={loading} style={styles.uploadBtn}>
+      <MaterialCommunityIcons name="file-upload-outline" size={22} color="#475569" />
       <View style={styles.flex1}>
-        <Text style={[styles.uploadTitle, { color: "#3B82F6" }]}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
+        <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
         <Text style={styles.uploadHint}>{msg || "Columnas: nombre, apellido, email, pass, telefono, dni, rol"}</Text>
       </View>
     </Pressable>
@@ -2481,11 +2483,12 @@ const styles = StyleSheet.create({
   dashedBtn: { borderWidth: 2, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 14 },
   dashedTxt: { fontSize: 13, fontWeight: "700" },
 
-  itemCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, padding: 14, marginBottom: 10 },
+  itemCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16, padding: 14, marginBottom: 10 },
+  itemDato: { fontSize: 12, fontWeight: "600", color: "#64748B" },
   itemInactivo: { opacity: 0.55 },
   itemTop: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   itemNombre: { fontSize: 14, fontWeight: "700", color: T.text },
-  itemMeta: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  itemMeta: { fontSize: 12.5, color: "#64748B", marginTop: 2 },
   itemBtns: { flexDirection: "row", gap: 4 },
   iconBtn: { padding: 6, minWidth: 32, minHeight: 32, alignItems: "center", justifyContent: "center" },
 
@@ -2497,7 +2500,7 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: "white", borderRadius: 20, padding: 20, maxHeight: "88%" },
   modalTitle: { fontSize: 17, fontWeight: "900", color: T.text, marginBottom: 4 },
   confirmNombre: { fontSize: 14, fontWeight: "700", color: T.text, marginVertical: 4 },
-  label: { fontSize: 11, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
+  label: { fontSize: 12.5, fontWeight: "600", color: "#475569", marginTop: 12, marginBottom: 6 },
   input: { minHeight: 44, borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: "#F8FAFC" },
   row: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -2559,10 +2562,10 @@ const styles = StyleSheet.create({
   codBig: { fontFamily: "monospace", fontSize: 22, fontWeight: "900", letterSpacing: 4, color: T.text },
 
   // Upload
-  uploadBtn: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 2, borderStyle: "dashed", borderRadius: 12, padding: 14, marginBottom: 14 },
+  uploadBtn: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#CBD5E1", backgroundColor: "white", borderRadius: 16, padding: 14, marginBottom: 14 },
   uploadEmoji: { fontSize: 20 },
-  uploadTitle: { fontSize: 13, fontWeight: "700" },
-  uploadHint: { fontSize: 11, color: "#94A3B8", marginTop: 2 },
+  uploadTitle: { fontSize: 13.5, fontWeight: "700", color: "#0F172A" },
+  uploadHint: { fontSize: 12, color: "#64748B", marginTop: 2 },
 
   // Colegio (datos de contacto)
   colegioCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", padding: 14 },

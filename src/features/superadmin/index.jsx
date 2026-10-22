@@ -137,18 +137,19 @@ const SECCION_INFO = {
   super_admins:   { titulo:"Super Admins", descripcion:"Las cuentas con acceso total a la plataforma — ven y gestionan todos los colegios sin restricción. Usalo con cuidado." },
 };
 
-// 4 tarjetas de stats reusables por módulo (handoff Tribbu Admin, Parte 3
-// #5 / Parte 5): cada módulo pasa sus propias métricas — antes había un solo
-// juego de stats (de Usuarios) que se mostraba en los 12 módulos por igual.
+// Números de cada pantalla (Apoderados, Maestros, Alertas…): una sola
+// tarjeta neutra con separadores, como "El colegio en números" del Inicio.
+// El color de cada número (`c`) ya no se usa: el panel es sobrio.
 function ModuloStats({ items }) {
   return (
-    <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+    <div style={{display:"flex",flexWrap:"wrap",background:"white",border:"1px solid #E2E8F0",borderRadius:16,overflow:"hidden",marginBottom:16}}>
+      {/* Separadores con borde y margen -1: al partirse en dos filas, la última se estira (sin huecos). */}
       {items.map((s,i)=>(
-        <div key={i} style={{minWidth:140,background:"white",border:"1px solid #E7ECF3",borderRadius:14,padding:"14px 18px",flex:1}}>
-          <div style={{fontSize:10.5,color:"#94A3B8",fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>{s.l}</div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:6}}>
-            <span style={{fontSize:28,fontWeight:900,color:s.c||"#0F172A",lineHeight:1}}>{s.n}</span>
-            {s.sub && <span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>{s.sub}</span>}
+        <div key={i} style={{flex:"1 1 120px",padding:"12px 16px",borderLeft:"1px solid #F1F5F9",borderTop:"1px solid #F1F5F9",marginLeft:-1,marginTop:-1}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{s.l}</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:4}}>
+            <span style={{fontSize:22,fontWeight:800,color:"#0F172A",lineHeight:1.1}}>{s.n}</span>
+            {s.sub ? <span style={{fontSize:12,color:"#64748B"}}>{s.sub}</span> : null}
           </div>
         </div>
       ))}
@@ -486,12 +487,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 creado = true;
                 await supabase.from("usuarios").update({ auth_id: authId }).eq("id", form.id);
               }
-            } catch(eCrear) { setAuthSyncMsg({ ok:false, msg:`⚠️ No se encontró el usuario en Auth y no se pudo crear: ${eCrear.message}` }); return; }
+            } catch(eCrear) { setAuthSyncMsg({ ok:false, msg:`No se encontró el usuario en Auth y no se pudo crear: ${eCrear.message}` }); return; }
           }
           if(!authId) {
-            setAuthSyncMsg({ ok:false, msg:`⚠️ No se encontró el usuario en Supabase Auth.` });
+            setAuthSyncMsg({ ok:false, msg:`No se encontró el usuario en Supabase Auth.` });
           } else if(creado) {
-            setAuthSyncMsg({ ok:true, msg:`✅ No tenía cuenta de Auth — se creó una nueva con la contraseña para ${emailNuevo}.` });
+            setAuthSyncMsg({ ok:true, msg:`No tenía cuenta de Auth — se creó una nueva con la contraseña para ${emailNuevo}.` });
           } else {
             // current_email: si el auth_id de arriba quedó apuntando a una
             // cuenta borrada/inexistente (resto de la migración bcrypt→Auth o
@@ -508,9 +509,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               await supabase.from("usuarios").update({ auth_id: auth_id_reparado }).eq("id", form.id);
             }
             const reparadoTxt = auth_id_reparado ? " (se reparó el vínculo con Auth, que estaba roto)" : "";
-            setAuthSyncMsg({ ok:true, msg:`✅ ${[emailCambio?"Email":"",passEsNueva?"Clave":""].filter(Boolean).join(" y ")} actualizado en Auth para ${emailNuevo}${reparadoTxt}.` });
+            setAuthSyncMsg({ ok:true, msg:`${[emailCambio?"Email":"",passEsNueva?"Clave":""].filter(Boolean).join(" y ")} actualizado en Auth para ${emailNuevo}${reparadoTxt}.` });
           }
-        } catch(e) { setAuthSyncMsg({ ok:false, msg:`⚠️ Error: ${e.message}` }); }
+        } catch(e) { setAuthSyncMsg({ ok:false, msg:`Error: ${e.message}` }); }
       }
       // Re-sincronizar solo las filas admin: las filas rol "padre" (creadas por
       // crear_apoderado en el registro) no se tocan — borrarlas dejaba al
@@ -931,13 +932,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_usuario"?"Nuevo apoderado":"Editar apoderado"}</div>
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"},{label:"DNI",key:"dni",type:"text",ph:"Ej: 12345678"},{label:"Teléfono",key:"telefono",type:"tel",ph:"Ej: +54 11 1234-5678"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
                 <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
               </div>
             ))}
             {/* Contraseña — al editar mostrar vacío, solo llenar si quiere cambiarla */}
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>
                 {modal==="nuevo_usuario"?"Contraseña":"Nueva contraseña"}
               </div>
               <input
@@ -956,7 +957,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <>
                 {/* ── Sección 1: Hijos vinculados ── */}
                 <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Hijos vinculados</div>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Hijos vinculados</div>
                   {/* Chips de seleccionados */}
                   {(form.hijos||[]).length>0&&(
                     <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
@@ -1026,7 +1027,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   if(!cursosConHijos.length) return null;
                   return (
                     <div style={{marginBottom:16}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Room Parent</div>
+                      <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Room Parent</div>
                       <div style={{fontSize:11,color:"#94A3B8",marginBottom:8}}>Solo puede ser Room Parent en cursos donde tiene un hijo.</div>
                       <div style={{display:"flex",flexDirection:"column",gap:6}}>
                         {cursosConHijos.map(cid=>{
@@ -1054,7 +1055,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
 
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Estado</div>
               <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.activo?"#10B981":"#EF4444"}`,background:form.activo?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:form.activo?"#10B981":"#EF4444"}}>{form.activo?"✓ Activo":"✗ Inactivo"}</button>
             </div>
             <div style={{display:"flex",gap:10}}>
@@ -1075,7 +1076,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>{formAdmin.rol==="nivel_admin"?`Directivo de ${colegioNombre}: gestiona solo los cursos de sus niveles. El cargo es solo el nombre que se ve; todos pueden lo mismo.`:`Administrador de ${colegioNombre}.`}</div>
             {formAdmin.rol==="nivel_admin"&&(
               <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Cargo</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Cargo</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
                   {CARGOS.map(c=>{
                     const on=(formAdmin.cargo||CARGO_DEFECTO)===c;
@@ -1087,7 +1088,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {formAdmin.rol==="nivel_admin"&&(
               <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Niveles</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Niveles</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   {colegioNiveles.map(k=>{
                     const on=(formAdmin.niveles||[]).includes(k);
@@ -1098,12 +1099,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
                 <input value={formAdmin[f.key]||""} onChange={e=>setFormAdmin(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
               </div>
             ))}
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{modalAdmin==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{modalAdmin==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
               <input
                 value={modalAdmin==="nuevo"?(formAdmin.pass||""):(formAdmin._passNueva||"")}
                 onChange={e=>modalAdmin==="nuevo"?setFormAdmin(p=>({...p,pass:e.target.value})):setFormAdmin(p=>({...p,_passNueva:e.target.value,pass:e.target.value}))}
@@ -1137,12 +1138,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:18}}>Acceso total a la plataforma — todos los colegios, sin restricción.</div>
             {[{label:"Nombre",key:"nombre",type:"text",ph:"Ej: María"},{label:"Apellido",key:"apellido",type:"text",ph:"Ej: García"},{label:"Email",key:"email",type:"email",ph:"maria@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
                 <input value={formSuper[f.key]||""} onChange={e=>setFormSuper(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.ph} style={inp}/>
               </div>
             ))}
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{modalSuper==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{modalSuper==="nuevo"?"Contraseña":"Nueva contraseña"}</div>
               <input
                 value={modalSuper==="nuevo"?(formSuper.pass||""):(formSuper._passNueva||"")}
                 onChange={e=>modalSuper==="nuevo"?setFormSuper(p=>({...p,pass:e.target.value})):setFormSuper(p=>({...p,_passNueva:e.target.value,pass:e.target.value}))}
@@ -1170,15 +1171,15 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="editar_curso"?"Editar curso":form._duplicarDeId?"Duplicar curso":"Nuevo curso"}</div>
             {form._duplicarDeId&&<div style={{fontSize:12,color:"#94A3B8",marginTop:-10,marginBottom:14}}>Se copian horarios, Room Parent, maestro, uniformes, útiles y libros al curso nuevo.</div>}
             <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre del curso</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre del curso</div>
                 <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: 4°B — Primaria" style={inp}/>
               </div>
               <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Icono</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Icono</div>
                 <EmojiPicker value={form.avatar||"🏫"} onChange={v=>setForm(p=>({...p,avatar:v}))}/>
               </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Color</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Color</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#0EA5E9","#14B8A6"].map(c=>(
                   <button key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:32,height:32,borderRadius:"50%",background:c,border:form.color===c?"3px solid #0F172A":"3px solid transparent",cursor:"pointer"}}/>
@@ -1187,7 +1188,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
             {colegioNiveles.length>1&&(
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Nivel</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Nivel</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   {[...colegioNiveles.map(k=>({k,l:nombreNivel(k)})),{k:null,l:"Sin nivel"}].map(n=>{
                     const on=(form.nivel||null)===n.k;
@@ -1197,7 +1198,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Año lectivo</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Año lectivo</div>
               <input type="number" value={form.año_lectivo||""} onChange={e=>setForm(p=>({...p,año_lectivo:Number(e.target.value)||""}))} placeholder="Ej: 2026" style={inp}/>
             </div>
             <div style={{display:"flex",gap:10}}>
@@ -1214,17 +1215,17 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_maestro"?"Nuevo maestro":"Editar maestro"}</div>
             {[{label:"Nombre",key:"nombre",ph:"Ej: Carlos"},{label:"Apellido",key:"apellido",ph:"Ej: Gómez"},{label:"Email",key:"email",ph:"carlos@mail.com"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>{f.label}</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>{f.label}</div>
                 <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
               </div>
             ))}
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Cumpleaños</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Cumpleaños</div>
               <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} placeholder="dd/mm/aaaa" style={inp}/>
 
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Clases que da</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Clases que da</div>
               {form.clases===null
                 ? <div style={{fontSize:12.5,color:"#94A3B8"}}>Cargando clases…</div>
                 : <ClasesMaestroEditor colegioId={activeColegioId} cursos={cursosAnoActual} value={(form.clases||[]).filter(c=>cursosAnoActual.some(x=>x.id===c.curso_id))} onChange={v=>setForm(p=>({...p,clases:v}))}/>}
@@ -1233,14 +1234,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               const otroAno = (form.clases||[]).filter(c=>c.id&&!cursosAnoActual.some(x=>x.id===c.curso_id)).length;
               return (
                 <div style={{marginBottom:12,padding:12,borderRadius:12,border:"1px solid #E2E8F0",background:"#F8FAFC"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Su semana</div>
+                  <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Su semana</div>
                   <SemanaMaestra maestroId={form.id} cursos={cursosAnoActual}/>
                   {otroAno?<div style={{fontSize:11.5,color:"#B45309",marginTop:8}}>Además tiene {otroAno} {otroAno===1?"clase":"clases"} en cursos de otros años (se ven y se quitan desde 📚 Materias).</div>:null}
                 </div>
               );
             })():null}
             <div style={{marginBottom:12,padding:12,borderRadius:12,border:"1px solid #E2E8F0",background:"#F8FAFC"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Acceso a Mensajes</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Acceso a Mensajes</div>
               {form.usuario_id ? (
                 <>
                   <div style={{fontSize:12.5,color:"#065F46",fontWeight:700,marginBottom:8}}>✓ Puede entrar a tribbu y chatear con las familias de sus cursos{form.email?` (${form.email})`:""}.</div>
@@ -1263,7 +1264,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               )}
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Estado</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Estado</div>
               <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${form.activo!==false?"#10B981":"#EF4444"}`,background:form.activo!==false?"#F0FDF4":"#FEF2F2",cursor:"pointer",fontSize:12,fontWeight:700,color:form.activo!==false?"#10B981":"#EF4444"}}>{form.activo!==false?"✓ Activo":"✗ Inactivo"}</button>
             </div>
             <div style={{display:"flex",gap:10}}>
@@ -1280,28 +1281,28 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             <div style={{fontSize:17,fontWeight:900,marginBottom:18}}>{modal==="nuevo_alumno"?"Nuevo alumno":"Editar alumno"}</div>
             <div style={{display:"flex",gap:10,marginBottom:12}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Nombre</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Nombre</div>
                 <input value={form.nombre||""} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Sofía" style={inp}/>
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Apellido</div>
+                <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Apellido</div>
                 <input value={form.apellido||""} onChange={e=>setForm(p=>({...p,apellido:e.target.value}))} placeholder="Ej: García" style={inp}/>
               </div>
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Fecha de nacimiento</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Fecha de nacimiento</div>
               <input type="date" value={form.fecha_nacimiento||""} onChange={e=>setForm(p=>({...p,fecha_nacimiento:e.target.value}))} style={inp}/>
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>DNI</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>DNI</div>
               <input value={form.dni||""} onChange={e=>setForm(p=>({...p,dni:e.target.value}))} placeholder="Ej: 12345678" style={inp}/>
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Icono</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Icono</div>
               <EmojiPicker value={form.avatar||""} onChange={v=>setForm(p=>({...p,avatar:v}))}/>
             </div>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:8}}>Color</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Color</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899","#0EA5E9","#14B8A6","#F97316","#6366F1"].map(c=>(
                   <button key={c} type="button" onClick={()=>setForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:"50%",background:c,border:(form.color||"#3B82F6")===c?"3px solid #0F172A":"3px solid transparent",cursor:"pointer"}}/>
@@ -1309,7 +1310,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>Curso</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5}}>Curso</div>
               <select value={form.curso_id||""} onChange={e=>setForm(p=>({...p,curso_id:e.target.value}))} style={{...inp,cursor:"pointer"}}>
                 <option value="" disabled>Elegir curso...</option>
                 {cursosAnoActual.map(c=>(
@@ -1501,24 +1502,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         const hijosConApoderado = new Set(usuarios.flatMap(u=>u.hijos||[]));
         const sinRegistrarse = hijos.filter(h=>!hijosConApoderado.has(h.id)).length;
         const inactivos = usuariosNormales.filter(u=>!u.activo).length;
-        const STATS = [
-          {n:usuariosNormales.length, l:"Apoderados", sub:null, c:"#0F172A", bg:"#F1F5F9"},
-          {n:roomParents.length, l:"Room Parents", sub:cursosConRP?`en ${cursosConRP} curso${cursosConRP!==1?"s":""}`:null, c:"#8B5CF6", bg:"#F5F3FF"},
-          {n:sinRegistrarse, l:"Sin registrarse", sub:sinRegistrarse?"invitados":null, c:"#F59E0B", bg:"#FFFBEB"},
-          {n:inactivos, l:"Inactivos", sub:null, c:"#94A3B8", bg:"#F8FAFC"},
-        ];
         return (
-          <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
-            {STATS.map((s,i)=>(
-              <div key={i} style={{minWidth:140,background:"white",border:"1px solid #E7ECF3",borderRadius:14,padding:"14px 18px",flex:1}}>
-                <div style={{fontSize:10.5,color:"#94A3B8",fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>{s.l}</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:6}}>
-                  <span style={{fontSize:28,fontWeight:900,color:s.c,lineHeight:1}}>{s.n}</span>
-                  {s.sub && <span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>{s.sub}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ModuloStats items={[
+          {n:usuariosNormales.length, l:"Apoderados", sub:null},
+          {n:roomParents.length, l:"Room Parents", sub:cursosConRP?`en ${cursosConRP} curso${cursosConRP!==1?"s":""}`:null},
+          {n:sinRegistrarse, l:"Sin registrarse", sub:sinRegistrarse?"invitados":null},
+          {n:inactivos, l:"Inactivos", sub:null},
+          ]}/>
         );
       })()}
 
@@ -1552,9 +1542,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             const gridCols = "44px minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr) 118px 96px";
             return (
         <>
-          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado",color:ROL_COLOR.padre},{value:"room",label:"Room Parent",color:ROL_COLOR.room}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
+          <ListToolbar busqueda={ctrlUsuarios.busqueda} setBusqueda={ctrlUsuarios.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"rol",label:"Rol"},{key:"id",label:"Más reciente"}]} sortKey={ctrlUsuarios.sortKey} sortAsc={ctrlUsuarios.sortAsc} toggleSort={ctrlUsuarios.toggleSort} filterOptions={[{key:"rol",label:"Rol",options:[{value:"padre",label:"Apoderado"},{value:"room",label:"Room Parent"}]},{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]},{key:"curso",label:"Curso",options:cursoOpts}]} filtros={ctrlUsuarios.filtros} setFiltro={ctrlUsuarios.setFiltro} resetFiltros={ctrlUsuarios.resetFiltros} total={ctrlUsuarios.total} placeholder="Buscar por nombre o email..."/>
 
-          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             {selUsuarios.size>0 && (
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#0F172A"}}>
                 <span style={{fontSize:12.5,fontWeight:700,color:"white"}}>{selUsuarios.size} apoderado{selUsuarios.size!==1?"s":""} seleccionado{selUsuarios.size!==1?"s":""}</span>
@@ -1568,21 +1558,17 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <button onClick={()=>toggleSelTodosUsuarios(idsVisibles)} aria-label="Seleccionar todos" style={{width:18,height:18,border:`1.5px solid ${todosMarcados?"#0F172A":"#CBD5E1"}`,borderRadius:5,background:todosMarcados?"#0F172A":"white",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                   {todosMarcados && <span style={{color:"white",fontSize:11}}>✓</span>}
                 </button>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Nombre</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Acceso</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Hijos</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Nombre</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Acceso</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Hijos</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"center"}}>Estado</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"right"}}>Acciones</div>
               </>}
-              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlUsuarios.total} apoderados</div>}
+              {isMobile && <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{ctrlUsuarios.total} apoderados</div>}
             </div>
 
             {ctrlUsuarios.items.length===0 ? (
-              <div style={{textAlign:"center",padding:"48px 24px"}}>
-                <div style={{fontSize:15,fontWeight:800}}>Ningún apoderado coincide</div>
-                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo de los filtros de rol y estado.</div>
-                <button onClick={ctrlUsuarios.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
-              </div>
+              <EmptyState sinBorde icono="lupa" titulo="Ningún apoderado coincide" nota="Probá con otro nombre, o saliendo de los filtros de rol y estado." accion="Limpiar filtros" onAccion={ctrlUsuarios.resetFiltros} style={{padding:"28px 20px"}}/>
             ) : ctrlUsuarios.items.map(u=>{
               const marcado = selUsuarios.has(u.id);
               const hijosNombres = (u.hijos||[]).map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ");
@@ -1599,7 +1585,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                         {marcado && <span style={{color:"white",fontSize:11}}>✓</span>}
                       </button>
                     )}
-                    <div style={{width:34,height:34,borderRadius:999,background:ROL_BG[u.rol],color:ROL_COLOR[u.rol],display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(u.nombre||"")[0]||""}${(u.apellido||"")[0]||""}`.toUpperCase()}</div>
+                    <div style={{width:34,height:34,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(u.nombre||"")[0]||""}${(u.apellido||"")[0]||""}`.toUpperCase()}</div>
                     <div style={{minWidth:0}}>
                       <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
                       <div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
@@ -1607,9 +1593,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:5,minWidth:0}}>
                     {accesosDeUsuario(u).map((a,i)=>(
-                      <span key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",borderRadius:999,background:a.color+"18",border:`1px solid ${a.color}40`}}>
-                        <span style={{width:6,height:6,borderRadius:999,background:a.color}}/>
-                        <span style={{fontSize:11,fontWeight:700,color:a.color}}>{a.label}</span>
+                      <span key={i} style={{display:"flex",alignItems:"center",padding:"3px 8px",borderRadius:999,background:"#F8FAFC",border:"1px solid #E2E8F0"}}>
+                        <span style={{fontSize:11.5,fontWeight:600,color:"#475569"}}>{a.label}</span>
                       </span>
                     ))}
                     {/* super/colegio_admin ya no aparecen en esta lista — ver
@@ -1617,14 +1602,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   </div>
                   <div style={{fontSize:12,color:"#64748B",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{hijosNombres || "—"}</div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"center"}}>
-                    <span style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:999,background:u.activo?"#F0FDF4":"#F1F5F9",border:`1px solid ${u.activo?"#A7F3D0":"#E2E8F0"}`}}>
-                      <span style={{width:6,height:6,borderRadius:999,background:u.activo?"#059669":"#94A3B8"}}/>
-                      <span style={{fontSize:11,fontWeight:700,color:u.activo?"#059669":"#94A3B8"}}>{u.activo?"Activo":"Inactivo"}</span>
-                    </span>
+                    <span style={{fontSize:12.5,fontWeight:600,color:u.activo?"#334155":"#94A3B8"}}>{u.activo?"Activo":"Inactivo"}</span>
                   </div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",gap:6}}>
                     <button onClick={()=>{ setForm({...u,cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
-                    <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
+                    <button onClick={()=>toggleActivo(u)} title={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre={u.activo?"cerrar":"check"} size={15} color="#64748B" style={{margin:"0 auto"}}/></button>
                     {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>}
                   </div>
                 </div>
@@ -1673,23 +1655,19 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           </div>
           <ListToolbar busqueda={ctrlCursos.busqueda} setBusqueda={ctrlCursos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"id",label:"Más reciente"}]} sortKey={ctrlCursos.sortKey} sortAsc={ctrlCursos.sortAsc} toggleSort={ctrlCursos.toggleSort} filtros={{}} setFiltro={()=>{}} resetFiltros={ctrlCursos.resetFiltros} total={ctrlCursos.total} placeholder="Buscar curso..."/>
 
-          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
               {!isMobile && <>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Curso</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Room Parent</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Alumnos</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Curso</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Room Parent</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"center"}}>Alumnos</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"right"}}>Acciones</div>
               </>}
-              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlCursos.total} cursos</div>}
+              {isMobile && <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{ctrlCursos.total} cursos</div>}
             </div>
 
             {ctrlCursos.items.length===0 ? (
-              <div style={{textAlign:"center",padding:"48px 24px"}}>
-                <div style={{fontSize:15,fontWeight:800}}>Ningún curso coincide</div>
-                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre.</div>
-                <button onClick={ctrlCursos.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
-              </div>
+              <EmptyState sinBorde icono="lupa" titulo="Ningún curso coincide" nota="Probá con otro nombre." accion="Limpiar filtros" onAccion={ctrlCursos.resetFiltros} style={{padding:"28px 20px"}}/>
             ) : ctrlCursos.items.map(c=>{
               const admins=usuarios.filter(u=>u.rol==="room"&&u.cursos.includes(c.id));
               const alumnosCurso=hijos.filter(h=>h.curso_id===c.id).length;
@@ -1729,41 +1707,37 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           <UploadAlumnosExcel cursos={cursosAnoActual} onDone={cargar}/>
           <ListToolbar busqueda={ctrlAlumnos.busqueda} setBusqueda={ctrlAlumnos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrlAlumnos.sortKey} sortAsc={ctrlAlumnos.sortAsc} toggleSort={ctrlAlumnos.toggleSort} filterOptions={[{key:"curso",label:"Curso",options:cursos.map(c=>({value:String(c.id),label:c.nombre}))}]} filtros={ctrlAlumnos.filtros} setFiltro={ctrlAlumnos.setFiltro} resetFiltros={ctrlAlumnos.resetFiltros} total={ctrlAlumnos.total} placeholder="Buscar alumno..."/>
 
-          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
               {!isMobile && <>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Alumno</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Curso</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Apoderados</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Cumpleaños</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Alumno</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Curso</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Apoderados</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Cumpleaños</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"right"}}>Acciones</div>
               </>}
-              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlAlumnos.total} alumnos</div>}
+              {isMobile && <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{ctrlAlumnos.total} alumnos</div>}
             </div>
 
             {ctrlAlumnos.items.length===0 ? (
-              <div style={{textAlign:"center",padding:"48px 24px"}}>
-                <div style={{fontSize:15,fontWeight:800}}>Ningún alumno coincide</div>
-                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo del filtro de curso.</div>
-                <button onClick={ctrlAlumnos.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
-              </div>
+              <EmptyState sinBorde icono="lupa" titulo="Ningún alumno coincide" nota="Probá con otro nombre, o saliendo del filtro de curso." accion="Limpiar filtros" onAccion={ctrlAlumnos.resetFiltros} style={{padding:"28px 20px"}}/>
             ) : ctrlAlumnos.items.map(a=>{
               const curso = cursos.find(c=>c.id===a.curso_id);
               const apoderados = (a.usuarios||[]).map(u=>u.usuarios).filter(Boolean);
               return (
                 <div key={a.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC"}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                    <div style={{width:34,height:34,borderRadius:999,background:(a.color||"#3B82F6")+"22",color:a.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(a.nombre||"")[0]||""}${(a.apellido||"")[0]||""}`.toUpperCase()}</div>
+                    <div style={{width:34,height:34,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(a.nombre||"")[0]||""}${(a.apellido||"")[0]||""}`.toUpperCase()}</div>
                     <div style={{minWidth:0}}>
                       <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(a)}</div>
                       {a.dni&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1}}>DNI: {a.dni}</div>}
                     </div>
                   </div>
-                  <div>{curso?<Pill label={curso.nombre} color={curso.color} bg={curso.color+"18"}/>:<span style={{fontSize:12,color:"#94A3B8"}}>—</span>}</div>
+                  <div style={{fontSize:12.5,color:curso?"#334155":"#94A3B8"}}>{curso?curso.nombre:"—"}</div>
                   <div style={{fontSize:12.5,color:"#64748B"}}>{apoderados.length>0?apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin registrar</span>}</div>
                   <div style={{fontSize:12.5,color:a.fecha_nacimiento?"#334155":"#CBD5E1"}}>{a.fecha_nacimiento?fmtF(a.fecha_nacimiento):"—"}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>setVerApodSA(a)} style={{width:32,height:32,borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6"}}><Icono nombre="usuarios" size={15} color="#1D4ED8" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>setVerApodSA(a)} title="Ver apoderados" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="usuarios" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>
@@ -1790,30 +1764,26 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           ]}/>
           <ListToolbar busqueda={ctrlMaestros.busqueda} setBusqueda={ctrlMaestros.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"materia",label:"Materia"}]} sortKey={ctrlMaestros.sortKey} sortAsc={ctrlMaestros.sortAsc} toggleSort={ctrlMaestros.toggleSort} filterOptions={[{key:"activo",label:"Estado",options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}]}]} filtros={ctrlMaestros.filtros} setFiltro={ctrlMaestros.setFiltro} resetFiltros={ctrlMaestros.resetFiltros} total={ctrlMaestros.total} placeholder="Buscar maestro o materia..."/>
 
-          <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,gap:12,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
               {!isMobile && <>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Maestro</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Materia</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>Cursos</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"center"}}>Estado</div>
-                <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8",textAlign:"right"}}>Acciones</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Maestro</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Materia</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>Cursos</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"center"}}>Estado</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748B",textAlign:"right"}}>Acciones</div>
               </>}
-              {isMobile && <div style={{fontSize:10.5,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",color:"#94A3B8"}}>{ctrlMaestros.total} maestros</div>}
+              {isMobile && <div style={{fontSize:12,fontWeight:600,color:"#64748B"}}>{ctrlMaestros.total} maestros</div>}
             </div>
 
             {ctrlMaestros.items.length===0 ? (
-              <div style={{textAlign:"center",padding:"48px 24px"}}>
-                <div style={{fontSize:15,fontWeight:800}}>Ningún maestro coincide</div>
-                <div style={{fontSize:13,color:"#64748B",marginTop:6}}>Probá con otro nombre, o saliendo del filtro de estado.</div>
-                <button onClick={ctrlMaestros.resetFiltros} style={{marginTop:14,padding:"8px 16px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>Limpiar filtros</button>
-              </div>
+              <EmptyState sinBorde icono="lupa" titulo="Ningún maestro coincide" nota="Probá con otro nombre, o saliendo del filtro de estado." accion="Limpiar filtros" onAccion={ctrlMaestros.resetFiltros} style={{padding:"28px 20px"}}/>
             ) : ctrlMaestros.items.map(m=>{
               const nombreCursos = (m.cursos||[]).map(cid=>cursos.find(c=>c.id===cid)?.nombre).filter(Boolean).join(", ");
               return (
                 <div key={m.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",opacity:m.activo?1:0.55}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                    <div style={{width:34,height:34,borderRadius:999,background:"#F5F3FF",color:"#8B5CF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>👨‍🏫</div>
+                    <div style={{width:34,height:34,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(m.nombre||"")[0]||""}${(m.apellido||"")[0]||""}`.toUpperCase()}</div>
                     <div style={{minWidth:0}}>
                       <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(m)}</div>
                       {m.email&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.email}</div>}
@@ -1822,7 +1792,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{fontSize:13,color:"#334155"}}>{m.materia||"—"}</div>
                   <div style={{fontSize:12.5,color:"#64748B"}}>{nombreCursos||"—"}</div>
                   <div style={{textAlign:isMobile?"left":"center"}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:999,background:m.activo?"#F0FDF4":"#F1F5F9",color:m.activo?"#10B981":"#94A3B8"}}>{m.activo?"Activo":"Inactivo"}</span>
+                    <span style={{fontSize:12.5,fontWeight:600,color:m.activo?"#334155":"#94A3B8"}}>{m.activo?"Activo":"Inactivo"}</span>
                   </div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
                     <button onClick={()=>{ setForm({...m,clases:null,_clasesOrig:[]}); setModal("editar_maestro"); cargarClasesMaestro(m.id).then(cl=>setForm(p=>p.id===m.id?{...p,clases:cl,_clasesOrig:cl}:p)); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
@@ -1907,7 +1877,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
 
       {sec==="super_admins"&&esSuper&&(
-        <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+        <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
           {superAdmins.length===0&&<EmptyState sinBorde icono="usuarios" titulo="No hay cuentas Super Admin" style={{padding:16}}/>}
           {superAdmins.map(u=>(
             <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"14px 18px",borderBottom:"1px solid #F1F5F9"}}>
@@ -1921,7 +1891,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
                 {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                 <button onClick={()=>{ setFormSuper({...u,_emailOriginal:u.email}); setModalSuper({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
-                <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
+                <button onClick={()=>toggleActivo(u)} title={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre={u.activo?"cerrar":"check"} size={15} color="#64748B" style={{margin:"0 auto"}}/></button>
               </div>
             </div>
           ))}
@@ -1982,17 +1952,17 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:900}}>Administradores de {colegioNombre}</div>
-                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.{esSuper?"":" Los da de alta el equipo de tribbu."}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#0F172A"}}>Administradores de {colegioNombre}</div>
+                    <div style={{fontSize:12.5,color:"#64748B",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.{esSuper?"":" Los da de alta el equipo de tribbu."}</div>
                   </div>
                   {esSuper&&<BotonNuevo label="Nuevo administrador" onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }}/>}
                 </div>
-                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+                <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
                   {adminsDelColegio.length===0 && <EmptyState sinBorde icono="usuarios" titulo="Todavía no hay administradores" nota="Los da de alta el equipo de tribbu." style={{padding:16}}/>}
                   {adminsDelColegio.map(u=>(
                     <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
                       <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                        <div style={{width:34,height:34,borderRadius:999,background:ROL_BG.colegio_admin,color:ROL_COLOR.colegio_admin,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{u.avatar}</div>
+                        <div style={{width:34,height:34,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(u.nombre||"")[0]||""}${(u.apellido||"")[0]||""}`.toUpperCase()}</div>
                         <div style={{minWidth:0}}>
                           <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.nombre}{u.apellido?` ${u.apellido}`:""}</div>
                           <div style={{fontSize:11.5,color:"#94A3B8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
@@ -2001,7 +1971,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                         {esSuper&&<button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>}
-                        {esSuper&&<button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>}
+                        {esSuper&&<button onClick={()=>toggleActivo(u)} title={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre={u.activo?"cerrar":"check"} size={15} color="#64748B" style={{margin:"0 auto"}}/></button>}
                       </div>
                     </div>
                   ))}
@@ -2009,8 +1979,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
             )}
             <div style={{marginBottom:24}}>
-              <div style={{fontSize:15,fontWeight:900}}>Niveles</div>
-              <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y sumar directivos por nivel (Dirección, Secretaría…).</div>
+              <div style={{fontSize:16,fontWeight:800,color:"#0F172A"}}>Niveles</div>
+              <div style={{fontSize:12.5,color:"#64748B",marginTop:2,marginBottom:10}}>Los niveles que tiene el colegio. Con más de uno, cada curso lleva su nivel y podés mandar comunicados o cargar el menú por nivel, y sumar directivos por nivel (Dirección, Secretaría…).</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {NIVELES.map(n=>{
                   const on=colegioNiveles.includes(n.k);
@@ -2022,12 +1992,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:900}}>Directivos por nivel</div>
-                    <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Dirección, Secretaría, Coordinación… Gestionan solo los cursos de sus niveles (todos pueden lo mismo, el cargo es el nombre que se ve): comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#0F172A"}}>Directivos por nivel</div>
+                    <div style={{fontSize:12.5,color:"#64748B",marginTop:2}}>Dirección, Secretaría, Coordinación… Gestionan solo los cursos de sus niveles (todos pueden lo mismo, el cargo es el nombre que se ve): comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
                   </div>
                   <BotonNuevo label="Nuevo directivo" onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[],cargo:CARGO_DEFECTO}); setModalAdmin("nuevo"); }}/>
                 </div>
-                <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
+                <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
                   {secretarias.length===0 && <EmptyState sinBorde icono="usuarios" titulo="Todavía no hay directivos por nivel" nota="Dirección, Secretaría o Coordinación de un nivel: gestionan solo los cursos de sus niveles." style={{padding:16}}/>}
                   {secretarias.map(u=>(
                     <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
@@ -2038,7 +2008,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
                         <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],cargo:u.cargo||CARGO_DEFECTO,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
-                        <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
+                        <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} title={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre={u.activo?"cerrar":"check"} size={15} color="#64748B" style={{margin:"0 auto"}}/></button>
                       </div>
                     </div>
                   ))}
@@ -2177,13 +2147,13 @@ function PromocionCurso({ cursos, anoActual }) {
       )}
 
       <div style={{marginBottom:16}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Curso de origen ({anoActual})</div>
+        <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Curso de origen ({anoActual})</div>
         <CursoListSelector cursos={cursosOrigen} seleccionados={origenId?[origenId]:[]} onToggle={elegirOrigen} multi={false}/>
       </div>
 
       {origenId&&(
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Curso de destino ({anoActual+1})</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Curso de destino ({anoActual+1})</div>
           {cursosDestino.length===0?(
             <div style={{fontSize:12,color:"#94A3B8",padding:14,border:"1.5px dashed #E2E8F0",borderRadius:12,textAlign:"center"}}>Todavía no hay ningún curso creado para {anoActual+1}. Duplicá el curso desde "🏫 Cursos" primero.</div>
           ):(
@@ -2197,7 +2167,7 @@ function PromocionCurso({ cursos, anoActual }) {
       {origenId&&!cargando&&alumnos.length>0&&(
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6}}>Alumnos ({seleccionados.length}/{alumnos.length})</div>
+            <div style={{fontSize:12.5,fontWeight:600,color:"#475569"}}>Alumnos ({seleccionados.length}/{alumnos.length})</div>
             <button onClick={()=>setSeleccionados(seleccionados.length===alumnos.length?[]:alumnos.map(a=>a.id))} style={{fontSize:11,fontWeight:700,color:"#3B82F6",background:"none",border:"none",cursor:"pointer"}}>{seleccionados.length===alumnos.length?"Ninguno":"Todos"}</button>
           </div>
           <div style={{border:"1.5px solid #E2E8F0",borderRadius:12,maxHeight:280,overflowY:"auto"}}>
@@ -2355,7 +2325,7 @@ function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado,
   const [base, setBase] = useState(valor);
   if (valor !== base) { setBase(valor); setForm(valor); } // ajuste en render al recargar
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
-  const lbl = {fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:5};
+  const lbl = {fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:5};
   const setNivel = (k, campo, v) => setForm(p=>({...p,niveles:{...p.niveles,[k]:{...(p.niveles?.[k]||{}),[campo]:v}}}));
   const guardar = async () => {
     setGuardando(true);
@@ -2370,7 +2340,7 @@ function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado,
   return (
     <div style={{marginBottom:24}}>
       <div style={{fontSize:15,fontWeight:900}}>Membrete de los comunicados</div>
-      <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2,marginBottom:10}}>Los comunicados que mandes con “Con membrete” se ven con el logo y el nombre de {colegioNombre||"el colegio"} arriba, esta línea debajo y la firma al final.</div>
+      <div style={{fontSize:12.5,color:"#64748B",marginTop:2,marginBottom:10}}>Los comunicados que mandes con “Con membrete” se ven con el logo y el nombre de {colegioNombre||"el colegio"} arriba, esta línea debajo y la firma al final.</div>
       <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
         <div style={{flex:"1 1 220px"}}><div style={lbl}>Línea (opcional)</div><input value={form.linea||""} onChange={e=>setForm(p=>({...p,linea:e.target.value}))} placeholder="Ej: Ciclo lectivo 2026" style={inp}/></div>
         <div style={{flex:"1 1 220px"}}><div style={lbl}>Firma (opcional)</div><input value={form.firma||""} onChange={e=>setForm(p=>({...p,firma:e.target.value}))} placeholder="Ej: Dirección" style={inp}/></div>
@@ -2936,12 +2906,12 @@ export function UniformesAdmin({ cursos }) {
 
 export function UploadAlumnosExcel({ cursos, onDone }) {
   const [loading,setLoading] = useState(false);
-  const [msg,setMsg]         = useState("");
+  const [msg,setMsg]         = useState(null);
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
-    setLoading(true); setMsg("");
+    setLoading(true); setMsg(null);
     try {
       const data = await file.arrayBuffer();
       const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
@@ -3007,10 +2977,10 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
         }
         ok++;
       }
-      setMsg(`✅ ${ok} alumnos procesados correctamente`);
+      setMsg({ok:true,t:`${ok} alumnos procesados correctamente`});
       onDone();
     } catch(err) {
-      setMsg(`❌ ${err.message}`);
+      setMsg({ok:false,t:`${err.message}`});
       console.error(err);
     }
     setLoading(false);
@@ -3019,15 +2989,15 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
 
   return (
     <div style={{marginBottom:16}}>
-      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #10B981",background:"#F0FDF4",cursor:"pointer",maxWidth:"100%"}}>
-        <span style={{fontSize:20}}>📤</span>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",cursor:"pointer",maxWidth:"100%"}}>
+        <Icono nombre="documento" size={20} color="#475569"/>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"#10B981"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
-          <div style={{fontSize:11,color:"#94A3B8"}}>Columnas: nombre, apellido, curso_id, fecha_nacimiento, dni</div>
+          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
+          <div style={{fontSize:12,color:"#64748B"}}>Columnas: nombre, apellido, curso_id, fecha_nacimiento, dni</div>
         </div>
         <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
       </label>
-      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.ok?"#047857":"#B91C1C"}}>{msg.t}</div>}
     </div>
   );
 }
@@ -3037,12 +3007,12 @@ export function UploadAlumnosExcel({ cursos, onDone }) {
 // existe (ahí el CTA principal es "+ Nuevo apoderado" arriba a la derecha).
 export function UploadApoderadosExcel({ onDone, compact=false }) {
   const [loading,setLoading] = useState(false);
-  const [msg,setMsg]         = useState("");
+  const [msg,setMsg]         = useState(null);
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
-    setLoading(true); setMsg("");
+    setLoading(true); setMsg(null);
     try {
       const data = await file.arrayBuffer();
       const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
@@ -3108,12 +3078,12 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
       }
       if(err2) throw err2;
       const avisoSinAuth = sinAuth.length
-        ? ` ⚠️ ${sinAuth.length} sin cuenta de Auth (no van a poder entrar hasta que les asignes una clave desde Usuarios): ${sinAuth.join(", ")}`
+        ? ` Atención: ${sinAuth.length} sin cuenta de Auth (no van a poder entrar hasta que les asignes una clave desde Usuarios): ${sinAuth.join(", ")}`
         : "";
-      setMsg(`✅ ${ok} apoderados procesados correctamente.${avisoSinAuth}`);
+      setMsg({ok:true,t:`${ok} apoderados procesados correctamente.${avisoSinAuth}`});
       onDone();
     } catch(err) {
-      setMsg(`❌ ${err.message}`);
+      setMsg({ok:false,t:`${err.message}`});
       console.error(err);
     }
     setLoading(false);
@@ -3125,22 +3095,22 @@ export function UploadApoderadosExcel({ onDone, compact=false }) {
       <>
         <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading} title="Columnas: nombre, apellido, email, pass, telefono, dni, rol"/>
         {loading && <span style={{fontSize:11,color:"#94A3B8"}}>Procesando...</span>}
-        {msg&&<span style={{position:"fixed",bottom:20,right:20,zIndex:600,background:msg.startsWith("✅")?"#F0FDF4":"#FEF2F2",border:`1px solid ${msg.startsWith("✅")?"#BBF7D0":"#FECACA"}`,borderRadius:10,padding:"10px 14px",fontSize:12.5,fontWeight:600,color:msg.startsWith("✅")?"#065F46":"#991B1B",boxShadow:"0 8px 24px rgba(0,0,0,0.12)"}}>{msg}</span>}
+        {msg&&<span style={{position:"fixed",bottom:20,right:20,zIndex:600,background:msg.ok?"#F0FDF4":"#FEF2F2",border:`1px solid ${msg.ok?"#BBF7D0":"#FECACA"}`,borderRadius:10,padding:"10px 14px",fontSize:12.5,fontWeight:600,color:msg.ok?"#065F46":"#991B1B",boxShadow:"0 8px 24px rgba(0,0,0,0.12)"}}>{msg.t}</span>}
       </>
     );
   }
 
   return (
     <div style={{marginBottom:16}}>
-      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",cursor:"pointer",maxWidth:"100%"}}>
-        <span style={{fontSize:20}}>📤</span>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",cursor:"pointer",maxWidth:"100%"}}>
+        <Icono nombre="documento" size={20} color="#475569"/>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"#3B82F6"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
-          <div style={{fontSize:11,color:"#94A3B8"}}>Columnas: nombre, apellido, email, pass, telefono, dni, rol</div>
+          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
+          <div style={{fontSize:12,color:"#64748B"}}>Columnas: nombre, apellido, email, pass, telefono, dni, rol</div>
         </div>
         <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
       </label>
-      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.ok?"#047857":"#B91C1C"}}>{msg.t}</div>}
     </div>
   );
 }

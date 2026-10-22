@@ -9,6 +9,7 @@
 //   · Membrete: línea y firma, y por nivel si el colegio tiene más de uno.
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, Alert, StyleSheet } from "react-native";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { supabase } from "../../lib/supabase";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
 import { sanitize } from "@shared/helpers";
@@ -93,12 +94,12 @@ function DirectivoSheet({ inicial, colegioId, niveles, onClose, onGuardado }) {
     <Sheet visible onClose={onClose} title={esNuevo ? "Nuevo directivo por nivel" : "Editar directivo"}>
       <ScrollView keyboardShouldPersistTaps="handled" style={s.flexShrink}>
         <Text style={s.nota}>Gestiona solo los cursos de sus niveles. El cargo es solo el nombre que se ve; todos pueden lo mismo.</Text>
-        <Text style={s.label}>CARGO</Text>
+        <Text style={s.label}>Cargo</Text>
         <View style={s.fila}>
           {CARGOS.map((c) => <Chip key={c} label={c} on={form.cargo === c} onPress={() => set("cargo", c)} />)}
         </View>
         <TextInput value={cargoEsOtro ? form.cargo : ""} onChangeText={(v) => set("cargo", v || CARGO_DEFECTO)} placeholder="Otro cargo (opcional): Ej. Vicedirección" placeholderTextColor={t.placeholder} style={[s.input, s.mtSm]} />
-        <Text style={[s.label, s.mtMd]}>NIVELES</Text>
+        <Text style={[s.label, s.mtMd]}>Niveles</Text>
         <View style={s.fila}>
           {niveles.map((k) => {
             const on = form.niveles.includes(k);
@@ -120,7 +121,7 @@ function DirectivoSheet({ inicial, colegioId, niveles, onClose, onGuardado }) {
   );
 }
 
-/** Personas → 🧭 Directivos (administrador del colegio y super). */
+/** Personas → Directivos (administrador del colegio y super). */
 export function DirectivosAdmin({ colegioId, usuarios = [], onCambio }) {
   const [niveles, setNiveles] = useState(null);
   const [editor, setEditor] = useState(null); // { inicial } — inicial null = alta
@@ -187,14 +188,16 @@ export function DirectivosAdmin({ colegioId, usuarios = [], onCambio }) {
               </Pressable>
             )) : <Text style={[s.nota, s.pad]}>Todavía no hay directivos por nivel.</Text>}
           </View>
-          <Button title="+ Nuevo directivo" variant="secondary" onPress={() => setEditor({ inicial: null })} style={s.mtMd} />
+          <View style={[s.mtMd, { flexDirection: "row", justifyContent: "flex-end" }]}>
+            <BotonNuevo label="Nuevo directivo" onPress={() => setEditor({ inicial: null })} />
+          </View>
         </>
       )}
     </View>
   );
 }
 
-/** 🏫 Colegio → Membrete de los comunicados. */
+/** Colegio → Membrete de los comunicados. */
 export function MembreteAdmin({ colegioId }) {
   const [form, setForm] = useState(null);
   const [niveles, setNiveles] = useState([]);
@@ -256,7 +259,7 @@ const s = StyleSheet.create({
   chipTxt: { fontSize: 12.5, fontWeight: "700", color: SLATE[500] },
   chipTxtOn: { color: BLUE[700] },
   campo: { marginTop: 12 },
-  label: { fontSize: 11, fontWeight: "700", color: SLATE[400], letterSpacing: 0.6, marginBottom: 6 },
+  label: { fontSize: 12.5, fontWeight: "600", color: SLATE[600], marginBottom: 6 },
   input: { borderWidth: 1.5, borderColor: SLATE[200], borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: t.text, backgroundColor: SLATE[50] },
   flex1: { flex: 1 },
   flexShrink: { flexShrink: 1 },

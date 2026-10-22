@@ -165,10 +165,10 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   const bloqueNumeros = (
     <div style={{ marginBottom: 28 }}>
       <Encabezado titulo="El colegio en números" />
-      {/* Separadores con gap + fondo gris: quedan bien en una fila o partidos en dos. */}
-      <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 1, background: "#F1F5F9", overflow: "hidden" }}>
+      {/* Separadores con borde y margen -1: al partirse en dos filas, la última se estira (sin huecos). */}
+      <div style={{ ...card, display: "flex", flexWrap: "wrap", overflow: "hidden" }}>
         {kpis.map((k) => (
-          <div key={k.l} style={{ padding: "14px 18px", background: "white" }}>
+          <div key={k.l} style={{ flex: "1 1 110px", padding: "14px 18px", borderLeft: "1px solid #F1F5F9", borderTop: "1px solid #F1F5F9", marginLeft: -1, marginTop: -1 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{k.l}</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", marginTop: 4, lineHeight: 1.1 }}>{k.n ?? "—"}</div>
             {k.sub ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{k.sub}</div> : null}
