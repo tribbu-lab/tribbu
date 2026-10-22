@@ -641,6 +641,21 @@ function HorarioDia({ horarios, dia }) {
   );
 }
 
+// Una fila "pendiente" por alumno del curso (y cada apoderado) en un evento que
+// pide confirmar asistencia. No toca las filas que ya existen: editar el evento
+// no borra lo que las familias respondieron.
+async function crearAsistenciaPendiente(eventoId, cursoId) {
+  const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoId);
+  const hijosIds = (hijos || []).map((h) => h.id);
+  if (!hijosIds.length) return;
+  const { data: uh } = await supabase.from("usuario_hijos").select("usuario_id,hijo_id").in("hijo_id", hijosIds);
+  const rows = (uh || []).map((r) => ({ evento_id: eventoId, usuario_id: r.usuario_id, alumno_invitado_id: r.hijo_id, asiste: "pendiente" }));
+  if (rows.length) await supabase.from("evento_asistencia").upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: true });
+}
+
+// Lo que se copia a los otros cursos de un evento multi-curso al editarlo.
+const CAMPOS_GRUPO = ["titulo", "tipo", "fecha", "fecha_fin", "hora", "hora_fin", "todo_el_dia", "lugar", "url_ubicacion", "descripcion", "adjuntos", "confirma_asistencia"];
+
 export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const esNuevo = !evento;
   const [form, setForm] = useState({
@@ -695,28 +710,8 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
         const userIds = await getUserIdsByCurso(cursoEvento);
         await sendPush({ type: "evento", payload: { titulo: form.titulo, fecha: form.fecha || "", userIds } });
       }
-      if (form.confirma_asistencia && eventoId) {
-        const { data: hijos } = await supabase.from("hijos").select("id").eq("curso_id", cursoEvento);
-        const hijosIds = (hijos || []).map((h) => h.id);
-        if (hijosIds.length) {
-          const { data: uh } = await supabase
-            .from("usuario_hijos")
-            .select("usuario_id,hijo_id")
-            .in("hijo_id", hijosIds);
-          const rows = (uh || []).map((r) => ({
-            evento_id: eventoId,
-            usuario_id: r.usuario_id,
-            alumno_invitado_id: r.hijo_id,
-            asiste: "pendiente",
-          }));
-          if (rows.length) {
-            await supabase.from("evento_asistencia").delete().eq("evento_id", eventoId);
-            await supabase
-              .from("evento_asistencia")
-              .upsert(rows, { onConflict: "evento_id,alumno_invitado_id", ignoreDuplicates: false });
-          }
-        }
-      }
+      // Al editar no se pisan las respuestas que ya llegaron.
+      if (form.confirma_asistencia && eventoId) await crearAsistenciaPendiente(eventoId, cursoEvento);
     } catch (e) {
       console.error("EventoModal.guardar (push/asistencia):", e);
     } finally {
@@ -1167,18 +1162,44 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
     .filter((e) => (periodo === "proximos" ? (e.fecha_fin || e.fecha) >= hoy : (e.fecha_fin || e.fecha) < hoy))
     .filter((e) => !q || `${e.titulo} ${e.descripcion || ""} ${e.lugar || ""}`.toLowerCase().includes(q));
   if (periodo === "pasados") lista.reverse();
+  // Un evento cargado para varios cursos va en una sola fila
+  // con "N cursos"; editar o eliminar aplica a todos.
+  const items = [];
+  const porGrupo = new Map();
+  for (const e of lista) {
+    // También los cargados curso por curso: mismo título, fecha, hora, tipo y autor.
+    const clave = e.grupo_id || [e.titulo, e.fecha, e.fecha_fin, e.hora, e.tipo, e.creado_por].join("|");
+    const g = porGrupo.get(clave);
+    if (g) { g.filas.push(e); continue; }
+    const it = { ...e, filas: [e] };
+    porGrupo.set(clave, it);
+    items.push(it);
+  }
+  const cursosDe = (it) => (it.filas?.length > 1 ? `${it.filas.length} cursos` : nombreCurso(it.curso_id));
+
+  // EventoModal guarda la fila abierta; acá se copian los datos al resto del grupo.
+  const propagarGrupo = async (it) => {
+    const otros = (it.filas || []).filter((f) => f.id !== it.id);
+    if (!otros.length) return;
+    const { data: a } = await supabase.from("eventos").select("*").eq("id", it.id).single();
+    if (!a) return;
+    const cambios = Object.fromEntries(CAMPOS_GRUPO.map((k) => [k, a[k]]));
+    const { error } = await supabase.from("eventos").update(cambios).in("id", otros.map((o) => o.id));
+    if (error) { Alert.alert("Se guardó en un curso, pero no en los demás", error.message); return; }
+    if (a.confirma_asistencia) for (const o of otros) await crearAsistenciaPendiente(o.id, o.curso_id);
+  };
 
   const borrar = (e) =>
     Alert.alert(
       "¿Eliminar este evento?",
-      `"${e.titulo}" · ${nombreCurso(e.curso_id)} · ${fmtRangoFecha(e.fecha, e.fecha_fin)}\n\nDesaparece del calendario de las familias del curso${e.confirma_asistencia || e.tipo === "festejo" ? " y se borran sus confirmaciones de asistencia" : ""}.`,
+      `"${e.titulo}" · ${cursosDe(e)} · ${fmtRangoFecha(e.fecha, e.fecha_fin)}\n\nDesaparece del calendario de las familias ${e.filas?.length > 1 ? `de los ${e.filas.length} cursos` : "del curso"}${e.confirma_asistencia || e.tipo === "festejo" ? " y se borran sus confirmaciones de asistencia" : ""}.`,
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Eliminar",
           style: "destructive",
           onPress: async () => {
-            const { error } = await supabase.from("eventos").delete().eq("id", e.id);
+            const { error } = await supabase.from("eventos").delete().in("id", (e.filas || [e]).map((f) => f.id));
             if (error) { Alert.alert("No se pudo eliminar", error.message); return; }
             borrarArchivos(e.adjuntos, "adjuntos");
             if (e.imagen_url) borrarArchivos([e.imagen_url], "eventos");
@@ -1207,7 +1228,7 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
           cursoId={editando === "nuevo" ? cursoSel : editando.curso_id}
           userId={userId}
           onClose={() => setEditando(null)}
-          onSave={() => { setEditando(null); cargar(); }}
+          onSave={async () => { const it = editando; setEditando(null); if (it !== "nuevo") await propagarGrupo(it); cargar(); }}
         />
       ) : null}
 
@@ -1220,19 +1241,20 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
 
       {eventos === null ? (
         <Text style={ec.vacio}>Cargando…</Text>
-      ) : lista.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState icon="calendar-blank-outline" title={`${periodo === "proximos" ? "No hay eventos próximos" : "No hay eventos pasados"}${cursoSel ? " en este curso" : ""}`} />
       ) : (
         <Card style={ec.card}>
-          {lista.map((e, i) => {
+          {items.map((e, i) => {
             const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
             return (
               <View key={e.id} style={[ec.row, i > 0 && ec.rowBorde]}>
                 <View style={styles.flex1}>
                   <Text style={ec.titulo}>{e.titulo}</Text>
                   <Text style={ec.meta}>
-                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, nombreCurso(e.curso_id), cfg.label].filter(Boolean).join(" · ")}
+                    {[fmtRangoFecha(e.fecha, e.fecha_fin), e.hora && e.todo_el_dia === false ? e.hora.slice(0, 5) : null, cursosDe(e), cfg.label].filter(Boolean).join(" · ")}
                   </Text>
+                  {e.filas.length > 1 ? <Text style={ec.autor} numberOfLines={1}>{e.filas.map((f) => nombreCurso(f.curso_id)).join(", ")}</Text> : null}
                   <Text style={ec.autor}>Creado por {autor(e.creado_por)}</Text>
                 </View>
                 {puede(e) ? (
