@@ -13,6 +13,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../supabase";
 import { fmtNombre, sanitize } from "../../lib/helpers";
+import { NIVELES, nombreNivel, materiaDelNivel, puedeEditarMateria } from "../../lib/niveles";
 import { THEMES, SLATE } from "../../lib/tokens";
 import { Spinner } from "../../components/Spinner";
 import { PALETA_MATERIAS, useMaterias, etiquetaClase } from "./clasesDatos";
@@ -49,8 +50,15 @@ function PuntoColor({ color, onChange, label }) {
 
 // ── Catálogo de materias ─────────────────────────────────────────────────────
 
-export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
+// niveles: los del colegio (con más de uno, cada materia lleva nivel o "Todos").
+// nivelesPropios: los de la Secretaría/Dirección por nivel (edita solo esas); null = administrador.
+export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles = [], nivelesPropios = null }) {
   const { materias, recargar } = useMaterias(colegioId);
+  const conNiveles = (niveles || []).length > 1;
+  const nivelesElegibles = NIVELES.filter((n) => (niveles || []).includes(n.k) && (!nivelesPropios || nivelesPropios.includes(n.k)));
+  const [nivelNueva, setNivelNueva] = useState(nivelesPropios?.[0] || "");
+  const [filtroNivel, setFiltroNivel] = useState("");
+  const puede = (m) => puedeEditarMateria(m, nivelesPropios);
   const [usos, setUsos] = useState({}); // materia_id → nº de clases
   const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
   const [abierta, setAbierta] = useState(null); // materia con la lista de clases desplegada
@@ -98,14 +106,15 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
     cargarClases();
   };
 
-  const duplicada = (nombre, exceptoId) => (materias || []).some((m) => m.id !== exceptoId && sinAcentos(m.nombre) === sinAcentos(nombre));
+  const duplicada = (nombre, exceptoId, nivel) => (materias || []).some((m) => m.id !== exceptoId && (m.nivel || "") === (nivel || "") && sinAcentos(m.nombre) === sinAcentos(nombre));
 
   const crear = async () => {
     const nombre = sanitize(nueva).trim();
     if (!nombre) return;
-    if (duplicada(nombre)) { toast("Esa materia ya existe", "error"); return; }
+    const nivel = conNiveles ? (nivelNueva || null) : null;
+    if (duplicada(nombre, null, nivel)) { toast("Esa materia ya existe en ese nivel", "error"); return; }
     const color = PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length];
-    const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre, color, orden: (materias?.length || 0) + 1 });
+    const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre, color, orden: (materias?.length || 0) + 1, nivel });
     if (error) { toast(`No se pudo crear: ${error.message}`, "error"); return; }
     setNueva(""); recargar();
   };
@@ -117,7 +126,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
   const guardarNombre = async () => {
     const nombre = sanitize(editando.nombre).trim();
     if (!nombre) return;
-    if (duplicada(nombre, editando.id)) { toast("Ya hay otra materia con ese nombre. Usá “Unificar” si son la misma.", "error"); return; }
+    if (duplicada(nombre, editando.id, (materias || []).find((m) => m.id === editando.id)?.nivel)) { toast("Ya hay otra materia con ese nombre. Usá “Unificar” si son la misma.", "error"); return; }
     if (await actualizar(editando.id, { nombre })) setEditando(null);
   };
   // El modal de Unificar ya es la confirmación (explica qué pasa antes del
@@ -152,7 +161,8 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
   if (!colegioId) return <div style={{ color: C.textMuted, fontSize: 13 }}>Elegí un colegio primero.</div>;
   if (materias === null) return <Spinner />;
 
-  const visibles = materias.filter((m) => (verOcultas || m.activo) && (!q || sinAcentos(m.nombre).includes(sinAcentos(q))));
+  const visibles = materias.filter((m) => (verOcultas || m.activo) && (!q || sinAcentos(m.nombre).includes(sinAcentos(q)))
+    && (!filtroNivel || (filtroNivel === "todos" ? !m.nivel : m.nivel === filtroNivel)));
   const ocultas = materias.filter((m) => !m.activo).length;
   const dest = materias.find((m) => m.id === destino);
 
@@ -166,7 +176,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
             <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Si son la misma materia con distinto nombre, elegí con cuál se queda.</div>
             <select value={destino} onChange={(e) => { setDestino(e.target.value); setErrorUnificar(""); }} style={{ ...inp, width: "100%", marginBottom: 12 }} aria-label="Materia con la que se queda">
               <option value="">Se queda como…</option>
-              {materias.filter((m) => m.id !== unificar.id).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              {materias.filter((m) => m.id !== unificar.id && puede(m)).map((m) => <option key={m.id} value={m.id}>{m.nombre}{conNiveles ? ` · ${m.nivel ? nombreNivel(m.nivel) : "Todos los niveles"}` : ""}</option>)}
             </select>
             {dest ? (
               <div style={{ fontSize: 12.5, color: C.text, background: C.warningSoft, border: `1px solid ${C.warningBorder}`, borderRadius: 10, padding: "8px 12px", marginBottom: 12, lineHeight: 1.45 }}>
@@ -187,10 +197,23 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <input value={nueva} onChange={(e) => setNueva(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") crear(); }} placeholder="Nueva materia (ej: Inglés)" aria-label="Nueva materia" style={{ ...inp, flex: "1 1 220px" }} />
+        {conNiveles ? (
+          <select value={nivelNueva} onChange={(e) => setNivelNueva(e.target.value)} aria-label="Nivel de la materia nueva" style={{ ...inp, flex: "0 1 180px" }}>
+            {!nivelesPropios ? <option value="">Todos los niveles</option> : null}
+            {nivelesElegibles.map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
+          </select>
+        ) : null}
         <button onClick={crear} disabled={!nueva.trim()} style={{ ...btnPri, opacity: nueva.trim() ? 1 : 0.5 }}>+ Agregar</button>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" aria-label="Buscar materia" style={{ ...inp, flex: "1 1 180px" }} />
+        {conNiveles ? (
+          <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value)} aria-label="Ver materias de" style={{ ...inp, flex: "0 1 180px" }}>
+            <option value="">Todas</option>
+            <option value="todos">De todos los niveles</option>
+            {NIVELES.filter((n) => (niveles || []).includes(n.k)).map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
+          </select>
+        ) : null}
         {ocultas ? (
           <label style={{ fontSize: 12.5, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
             <input type="checkbox" checked={verOcultas} onChange={(e) => setVerOcultas(e.target.checked)} />
@@ -202,7 +225,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
         {!visibles.length ? <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>No hay materias{q ? " con ese nombre" : ""}.</div> : null}
         {visibles.map((m, i) => (
           <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: i ? `1px solid ${C.border}` : "none", opacity: m.activo ? 1 : 0.55, flexWrap: "wrap" }}>
-            <PuntoColor color={m.color} label={`Color de ${m.nombre}`} onChange={(c) => actualizar(m.id, { color: c })} />
+            {puede(m) ? <PuntoColor color={m.color} label={`Color de ${m.nombre}`} onChange={(c) => actualizar(m.id, { color: c })} /> : <span style={{ width: 14, height: 14, borderRadius: "50%", background: m.color || SLATE[400], margin: "0 4px", flexShrink: 0 }} />}
             {editando?.id === m.id ? (
               <>
                 <input autoFocus value={editando.nombre} onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
@@ -212,17 +235,28 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
               </>
             ) : (
               <>
-                <span style={{ flex: "1 1 160px", fontSize: 14, fontWeight: 700, color: C.textStrong }}>{m.nombre}{m.activo ? "" : " (oculta)"}</span>
+                <span style={{ flex: "1 1 160px", display: "block", minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.textStrong }}>{m.nombre}{m.activo ? "" : " (oculta)"}</span>
+                  {conNiveles ? <span style={{ display: "block", fontSize: 12, color: C.textMuted }}>{m.nivel ? nombreNivel(m.nivel) : "Todos los niveles"}{puede(m) ? "" : " · solo lectura"}</span> : null}
+                </span>
                 {usos[m.id] ? (
                   <button onClick={() => setAbierta(abierta === m.id ? null : m.id)} aria-expanded={abierta === m.id} title="Ver en qué cursos y quién la da"
                     style={{ ...btnMini, minWidth: 64, color: C.accent, borderColor: abierta === m.id ? C.accent : C.borderStrong }}>
                     {usos[m.id]} {usos[m.id] === 1 ? "clase" : "clases"} {abierta === m.id ? "▴" : "▾"}
                   </button>
                 ) : <span style={{ fontSize: 12, color: C.textFaint, minWidth: 64 }}>sin clases</span>}
+                {puede(m) && conNiveles ? (
+                  <select value={m.nivel || ""} onChange={(e) => actualizar(m.id, { nivel: e.target.value || null })} aria-label={`Nivel de ${m.nombre}`} style={{ ...inp, padding: "5px 8px", fontSize: 12.5 }}>
+                    {!nivelesPropios ? <option value="">Todos los niveles</option> : null}
+                    {nivelesElegibles.map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
+                  </select>
+                ) : null}
+                {puede(m) ? <>
                 <button onClick={() => setEditando({ id: m.id, nombre: m.nombre })} style={btnMini}>Renombrar</button>
                 <button onClick={() => { setUnificar(m); setDestino(""); setErrorUnificar(""); }} style={btnMini}>Unificar…</button>
                 <button onClick={() => actualizar(m.id, { activo: !m.activo })} style={btnMini}>{m.activo ? "Ocultar" : "Mostrar"}</button>
                 <button onClick={() => eliminar(m)} style={{ ...btnMini, color: C.danger }} aria-label={`Eliminar ${m.nombre}`} title="Eliminar"><Icono nombre="papelera" size={15} color={C.danger}/></button>
+                </> : null}
               </>
             )}
             {abierta === m.id && clasesDe[m.id]?.length ? (
@@ -247,7 +281,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 8 }}>“Ocultar” la saca de las listas para elegir, sin tocar las clases que ya la usan. 🗑 la elimina junto con sus clases.</div>
+      <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 8 }}>“Ocultar” la saca de las listas para elegir, sin tocar las clases que ya la usan. La papelera la elimina junto con sus clases.</div>
     </div>
   );
 }
@@ -299,7 +333,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio,
     onCambio?.();
   };
 
-  const activas = (materias || []).filter((m) => m.activo);
+  const activas = (materias || []).filter((m) => m.activo && materiaDelNivel(m, curso.nivel));
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
       {confirmUI}
@@ -311,7 +345,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio,
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: c.materias?.color || SLATE[400], flexShrink: 0 }} />
             <select value={c.materia_id} onChange={(e) => cambiarMateria(c, e.target.value)} aria-label={`Materia de la clase ${c.materias?.nombre}`} title="Cambiar la materia de esta clase"
               style={{ ...inp, padding: "6px 10px", flex: "1 1 150px", maxWidth: 220, fontWeight: 700, color: C.textStrong }}>
-              {(materias || []).filter((m) => m.activo || m.id === c.materia_id).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              {(materias || []).filter((m) => (m.activo && materiaDelNivel(m, curso.nivel)) || m.id === c.materia_id).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
               {!(materias || []).some((m) => m.id === c.materia_id) ? <option value={c.materia_id}>{c.materias?.nombre}</option> : null}
             </select>
             <select value={c.maestro_id || ""} onChange={(e) => cambiarMaestra(c, e.target.value)} aria-label={`Maestra de ${c.materias?.nombre}`} style={{ ...inp, padding: "6px 10px", flex: "1 1 180px", maxWidth: 280 }}>
@@ -356,7 +390,8 @@ export function ClasesMaestroEditor({ colegioId, cursos, value, onChange }) {
     onChange([...value, { curso_id: cursoId, materia_id: materiaId }]);
     setMateriaId("");
   };
-  const activas = (materias || []).filter((m) => m.activo);
+  const nivelCurso = (cursos || []).find((c) => c.id === cursoId)?.nivel || null;
+  const activas = (materias || []).filter((m) => m.activo && materiaDelNivel(m, nivelCurso));
   return (
     <div>
       {!value.length ? <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Sin clases asignadas.</div> : null}

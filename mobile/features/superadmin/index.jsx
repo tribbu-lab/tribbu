@@ -109,7 +109,8 @@ function Fila({ icono, label, onPress, primera, n = 0 }) {
 
 }
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve (mismo criterio que la web).
-const SOLO_ADMIN_COLEGIO = new Set(["directivos", "maestros", "cursos", "materias", "uniformes", "denuncias", "colegio", "menu"]);
+// Materias no: la Secretaría administra las de sus niveles.
+const SOLO_ADMIN_COLEGIO = new Set(["directivos", "maestros", "cursos", "uniformes", "denuncias", "colegio", "menu"]);
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
@@ -939,7 +940,7 @@ export function SuperAdmin() {
       {sec === "colegio" ? <ColegioAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
       {sec === "colegio" ? <MembreteAdmin key={`m-${activeColegioId}`} colegioId={activeColegioId} /> : null}
       {sec === "directivos" ? <DirectivosAdmin key={activeColegioId} colegioId={activeColegioId} usuarios={usuarios} onCambio={cargar} /> : null}
-      {sec === "materias" ? <MateriasAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
+      {sec === "materias" ? <MateriasAdmin key={activeColegioId} colegioId={activeColegioId} niveles={colegioNiveles} nivelesPropios={esSecretaria ? usuario?.niveles || [] : null} /> : null}
       {sec === "horarios" ? <HorariosAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}

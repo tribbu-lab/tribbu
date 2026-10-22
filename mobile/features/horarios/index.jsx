@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, Alert, Switch, StyleSheet, ActivityIndicator } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, sanitize } from "@shared/helpers";
+import { materiaDelNivel } from "@shared/niveles";
 import { THEMES, SLATE, BLUE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
 import {
   DIAS_HORARIO, DIAS_HABILES, DIA_CORTO, normalizarDia, aMin, deMin, hhmm, validarBloque, superposiciones,
@@ -200,7 +201,7 @@ function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, 
     return () => { vivo = false; };
   }, [curso.id, clase]);
 
-  const activas = (materias || []).filter((m) => m.activo || m.id === materiaId);
+  const activas = (materias || []).filter((m) => (m.activo && materiaDelNivel(m, curso?.nivel)) || m.id === materiaId);
   const matF = activas.filter((m) => !qMat || sinAcentos(m.nombre).includes(sinAcentos(qMat)));
   const existe = activas.some((m) => sinAcentos(m.nombre) === sinAcentos(qMat));
   const maeF = maestros.filter((m) => !qMae || sinAcentos(fmtNombre(m)).includes(sinAcentos(qMae)));
@@ -209,7 +210,7 @@ function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, 
     const nombre = sanitize(qMat).trim();
     if (!nombre) return;
     const { data, error: e } = await supabase.from("materias")
-      .insert({ colegio_id: colegioId, nombre, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1 })
+      .insert({ colegio_id: colegioId, nombre, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1, nivel: curso?.nivel || null })
       .select("id").single();
     if (e) { setError(`No se pudo crear la materia: ${e.message}`); return; }
     await recargar(); setMateriaId(data.id); setQMat("");

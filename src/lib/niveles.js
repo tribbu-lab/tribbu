@@ -66,3 +66,10 @@ export const nivelesParaGuardar = (elegidos, delColegio) => {
   const e = ordenarNiveles(elegidos);
   return !e.length || (delColegio?.length && e.length >= delColegio.length) ? null : e;
 };
+
+// Materias por nivel (supabase/materias-por-nivel.sql): materias.nivel null =
+// "Todos los niveles". Para un curso se ofrecen las de su nivel y las generales.
+export const materiaDelNivel = (m, nivel) => !m?.nivel || !nivel || m.nivel === nivel;
+// La Secretaría/Dirección por nivel (nivelesPropios) edita solo las de sus
+// niveles; el administrador (nivelesPropios null), todas.
+export const puedeEditarMateria = (m, nivelesPropios) => !nivelesPropios || (!!m?.nivel && nivelesPropios.includes(m.nivel));

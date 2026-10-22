@@ -14,6 +14,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { fmtNombre, sanitize } from "../../lib/helpers";
+import { materiaDelNivel } from "../../lib/niveles";
 import { THEMES, SLATE } from "../../lib/tokens";
 import {
   DIAS_HORARIO, DIAS_HABILES, DIA_CORTO, normalizarDia, aMin, deMin, hhmm, validarBloque, superposiciones,
@@ -238,7 +239,7 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
     return () => { vivo = false; };
   }, [curso.id, clase]);
 
-  const activas = (materias || []).filter((m) => m.activo || m.id === materiaId);
+  const activas = (materias || []).filter((m) => (m.activo && materiaDelNivel(m, curso.nivel)) || m.id === materiaId);
   const matFiltradas = activas.filter((m) => !qMat || sinAcentos(m.nombre).includes(sinAcentos(qMat)));
   const existeExacta = activas.some((m) => sinAcentos(m.nombre) === sinAcentos(qMat));
   const maeFiltradas = maestros.filter((m) => !qMae || sinAcentos(fmtNombre(m)).includes(sinAcentos(qMae)));
@@ -248,7 +249,7 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
     const nombre = sanitize(qMat).trim();
     if (!nombre) return;
     const { data, error: e } = await supabase.from("materias")
-      .insert({ colegio_id: colegioId, nombre, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1 })
+      .insert({ colegio_id: colegioId, nombre, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1, nivel: curso.nivel || null })
       .select("id").single();
     if (e) { setError(`No se pudo crear la materia: ${e.message}`); return; }
     await recargar(); setMateriaId(data.id); setQMat("");

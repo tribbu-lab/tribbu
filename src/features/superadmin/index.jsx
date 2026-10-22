@@ -99,7 +99,8 @@ function Globito({ n }) {
 
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve. Ver
 // specs/roles-por-nivel.md → Permisos.
-const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion","materias","uniformes","marketplace","perdidos","denuncias","colegio","menu"]);
+// Materias no: la Secretaría administra las de sus niveles (materias-por-nivel.sql).
+const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion","uniformes","marketplace","perdidos","denuncias","colegio","menu"]);
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
@@ -1858,7 +1859,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>
       )}
       {sec==="materias"&&(
-        <MateriasAdmin colegioId={activeColegioId} anoActual={anoActual} showToast={showToast}/>
+        <MateriasAdmin colegioId={activeColegioId} anoActual={anoActual} showToast={showToast} niveles={colegioNiveles} nivelesPropios={esSecretaria?(usuario?.niveles||[]):null}/>
       )}
       {sec==="horarios"&&(
         <HorariosAdmin cursos={cursosAnoActual} colegioId={activeColegioId} showToast={showToast}/>
