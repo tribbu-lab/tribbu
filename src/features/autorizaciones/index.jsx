@@ -14,7 +14,7 @@ import { Icono } from "../../components/Icono";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { Card } from "../../components/Card";
 import { useCargar } from "../../hooks/useCargar";
-import { nivelesDeCursos, nombreNivel } from "../../lib/niveles";
+import { CursoListSelector } from "../../components/CursoListSelector";
 
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box" };
 const label = { fontSize: 11, fontWeight: 700, color: "#94A3B8", marginBottom: 5 };
@@ -200,22 +200,14 @@ function NuevaAutorizacion({ cursosDestino, userId, onClose, onCreada }) {
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 14 }}>Nueva autorización</div>
         {cursosDestino.length > 1 && (
           <div style={{ marginBottom: 10 }}>
-            <div style={label}>CURSOS</div>
-            {nivelesDeCursos(cursosDestino).length > 1 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                {nivelesDeCursos(cursosDestino).map((k) => {
-                  const ids = cursosDestino.filter((c) => c.nivel === k).map((c) => c.id);
-                  const todos = ids.every((id) => form.cursos.includes(id));
-                  return <button key={k} onClick={() => setForm((p) => ({ ...p, cursos: todos ? p.cursos.filter((x) => !ids.includes(x)) : [...new Set([...p.cursos, ...ids])] }))} style={{ padding: "5px 11px", borderRadius: 999, border: `1px solid ${todos ? "#3B82F6" : "#E2E8F0"}`, background: todos ? "#EFF6FF" : "white", color: todos ? "#1D4ED8" : "#64748B", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{todos ? "✓ " : ""}Todo {nombreNivel(k)}</button>;
-                })}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {cursosDestino.map((c) => {
-                const act = form.cursos.includes(c.id);
-                return <button key={c.id} onClick={() => toggleCurso(c.id)} style={{ padding: "6px 11px", borderRadius: 8, border: `1.5px solid ${act ? "#3B82F6" : "#E2E8F0"}`, background: act ? "#EFF6FF" : "white", color: act ? "#1D4ED8" : "#64748B", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{act ? "✓ " : ""}{c.nombre}</button>;
-              })}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={label}>CURSOS{form.cursos.length ? ` · ${form.cursos.length} ${form.cursos.length === 1 ? "ELEGIDO" : "ELEGIDOS"}` : ""}</div>
+              <button type="button" onClick={() => setForm((p) => ({ ...p, cursos: p.cursos.length === cursosDestino.length ? [] : cursosDestino.map((c) => c.id) }))} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#3B82F6" }}>{form.cursos.length === cursosDestino.length ? "Ninguno" : "Seleccionar todos"}</span>
+              </button>
             </div>
+            {/* Lista con casillas y scroll (y "Todo Primaria" si hay niveles): con muchos cursos, los botones ocupaban medio formulario. */}
+            <CursoListSelector cursos={cursosDestino} seleccionados={form.cursos} onToggle={toggleCurso} maxHeight={200} />
           </div>
         )}
         <div style={{ marginBottom: 10 }}>

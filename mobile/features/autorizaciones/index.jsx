@@ -22,6 +22,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { Sheet } from "../../components/Sheet";
 import { DateField } from "../../components/DateField";
 import { EmptyState } from "../../components/EmptyState";
+import { CursoListSelector } from "../../components/CursoListSelector";
 
 const t = THEMES.light;
 const fmtFecha = (s) => new Date(s + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "long" });
@@ -358,17 +359,16 @@ function NuevaSheet({ cursos, multi = false, userId, onClose, onCreada }) {
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
         {cursos.length > 1 ? (
           <>
-            <Text style={styles.label}>{multi ? "Cursos" : "Curso"}</Text>
-            <View style={styles.cursosRow}>
-              {cursos.map((c) => {
-                const on = form.cursosSel.includes(c.id);
-                return (
-                  <Pressable key={c.id} onPress={() => toggleCurso(c.id)} style={[styles.cursoBtn, on && styles.cursoBtnOn]}>
-                    <Text style={[styles.cursoTxt, on && styles.cursoTxtOn]}>{on && multi ? "✓ " : ""}{c.nombre}</Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.cursosCabecera}>
+              <Text style={[styles.label, styles.flex1]}>{multi ? `Cursos${form.cursosSel.length ? ` · ${form.cursosSel.length} elegido${form.cursosSel.length === 1 ? "" : "s"}` : ""}` : "Curso"}</Text>
+              {multi ? (
+                <Pressable onPress={() => setForm((p) => ({ ...p, cursosSel: p.cursosSel.length === cursos.length ? [] : cursos.map((c) => c.id) }))} hitSlop={8}>
+                  <Text style={styles.todosTxt}>{form.cursosSel.length === cursos.length ? "Ninguno" : "Seleccionar todos"}</Text>
+                </Pressable>
+              ) : null}
             </View>
+            {/* Lista con casillas y scroll: con muchos cursos, los botones ocupaban media pantalla. */}
+            <CursoListSelector cursos={cursos} seleccionados={form.cursosSel} onToggle={toggleCurso} multi={multi} maxHeight={220} />
           </>
         ) : null}
         <Text style={styles.label}>Título</Text>
@@ -528,9 +528,6 @@ const styles = StyleSheet.create({
   detalleIcon: { fontSize: 15 },
   detalleAcciones: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: SPACE.md },
   eliminar: { color: t.danger, fontSize: 13, fontWeight: "700" },
-  cursosRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  cursoBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: RADIUS.sm, borderWidth: 1.5, borderColor: "#E2E8F0" },
-  cursoBtnOn: { borderColor: t.accent, backgroundColor: "#EFF6FF" },
-  cursoTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
-  cursoTxtOn: { color: t.accent },
+  cursosCabecera: { flexDirection: "row", alignItems: "center", gap: 8 },
+  todosTxt: { fontSize: 13, fontWeight: "700", color: t.accent, marginTop: 10 },
 });
