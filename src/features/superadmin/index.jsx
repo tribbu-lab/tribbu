@@ -6,6 +6,10 @@ import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
 import { fmtF, fmtNombre, fmtRangoHora, fmtLocalDate, sanitize, uuidLite } from "../../lib/helpers";
 import { Card } from "../../components/Card";
 import { Wordmark } from "../../components/Wordmark";
+import { Icono } from "../../components/Icono";
+import { SubSeccion } from "../../components/SubSeccion";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
@@ -44,42 +48,45 @@ import { EditorFormato } from "../../components/EditorFormato";
 // wrappean se vuelven enormes e inmanejables. Único lugar para este patrón
 // (antes copy-pasteado en Comunicaciones/Maestros/Alertas/Horarios/Uniformes
 // por separado): `multi` decide checkbox (varios) vs. radio (uno solo).
-// Navegación agrupada por categoría (antes: 12 chips en una sola fila que
-// wrappeaba y se volvía inmanejable). Mismo agrupamiento en mobile.
+// Navegación en pocas secciones con pestañas internas (rediseño sobrio
+// 2026-10-22, mismo criterio que las 4 secciones del apoderado): cada
+// pantalla sigue siendo su propio `sec`; la sección solo agrupa. Íconos de
+// línea (Icono). Mismo agrupamiento en mobile (mobile/features/superadmin).
 const SECCIONES = [
-  { grupo: "General", items: [
-    {id:"inicio",l:"🏠 Inicio"},
+  { id:"g_inicio", l:"Inicio", icono:"hoy", items: [
+    {id:"inicio",l:"Inicio"},
   ]},
-  { grupo: "Personas", items: [
-    {id:"usuarios",l:"👤 Apoderados"},
-    {id:"maestros",l:"👨‍🏫 Maestros"},
-    {id:"alumnos",l:"🎒 Alumnos"},
-    {id:"directivos",l:"🧭 Directivos"},
+  { id:"g_comunicacion", l:"Comunicación", icono:"comunicaciones", items: [
+    {id:"comunicaciones",l:"Comunicados"},
+    {id:"alertas",l:"Alertas"},
+    {id:"eventos",l:"Eventos"},
+    {id:"autorizaciones",l:"Autorizaciones"},
   ]},
-  { grupo: "Cursos", items: [
-    {id:"cursos",l:"🏫 Cursos"},
-    {id:"promocion",l:"🎓 Promoción"},
-    {id:"materias",l:"📚 Materias"},
-    {id:"horarios",l:"🕐 Horarios"},
-    {id:"uniformes",l:"👕 Uniformes"},
+  { id:"g_mensajes", l:"Mensajes", icono:"mensaje", items: [
+    {id:"mensajes_familias",l:"De familias",soloColegioAdmin:true},
+    {id:"mensajes_personal",l:"Del personal",soloColegioAdmin:true},
   ]},
-  { grupo: "Comunidad", items: [
-    {id:"alertas",l:"🚨 Alertas"},
-    {id:"comunicaciones",l:"📢 Comunicaciones"},
-    {id:"eventos",l:"📅 Eventos"},
-    {id:"autorizaciones",l:"✍️ Autorizaciones"},
-    {id:"marketplace",l:"🛍️ Marketplace"},
-    {id:"talleres",l:"🎨 Talleres"},
-    {id:"perdidos",l:"🧦 Lost & Found"},
-    {id:"mensajes_familias",l:"💬 Mensajes de familias",soloColegioAdmin:true},
-    {id:"mensajes_personal",l:"🗨️ Mensajes del personal",soloColegioAdmin:true},
-    {id:"denuncias",l:"🚩 Denuncias"},
-    {id:"adopcion",l:"📈 Adopción"},
-    {id:"soporte_colegio",l:"🛟 Ayuda y soporte",soloColegioAdmin:true},
+  { id:"g_comunidad", l:"Comunidad", icono:"corazon", items: [
+    {id:"talleres",l:"Talleres"},
+    {id:"marketplace",l:"Marketplace"},
+    {id:"perdidos",l:"Lost & Found"},
+    {id:"denuncias",l:"Denuncias"},
+    {id:"adopcion",l:"Adopción"},
   ]},
-  { grupo: "Colegio", items: [
-    {id:"colegio",l:"🏫 Colegio"},
-    {id:"menu",l:"🍽️ Menú"},
+  { id:"g_personas", l:"Personas", icono:"usuarios", items: [
+    {id:"usuarios",l:"Apoderados"},
+    {id:"alumnos",l:"Alumnos"},
+    {id:"maestros",l:"Maestros"},
+    {id:"directivos",l:"Directivos"},
+  ]},
+  { id:"g_colegio", l:"Colegio", icono:"escuela", items: [
+    {id:"cursos",l:"Cursos"},
+    {id:"promocion",l:"Promoción"},
+    {id:"materias",l:"Materias"},
+    {id:"horarios",l:"Horarios"},
+    {id:"uniformes",l:"Uniformes"},
+    {id:"menu",l:"Menú"},
+    {id:"colegio",l:"Datos y membrete"},
   ]},
 ];
 
@@ -89,13 +96,13 @@ const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion"
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
-const SECCION_PLATAFORMA = { grupo: "Plataforma", items: [ {id:"colegios",l:"🌐 Colegios"}, {id:"soporte",l:"🛟 Soporte"}, {id:"super_admins",l:"👑 Super Admins"} ] };
+const SECCION_PLATAFORMA = { id:"g_plataforma", l:"Plataforma", icono:"globo", items: [ {id:"colegios",l:"Colegios"}, {id:"soporte",l:"Soporte"}, {id:"super_admins",l:"Super Admins"} ] };
 
 // Header contextual por módulo (handoff Tribbu Admin): eyebrow (grupo) +
 // título + descripción de qué gestiona la pantalla — reemplaza el título
 // fijo "Panel Super Admin" que no cambiaba entre módulos.
 const SECCION_INFO = {
-  usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores y las Secretarías se gestionan en 🧭 Directivos, y los Super Admin de plataforma en 👑 Super Admins." },
+  usuarios:       { titulo:"Apoderados", descripcion:"Apoderados y Room Parents de este colegio. El rol de Room Parent es por curso: una misma persona puede ser apoderada en 4°B y Room Parent en 6°A. Los administradores y las Secretarías se gestionan en Directivos." },
   maestros:       { titulo:"Maestros", descripcion:"Los docentes del colegio, con la materia que dictan y los cursos donde dan clase." },
   alumnos:        { titulo:"Alumnos", descripcion:"Los chicos matriculados, agrupados por curso, con sus apoderados vinculados." },
   cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
@@ -104,7 +111,7 @@ const SECCION_INFO = {
   horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Calendario." },
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
-  comunicaciones: { titulo:"Comunicaciones", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
+  comunicaciones: { titulo:"Comunicados", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
   eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, comunicados, festejos…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para un curso." },
   talleres:       { titulo:"Talleres", descripcion:"Talleres extraprogramáticos: publicalos para los cursos o edades que elijas, decidí cómo se asignan los lugares (orden de llegada, aprobación o sorteo) y gestioná inscriptos y lista de espera." },
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
@@ -115,9 +122,10 @@ const SECCION_INFO = {
   denuncias:      { titulo:"Denuncias de Mensajes", descripcion:"Mensajes que una familia denunció en el chat. Ves solo el mensaje denunciado, nunca el resto de la conversación." },
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
+  cuenta:         { titulo:"Mi cuenta", descripcion:"" },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y los directivos por nivel (Dirección, Secretaría, Coordinación…), que gestionan solo los cursos de sus niveles." },
-  colegio:        { titulo:"Colegio", descripcion:"Los datos de contacto del colegio y los contactos internos (secretaría, preceptoría, etc.)." },
+  colegio:        { titulo:"Datos y membrete", descripcion:"Los datos de contacto del colegio, los contactos internos (secretaría, preceptoría, etc.) y el membrete de los comunicados." },
   menu:           { titulo:"Menú del comedor", descripcion:"El menú del comedor, cargado desde un Excel mensual." },
   colegios:       { titulo:"Colegios", descripcion:"Cada colegio que usa tribbu, con su propio administrador — vos entrás a cualquiera para gestionarlo." },
   super_admins:   { titulo:"Super Admins", descripcion:"Las cuentas con acceso total a la plataforma — ven y gestionan todos los colegios sin restricción. Usalo con cuidado." },
@@ -861,19 +869,22 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
   if(loading) return <Spinner/>;
 
-  // Nav visible: super sin colegio elegido todavía solo tiene "Plataforma"
-  // (nada más que mostrar sin un colegio activo); con uno elegido, o siendo
-  // colegio_admin (que siempre tiene el suyo), se agrega el resto tal cual.
-  // "🛟 Ayuda y soporte" (escribirle al equipo tribbu) es del colegio_admin;
-  // el super atiende esas consultas en Plataforma → 🛟 Soporte.
-  const seccionesColegio = esSuper
-    ? SECCIONES.map(g=>({ ...g, items: g.items.filter(i=>!i.soloColegioAdmin) }))
-    : SECCIONES;
+  // Secciones visibles: super sin colegio elegido solo tiene "Plataforma";
+  // con uno elegido se suman las del colegio, sin Mensajes (de familias y
+  // del personal son del staff; el super atiende Plataforma → Soporte). La
+  // Secretaría no ve lo que es de todo el colegio. Una sección que se queda
+  // sin pestañas no se muestra.
+  const filtrarSecciones = (lista, ok) => lista.map(g=>({ ...g, items: g.items.filter(ok) })).filter(g=>g.items.length);
   const seccionesVisibles = esSuper
-    ? (colegioId ? [SECCION_PLATAFORMA, ...seccionesColegio] : [SECCION_PLATAFORMA])
+    ? (colegioId ? [SECCION_PLATAFORMA, ...filtrarSecciones(SECCIONES, i=>!i.soloColegioAdmin)] : [SECCION_PLATAFORMA])
     : esSecretaria
-      ? SECCIONES.map(g=>({ ...g, items: g.items.filter(i=>!SOLO_ADMIN_COLEGIO.has(i.id)) })).filter(g=>g.items.length)
+      ? filtrarSecciones(SECCIONES, i=>!SOLO_ADMIN_COLEGIO.has(i.id))
       : SECCIONES;
+  const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec)) || null;
+  const irAGrupo = (g) => { setSec(g.items[0].id); setNavAbierta(false); };
+  const irA = (id) => { setSec(id); setNavAbierta(false); };
+  const rolTexto = esSuper ? "Super Admin" : esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : "Administración del colegio";
+  const inicialesUsuario = `${(usuario?.nombre||"?").slice(0,1)}${(usuario?.apellido||"").slice(0,1)}`.toUpperCase();
 
   return (
     <div style={{minHeight:"100vh",background:"#F8FAFC",fontFamily:"'DM Sans',system-ui,sans-serif",colorScheme:"light",overflowX:"hidden"}}>
@@ -933,7 +944,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <>
                 {/* ── Sección 1: Hijos vinculados ── */}
                 <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>👶 Hijos vinculados</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Hijos vinculados</div>
                   {/* Chips de seleccionados */}
                   {(form.hijos||[]).length>0&&(
                     <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
@@ -1003,7 +1014,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   if(!cursosConHijos.length) return null;
                   return (
                     <div style={{marginBottom:16}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>🏫 Room Parent</div>
+                      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Room Parent</div>
                       <div style={{fontSize:11,color:"#94A3B8",marginBottom:8}}>Solo puede ser Room Parent en cursos donde tiene un hijo.</div>
                       <div style={{display:"flex",flexDirection:"column",gap:6}}>
                         {cursosConHijos.map(cid=>{
@@ -1305,121 +1316,161 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       {cambiarPass&&<CambiarPasswordModal onClose={()=>setCambiarPass(false)}/>}
 
       {isMobile ? (
-        <div style={{marginBottom:16,padding:"16px 16px 0"}}>
-          {/* En el celular la lista de secciones va plegada: si no, el
-              contenido (el Inicio incluido) queda una pantalla más abajo. */}
-          <button onClick={()=>setNavAbierta(a=>!a)} aria-expanded={navAbierta} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 14px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",marginBottom:navAbierta?12:0}}>
-            <span style={{fontSize:15,color:"#0F172A"}}>☰</span>
-            <span style={{flex:1,textAlign:"left",fontSize:13.5,fontWeight:800,color:"#0F172A"}}>{seccionesVisibles.flatMap(g=>g.items).find(i=>i.id===sec)?.l || "Secciones"}</span>
-            <span style={{fontSize:12,fontWeight:700,color:"#3B82F6"}}>{navAbierta?"Cerrar":"Secciones"}</span>
-          </button>
-          {navAbierta&&<nav>
-            {seccionesVisibles.map(g=>(
-              <div key={g.grupo} style={{marginBottom:10}}>
-                <div style={{fontSize:10,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,padding:"0 0 6px"}}>{g.grupo}</div>
-                <div style={{display:"flex",flexDirection:"row",flexWrap:"wrap",gap:6}}>
-                  {g.items.map(t=>(
-                    <button key={t.id} onClick={()=>{ setSec(t.id); setNavAbierta(false); }} style={{padding:"7px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:sec===t.id?700:500,background:sec===t.id?"#0F172A":"white",color:sec===t.id?"white":"#475569",boxShadow:sec===t.id?"none":"0 1px 6px rgba(0,0,0,0.06)"}}>{t.l}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginTop:14,padding:"10px 12px",borderRadius:12,background:"white",border:"1px solid #E2E8F0"}}>
+        // Celular: barra arriba con la sección actual; al tocarla se
+        // despliega la lista de secciones (antes, chips por grupo).
+        <div style={{padding:"14px 16px 0"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}}>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:12.5,fontWeight:700,color:"#0F172A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</div>
-              {colegioNombre&&<div style={{fontSize:11,color:"#94A3B8"}}>{colegioNombre}</div>}
+              <Wordmark size={20} letterSpacing={-0.8} color="#0F172A"/>
+              <div style={{fontSize:11.5,color:"#64748B",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</div>
             </div>
-            <div style={{display:"flex",gap:6,flexShrink:0}}>
-              <button onClick={()=>setCambiarPass(true)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>🔑</button>
-              <button onClick={onCerrarSesion} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Salir</button>
-            </div>
+            <button onClick={()=>irA("cuenta")} aria-label="Mi cuenta" style={{width:38,height:38,borderRadius:999,border:"1px solid #E2E8F0",background:sec==="cuenta"?"#F1F5F9":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+              <span style={{fontSize:12.5,fontWeight:800,color:"#334155"}}>{inicialesUsuario}</span>
+            </button>
           </div>
+          <button onClick={()=>setNavAbierta(a=>!a)} aria-expanded={navAbierta} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 14px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",marginBottom:navAbierta?8:16,fontFamily:"inherit"}}>
+            <Icono nombre={grupoActivo?.icono||(sec==="cuenta"?"usuarios":"salvavidas")} size={18} color="#475569"/>
+            <span style={{flex:1,textAlign:"left",fontSize:14,fontWeight:800,color:"#0F172A"}}>{grupoActivo?.l || SECCION_INFO[sec]?.titulo || "Secciones"}</span>
+            <Icono nombre="chevron" size={16} color="#64748B" style={{transform:navAbierta?"rotate(180deg)":"none"}}/>
+          </button>
+          {navAbierta&&(
+            <nav style={{border:"1px solid #E2E8F0",borderRadius:14,background:"white",marginBottom:16,overflow:"hidden"}}>
+              {seccionesVisibles.map((g,i)=>{
+                const on = grupoActivo?.id===g.id;
+                return (
+                  <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:on?"#F8FAFC":"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                    <Icono nombre={g.icono} size={18} color={on?"#1D4ED8":"#475569"}/>
+                    <span style={{flex:1,fontSize:14,fontWeight:on?800:600,color:on?"#1D4ED8":"#0F172A"}}>{g.l}</span>
+                  </button>
+                );
+              })}
+              {esStaffColegio&&(
+                <button onClick={()=>irA("soporte_colegio")} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:"1px solid #F1F5F9",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                  <Icono nombre="salvavidas" size={18} color="#475569"/>
+                  <span style={{flex:1,fontSize:14,fontWeight:600,color:"#0F172A"}}>Ayuda y soporte</span>
+                </button>
+              )}
+            </nav>
+          )}
         </div>
       ) : (
-        // Sidebar navy #0F172A fijo a todo el alto (handoff Tribbu Admin,
-        // Parte 3): antes vivía "sticky" + con borde redondeado adentro de
-        // un contenedor centrado con margen (el de App.jsx) — se veía como
-        // un panel angosto flotando con aire de los dos lados, "una app
-        // adentro de la app". Ahora replica el mismo patrón que ya usa el
-        // sidebar del apoderado (App.jsx #tribbu-sidebar): fixed, pegado a
-        // los 3 bordes, sin radius — el contenido se corre con marginLeft.
+        // Barra lateral fija (mismo patrón que la del apoderado en App.jsx):
+        // pocas secciones con íconos de línea; las pantallas de cada una van
+        // como pestañas arriba del contenido. Abajo, Ayuda y Mi cuenta.
         <nav style={{width:236,position:"fixed",top:0,left:0,bottom:0,background:"#0F172A",display:"flex",flexDirection:"column",zIndex:100,overflow:"hidden"}}>
-          <div style={{padding:"20px 20px 16px",flexShrink:0}}>
-            <Wordmark size={20} letterSpacing={-0.8}/>
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,padding:"4px 10px",borderRadius:999,background:"rgba(139,92,246,0.18)"}}>
-              <span style={{width:6,height:6,borderRadius:999,background:"#A78BFA"}}/>
-              <span style={{fontSize:11,fontWeight:700,color:"#C4B5FD"}}>{esSuper?"Super Admin":esSecretaria?textoSecretaria(usuario?.niveles, usuario?.cargo):"Admin del colegio"}</span>
-            </div>
+          <div style={{padding:"22px 20px 18px",flexShrink:0}}>
+            <Wordmark size={22} letterSpacing={-0.8}/>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase",letterSpacing:1,marginTop:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{colegioNombre || rolTexto}</div>
           </div>
-          <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"0 12px",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
-            {seccionesVisibles.map(g=>(
-              <div key={g.grupo} style={{marginBottom:14}}>
-                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.6,padding:"0 12px 6px"}}>{g.grupo}</div>
-                <div style={{display:"flex",flexDirection:"column"}}>
-                  {g.items.map(t=>(
-                    <button key={t.id} onClick={()=>setSec(t.id)} style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:sec===t.id?700:500,background:sec===t.id?"rgba(255,255,255,0.12)":"transparent",color:sec===t.id?"white":"rgba(255,255,255,0.55)",marginBottom:2}}>{t.l}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"4px 12px 0",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
+            {seccionesVisibles.map(g=>{
+              const on = grupoActivo?.id===g.id;
+              return (
+                <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"11px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:on?"rgba(255,255,255,0.12)":"transparent",marginBottom:2}}>
+                  <Icono nombre={g.icono} size={18} color={on?"white":"rgba(255,255,255,0.55)"}/>
+                  <span style={{flex:1,fontSize:13.5,fontWeight:on?700:500,color:on?"white":"rgba(255,255,255,0.6)"}}>{g.l}</span>
+                </button>
+              );
+            })}
           </div>
-          <div style={{padding:"12px 12px 16px",flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.06)",marginBottom:10}}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(139,92,246,0.25)",color:"#C4B5FD",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>
-                {(usuario?.nombre||"?").slice(0,1)}{(usuario?.apellido||"")[0]||""}
-              </div>
-              <div style={{minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</div>
-                {colegioNombre&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{colegioNombre}</div>}
-              </div>
-            </div>
-            <button onClick={()=>setCambiarPass(true)} style={{width:"100%",padding:"8px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left",marginBottom:6}}>🔑 Cambiar contraseña</button>
-            <button onClick={onCerrarSesion} style={{width:"100%",padding:"9px 12px",borderRadius:12,border:"none",cursor:"pointer",background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:600,textAlign:"left"}}>&larr; Cerrar sesion</button>
+          <div style={{padding:"10px 12px 16px",flexShrink:0}}>
+            {esStaffColegio&&(
+              <button onClick={()=>irA("soporte_colegio")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:sec==="soporte_colegio"?"rgba(255,255,255,0.12)":"transparent",marginBottom:6}}>
+                <Icono nombre="salvavidas" size={18} color={sec==="soporte_colegio"?"white":"rgba(255,255,255,0.55)"}/>
+                <span style={{fontSize:13,fontWeight:sec==="soporte_colegio"?700:500,color:sec==="soporte_colegio"?"white":"rgba(255,255,255,0.6)"}}>Ayuda y soporte</span>
+              </button>
+            )}
+            <button onClick={()=>irA("cuenta")} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",background:sec==="cuenta"?"rgba(255,255,255,0.14)":"rgba(255,255,255,0.06)",textAlign:"left",fontFamily:"inherit"}}>
+              <span style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:800,color:"white"}}>{inicialesUsuario}</span>
+              </span>
+              <span style={{flex:1,minWidth:0,display:"block"}}>
+                <span style={{display:"block",fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nombre} {usuario?.apellido||""}</span>
+                <span style={{display:"block",fontSize:10,color:"rgba(255,255,255,0.5)",marginTop:1}}>Mi cuenta</span>
+              </span>
+            </button>
           </div>
         </nav>
       )}
-        <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"18px 32px 32px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
+        <div style={{marginLeft:isMobile?0:236,padding:isMobile?"0 16px 24px":"24px 36px 36px",maxWidth:isMobile?undefined:1200,boxSizing:"border-box"}}>
       {sec!=="inicio"&&(() => {
-        const info = SECCION_INFO[sec] || { titulo:"Panel Super Admin", descripcion:"Gestión global de usuarios, roles y cursos" };
-        const eyebrow = [SECCION_PLATAFORMA,...SECCIONES].find(g=>g.items.some(i=>i.id===sec))?.grupo;
+        // Encabezado: la sección (sin emoji), sus pestañas y, abajo, qué
+        // gestiona la pantalla + la acción de crear (BotonNuevo).
+        const info = SECCION_INFO[sec] || { titulo:"Panel del colegio", descripcion:"" };
+        const titulo = grupoActivo?.l || info.titulo;
+        const pestanas = grupoActivo && grupoActivo.items.length>1 ? grupoActivo.items : null;
+        const btnSec = {display:"inline-flex",alignItems:"center",gap:6,minHeight:36,padding:"0 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155",fontFamily:"inherit",whiteSpace:"nowrap"};
         return (
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:16,flexWrap:"wrap"}}>
-            <div style={{maxWidth:640}}>
-              {esSuper&&colegioId&&sec!=="colegios"&&(
-                <button onClick={()=>{ setColegioId(null); setSec("colegios"); }} style={{border:"none",background:"transparent",cursor:"pointer",fontSize:11.5,fontWeight:700,color:"#3B82F6",padding:0,marginBottom:6}}>← Volver a Colegios ({colegioNombre})</button>
-              )}
-              {eyebrow && <div style={{fontSize:10.5,fontWeight:800,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:4}}>{eyebrow}</div>}
-              <div style={{fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{info.titulo}</div>
-              <div style={{fontSize:13,color:"#94A3B8",marginTop:6,lineHeight:1.5}}>{info.descripcion}</div>
-            </div>
-            {sec==="usuarios" && (
-              <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-                <label style={{display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,color:"#475569"}}>
-                  📤 Cargar Excel
-                  <UploadApoderadosExcel onDone={cargar} compact/>
-                </label>
-                <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nuevo apoderado</button>
+          <div style={{marginBottom:18}}>
+            {esSuper&&colegioId&&sec!=="colegios"&&(
+              <button onClick={()=>{ setColegioId(null); setSec("colegios"); }} style={{display:"inline-flex",alignItems:"center",gap:4,border:"none",background:"transparent",cursor:"pointer",padding:0,marginBottom:8,fontFamily:"inherit"}}>
+                <Icono nombre="atras" size={15} color="#2563EB"/>
+                <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Colegios · {colegioNombre}</span>
+              </button>
+            )}
+            {/* En el celular el título ya está en el selector de sección de arriba. */}
+            {isMobile ? null : <div style={{fontSize:isMobile?24:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginBottom:pestanas?14:6}}>{titulo}</div>}
+            {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l}))} activo={sec} onIr={setSec}/>}
+            {info.descripcion&&(
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginTop:pestanas?-4:0}}>
+                <div style={{fontSize:13,color:"#64748B",lineHeight:1.5,maxWidth:640,flex:"1 1 320px"}}>{info.descripcion}</div>
+                {sec==="usuarios" && (
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                    <label style={btnSec}>
+                      <Icono nombre="documento" size={15} color="#475569"/>
+                      <span style={{color:"#334155"}}>Cargar Excel</span>
+                      <UploadApoderadosExcel onDone={cargar} compact/>
+                    </label>
+                    <BotonNuevo ariaLabel="Nuevo apoderado" onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }}/>
+                  </div>
+                )}
+                {sec==="maestros" && (
+                  <BotonNuevo ariaLabel="Nuevo maestro" onClick={()=>{ setForm({nombre:"",apellido:"",email:"",clases:[],_clasesOrig:[],activo:true}); setModal("nuevo_maestro"); }}/>
+                )}
+                {sec==="colegios" && (
+                  <BotonNuevo ariaLabel="Nuevo colegio" onClick={()=>{ setForm({nombre:"",año_lectivo_actual:new Date().getFullYear(),adminNombre:"",adminApellido:"",adminEmail:"",adminPass:""}); setModalColegio("nuevo"); }}/>
+                )}
+                {sec==="super_admins" && (
+                  <BotonNuevo ariaLabel="Nuevo Super Admin" onClick={()=>{ setFormSuper({nombre:"",apellido:"",email:"",pass:"",activo:true}); setModalSuper("nuevo"); }}/>
+                )}
+                {sec==="alumnos" && (
+                  <BotonNuevo ariaLabel="Nuevo alumno" onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }}/>
+                )}
+                {sec==="cursos" && (
+                  <BotonNuevo ariaLabel="Nuevo curso" onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6",año_lectivo:anoCursosMostrado}); setModal("nuevo_curso"); }}/>
+                )}
               </div>
-            )}
-            {sec==="maestros" && (
-              <button onClick={()=>{ setForm({nombre:"",apellido:"",email:"",clases:[],_clasesOrig:[],activo:true}); setModal("nuevo_maestro"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo maestro</button>
-            )}
-            {sec==="colegios" && (
-              <button onClick={()=>{ setForm({nombre:"",año_lectivo_actual:new Date().getFullYear(),adminNombre:"",adminApellido:"",adminEmail:"",adminPass:""}); setModalColegio("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo colegio</button>
-            )}
-            {sec==="super_admins" && (
-              <button onClick={()=>{ setFormSuper({nombre:"",apellido:"",email:"",pass:"",activo:true}); setModalSuper("nuevo"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#8B5CF6",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo Super Admin</button>
-            )}
-            {sec==="alumnos" && (
-              <button onClick={()=>{ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo alumno</button>
-            )}
-            {sec==="cursos" && (
-              <button onClick={()=>{ setForm({nombre:"",avatar:"🏫",color:"#3B82F6",año_lectivo:anoCursosMostrado}); setModal("nuevo_curso"); }} style={{padding:"10px 18px",borderRadius:10,border:"none",background:"#0F172A",color:"white",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo curso</button>
             )}
           </div>
         );
       })()}
+      {sec==="cuenta"&&(
+        <div style={{maxWidth:560}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 18px",border:"1px solid #E2E8F0",borderRadius:16,background:"white",marginBottom:14}}>
+            <span style={{width:48,height:48,borderRadius:"50%",background:"#F1F5F9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <span style={{fontSize:16,fontWeight:800,color:"#334155"}}>{inicialesUsuario}</span>
+            </span>
+            <span style={{display:"block",minWidth:0}}>
+              <span style={{display:"block",fontSize:16,fontWeight:800,color:"#0F172A"}}>{usuario?.nombre} {usuario?.apellido||""}</span>
+              {usuario?.email&&<span style={{display:"block",fontSize:13,color:"#64748B",marginTop:2,overflow:"hidden",textOverflow:"ellipsis"}}>{usuario.email}</span>}
+              <span style={{display:"block",fontSize:13,color:"#64748B",marginTop:2}}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</span>
+            </span>
+          </div>
+          <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
+            {[
+              {icono:"llave", l:"Cambiar contraseña", fn:()=>setCambiarPass(true)},
+              esStaffColegio ? {icono:"salvavidas", l:"Ayuda y soporte", fn:()=>irA("soporte_colegio")} : null,
+              {icono:"salir", l:"Cerrar sesión", fn:onCerrarSesion},
+            ].filter(Boolean).map((f,i)=>(
+              <button key={f.l} onClick={f.fn} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"14px 18px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                <Icono nombre={f.icono} size={18} color="#475569"/>
+                <span style={{flex:1,fontSize:14.5,fontWeight:600,color:"#0F172A"}}>{f.l}</span>
+                <Icono nombre="flecha" size={15} color="#94A3B8"/>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {sec==="usuarios" && (() => {
         // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 3 #5):
         // usuarios totales / Room Parents (+ en cuántos cursos) / familias
@@ -1554,9 +1605,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     </span>
                   </div>
                   <div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",gap:6}}>
-                    <button onClick={()=>{ setForm({...u,cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
-                    {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>}
+                    <button onClick={()=>{ setForm({...u,cursosAdmin:[...(u.cursosAdmin||[])],hijos:[...(u.hijos||[])],_emailOriginal:u.email}); setModal({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
+                    {u.rol!=="super"&&<button onClick={()=>setConfirm({nombre:`${u.nombre}${u.apellido?" "+u.apellido:""}`,msg:"Esta acción no se puede deshacer.",action:()=>eliminarUsuario(u.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>}
                   </div>
                 </div>
               );
@@ -1633,9 +1684,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{fontSize:12.5,color:"#64748B"}}>{admins.length>0?admins.map(a=>a.nombre).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin asignar</span>}</div>
                   <div style={{fontSize:13,fontWeight:700,textAlign:isMobile?"left":"center"}}>{alumnosCurso}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,nivel:c.nivel||null,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}>📄</button>
-                    <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Solo se puede borrar un curso sin alumnos ni contenido (recordatorios, eventos, colectas…). Se borra también su configuración: horarios, Room Parents, maestros, uniformes, útiles y libros.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,nivel:c.nivel||null,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}><Icono nombre="documento" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Solo se puede borrar un curso sin alumnos ni contenido (recordatorios, eventos, colectas…). Se borra también su configuración: horarios, Room Parents, maestros, uniformes, útiles y libros.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>
                 </div>
               );
@@ -1694,9 +1745,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{fontSize:12.5,color:"#64748B"}}>{apoderados.length>0?apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin registrar</span>}</div>
                   <div style={{fontSize:12.5,color:a.fecha_nacimiento?"#334155":"#CBD5E1"}}>{a.fecha_nacimiento?fmtF(a.fecha_nacimiento):"—"}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>setVerApodSA(a)} style={{width:32,height:32,borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6"}}>👨‍👩‍👧</button>
-                    <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>setVerApodSA(a)} style={{width:32,height:32,borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",cursor:"pointer",fontSize:11,color:"#3B82F6"}}><Icono nombre="usuarios" size={15} color="#1D4ED8" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>
                 </div>
               );
@@ -1756,8 +1807,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:999,background:m.activo?"#F0FDF4":"#F1F5F9",color:m.activo?"#10B981":"#94A3B8"}}>{m.activo?"Activo":"Inactivo"}</span>
                   </div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>{ setForm({...m,clases:null,_clasesOrig:[]}); setModal("editar_maestro"); cargarClasesMaestro(m.id).then(cl=>setForm(p=>p.id===m.id?{...p,clases:cl,_clasesOrig:cl}:p)); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                    <button onClick={()=>setConfirm({nombre:fmtNombre(m),msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>🗑️</button>
+                    <button onClick={()=>{ setForm({...m,clases:null,_clasesOrig:[]}); setModal("editar_maestro"); cargarClasesMaestro(m.id).then(cl=>setForm(p=>p.id===m.id?{...p,clases:cl,_clasesOrig:cl}:p)); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>setConfirm({nombre:fmtNombre(m),msg:"Esta acción no se puede deshacer.",action:()=>eliminarMaestro(m.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>
                 </div>
               );
@@ -1824,7 +1875,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="colegios"&&esSuper&&(
         <div>
-          {colegios.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Todavía no hay ningún colegio cargado.</div>}
+          {colegios.length===0&&<EmptyState icono="escuela" titulo="Todavía no hay colegios" nota="Creá el primero con “Nuevo”."/>}
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
             {colegios.map(c=>(
               <Card key={c.id} style={{padding:18,cursor:"pointer"}} onClick={()=>{ setColegioId(c.id); setSec("inicio"); }}>
@@ -1839,7 +1890,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
       {sec==="super_admins"&&esSuper&&(
         <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
-          {superAdmins.length===0&&<div style={{padding:20,fontSize:13,color:"#94A3B8"}}>No hay ninguna cuenta Super Admin cargada.</div>}
+          {superAdmins.length===0&&<EmptyState sinBorde icono="usuarios" titulo="No hay cuentas Super Admin" style={{padding:16}}/>}
           {superAdmins.map(u=>(
             <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"14px 18px",borderBottom:"1px solid #F1F5F9"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
@@ -1851,8 +1902,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
                 {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                <button onClick={()=>{ setFormSuper({...u,_emailOriginal:u.email}); setModalSuper({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+                <button onClick={()=>{ setFormSuper({...u,_emailOriginal:u.email}); setModalSuper({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                <button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
               </div>
             </div>
           ))}
@@ -1913,13 +1964,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <div style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10,flexWrap:"wrap"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:900}}>🔑 Administradores de {colegioNombre}</div>
+                    <div style={{fontSize:15,fontWeight:900}}>Administradores de {colegioNombre}</div>
                     <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Gestionan todo este colegio (usuarios, cursos, alumnos, etc). No requieren curso ni hijos.{esSuper?"":" Los da de alta el equipo de tribbu."}</div>
                   </div>
-                  {esSuper&&<button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo administrador</button>}
+                  {esSuper&&<BotonNuevo label="Nuevo administrador" onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"colegio_admin"}); setModalAdmin("nuevo"); }}/>}
                 </div>
                 <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
-                  {adminsDelColegio.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay administradores para este colegio.</div>}
+                  {adminsDelColegio.length===0 && <EmptyState sinBorde icono="usuarios" titulo="Todavía no hay administradores" nota="Los da de alta el equipo de tribbu." style={{padding:16}}/>}
                   {adminsDelColegio.map(u=>(
                     <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
                       <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
@@ -1931,8 +1982,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       </div>
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                        {esSuper&&<button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>}
-                        {esSuper&&<button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>}
+                        {esSuper&&<button onClick={()=>{ setFormAdmin({...u,rol:"colegio_admin",_emailOriginal:u.email}); setModalAdmin({edit:u}); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>}
+                        {esSuper&&<button onClick={()=>toggleActivo(u)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>}
                       </div>
                     </div>
                   ))}
@@ -1956,10 +2007,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                     <div style={{fontSize:15,fontWeight:900}}>Directivos por nivel</div>
                     <div style={{fontSize:12.5,color:"#94A3B8",marginTop:2}}>Dirección, Secretaría, Coordinación… Gestionan solo los cursos de sus niveles (todos pueden lo mismo, el cargo es el nombre que se ve): comunicados, eventos, autorizaciones, alertas, horarios, alumnos y familias, Room Parents y los mensajes a Secretaría. No tocan cursos, maestras, menú ni datos del colegio.</div>
                   </div>
-                  <button onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[],cargo:CARGO_DEFECTO}); setModalAdmin("nuevo"); }} style={{padding:"9px 16px",borderRadius:10,border:"none",background:"#F59E0B",color:"white",cursor:"pointer",fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>+ Nuevo directivo</button>
+                  <BotonNuevo label="Nuevo directivo" onClick={()=>{ setFormAdmin({nombre:"",apellido:"",email:"",pass:"",activo:true,rol:"nivel_admin",niveles:[],cargo:CARGO_DEFECTO}); setModalAdmin("nuevo"); }}/>
                 </div>
                 <div style={{border:"1px solid #E7ECF3",borderRadius:14,background:"white",overflow:"hidden"}}>
-                  {secretarias.length===0 && <div style={{padding:20,fontSize:13,color:"#94A3B8"}}>Todavía no hay directivos por nivel.</div>}
+                  {secretarias.length===0 && <EmptyState sinBorde icono="usuarios" titulo="Todavía no hay directivos por nivel" nota="Dirección, Secretaría o Coordinación de un nivel: gestionan solo los cursos de sus niveles." style={{padding:16}}/>}
                   {secretarias.map(u=>(
                     <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid #F1F5F9"}}>
                       <div style={{minWidth:0}}>
@@ -1968,8 +2019,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                       </div>
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         {!u.activo&&<Pill label="Inactivo" color="#94A3B8" bg="#F1F5F9"/>}
-                        <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],cargo:u.cargo||CARGO_DEFECTO,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>✏️</button>
-                        <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"🚫":"✓"}</button>
+                        <button onClick={()=>{ setFormAdmin({...u,rol:"nivel_admin",niveles:u.niveles||[],cargo:u.cargo||CARGO_DEFECTO,_emailOriginal:u.email}); setModalAdmin({edit:u}); }} aria-label="Editar" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                        <button onClick={()=>toggleActivo(u)} aria-label={u.activo?"Desactivar":"Activar"} style={{width:32,height:32,borderRadius:8,border:`1px solid ${u.activo?"#EF4444":"#10B981"}`,background:u.activo?"#FEF2F2":"#F0FDF4",cursor:"pointer",fontSize:12,color:u.activo?"#EF4444":"#10B981"}}>{u.activo?"✕":"✓"}</button>
                       </div>
                     </div>
                   ))}
@@ -1990,11 +2041,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
       {sec==="menu"&&(
         <div>
-          <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🍽️ Menú comedor</div>
+          <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Menú del comedor</div>
           <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin tener que resubir todo.</div>
           <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile} colegioId={esStaffColegio?miColegioId:colegioId} niveles={colegioNiveles}/>
           <div style={{marginTop:16,background:"#F8FAFC",borderRadius:14,padding:"16px 18px",border:"1px solid #E2E8F0"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:10}}>📋 Formato esperado del Excel</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#64748B",marginBottom:10}}>Formato esperado del Excel</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {[
                 {col:"fecha",    desc:"Fecha del día (DD/MM/YYYY o YYYY-MM-DD)", req:true},
@@ -2012,7 +2063,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 </div>
               ))}
             </div>
-            <div style={{marginTop:12,fontSize:11,color:"#94A3B8"}}>⚠️ Los nombres de columna se detectan automáticamente por palabra clave — cualquier columna que contenga "fecha", "plato", "postre", etc. es reconocida.</div>
+            <div style={{marginTop:12,fontSize:11,color:"#94A3B8"}}>Los nombres de columna se detectan automáticamente por palabra clave — cualquier columna que contenga "fecha", "plato", "postre", etc. es reconocida.</div>
           </div>
         </div>
       )}
@@ -2078,7 +2129,7 @@ function PromocionCurso({ cursos, anoActual }) {
   return (
     <div>
       <Toast />
-      <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>🎓 Promoción de curso</div>
+      <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Promoción de curso</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Pasá a los alumnos de un curso al año siguiente. Los recordatorios, eventos, colectas y demás información del curso de origen quedan intactos — no se mueven ni se mezclan con el curso nuevo.</div>
 
       {hecho&&(
@@ -2183,7 +2234,7 @@ function AlertaModal({ onClose, onEnviar }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Card style={{padding:24,width:"100%",maxWidth:400}}>
-        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🚨 Enviar alerta</div>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Enviar alerta</div>
         <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Este mensaje se mostrará de forma destacada a todos los apoderados del curso.</div>
         <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Ej: Se suspenden las clases de mañana por paro docente." rows={4} style={{...inp,resize:"vertical",marginBottom:16}}/>
         <div style={{display:"flex",gap:10}}>
@@ -2253,25 +2304,19 @@ export function AlertasAdmin({ cursos }) {
       {cursoSel&&(
         <div>
           {alerta?(
-            <div style={{background:"linear-gradient(135deg,#EF4444,#B91C1C)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-              <span style={{fontSize:22}}>🚨</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",marginBottom:2}}>Alerta activa — {cursoSel.nombre}</div>
-                <div style={{fontSize:14,fontWeight:700,color:"white"}}>{alerta.mensaje}</div>
+            <div style={{background:"white",border:"1px solid #FECACA",borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"flex-start",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+              <Icono nombre="alerta" size={20} color="#DC2626" style={{marginTop:2}}/>
+              <div style={{flex:"1 1 220px",minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#B91C1C",marginBottom:2}}>Alerta activa · {cursoSel.nombre}</div>
+                <div style={{fontSize:14,fontWeight:600,color:"#0F172A",lineHeight:1.45}}>{alerta.mensaje}</div>
               </div>
-              <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>setModal(true)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.2)",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Editar</button>
-                <button onClick={dismiss} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Desactivar</button>
+              <div style={{display:"flex",gap:16,alignItems:"center"}}>
+                <button onClick={()=>setModal(true)} style={{padding:0,border:"none",background:"none",cursor:"pointer",fontSize:13.5,fontWeight:700,color:"#2563EB",fontFamily:"inherit"}}>Editar</button>
+                <button onClick={dismiss} style={{padding:0,border:"none",background:"none",cursor:"pointer",fontSize:13.5,fontWeight:700,color:"#64748B",fontFamily:"inherit"}}>Desactivar</button>
               </div>
             </div>
           ):(
-            <button onClick={()=>setModal(true)} disabled={loading} style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"2px dashed #FCA5A5",background:"#FFF1F2",color:"#EF4444",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:20}}>🚨</span>
-              <div style={{textAlign:"left"}}>
-                <div>Enviar alerta a {cursoSel.nombre}</div>
-                <div style={{fontSize:11,fontWeight:500,color:"#F87171"}}>Solo para avisos urgentes</div>
-              </div>
-            </button>
+            <EmptyState icono="alerta" titulo={`Sin alerta activa en ${cursoSel.nombre}`} nota="Las alertas suenan en el celular de todas las familias del curso: usalas solo para avisos urgentes." accion="Enviar alerta" onAccion={()=>!loading&&setModal(true)}/>
           )}
         </div>
       )}
@@ -2425,7 +2470,7 @@ export function ComunicacionesAdmin({ cursos }) {
           <span style={{width:28,height:16,borderRadius:999,background:form.enviarPush?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
             <span style={{position:"absolute",top:2,left:form.enviarPush?14:2,width:12,height:12,borderRadius:"50%",background:"white",transition:"left .15s"}}/>
           </span>
-          {form.enviarPush?"🔔 Va a sonar (push)":"Sin notificación push"}
+          {form.enviarPush?"Va a sonar (push)":"Sin notificación push"}
         </button>
         <button onClick={()=>setForm(p=>({...p,conMembrete:!p.conMembrete}))} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${form.conMembrete?"#BFDBFE":"#E2E8F0"}`,background:form.conMembrete?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.conMembrete?"#2563EB":"#94A3B8"}}>
           <span style={{width:28,height:16,borderRadius:999,background:form.conMembrete?"#3B82F6":"#CBD5E1",position:"relative",flexShrink:0,transition:"background .15s"}}>
@@ -2565,7 +2610,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
     <div style={{marginTop:24}}>
       {verLecturas&&<LecturasModal titulo={verLecturas.titulo||textoPlano(verLecturas.texto)} filas={verLecturas.lecturas} onClose={()=>setVerLecturas(null)}/>}
       <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
-        <span>📋 Historial de comunicaciones</span>
+        <span>Historial de comunicaciones</span>
         <span style={{fontSize:16,color:"#94A3B8",transform:abierto?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
       </button>
 
@@ -2573,7 +2618,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
         <div style={{marginTop:8}}>
           {cargando && <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Cargando...</div>}
           {!cargando && comunicaciones.length===0 && (
-            <div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Todavía no se publicó ninguna comunicación este año.</div>
+            <EmptyState sinBorde icono="comunicaciones" titulo="Todavía no hay comunicados este año" nota="Lo que publiques para varios cursos aparece acá, con quién lo leyó." style={{padding:16}}/>
           )}
           {!cargando && comunicaciones.map(c=>(
             <div key={c.grupo_id} style={{padding:"12px 14px",marginBottom:6,borderRadius:12,background:"white",border:"1px solid #E2E8F0",borderLeft:`3px solid ${c.urgente?"#EF4444":"#3B82F6"}`}}>
@@ -2613,14 +2658,14 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
               </div>
               {(c.fecha||c.hora_inicio)&&(
                 <div style={{fontSize:11,color:"#64748B",marginTop:4}}>
-                  📅 {c.fecha?new Date(c.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"Sin fecha"}
-                  {fmtRangoHora(c.hora_inicio,c.hora_fin)?` · 🕐 ${fmtRangoHora(c.hora_inicio,c.hora_fin)}`:""}
+                  {c.fecha?new Date(c.fecha+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"Sin fecha"}
+                  {fmtRangoHora(c.hora_inicio,c.hora_fin)?` · ${fmtRangoHora(c.hora_inicio,c.hora_fin)}`:""}
                 </div>
               )}
               {c.pctLeido!==null&&(
                 <div onClick={()=>setVerLecturas(c)} title="Ver quién la leyó" style={{marginTop:8,cursor:"pointer"}}>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"#94A3B8",fontWeight:700,marginBottom:3}}>
-                    <span>👁 Leído por {c.totalLeidos} de {c.totalDestinatarios} · ver quién</span>
+                    <span>Leído por {c.totalLeidos} de {c.totalDestinatarios} · ver quién</span>
                     <span>{c.pctLeido}%</span>
                   </div>
                   <div style={{height:5,borderRadius:3,background:"#F1F5F9",overflow:"hidden"}}>
@@ -2826,7 +2871,7 @@ export function UniformesAdmin({ cursos }) {
       {/* Toolbar */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{fontSize:13,color:"#94A3B8"}}>Categorías de uniforme del colegio</div>
-        <button onClick={()=>openModal("newU")} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Nueva categoría</button>
+        <BotonNuevo label="Nueva categoría" onClick={()=>openModal("newU")}/>
       </div>
 
       {uniformes.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Sin categorías creadas aún</div>}
@@ -2843,8 +2888,8 @@ export function UniformesAdmin({ cursos }) {
               <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
               <div style={{display:"flex",gap:6}}>
                 <button onClick={()=>openModal("newItem",u)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
-                <button onClick={()=>openModal("editU",u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
-                <button onClick={()=>setConfirmElimU(u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                <button onClick={()=>openModal("editU",u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                <button onClick={()=>setConfirmElimU(u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
               </div>
             </div>
 
@@ -2853,8 +2898,8 @@ export function UniformesAdmin({ cursos }) {
               <div key={it.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:"1px solid #F8FAFC",background:j%2===0?"white":"#FAFAFA"}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:"#CBD5E1",flexShrink:0}}/>
                 <span style={{fontSize:13,flex:1}}>{it.item}</span>
-                <button onClick={()=>openModal("editItem",u,it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}>✏️</button>
-                <button onClick={()=>setConfirmElimItem(it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}>🗑</button>
+                <button onClick={()=>openModal("editItem",u,it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                <button onClick={()=>setConfirmElimItem(it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
               </div>
             ))}
             {items.length===0&&<div style={{padding:"8px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems aún.</div>}

@@ -42,9 +42,33 @@ const routeForData = (data) => {
   return { pathname: route, params };
 };
 
+// Panel del colegio (administrador, Secretaría, super): no tiene las tabs de
+// la familia, así que el push abre la sección del panel. Un mensaje lleva la
+// conversación (`c`) y el panel decide por su tipo si es del personal, de
+// familias o soporte.
+const PANEL_SEC = {
+  soporte: "soporte",
+  denuncia: "denuncias",
+  autorizacion: "autorizaciones",
+  taller: "talleres",
+  evento: "eventos",
+  recordatorio: "comunicaciones",
+  alerta: "alertas",
+};
+const panelRouteForData = (data) => {
+  const type = data?.type;
+  const t = String(Date.now());
+  if ((type === "mensaje" || type === "soporte") && data?.conversacionId) {
+    return { pathname: "/(super)", params: { c: String(data.conversacionId), sec: PANEL_SEC[type] || "", t } };
+  }
+  const sec = PANEL_SEC[type];
+  return sec ? { pathname: "/(super)", params: { sec, t } } : null;
+};
+
 /** Engancha los listeners de respuesta a notificaciones y navega al tab destino. */
-export function useNotificationRouting(ready) {
+export function useNotificationRouting(ready, { panel = false } = {}) {
   const router = useRouter();
+  const destino = panel ? panelRouteForData : routeForData;
   const handledColdStart = useRef(false);
 
   useEffect(() => {
@@ -57,17 +81,19 @@ export function useNotificationRouting(ready) {
       // La "última respuesta" queda guardada hasta que se borra: sin esto, si
       // este layout se volvía a montar, re-navegaba a la misma notificación.
       if (response) Notifications.clearLastNotificationResponse();
-      const target = routeForData(response?.notification?.request?.content?.data);
-      if (target) router.push(target);
+      const target = destino(response?.notification?.request?.content?.data);
+      if (target && panel) router.navigate(target);
+      else if (target) router.push(target);
     }
 
     // Foreground/background: toque de notificación con la app viva.
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       Notifications.clearLastNotificationResponse();
-      const target = routeForData(response?.notification?.request?.content?.data);
-      if (target) router.push(target);
+      const target = destino(response?.notification?.request?.content?.data);
+      if (target && panel) router.navigate(target);
+      else if (target) router.push(target);
     });
 
     return () => sub.remove();
-  }, [ready, router]);
+  }, [ready, router, destino, panel]);
 }

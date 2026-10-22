@@ -1,46 +1,46 @@
-// Inicio del panel del colegio (web): la primera pantalla al entrar.
-// Resumen del colegio, lo que hay para resolver (cada item lleva a su
-// sección), lo que viene en la semana y accesos rápidos. Los datos que el
-// panel ya tiene cargados (cursos, alumnos, apoderados, maestras) llegan por
-// props; el resto se pide en UNA ronda de pedidos en paralelo.
+// Inicio del panel del colegio (web): la primera pantalla al entrar. Mismo
+// estilo que el Inicio "Hoy" del apoderado (src/features/muro): fecha y
+// saludo, lo que hay para resolver (el primero destacado, el resto en una
+// tarjeta con enlaces "… →"), los próximos días sin chips de color y accesos
+// en filas con íconos de línea. Los datos que el panel ya tiene cargados
+// (cursos, alumnos, apoderados, maestras) llegan por props; el resto se pide
+// en UNA ronda de pedidos en paralelo.
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../supabase";
-import { THEMES, SLATE } from "../../lib/tokens";
 import { hoyAR } from "../../lib/talleres";
+import { Icono } from "../../components/Icono";
+import { EmptyState } from "../../components/EmptyState";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
-const C = THEMES.light;
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const masDias = (f, n) => { const d = new Date(f + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const fechaLarga = (f) => { const d = new Date(f + "T12:00:00"); return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`; };
 const fechaCorta = (f) => { const d = new Date(f + "T12:00:00"); return `${DIAS[d.getDay()].slice(0, 3).toLowerCase()} ${d.getDate()}`; };
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 
-function Kpi({ n, l, sub, color }) {
-  return (
-    <div style={{ flex: "1 1 150px", minWidth: 140, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px" }}>
-      <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 6 }}>
-        <span style={{ fontSize: 28, fontWeight: 900, color: color || C.textStrong, lineHeight: 1 }}>{n ?? "—"}</span>
-        {sub ? <span style={{ fontSize: 12, color: C.textFaint, fontWeight: 600 }}>{sub}</span> : null}
-      </div>
-    </div>
-  );
-}
+const card = { border: "1px solid #E2E8F0", borderRadius: 16, background: "white" };
+const tituloSeccion = { fontSize: 18, fontWeight: 800, color: "#0F172A", letterSpacing: -0.2 };
+const enlace = { display: "inline-flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "#2563EB", fontFamily: "inherit" };
 
-function Bloque({ titulo, children, accion }) {
-  return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <div style={{ flex: 1, fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6 }}>{titulo}</div>
-        {accion}
-      </div>
-      {children}
-    </div>
-  );
-}
+const Enlace = ({ texto, onClick, style }) => (
+  <button onClick={onClick} style={{ ...enlace, ...style }}>
+    <span style={{ color: "#2563EB" }}>{texto}</span>
+    <Icono nombre="flecha" size={15} color="#2563EB" />
+  </button>
+);
+const Encabezado = ({ titulo, cuenta, derecha }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+    <div style={tituloSeccion}>{titulo}</div>
+    {cuenta > 0 ? <span style={{ minWidth: 22, height: 22, padding: "0 7px", borderRadius: 999, background: "#F1F5F9", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#475569", boxSizing: "border-box" }}>{cuenta}</span> : null}
+    <div style={{ flex: 1 }} />
+    {derecha}
+  </div>
+);
 
 export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, ocultas = null, onIr }) {
   const [d, setD] = useState(null);
+  const isMobile = useIsMobile();
   const hoy = hoyAR();
   const ids = useMemo(() => cursos.map((c) => c.id), [cursos]);
   const nombreCurso = useMemo(() => Object.fromEntries(cursos.map((c) => [c.id, c.nombre])), [cursos]);
@@ -51,7 +51,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     const vacio = { data: [], count: 0 };
     (async () => {
       const en7 = masDias(hoy, 7);
-      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu] = await Promise.all([
+      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu, convs] = await Promise.all([
         ids.length ? supabase.rpc("adopcion_por_curso", { p_ids: ids }) : vacio,
         esColegioAdmin ? supabase.rpc("bandeja_colegio") : vacio,
         supabase.from("mensaje_denuncias").select("id", { count: "exact", head: true }).eq("estado", "pendiente").eq("colegio_id", colegioId),
@@ -60,6 +60,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
         supabase.from("taller_inscripciones").select("id, talleres!inner(colegio_id)", { count: "exact", head: true }).eq("estado", "pendiente").eq("talleres.colegio_id", colegioId),
         ids.length ? supabase.from("autorizaciones").select("id,titulo,fecha_limite,grupo_id").in("curso_id", ids).or(`fecha_limite.is.null,fecha_limite.gte.${hoy}`) : vacio,
         supabase.from("menu").select("fecha").eq("colegio_id", colegioId).gte("fecha", hoy).lte("fecha", en7),
+        // Mis chats (personal del colegio y soporte): solo el staff los tiene.
+        esColegioAdmin ? supabase.rpc("mis_conversaciones") : vacio,
       ]);
       if (!vivo) return;
       const a = (adop.data || []).reduce((s, r) => ({ familias: s.familias + (r.familias || 0), conApp: s.conApp + (r.con_app || 0), activas: s.activas + (r.activas_30d || 0) }), { familias: 0, conApp: 0, activas: 0 });
@@ -77,10 +79,14 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
       const conMenu = new Set((menu.data || []).map((m) => m.fecha));
       const habiles = [];
       for (let i = 0; i <= 7 && habiles.length < 5; i++) { const f = masDias(hoy, i); const dow = new Date(f + "T12:00:00").getDay(); if (dow >= 1 && dow <= 5) habiles.push(f); }
+      const personal = (convs.data || []).filter((c) => c.tipo === "personal" && c.no_leidos > 0);
       setD({
         adopcion: a,
         sinLeer: b.reduce((s, r) => s + (r.no_leidos || 0), 0),
         sinResponder: b.filter((r) => r.sin_responder).length,
+        personalSinLeer: personal.reduce((s, c) => s + c.no_leidos, 0),
+        personalChats: personal.length,
+        soporteSinLeer: (convs.data || []).filter((c) => c.tipo === "soporte").reduce((s, c) => s + (c.no_leidos || 0), 0),
         denuncias: denuncias.count || 0,
         cursosSinHorario: cursos.filter((c) => !conHorario.has(c.id)),
         eventos: ev,
@@ -99,94 +105,139 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   const familias = usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente" && u.activo !== false).length;
   const pctApp = d?.adopcion.familias ? Math.round((d.adopcion.conApp / d.adopcion.familias) * 100) : null;
 
+  // Lo que espera algo del colegio, en orden de urgencia: primero lo que
+  // escribió alguien, después lo que falta cargar.
   const pendientes = d ? [
-    esColegioAdmin && d.sinLeer ? { ico: "💬", txt: `${d.sinLeer} ${d.sinLeer === 1 ? "mensaje sin leer" : "mensajes sin leer"} de familias`, sub: d.sinResponder ? `${d.sinResponder} ${d.sinResponder === 1 ? "conversación espera" : "conversaciones esperan"} respuesta de Secretaría` : null, sec: "mensajes_familias", color: "#2563EB" } : null,
-    d.denuncias ? { ico: "🚩", txt: `${d.denuncias} ${d.denuncias === 1 ? "denuncia pendiente" : "denuncias pendientes"}`, sub: "Mensajes que una familia reportó", sec: "denuncias", color: "#DC2626" } : null,
-    d.talleresPend ? { ico: "🎨", txt: `${d.talleresPend} ${d.talleresPend === 1 ? "inscripción a talleres espera" : "inscripciones a talleres esperan"} aprobación`, sec: "talleres", color: "#7C3AED" } : null,
-    d.sinMenu.length ? { ico: "🍽️", txt: `Falta el menú de ${d.sinMenu.length === 1 ? "1 día" : `${d.sinMenu.length} días`} de esta semana`, sub: d.sinMenu.map(fechaCorta).join(", "), sec: "menu", color: "#B45309" } : null,
-    sinApoderado ? { ico: "🎒", txt: `${sinApoderado} ${sinApoderado === 1 ? "alumno sin" : "alumnos sin"} apoderado vinculado`, sub: "Sus familias todavía no reciben nada", sec: "alumnos", color: "#B45309" } : null,
-    d.cursosSinHorario.length ? { ico: "🕐", txt: `${d.cursosSinHorario.length} ${d.cursosSinHorario.length === 1 ? "curso sin" : "cursos sin"} horario cargado`, sub: d.cursosSinHorario.slice(0, 4).map((c) => c.nombre).join(", ") + (d.cursosSinHorario.length > 4 ? "…" : ""), sec: "horarios", color: "#475569" } : null,
+    esColegioAdmin && d.sinLeer ? { sec: "mensajes_familias", tipo: "Mensajes de familias", titulo: plural(d.sinLeer, "mensaje sin leer", "mensajes sin leer"), dato: d.sinResponder ? `${plural(d.sinResponder, "conversación espera", "conversaciones esperan")} respuesta de Secretaría` : null, accion: "Leer y responder" } : null,
+    esColegioAdmin && d.personalSinLeer ? { sec: "mensajes_personal", tipo: "Mensajes del personal", titulo: plural(d.personalSinLeer, "mensaje sin leer", "mensajes sin leer"), dato: d.personalChats > 1 ? `En ${d.personalChats} chats` : null, accion: "Leer mensajes" } : null,
+    esColegioAdmin && d.soporteSinLeer ? { sec: "soporte_colegio", tipo: "Ayuda y soporte", titulo: "El equipo de tribbu te respondió", dato: null, accion: "Ver la respuesta" } : null,
+    d.denuncias ? { sec: "denuncias", tipo: "Denuncias", titulo: plural(d.denuncias, "denuncia pendiente", "denuncias pendientes"), dato: "Mensajes que una familia reportó", accion: "Revisar" } : null,
+    d.talleresPend ? { sec: "talleres", tipo: "Talleres", titulo: `${plural(d.talleresPend, "inscripción espera", "inscripciones esperan")} aprobación`, dato: null, accion: "Ver inscripciones" } : null,
+    d.sinMenu.length ? { sec: "menu", tipo: "Menú", titulo: `Falta el menú de ${plural(d.sinMenu.length, "día", "días")} de esta semana`, dato: d.sinMenu.map(fechaCorta).join(", "), accion: "Cargar el menú" } : null,
+    sinApoderado ? { sec: "alumnos", tipo: "Alumnos", titulo: `${plural(sinApoderado, "alumno", "alumnos")} sin apoderado vinculado`, dato: "Sus familias todavía no reciben nada", accion: "Ver alumnos" } : null,
+    d.cursosSinHorario.length ? { sec: "horarios", tipo: "Horarios", titulo: `${plural(d.cursosSinHorario.length, "curso", "cursos")} sin horario cargado`, dato: d.cursosSinHorario.slice(0, 4).map((c) => c.nombre).join(", ") + (d.cursosSinHorario.length > 4 ? "…" : ""), accion: "Cargar horarios" } : null,
   ].filter((p) => p && !ocultas?.has(p.sec)) : [];
+  const [destacado, ...resto] = pendientes;
 
   const accesos = [
-    ["📢", "Nueva comunicación", "comunicaciones"], ["📅", "Nuevo evento", "eventos"], ["✍️", "Pedir autorización", "autorizaciones"],
-    ["🚨", "Alerta urgente", "alertas"], ["🎨", "Talleres", "talleres"], ["📈", "Adopción", "adopcion"],
+    ["comunicaciones", "Nuevo comunicado", "comunicaciones"], ["agenda", "Nuevo evento", "eventos"], ["firma", "Pedir una autorización", "autorizaciones"],
+    ["alerta", "Enviar una alerta", "alertas"], ["paleta", "Talleres", "talleres"], ["grafico", "Adopción de la app", "adopcion"],
   ].filter(([, , sec]) => !ocultas?.has(sec));
+
+  const kpis = [
+    { n: cursos.length, l: "Cursos" },
+    { n: hijosAno.length, l: "Alumnos" },
+    { n: familias, l: "Familias" },
+    { n: maestros.filter((m) => m.activo !== false).length, l: "Docentes" },
+    { n: pctApp == null ? "—" : `${pctApp}%`, l: "Usan la app", sub: d?.adopcion.familias ? `${d.adopcion.conApp} de ${d.adopcion.familias}` : null },
+  ];
+
+  const bloqueResolver = (
+    <div style={{ marginBottom: 28 }}>
+      {d === null ? <div style={{ fontSize: 13, color: "#64748B" }}>Cargando…</div> : null}
+      {d && destacado ? (
+        <>
+          <div style={{ ...tituloSeccion, marginBottom: 12 }}>{pendientes.length === 1 ? "Tenés 1 cosa para resolver" : `Tenés ${pendientes.length} cosas para resolver`}</div>
+          <div style={{ ...card, padding: "16px 18px", marginBottom: 12 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748B" }}>{destacado.tipo}</span>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginTop: 8, lineHeight: 1.3 }}>{destacado.titulo}</div>
+            {destacado.dato ? <div style={{ fontSize: 13, color: "#64748B", marginTop: 6, lineHeight: 1.45, overflowWrap: "anywhere" }}>{destacado.dato}</div> : null}
+            <Enlace texto={destacado.accion} onClick={() => onIr(destacado.sec)} style={{ marginTop: 12 }} />
+          </div>
+          {resto.length ? (
+            <div style={card}>
+              {resto.map((p, i) => (
+                <div key={p.sec} style={{ padding: "14px 18px", borderTop: i ? "1px solid #F1F5F9" : "none" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{p.tipo}</span>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginTop: 4, lineHeight: 1.3 }}>{p.titulo}</div>
+                  {p.dato ? <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 3, lineHeight: 1.45, overflowWrap: "anywhere" }}>{p.dato}</div> : null}
+                  <Enlace texto={p.accion} onClick={() => onIr(p.sec)} style={{ marginTop: 10 }} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {d && !destacado ? <EmptyState icono="check" titulo="Estás al día" nota="No hay nada para resolver. Cuando haya algo, aparece acá." /> : null}
+    </div>
+  );
+
+  const bloqueNumeros = (
+    <div style={{ marginBottom: 28 }}>
+      <Encabezado titulo="El colegio en números" />
+      {/* Separadores con gap + fondo gris: quedan bien en una fila o partidos en dos. */}
+      <div style={{ ...card, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 1, background: "#F1F5F9", overflow: "hidden" }}>
+        {kpis.map((k) => (
+          <div key={k.l} style={{ padding: "14px 18px", background: "white" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{k.l}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#0F172A", marginTop: 4, lineHeight: 1.1 }}>{k.n ?? "—"}</div>
+            {k.sub ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{k.sub}</div> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const bloqueProximos = (
+    <div style={{ marginBottom: 28 }}>
+      <Encabezado titulo="Próximos días" derecha={<button onClick={() => onIr("eventos")} style={{ ...enlace, fontSize: 13 }}><span style={{ color: "#2563EB" }}>Eventos</span></button>} />
+      {d === null ? <div style={{ fontSize: 13, color: "#64748B" }}>Cargando…</div> : null}
+      {d && !d.eventos.length ? <div style={{ fontSize: 13, color: "#64748B" }}>No hay eventos cargados para esta semana.</div> : null}
+      {d?.eventos.length ? (
+        <div style={card}>
+          {d.eventos.slice(0, 8).map((e, i) => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 18px", borderTop: i ? "1px solid #F1F5F9" : "none" }}>
+              <div style={{ width: 34, textAlign: "center", flexShrink: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "#64748B" }}>{fechaCorta(e.fecha).split(" ")[0]}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", lineHeight: 1.1 }}>{fechaCorta(e.fecha).split(" ")[1]}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.titulo}</div>
+                <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 2 }}>{[e.hora ? String(e.hora).slice(0, 5) : null, e._varios ? "Varios cursos" : nombreCurso[e.curso_id]].filter(Boolean).join(" · ")}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {d?.autorizaciones.length ? (
+        <Enlace texto={`${plural(d.autorizaciones.length, "autorización abierta", "autorizaciones abiertas")} esperando respuestas`} onClick={() => onIr("autorizaciones")} style={{ marginTop: 12 }} />
+      ) : null}
+    </div>
+  );
+
+  const bloqueAccesos = (
+    <div style={{ marginBottom: 28 }}>
+      <Encabezado titulo="Accesos rápidos" />
+      <div style={{ ...card, overflow: "hidden" }}>
+        {accesos.map(([ico, l, sec], i) => (
+          <button key={sec} onClick={() => onIr(sec)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 18px", border: "none", borderTop: i ? "1px solid #F1F5F9" : "none", background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+            <Icono nombre={ico} size={18} color="#475569" />
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{l}</span>
+            <Icono nombre="flecha" size={15} color="#94A3B8" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.8 }}>{fechaLarga(hoy)}</div>
-        <div style={{ fontSize: 28, fontWeight: 900, color: C.textStrong, letterSpacing: -0.6, marginTop: 4 }}>Hola, {usuario?.nombre?.split(" ")[0] || ""}</div>
-        <div style={{ fontSize: 13.5, color: C.textMuted, marginTop: 4 }}>{colegioNombre ? `Así está ${colegioNombre} hoy.` : "Así está el colegio hoy."}</div>
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontSize: 13, color: "#64748B" }}>{fechaLarga(hoy)}</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: "#0F172A", letterSpacing: -0.4, marginTop: 2 }}>Hola, {usuario?.nombre?.split(" ")[0] || ""}</div>
+        {colegioNombre ? <div style={{ fontSize: 13.5, color: "#64748B", marginTop: 4 }}>{colegioNombre}</div> : null}
       </div>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-        <Kpi n={cursos.length} l="Cursos" sub="este año" />
-        <Kpi n={hijosAno.length} l="Alumnos" />
-        <Kpi n={familias} l="Familias" sub="apoderados" />
-        <Kpi n={maestros.filter((m) => m.activo !== false).length} l="Docentes" />
-        <Kpi n={pctApp == null ? "—" : `${pctApp}%`} l="Usan la app" sub={d?.adopcion.familias ? `${d.adopcion.conApp} de ${d.adopcion.familias}` : null} color={pctApp == null ? undefined : pctApp >= 70 ? "#059669" : pctApp >= 40 ? "#B45309" : "#DC2626"} />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 14, marginBottom: 14 }}>
-        <Bloque titulo={`Para resolver${pendientes.length ? ` · ${pendientes.length}` : ""}`}>
-          {d === null ? <div style={{ fontSize: 13, color: C.textMuted }}>Cargando…</div> : null}
-          {d && !pendientes.length ? (
-            <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "14px 14px", border: `1.5px dashed ${C.borderStrong}`, borderRadius: 12 }}>
-              <span style={{ fontSize: 22 }}>✓</span>
-              <div><b style={{ fontSize: 14, color: C.textStrong, display: "block" }}>Todo al día</b><span style={{ fontSize: 12.5, color: C.textMuted }}>No hay nada pendiente por ahora.</span></div>
-            </div>
-          ) : null}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {pendientes.map((p) => (
-              <button key={p.sec} onClick={() => onIr(p.sec)} style={{ display: "flex", gap: 12, alignItems: "flex-start", textAlign: "left", padding: "12px 14px", border: `1px solid ${C.border}`, borderLeft: `4px solid ${p.color}`, borderRadius: 12, background: C.surface, cursor: "pointer" }}>
-                <span style={{ fontSize: 18, lineHeight: 1.2 }}>{p.ico}</span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 13.5, color: C.textStrong, display: "block" }}>{p.txt}</b>
-                  {p.sub ? <span style={{ fontSize: 12, color: C.textMuted, display: "block", marginTop: 2, overflowWrap: "anywhere" }}>{p.sub}</span> : null}
-                </span>
-                <span style={{ color: C.textFaint, fontSize: 16 }}>›</span>
-              </button>
-            ))}
-          </div>
-        </Bloque>
-
-        <Bloque titulo="Próximos 7 días" accion={<button onClick={() => onIr("eventos")} style={{ border: "none", background: "none", color: C.accent, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>Ver eventos</button>}>
-          {d === null ? <div style={{ fontSize: 13, color: C.textMuted }}>Cargando…</div> : null}
-          {d && !d.eventos.length ? <div style={{ fontSize: 13, color: C.textMuted }}>No hay eventos cargados para esta semana.</div> : null}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {(d?.eventos || []).slice(0, 8).map((e, i) => (
-              <div key={e.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "9px 0", borderTop: i ? `1px solid ${C.border}` : "none" }}>
-                <div style={{ width: 44, textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: C.textFaint, textTransform: "uppercase" }}>{fechaCorta(e.fecha).split(" ")[0]}</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: C.textStrong, lineHeight: 1.1 }}>{fechaCorta(e.fecha).split(" ")[1]}</div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: C.textStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.titulo}</div>
-                  <div style={{ fontSize: 12, color: C.textMuted }}>{[e.hora ? String(e.hora).slice(0, 5) : null, e._varios ? "🏫 varios cursos" : nombreCurso[e.curso_id]].filter(Boolean).join(" · ")}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {d?.autorizaciones.length ? (
-            <button onClick={() => onIr("autorizaciones")} style={{ marginTop: 12, width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceSunken, cursor: "pointer", fontSize: 12.5, color: C.text }}>
-              <span style={{ color: C.text }}>✍️ {d.autorizaciones.length} {d.autorizaciones.length === 1 ? "autorización abierta" : "autorizaciones abiertas"} esperando respuestas</span>
-            </button>
-          ) : null}
-        </Bloque>
-      </div>
-
-      <Bloque titulo="Accesos rápidos">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-          {accesos.map(([ico, l, sec]) => (
-            <button key={sec} onClick={() => onIr(sec)} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left" }}>
-              <span style={{ fontSize: 22 }}>{ico}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: SLATE[800] }}>{l}</span>
-            </button>
-          ))}
+      <div style={isMobile ? undefined : { display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 28, alignItems: "start" }}>
+        <div style={{ minWidth: 0 }}>
+          {bloqueResolver}
+          {bloqueNumeros}
+          {isMobile ? bloqueProximos : null}
         </div>
-      </Bloque>
+        <div style={{ minWidth: 0 }}>
+          {isMobile ? null : bloqueProximos}
+          {bloqueAccesos}
+        </div>
+      </div>
     </div>
   );
 }

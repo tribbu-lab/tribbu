@@ -7,6 +7,8 @@
 // por código del login — ver CLAUDE.md.
 
 import { useState, useEffect, useCallback } from "react";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useLocalSearchParams } from "expo-router";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -36,49 +38,68 @@ import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, 
 import { MateriasAdmin, ClasesMaestroEditor, cargarClasesMaestro, guardarClasesMaestro } from "./clases";
 import { HorarioCurso, SemanaMaestra } from "../horarios";
 import { unirLecturasPorFamilia } from "@shared/lecturas";
-import { textoSecretaria, textoNiveles, nombreNivel, nivelesParaGuardar, ordenarNiveles } from "@shared/niveles";
+import { textoSecretaria, nombreNivel, nivelesParaGuardar, ordenarNiveles } from "@shared/niveles";
 import { textoPlano } from "@shared/formato";
 import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { PestanasPanel } from "../../components/SubTabs";
+import { CambiarPasswordModal } from "../auth";
+import { BLUE } from "@shared/tokens";
 
-// Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
-// para que el mismo mental model funcione en las dos plataformas. "Colegio" y
-// "Promoción" no tienen módulo acá porque son web-only (ver CLAUDE.md).
+// Mismas secciones que la web (src/features/superadmin, rediseño sobrio
+// 2026-10-22): pocas secciones con íconos de línea y, adentro, pestañas
+// (PestanasPanel). Promoción, Marketplace y Lost & Found no tienen pantalla
+// acá (son web-only, ver CLAUDE.md), por eso no figuran.
 const SECCIONES = [
-  { grupo: "Personas", items: [
-    { id: "usuarios", l: "👤 Apoderados" },
-    { id: "maestros", l: "👨‍🏫 Maestros" },
-    { id: "alumnos", l: "🎒 Alumnos" },
-    { id: "directivos", l: "🧭 Directivos" },
+  { id: "g_comunicacion", l: "Comunicación", icono: "email-outline", items: [
+    { id: "comunicaciones", l: "Comunicados" },
+    { id: "alertas", l: "Alertas" },
+    { id: "eventos", l: "Eventos" },
+    { id: "autorizaciones", l: "Autorizaciones" },
   ]},
-  { grupo: "Cursos", items: [
-    { id: "cursos", l: "🏫 Cursos" },
-    { id: "materias", l: "📚 Materias" },
-    { id: "horarios", l: "🕐 Horarios" },
-    { id: "uniformes", l: "👕 Uniformes" },
+  { id: "g_mensajes", l: "Mensajes", icono: "message-text-outline", items: [
+    { id: "mensajes_familias", l: "De familias", soloColegioAdmin: true },
+    { id: "mensajes_personal", l: "Del personal", soloColegioAdmin: true },
   ]},
-  { grupo: "Comunidad", items: [
-    { id: "alertas", l: "🚨 Alertas" },
-    { id: "comunicaciones", l: "📢 Comunicaciones" },
-    { id: "eventos", l: "📅 Eventos" },
-    { id: "autorizaciones", l: "✍️ Autorizaciones" },
-    { id: "talleres", l: "🎨 Talleres" },
-    { id: "mensajes_familias", l: "💬 Mensajes de familias", soloColegioAdmin: true },
-    { id: "mensajes_personal", l: "🗨️ Mensajes del personal", soloColegioAdmin: true },
-    { id: "denuncias", l: "🚩 Denuncias" },
-    { id: "adopcion", l: "📈 Adopción" },
+  { id: "g_comunidad", l: "Comunidad", icono: "heart-outline", items: [
+    { id: "talleres", l: "Talleres" },
+    { id: "denuncias", l: "Denuncias" },
+    { id: "adopcion", l: "Adopción" },
   ]},
-  { grupo: "Colegio", items: [
-    { id: "colegio", l: "🏫 Colegio" },
-    { id: "menu", l: "🍽️ Menú" },
+  { id: "g_personas", l: "Personas", icono: "account-multiple-outline", items: [
+    { id: "usuarios", l: "Apoderados" },
+    { id: "alumnos", l: "Alumnos" },
+    { id: "maestros", l: "Maestros" },
+    { id: "directivos", l: "Directivos" },
   ]},
-  { grupo: "Ayuda", items: [
-    { id: "soporte", l: "🛟 Soporte", soloSuper: true },
-    { id: "soporte_colegio", l: "🛟 Ayuda y soporte", soloColegioAdmin: true },
+  { id: "g_colegio", l: "Colegio", icono: "school-outline", items: [
+    { id: "cursos", l: "Cursos" },
+    { id: "materias", l: "Materias" },
+    { id: "horarios", l: "Horarios" },
+    { id: "uniformes", l: "Uniformes" },
+    { id: "menu", l: "Menú" },
+    { id: "colegio", l: "Datos y membrete" },
+  ]},
+  { id: "g_plataforma", l: "Plataforma", icono: "earth", items: [
+    { id: "soporte", l: "Soporte", soloSuper: true },
   ]},
 ];
-const TODAS_SECCIONES = SECCIONES.flatMap((g) => g.items);
+// Pantallas sueltas, fuera de las secciones (abajo del inicio del panel).
+const TITULO_SUELTA = { soporte_colegio: "Ayuda y soporte", cuenta: "Mi cuenta" };
+
+// Fila de lista con ícono de línea (inicio del panel y Mi cuenta).
+function Fila({ icono, label, onPress, primera }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.fila, !primera && styles.filaBorde, pressed && { backgroundColor: "#F8FAFC" }]} accessibilityRole="button">
+      <MaterialCommunityIcons name={icono} size={21} color="#475569" />
+      <Text style={styles.filaTxt}>{label}</Text>
+      <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" />
+    </Pressable>
+  );
+
+}
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve (mismo criterio que la web).
 const SOLO_ADMIN_COLEGIO = new Set(["directivos", "maestros", "cursos", "materias", "uniformes", "denuncias", "colegio", "menu"]);
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
@@ -108,7 +129,8 @@ export function SuperAdmin() {
   // selector de arriba y todo el panel se filtra en el cliente a ese colegio
   // — misma lógica que cargar() en la web. Antes mezclaba los datos de todos
   // los colegios y no podía crear cursos (usaba su colegio_id, que es null).
-  const { esColegioAdmin, esSecretaria, usuario } = useSession();
+  const { esColegioAdmin, esSecretaria, usuario, logout } = useSession();
+  const [cambiarPass, setCambiarPass] = useState(false);
   const miColegioId = usuario?.colegio_id ?? null;
   const [colegios, setColegios] = useState([]);
   const [colegioSel, setColegioSel] = useState(null);
@@ -209,6 +231,31 @@ export function SuperAdmin() {
     });
     return () => sub.remove();
   }, [sec]);
+
+  // Push tocado con el panel abierto (push/useNotificationRouting en modo
+  // panel): abre la sección que corresponde. Con `c` (un mensaje) la
+  // sección sale del tipo de conversación: del personal, de familias
+  // (Secretaría o maestra) o Ayuda y soporte. `t` = nonce por toque.
+  const params = useLocalSearchParams();
+  const [abrirConv, setAbrirConv] = useState(null);
+  useEffect(() => {
+    if (!params.t) return undefined;
+    let vivo = true;
+    (async () => {
+      let destino = params.sec || null;
+      if (params.c) {
+        const { data } = await supabase.from("conversaciones").select("tipo").eq("id", params.c).maybeSingle();
+        destino = data?.tipo === "colegio" || data?.tipo === "docente" ? "mensajes_familias"
+          : data?.tipo === "soporte" ? (esColegioAdmin ? "soporte_colegio" : "soporte")
+          : "mensajes_personal";
+      }
+      if (!vivo || !destino) return;
+      setSec(destino);
+      setAbrirConv(params.c && destino === "mensajes_personal" ? { id: String(params.c), n: String(params.t) } : null);
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.t]);
 
   // ── Guardar usuario (crear vía Edge Function / actualizar + sync Auth) ──────────
   const guardarUsuario = async () => {
@@ -589,87 +636,99 @@ export function SuperAdmin() {
   const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
 
   const stats = [
-    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente").length, l: "Apoderados", c: "#3B82F6", bg: "#EFF6FF" },
-    { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents", c: "#8B5CF6", bg: "#F5F3FF" },
-    { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos", c: "#94A3B8", bg: "#F8FAFC" },
-    { n: cursos.length, l: "Cursos", c: "#F59E0B", bg: "#FFFBEB" },
+    { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente").length, l: "Apoderados" },
+    { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents" },
+    { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos" },
+    { n: cursos.length, l: "Cursos" },
   ];
-
+  const seccionesVisibles = SECCIONES
+    .map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) }))
+    .filter((g) => g.items.length);
+  const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
+  const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
+  const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || "";
+  const hoyTxt = (() => { const t = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.titleRow}>
-        <Text style={styles.h1}>{esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Admin del colegio" : "Panel Super Admin"}</Text>
-        <Pill
-          label={esSecretaria ? (usuario?.cargo || ROL_LABEL.nivel_admin) : esColegioAdmin ? ROL_LABEL.colegio_admin : "Super Admin"}
-          color={esColegioAdmin ? ROL_COLOR.colegio_admin : "#8B5CF6"}
-          bg={esColegioAdmin ? ROL_BG.colegio_admin : "#F5F3FF"}
-        />
-      </View>
-      <Text style={styles.subtitle}>
-        {esSecretaria ? `Gestión de los cursos de ${textoNiveles(usuario?.niveles)}: familias, alumnos y comunicaciones` : esColegioAdmin ? "Gestión de tu colegio: apoderados, cursos y comunidad" : "Gestión de usuarios, roles y cursos por colegio"}
-      </Text>
-
-      {!esColegioAdmin ? (
-        <Pressable
-          onPress={() => (colegios.length > 1 ? setElegirColegio(true) : null)}
-          style={styles.colegioSelector}
-          accessibilityRole="button"
-          accessibilityLabel="Cambiar de colegio"
-        >
-          <Text style={styles.colegioSelectorLbl}>COLEGIO</Text>
-          <Text style={styles.colegioSelectorTxt} numberOfLines={1}>
-            🏫 {colegios.find((c) => c.id === colegioSel)?.nombre || "Sin colegios"}
-            {colegios.length > 1 ? "  ▾" : ""}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      <View style={styles.statsRow}>
-        {stats.map((s) => (
-          <View key={s.l} style={[styles.statCard, { backgroundColor: s.bg }]}>
-            <Text style={[styles.statNum, { color: s.c }]}>{s.n}</Text>
-            <Text style={styles.statLbl}>{s.l}</Text>
-          </View>
-        ))}
-      </View>
-
       {sec === null ? (
         <View>
-          {SECCIONES.map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) })).filter((g) => g.items.length).map((g) => (
-            <View key={g.grupo} style={styles.grupoWrap}>
-              <Text style={styles.grupoLabel}>{g.grupo}</Text>
-              <View style={styles.moduloGrid}>
-                {g.items.map((t) => {
-                  const [emoji, ...resto] = t.l.split(" ");
-                  return (
-                    <Pressable key={t.id} onPress={() => setSec(t.id)} style={styles.moduloCard}>
-                      <Text style={styles.moduloEmoji}>{emoji}</Text>
-                      <Text style={styles.moduloLabel}>{resto.join(" ")}</Text>
-                    </Pressable>
-                  );
-                })}
+          <Text style={styles.fecha}>{hoyTxt}</Text>
+          <Text style={styles.h1}>Hola{usuario?.nombre ? `, ${usuario.nombre.split(" ")[0]}` : ""}</Text>
+          <Text style={styles.subtitle}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</Text>
+
+          {!esColegioAdmin ? (
+            <Pressable
+              onPress={() => (colegios.length > 1 ? setElegirColegio(true) : null)}
+              style={styles.colegioSelector}
+              accessibilityRole="button"
+              accessibilityLabel="Cambiar de colegio"
+            >
+              <Text style={styles.colegioSelectorLbl}>COLEGIO</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.colegioSelectorTxt, { flex: 1 }]} numberOfLines={1}>{colegioNombre || "Sin colegios"}</Text>
+                {colegios.length > 1 ? <MaterialCommunityIcons name="chevron-down" size={20} color="#64748B" /> : null}
               </View>
-            </View>
-          ))}
+            </Pressable>
+          ) : null}
+
+          <View style={styles.statsRow}>
+            {stats.map((s, i) => (
+              <View key={s.l} style={[styles.statCard, i > 0 && styles.statBorde]}>
+                <Text style={styles.statLbl}>{s.l}</Text>
+                <Text style={styles.statNum}>{s.n}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.lista}>
+            {seccionesVisibles.map((g, i) => (
+              <Fila key={g.id} icono={g.icono} label={g.l} primera={i === 0} onPress={() => setSec(g.items[0].id)} />
+            ))}
+          </View>
+          <View style={styles.lista}>
+            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera onPress={() => setSec("soporte_colegio")} /> : null}
+            <Fila icono="account-circle-outline" label="Mi cuenta" primera={!esColegioAdmin} onPress={() => setSec("cuenta")} />
+          </View>
         </View>
       ) : (
         <View>
-          <Pressable onPress={() => setSec(null)} style={styles.volverBtn} hitSlop={8}>
-            <Text style={styles.volverTxt}>← {TODAS_SECCIONES.find((t) => t.id === sec)?.l || "Volver"}</Text>
+          <Pressable onPress={() => setSec(null)} style={styles.volverBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver al panel">
+            <MaterialCommunityIcons name="chevron-left" size={22} color={BLUE[600]} />
+            <Text style={styles.volverTxt}>Panel</Text>
           </Pressable>
+          <Text style={[styles.h1, { marginBottom: 12 }]}>{grupoActivo?.l || TITULO_SUELTA[sec] || ""}</Text>
+          {grupoActivo && grupoActivo.items.length > 1 ? (
+            <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l }))} activo={sec} onIr={setSec} />
+          ) : null}
+
+      {sec === "cuenta" ? (
+        <View>
+          <View style={styles.cuentaCard}>
+            <Text style={styles.itemNombre}>{usuario?.nombre} {usuario?.apellido || ""}</Text>
+            {usuario?.email ? <Text style={styles.itemMeta}>{usuario.email}</Text> : null}
+            <Text style={styles.itemMeta}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</Text>
+          </View>
+          <View style={styles.lista}>
+            <Fila icono="key-outline" label="Cambiar contraseña" primera onPress={() => setCambiarPass(true)} />
+            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" onPress={() => setSec("soporte_colegio")} /> : null}
+            <Fila icono="logout" label="Cerrar sesión" onPress={logout} />
+          </View>
+          <CambiarPasswordModal visible={cambiarPass} onClose={() => setCambiarPass(false)} />
+        </View>
+      ) : null}
 
       {sec === "usuarios" ? (
         <View>
           <UploadApoderadosExcel onDone={cargar} />
-          <Pressable
-            onPress={() => {
+          <View style={styles.filaNuevo}>
+            <BotonNuevo
+              accessibilityLabel="Agregar apoderado individual"
+              onPress={() => {
               setForm({ nombre: "", apellido: "", email: "", pass: "", esSuper: false, cursosAdmin: [], hijos: [], activo: true });
               setModal("nuevo_usuario");
-            }}
-            style={[styles.dashedBtn, { borderColor: "#3B82F6", backgroundColor: "#EFF6FF" }]}
-          >
-            <Text style={[styles.dashedTxt, { color: "#3B82F6" }]}>+ Agregar apoderado individual</Text>
-          </Pressable>
+              }}
+            />
+          </View>
           <ListToolbar {...ctrlUsuarios} placeholder="Buscar por nombre o email..." />
           {ctrlUsuarios.items.map((u) => (
             <View key={u.id} style={[styles.itemCard, !u.activo && styles.itemInactivo]}>
@@ -700,17 +759,17 @@ export function SuperAdmin() {
                   }}
                   style={styles.iconBtn}
                 >
-                  <Text>✏️</Text>
+                  <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                 </Pressable>
                 <Pressable onPress={() => toggleActivo(u)} style={styles.iconBtn}>
-                  <Text>{u.activo ? "🚫" : "✓"}</Text>
+                  <MaterialCommunityIcons name={u.activo ? "account-cancel-outline" : "account-check-outline"} size={19} color={u.activo ? "#DC2626" : "#059669"} />
                 </Pressable>
                 {u.rol !== "super" ? (
                   <Pressable
                     onPress={() => setConfirm({ nombre: `${u.nombre}${u.apellido ? " " + u.apellido : ""}`, msg: "Esta acción no se puede deshacer.", action: () => eliminarUsuario(u.id) })}
                     style={styles.iconBtn}
                   >
-                    <Text>🗑️</Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
                   </Pressable>
                 ) : null}
               </View>
@@ -722,15 +781,15 @@ export function SuperAdmin() {
 
       {sec === "cursos" ? (
         <View>
-          <Pressable
-            onPress={() => {
+          <View style={styles.filaNuevo}>
+            <BotonNuevo
+              accessibilityLabel="Agregar nuevo curso"
+              onPress={() => {
               setForm({ nombre: "", avatar: "🏫", color: "#3B82F6" });
               setModal("nuevo_curso");
-            }}
-            style={[styles.dashedBtn, { borderColor: "#3B82F6", backgroundColor: "#EFF6FF" }]}
-          >
-            <Text style={[styles.dashedTxt, { color: "#3B82F6" }]}>+ Agregar nuevo curso</Text>
-          </Pressable>
+              }}
+            />
+          </View>
           {cursos.map((c) => {
             const admins = usuarios.filter((u) => u.rol === "room" && u.cursos.includes(c.id));
             const padres = usuarios.filter((u) => u.rol === "padre" && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
@@ -753,13 +812,13 @@ export function SuperAdmin() {
                     }}
                     style={styles.iconBtn}
                   >
-                    <Text>✏️</Text>
+                    <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                   </Pressable>
                   <Pressable
                     onPress={() => setConfirm({ nombre: c.nombre, msg: "Solo se puede borrar un curso sin alumnos ni contenido. Se borra también su config: horarios, Room Parents, maestros, uniformes, útiles y libros.", action: () => eliminarCurso(c.id) })}
                     style={styles.iconBtn}
                   >
-                    <Text>🗑️</Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
                   </Pressable>
                 </View>
               </View>
@@ -770,15 +829,15 @@ export function SuperAdmin() {
 
       {sec === "maestros" ? (
         <View>
-          <Pressable
-            onPress={() => {
+          <View style={styles.filaNuevo}>
+            <BotonNuevo
+              accessibilityLabel="Agregar nuevo maestro"
+              onPress={() => {
               setForm({ nombre: "", apellido: "", email: "", clases: [], _clasesOrig: [], activo: true });
               setModal("nuevo_maestro");
-            }}
-            style={[styles.dashedBtn, { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
-          >
-            <Text style={[styles.dashedTxt, { color: "#8B5CF6" }]}>+ Agregar nuevo maestro</Text>
-          </Pressable>
+              }}
+            />
+          </View>
           <ListToolbar {...ctrlMaestros} placeholder="Buscar maestro o materia..." />
           {ctrlMaestros.items.map((m) => (
             <View key={m.id} style={[styles.itemCard, !m.activo && styles.itemInactivo]}>
@@ -802,10 +861,10 @@ export function SuperAdmin() {
                   }}
                   style={styles.iconBtn}
                 >
-                  <Text>✏️</Text>
+                  <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                 </Pressable>
                 <Pressable onPress={() => setConfirm({ nombre: fmtNombre(m), msg: "Esta acción no se puede deshacer.", action: () => eliminarMaestro(m.id) })} style={styles.iconBtn}>
-                  <Text>🗑️</Text>
+                  <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
                 </Pressable>
               </View>
             </View>
@@ -817,15 +876,15 @@ export function SuperAdmin() {
       {sec === "alumnos" ? (
         <View>
           <UploadAlumnosExcel cursos={cursos} onDone={cargar} />
-          <Pressable
-            onPress={() => {
+          <View style={styles.filaNuevo}>
+            <BotonNuevo
+              accessibilityLabel="Agregar alumno individual"
+              onPress={() => {
               setForm({ nombre: "", curso_id: cursos[0]?.id, fecha_nacimiento: "", color: "" });
               setModal("nuevo_alumno");
-            }}
-            style={[styles.dashedBtn, { borderColor: "#10B981", backgroundColor: "#F0FDF4" }]}
-          >
-            <Text style={[styles.dashedTxt, { color: "#10B981" }]}>+ Agregar alumno individual</Text>
-          </Pressable>
+              }}
+            />
+          </View>
           <ListToolbar {...ctrlAlumnos} placeholder="Buscar alumno..." />
           {ctrlAlumnos.items.map((a) => {
             const curso = cursos.find((c) => c.id === a.curso_id);
@@ -851,10 +910,10 @@ export function SuperAdmin() {
                     }}
                     style={styles.iconBtn}
                   >
-                    <Text>✏️</Text>
+                    <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                   </Pressable>
                   <Pressable onPress={() => setConfirm({ nombre: fmtNombre(a), msg: "Esta acción no se puede deshacer.", action: () => eliminarAlumno(a.id) })} style={styles.iconBtn}>
-                    <Text>🗑️</Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
                   </Pressable>
                 </View>
               </View>
@@ -880,11 +939,10 @@ export function SuperAdmin() {
       {sec === "soporte" && !esColegioAdmin ? <BandejaSoporte /> : null}
       {sec === "soporte_colegio" ? <SoporteColegioAdmin /> : null}
       {sec === "mensajes_familias" && esColegioAdmin ? <BandejaColegio /> : null}
-      {sec === "mensajes_personal" && esColegioAdmin ? <Mensajes soloPersonal /> : null}
+      {sec === "mensajes_personal" && esColegioAdmin ? <Mensajes soloPersonal abrirConv={abrirConv?.id || null} nonce={abrirConv?.n || null} /> : null}
       {sec === "menu" ? (
         <View>
-          <Text style={styles.cardTitle}>🍽️ Menú comedor</Text>
-          <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
+                    <Text style={styles.subtitle}>Cargá el menú mensual desde un Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin resubir todo.</Text>
           {colegioNiveles.length > 1 ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={styles.label}>MENÚ PARA</Text>
@@ -1053,7 +1111,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
             {!form.esSuper ? (
               <>
-                <Text style={styles.label}>👶 HIJOS VINCULADOS</Text>
+                <Text style={styles.label}>HIJOS VINCULADOS</Text>
                 {(form.hijos || []).length > 0 ? (
                   <View style={styles.chipsWrap}>
                     {(form.hijos || []).map((hid) => {
@@ -1097,7 +1155,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
 
                 {cursosConHijos.length > 0 ? (
                   <>
-                    <Text style={styles.label}>🏫 ROOM PARENT</Text>
+                    <Text style={styles.label}>ROOM PARENT</Text>
                     {cursosConHijos.map((cid) => {
                       const c = cursos.find((x) => x.id === cid);
                       if (!c) return null;
@@ -1308,7 +1366,7 @@ function ApoderadosModal({ alumno, onClose }) {
       <View style={styles.overlay}>
         <View style={[styles.modalCard, { maxHeight: "70%" }]}>
           <View style={styles.pagosHeader}>
-            <Text style={styles.modalTitle}>👨‍👩‍👧 Apoderados de {fmtNombre(alumno)}</Text>
+            <Text style={styles.modalTitle}>Apoderados de {fmtNombre(alumno)}</Text>
             <Pressable onPress={onClose} hitSlop={8}>
               <Text style={styles.closeTxt}>✕</Text>
             </Pressable>
@@ -1458,7 +1516,7 @@ function ColegioAdmin({ colegioId }) {
 
   return (
     <View>
-      <Text style={styles.cardTitle}>🏫 Datos del colegio</Text>
+      <Text style={styles.cardTitle}>Datos del colegio</Text>
       <Text style={styles.subtitle}>Lo que ven las familias en la pantalla de Contacto.</Text>
 
       <View style={styles.colegioCard}>
@@ -1472,7 +1530,7 @@ function ColegioAdmin({ colegioId }) {
       </View>
 
       <Pressable onPress={abrir} style={[styles.dashedBtn, { borderColor: T.accent, backgroundColor: "#EFF6FF", marginTop: 14 }]}>
-        <Text style={[styles.dashedTxt, { color: T.accent }]}>✏️ Editar datos del colegio</Text>
+        <Text style={[styles.dashedTxt, { color: T.accent }]}>Editar datos del colegio</Text>
       </Pressable>
 
       {modal ? (
@@ -1595,9 +1653,9 @@ function AlertasAdmin({ cursos }) {
       {cursoSel ? (
         alerta ? (
           <View style={styles.alertaActiva}>
-            <Text style={styles.alertaEmoji}>🚨</Text>
+            <MaterialCommunityIcons name="alert-outline" size={22} color="#DC2626" />
             <View style={styles.flex1}>
-              <Text style={styles.alertaCurso}>Alerta activa — {cursoSel.nombre}</Text>
+              <Text style={styles.alertaCurso}>Alerta activa · {cursoSel.nombre}</Text>
               <Text style={styles.alertaMsg}>{alerta.mensaje}</Text>
             </View>
             <Pressable onPress={dismiss} style={styles.alertaDismiss}>
@@ -1606,7 +1664,7 @@ function AlertasAdmin({ cursos }) {
           </View>
         ) : (
           <Pressable onPress={() => setModal(true)} style={styles.alertaNueva}>
-            <Text style={styles.alertaNuevaTxt}>🚨 Enviar alerta a {cursoSel.nombre}</Text>
+            <Text style={styles.alertaNuevaTxt}>Enviar alerta a {cursoSel.nombre}</Text>
           </Pressable>
         )
       ) : null}
@@ -1616,7 +1674,7 @@ function AlertasAdmin({ cursos }) {
           <KeyboardAvoidingView style={styles.overlay} behavior="padding">
             <View style={styles.modalCard}>
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.modalTitle}>🚨 Enviar alerta</Text>
+                <Text style={styles.modalTitle}>Enviar alerta</Text>
                 <Text style={styles.subtitle}>Se mostrará destacada a todos los apoderados del curso.</Text>
                 <TextInput
                   value={msg}
@@ -1916,7 +1974,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
         onClose={() => setVerLecturas(null)}
       />
       <Pressable onPress={toggle} style={comStyles.historialToggle}>
-        <Text style={comStyles.historialToggleTxt}>📋 Historial de comunicaciones</Text>
+        <Text style={comStyles.historialToggleTxt}>Historial de comunicaciones</Text>
         <Text style={comStyles.historialToggleArrow}>{abierto ? "▴" : "▾"}</Text>
       </Pressable>
 
@@ -2155,7 +2213,7 @@ function UniformesAdmin({ cursos, colegioId }) {
                 <Text style={styles.uniMiniTxt}>+ Ítem</Text>
               </Pressable>
               <Pressable onPress={() => openModal("editU", u)} style={styles.iconBtn}>
-                <Text>✏️</Text>
+                <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
               </Pressable>
               <Pressable
                 onPress={async () => {
@@ -2173,7 +2231,7 @@ function UniformesAdmin({ cursos, colegioId }) {
                 <View style={styles.uniDot} />
                 <Text style={[styles.flex1, styles.itemMeta, { color: T.text }]}>{it.item}</Text>
                 <Pressable onPress={() => openModal("editItem", u, it)} style={styles.iconBtn}>
-                  <Text>✏️</Text>
+                  <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                 </Pressable>
                 <Pressable
                   onPress={async () => {
@@ -2382,15 +2440,23 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   flex1: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
-  h1: { fontSize: 22, fontWeight: "900", color: T.text },
-  subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 14 },
+  h1: { fontSize: 24, fontWeight: "800", color: "#0F172A", letterSpacing: -0.3 },
+  fecha: { fontSize: 13, color: "#64748B", marginBottom: 2 },
+  lista: { backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 14, overflow: "hidden" },
+  fila: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
+  filaBorde: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  filaTxt: { flex: 1, fontSize: 15, fontWeight: "600", color: "#0F172A" },
+  filaNuevo: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 12 },
+  cuentaCard: { backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", padding: 16, marginBottom: 14, gap: 2 },
+  statBorde: { borderLeftWidth: 1, borderLeftColor: "#F1F5F9" },
+  subtitle: { fontSize: 13, color: "#64748B", marginBottom: 14 },
   muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 24 },
   cardTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 6 },
 
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 18, flexWrap: "wrap" },
-  statCard: { flex: 1, minWidth: 70, borderRadius: 14, paddingVertical: 12, alignItems: "center" },
-  statNum: { fontSize: 26, fontWeight: "900" },
-  statLbl: { fontSize: 10, color: "#94A3B8", fontWeight: "700", marginTop: 4, textAlign: "center" },
+  statsRow: { flexDirection: "row", marginBottom: 14, backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", overflow: "hidden" },
+  statCard: { flex: 1, minWidth: 70, paddingVertical: 12, paddingHorizontal: 12 },
+  statNum: { fontSize: 22, fontWeight: "800", color: "#0F172A", marginTop: 2 },
+  statLbl: { fontSize: 11.5, color: "#64748B", fontWeight: "600" },
 
   grupoWrap: { marginBottom: 18 },
   grupoLabel: { fontSize: 10, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8, marginLeft: 2 },
@@ -2398,8 +2464,8 @@ const styles = StyleSheet.create({
   moduloCard: { width: "31%", minWidth: 90, backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 14, alignItems: "center", gap: 4 },
   moduloEmoji: { fontSize: 22 },
   moduloLabel: { fontSize: 11, fontWeight: "700", color: "#334155", textAlign: "center" },
-  volverBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 4, marginBottom: 10 },
-  volverTxt: { fontSize: 14, fontWeight: "800", color: T.text },
+  volverBtn: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", paddingVertical: 6, marginLeft: -6, marginBottom: 4 },
+  volverTxt: { fontSize: 15, fontWeight: "700", color: BLUE[600] },
 
   dashedBtn: { borderWidth: 2, borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 14 },
   dashedTxt: { fontSize: 13, fontWeight: "700" },
@@ -2449,14 +2515,14 @@ const styles = StyleSheet.create({
   apodRow: { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 8 },
 
   // Alertas
-  alertaActiva: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#EF4444", borderRadius: 14, padding: 14, marginTop: 8 },
+  alertaActiva: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderWidth: 1, borderColor: "#FECACA", borderRadius: 16, padding: 14, marginTop: 8 },
   alertaEmoji: { fontSize: 22 },
-  alertaCurso: { fontSize: 10, fontWeight: "800", color: "rgba(255,255,255,0.75)", textTransform: "uppercase" },
-  alertaMsg: { fontSize: 14, fontWeight: "700", color: "white", marginTop: 2 },
-  alertaDismiss: { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
-  alertaDismissTxt: { color: "white", fontSize: 12, fontWeight: "700" },
-  alertaNueva: { borderWidth: 2, borderStyle: "dashed", borderColor: "#FCA5A5", backgroundColor: "#FFF1F2", borderRadius: 14, padding: 16, alignItems: "center", marginTop: 8 },
-  alertaNuevaTxt: { color: "#EF4444", fontSize: 13, fontWeight: "700" },
+  alertaCurso: { fontSize: 12, fontWeight: "700", color: "#B91C1C" },
+  alertaMsg: { fontSize: 14, fontWeight: "600", color: "#0F172A", marginTop: 2 },
+  alertaDismiss: { paddingVertical: 6, paddingHorizontal: 4 },
+  alertaDismissTxt: { color: "#64748B", fontSize: 13.5, fontWeight: "700" },
+  alertaNueva: { borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", borderRadius: 16, padding: 16, alignItems: "flex-start", marginTop: 8 },
+  alertaNuevaTxt: { color: "#2563EB", fontSize: 14, fontWeight: "700" },
 
   // Horarios
   horHeaderSuper: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, marginBottom: 14 },

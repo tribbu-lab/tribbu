@@ -1,6 +1,6 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-16).
+Lista viva de lo que queda por hacer (última actualización: 2026-10-22).
 Tachá o borrá cada ítem cuando se resuelva.
 
 ## Hecho 2026-10-16
@@ -73,8 +73,11 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 ## Mejoras chicas que quedaron (Mensajes / docentes)
 
 - [ ] **Fotos en la difusión** (hoy "Mensaje a varias familias" es solo texto).
-- [ ] **Push en el panel mobile** (super / admin del colegio): tocar una
-      notificación de soporte o de denuncia abre la app pero no la pantalla.
+- [x] **Push en el panel mobile** (2026-10-22): tocar una notificación siendo
+      administrador, Secretaría o super abre la sección del panel (mensaje →
+      Mensajes del personal / de familias / Ayuda y soporte según el chat;
+      soporte, denuncia, autorización, taller, evento, aviso, alerta). Falta
+      probarlo con un push real en un teléfono.
 - [ ] **Etiqueta "👩‍🏫 docente" en la app** también en Inicio, Calendario y la
       campanita (en la web ya está en todos; en la app solo en Avisos).
 - [ ] **Dar acceso a docentes desde el panel mobile** (hoy solo web).
@@ -85,18 +88,20 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 
-- [ ] **Rediseño del perfil del colegio** (administrador, Secretaría/Dirección
-      por nivel; web + app), pedido 2026-10-21. Hoy el panel usa el layout
-      viejo, lleno de íconos/emojis, y la barra lateral tiene demasiadas
-      opciones. Llevarlo al mismo criterio que el apoderado: pocas secciones,
-      íconos de línea (`Icono`), `BotonNuevo`/`Filtros`/`EmptyState`, sin colores
-      de más.
+- [x] **Rediseño del panel del colegio** (2026-10-22, web + app, sin
+      commitear): Inicio · Comunicación · Mensajes · Comunidad · Personas ·
+      Colegio (+ Plataforma para super), pestañas internas, Ayuda y soporte y
+      Mi cuenta abajo, íconos de línea, Inicio estilo "Hoy" con los mensajes
+      del personal. Falta: probarlo en la app en un teléfono (solo se validó
+      lint + bundle) y revisar la vista de la Secretaría en la web. Quedan
+      emojis en contenido interno de algunas pantallas (Uniformes usa emojis
+      como dato, mensajes de éxito ✅/⚠️ de las cargas de Excel).
 - [x] **El directivo ve los chats maestra ↔ familia** de sus niveles: ya
       estaba hecho con roles por nivel (Mensajes de familias, solo lectura).
 - [x] **Mensajes entre el personal del colegio** (2026-10-22,
       `supabase/mensajes-personal.sql`): 1 a 1 y grupos entre maestras,
-      Secretarías, Dirección y administración. Falta: que tocar el push abra
-      el panel en el celular del administrador/Secretaría.
+      Secretarías, Dirección y administración. El push ya abre el panel
+      (2026-10-22).
 - [ ] **Fotos por evento**: galería privada por evento (acto, excursión) donde
       las familias suben y ven fotos. Reusar el bucket privado `adjuntos` /
       `SignedImg`. Definir: quién sube, moderación, límite por evento.

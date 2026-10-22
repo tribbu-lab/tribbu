@@ -4,6 +4,7 @@
 // acá solo se escribe en `materias` y `clases`.
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet, Modal, KeyboardAvoidingView, ScrollView } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { fmtNombre, sanitize } from "@shared/helpers";
 import { THEMES, SLATE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
@@ -258,7 +259,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio 
             <View style={[s.dot, { backgroundColor: c.materias?.color || SLATE[400] }]} />
             <Text style={[s.filaTxt, s.flex1]} numberOfLines={1}>{etiquetaClase(c)}</Text>
             <Pressable onPress={() => setCambiando(cambiando === c.id ? null : c.id)} hitSlop={8} accessibilityLabel={`Cambiar la materia de ${c.materias?.nombre}`}><Text>✏️</Text></Pressable>
-            <Pressable onPress={() => quitar(c)} hitSlop={8} accessibilityLabel={`Quitar ${c.materias?.nombre}`}><Text>🗑</Text></Pressable>
+            <Pressable onPress={() => quitar(c)} hitSlop={8} accessibilityLabel={`Quitar ${c.materias?.nombre}`}><MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" /></Pressable>
           </View>
           {cambiando === c.id ? (
             <View style={[s.wrap, { marginBottom: SPACE.sm }]}>
@@ -273,7 +274,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio 
           <View style={s.wrap}>
             {activas.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={materiaId === m.id} onPress={() => setMateriaId(m.id)} />)}
           </View>
-          {!activas.length ? <Text style={s.muted}>Primero cargá las materias en 📚 Materias.</Text> : null}
+          {!activas.length ? <Text style={s.muted}>Primero cargá las materias en Colegio → Materias.</Text> : null}
           <Text style={s.label}>MAESTRA</Text>
           <View style={s.wrap}>
             <Chip label="Sin maestra" on={!maestroId} onPress={() => setMaestroId(null)} />

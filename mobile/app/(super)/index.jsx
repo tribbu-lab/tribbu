@@ -8,6 +8,7 @@ import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
 import { SuperAdmin } from "../../features/superadmin";
 import { useMensajesNoLeidos } from "../../lib/useMensajesNoLeidos";
+import { useNotificationRouting } from "../../push/useNotificationRouting";
 import { ANCHO_MAX_CONTENIDO, columnaCentrada } from "../../lib/layout";
 
 export default function SuperHome() {
@@ -16,6 +17,8 @@ export default function SuperHome() {
   // Canal Realtime de mensajes: la bandeja de soporte y Ayuda y soporte se
   // actualizan en vivo (sin badge en el panel).
   useMensajesNoLeidos(usuario?.id ?? null, { contar: false });
+  // Tocar un push abre la sección del panel (no las tabs de la familia).
+  useNotificationRouting(true, { panel: true });
 
   return (
     <View style={styles.screen}>
