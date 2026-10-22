@@ -10,6 +10,8 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 import { useCargar } from "../../hooks/useCargar";
 import { TablaMenu } from "../../components/TablaMenu";
+import { Icono } from "../../components/Icono";
+import { EmptyState } from "../../components/EmptyState";
 import { filasMenu } from "../../lib/menu";
 import { NIVELES, nombreNivel, menusParaNivel, nivelesParaGuardar } from "../../lib/niveles";
 
@@ -109,7 +111,7 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null, nivel=null, ni
       </>}
       {isSuper && niveles.length>1 && (
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Menú para</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Menú para</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[{k:null,l:"Todos los niveles"},...NIVELES.filter(n=>niveles.includes(n.k))].map(n=>{
               const on = n.k ? !!nivelesSel?.includes(n.k) : !nivelesSel;
@@ -150,10 +152,7 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null, nivel=null, ni
               <TablaMenu menu={diaActual}/>
             </div>
           ) : (
-            <Card style={{padding:24,textAlign:"center"}}>
-              <div style={{fontSize:32,marginBottom:8}}>🍽️</div>
-              <div style={{fontSize:13,fontWeight:600,color:"#94A3B8"}}>No hay menú cargado para este día</div>
-            </Card>
+            <EmptyState icono="cubiertos" titulo="No hay menú cargado para este día"/>
           )}
         </div>
       )}
@@ -272,7 +271,7 @@ export function Comedor({ isSuper, isMobile=true, colegioId=null, nivel=null, ni
             );
           })()}
           <div style={{display:"flex",alignItems:"center",gap:12,marginTop:14,padding:"14px 18px",border:"1px solid #DDE7F6",borderRadius:14,background:"#F8FAFC"}}>
-            <span style={{fontSize:18}}>ℹ️</span>
+            <Icono nombre="info" size={18} color="#475569"/>
             <span style={{fontSize:13,color:"#475569",lineHeight:1.5}}>¿Alergias o intolerancias? Consultalas en Contacto.</span>
           </div>
         </div>
@@ -409,10 +408,10 @@ export function UploadMenuExcel({ onDone, colegioId=null, niveles=null }) {
       if(inserts.length===0) throw new Error(`Columna fecha encontrada ('${colFecha}') pero ningún valor válido.`);
       const { error } = await supabase.from("menu").upsert(inserts, { onConflict: "colegio_id,fecha,niveles_clave" });
       if(error) throw error;
-      setMsg(`✅ ${inserts.length} días actualizados correctamente`);
+      setMsg(`${inserts.length} días actualizados correctamente`);
       onDone();
     } catch(err) {
-      setMsg(`❌ ${err.message || "Error al leer el archivo. Verificá el formato."}`);
+      setMsg(`Error: ${err.message || "Error al leer el archivo. Verificá el formato."}`);
       console.error(err);
     }
     setLoading(false);
@@ -421,16 +420,16 @@ export function UploadMenuExcel({ onDone, colegioId=null, niveles=null }) {
 
   return (
     <div style={{marginBottom:20}}>
-      <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Cargar menú desde Excel</div>
-      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"2px dashed #3B82F6",background:"#EFF6FF",cursor:"pointer",maxWidth:560}}>
-        <span style={{fontSize:20}}>📤</span>
+      <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Cargar menú desde Excel</div>
+      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",cursor:"pointer",maxWidth:560}}>
+        <Icono nombre="documento" size={20} color="#475569"/>
         <div>
-          <div style={{fontSize:13,fontWeight:700,color:"#3B82F6"}}>{loading?"Procesando...":"Subir archivo Excel"}</div>
-          <div style={{fontSize:11,color:"#94A3B8"}}>Formato: menu_tribbu.xlsx</div>
+          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{loading?"Procesando...":"Subir archivo Excel"}</div>
+          <div style={{fontSize:12,color:"#64748B"}}>Formato: menu_tribbu.xlsx</div>
         </div>
         <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}}/>
       </label>
-      {msg&&<div style={{fontSize:13,marginTop:10,fontWeight:600,color:msg.startsWith("✅")?"#10B981":"#EF4444"}}>{msg}</div>}
+      {msg&&<div style={{fontSize:13,marginTop:10,fontWeight:600,color:msg.startsWith("Error")?"#B91C1C":"#047857"}}>{msg}</div>}
     </div>
   );
 }

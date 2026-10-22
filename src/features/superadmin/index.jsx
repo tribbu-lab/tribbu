@@ -1646,7 +1646,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             {n:totalAlumnos, l:"Alumnos"},
           ]}/>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-            <span style={{fontSize:12,fontWeight:700,color:"#94A3B8"}}>Año lectivo</span>
+            <span style={{fontSize:12.5,fontWeight:600,color:"#475569"}}>Año lectivo</span>
             <select value={anoCursosMostrado} onChange={e=>setAnoCursosSel(Number(e.target.value))} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:12,fontWeight:700,background:"white",outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
               {(añosDisponibles.includes(anoActual+1)?añosDisponibles:[...añosDisponibles,anoActual+1]).sort((a,b)=>b-a).map(a=>(
                 <option key={a} value={a}>{a}{a===anoActual?" (vigente)":""}</option>
@@ -1672,15 +1672,15 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               const admins=usuarios.filter(u=>u.rol==="room"&&u.cursos.includes(c.id));
               const alumnosCurso=hijos.filter(h=>h.curso_id===c.id).length;
               return (
-                <div key={c.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC",borderLeft:`3px solid ${c.color}`}}>
+                <div key={c.id} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":gridCols,alignItems:isMobile?"flex-start":"center",gap:12,padding:isMobile?"12px 14px":"11px 14px",borderBottom:"1px solid #F8FAFC"}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                    <div style={{width:34,height:34,borderRadius:10,background:c.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{c.avatar}</div>
+                    <span style={{width:10,height:10,borderRadius:999,background:c.color||"#94A3B8",flexShrink:0}}/>
                     <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.nombre}</div>
                   </div>
                   <div style={{fontSize:12.5,color:"#64748B"}}>{admins.length>0?admins.map(a=>a.nombre).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin asignar</span>}</div>
                   <div style={{fontSize:13,fontWeight:700,textAlign:isMobile?"left":"center"}}>{alumnosCurso}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,nivel:c.nivel||null,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}><Icono nombre="documento" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>{ setForm({nombre:c.nombre,avatar:c.avatar,color:c.color,año_lectivo:c.año_lectivo+1,nivel:c.nivel||null,_duplicarDeId:c.id}); setModal("nuevo_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}} title={`Duplicar para ${c.año_lectivo+1}`}><Icono nombre="copiar" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>{ setForm({...c}); setModal("editar_curso"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>setConfirm({nombre:c.nombre,msg:"Solo se puede borrar un curso sin alumnos ni contenido (recordatorios, eventos, colectas…). Se borra también su configuración: horarios, Room Parents, maestros, uniformes, útiles y libros.",action:()=>eliminarCurso(c.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>
@@ -2029,7 +2029,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
 
       {sec==="menu"&&(
         <div>
-          <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Menú del comedor</div>
+          <div style={{fontSize:16,fontWeight:800,color:"#0F172A",marginBottom:4}}>Menú del comedor</div>
           <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Cargá el menú mensual desde un archivo Excel, revisá lo ya cargado (incluidos meses anteriores) y editá un día puntual sin tener que resubir todo.</div>
           <Comedor cursoId="superadmin-menu" isAdmin={false} isSuper={true} isMobile={isMobile} colegioId={esStaffColegio?miColegioId:colegioId} niveles={colegioNiveles}/>
           <div style={{marginTop:16,background:"#F8FAFC",borderRadius:14,padding:"16px 18px",border:"1px solid #E2E8F0"}}>
@@ -2117,7 +2117,7 @@ function PromocionCurso({ cursos, anoActual }) {
   return (
     <div>
       <Toast />
-      <div style={{fontSize:15,fontWeight:900,marginBottom:4}}>Promoción de curso</div>
+      <div style={{fontSize:16,fontWeight:800,color:"#0F172A",marginBottom:4}}>Promoción de curso</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Pasá a los alumnos de un curso al año siguiente. Los recordatorios, eventos, colectas y demás información del curso de origen quedan intactos — no se mueven ni se mezclan con el curso nuevo.</div>
 
       {hecho&&(
@@ -2198,11 +2198,11 @@ function PromocionCurso({ cursos, anoActual }) {
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setConfirmando(false)} style={{flex:1,padding:10,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={confirmar} disabled={promoviendo} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{promoviendo?"Promoviendo...":"Sí, promover"}</button>
+              <button onClick={confirmar} disabled={promoviendo} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{promoviendo?"Promoviendo...":"Sí, promover"}</button>
             </div>
           </div>
         ):(
-          <button onClick={()=>setConfirmando(true)} style={{width:"100%",padding:12,borderRadius:12,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""}</button>
+          <button onClick={()=>setConfirmando(true)} style={{width:"100%",padding:12,borderRadius:12,border:"none",background:"#2563EB",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Promover {seleccionados.length} alumno{seleccionados.length!==1?"s":""}</button>
         )
       )}
     </div>
@@ -2339,7 +2339,7 @@ function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado,
   };
   return (
     <div style={{marginBottom:24}}>
-      <div style={{fontSize:15,fontWeight:900}}>Membrete de los comunicados</div>
+      <div style={{fontSize:16,fontWeight:800,color:"#0F172A"}}>Membrete de los comunicados</div>
       <div style={{fontSize:12.5,color:"#64748B",marginTop:2,marginBottom:10}}>Los comunicados que mandes con “Con membrete” se ven con el logo y el nombre de {colegioNombre||"el colegio"} arriba, esta línea debajo y la firma al final.</div>
       <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
         <div style={{flex:"1 1 220px"}}><div style={lbl}>Línea (opcional)</div><input value={form.linea||""} onChange={e=>setForm(p=>({...p,linea:e.target.value}))} placeholder="Ej: Ciclo lectivo 2026" style={inp}/></div>
@@ -2858,24 +2858,23 @@ export function UniformesAdmin({ cursos }) {
 
       {/* Toolbar */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div style={{fontSize:13,color:"#94A3B8"}}>Categorías de uniforme del colegio</div>
+        <div style={{fontSize:13,color:"#64748B"}}>Categorías de uniforme del colegio</div>
         <BotonNuevo label="Nueva categoría" onClick={()=>openModal("newU")}/>
       </div>
 
-      {uniformes.length===0&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Sin categorías creadas aún</div>}
+      {uniformes.length===0&&<EmptyState icono="bolsa" titulo="Todavía no hay categorías de uniforme" nota="Creá una (por ejemplo “Uniforme diario” o “Educación física”) y sumale las prendas." accion="Nueva categoría" onAccion={()=>openModal("newU")}/>}
 
-      {uniformes.map((u,i)=>{
+      {uniformes.map((u)=>{
         const items = u.uniforme_items||[];
         const cursosLinked = links.filter(l=>l.uniforme_id===u.id).map(l=>l.curso_id);
-        const bg = ["#EEF2FF","#F0FDF4","#FFF7ED"][i%3];
-        return (
+                return (
           <Card key={u.id} style={{marginBottom:14,overflow:"hidden"}}>
             {/* Header categoría */}
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:bg,borderBottom:"1px solid #F1F5F9"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#F8FAFC",borderBottom:"1px solid #F1F5F9"}}>
               <div style={{width:34,height:34,borderRadius:10,background:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{u.emoji||"👕"}</div>
               <span style={{fontSize:14,fontWeight:800,flex:1}}>{u.tipo}</span>
               <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>openModal("newItem",u)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontWeight:700}}>+ Ítem</button>
+                <button onClick={()=>openModal("newItem",u)} style={{fontSize:13,padding:"4px 6px",border:"none",background:"none",color:"#2563EB",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>+ Ítem</button>
                 <button onClick={()=>openModal("editU",u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",color:"#64748B"}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                 <button onClick={()=>setConfirmElimU(u)} style={{fontSize:11,padding:"4px 8px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
               </div>
@@ -2890,11 +2889,11 @@ export function UniformesAdmin({ cursos }) {
                 <button onClick={()=>setConfirmElimItem(it)} style={{fontSize:11,padding:"3px 7px",borderRadius:6,border:"none",background:"transparent",cursor:"pointer",color:"#EF4444"}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
               </div>
             ))}
-            {items.length===0&&<div style={{padding:"8px 14px",fontSize:12,color:"#94A3B8"}}>Sin ítems aún.</div>}
+            {items.length===0&&<div style={{padding:"8px 14px",fontSize:12.5,color:"#64748B"}}>Todavía no tiene prendas.</div>}
 
             {/* Cursos asignados */}
             <div style={{padding:"10px 14px",borderTop:"1px solid #F1F5F9",background:"#FAFAFA"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.8,marginBottom:8}}>Cursos que usan esta categoría</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:8}}>Cursos que usan esta categoría</div>
               <CursoListSelector cursos={cursos} seleccionados={cursosLinked} onToggle={id=>toggleCurso(u.id,id)} maxHeight={150}/>
             </div>
           </Card>

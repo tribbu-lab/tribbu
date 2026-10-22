@@ -13,6 +13,9 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useToast } from "../../hooks/useToast";
 import { useCargar } from "../../hooks/useCargar";
 import { Icono } from "../../components/Icono";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
+import { useConfirmar } from "../../hooks/useConfirmar";
 import { contactosPorTribbu } from "../../lib/mensajes";
 
 // Mail del apoderado: intenta abrir el cliente de correo (mailto:) y SIEMPRE
@@ -83,6 +86,7 @@ export function Contacto({ isSuperAdmin=false, colegioId=null, items=[], cursoId
   const [form,       setForm]       = useState({nombre:"",rol:"",telefono:"",email:"",orden:0});
   const [saving,     setSaving]     = useState(false);
   const isMobile = useIsMobile();
+  const [confirmar, confirmUI] = useConfirmar();
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -127,14 +131,16 @@ export function Contacto({ isSuperAdmin=false, colegioId=null, items=[], cursoId
     setSaving(false); setModal(null); cargar();
   };
 
-  const eliminarContacto = async (id) => {
-    await supabase.from("contactos").delete().eq("id",id);
+  const eliminarContacto = async (c) => {
+    if (!(await confirmar({ titulo: `¿Borrar ${c.nombre}?`, detalle: "Deja de aparecer en Contacto para las familias.", textoConfirmar: "Borrar" }))) return;
+    await supabase.from("contactos").delete().eq("id",c.id);
     cargar();
   };
 
   return (
     <div>
-      <div style={{fontSize:26,fontWeight:900,marginBottom:16,letterSpacing:-0.3}}>Contacto</div>
+      {confirmUI}
+      <div style={{fontSize:26,fontWeight:800,marginBottom:16,letterSpacing:-0.3}}>Contacto</div>
       {!esDocente&&onEscribir&&<EscribirPorTribbu items={items} cursoIds={cursoIds} onEscribir={onEscribir}/>}
 
       {/* Info colegio */}
@@ -196,7 +202,7 @@ export function Contacto({ isSuperAdmin=false, colegioId=null, items=[], cursoId
       {/* Contactos */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:14,fontWeight:800}}>Contactos</div>
-        {isSuperAdmin&&<button onClick={()=>{setModal({});setForm({nombre:"",rol:"",telefono:"",email:""});}} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+        {isSuperAdmin&&<BotonNuevo ariaLabel="Nuevo contacto" onClick={()=>{setModal({});setForm({nombre:"",rol:"",telefono:"",email:""});}}/>}
       </div>
       <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignItems:"start"}}>
         {contactos.map(c=>(
@@ -206,18 +212,18 @@ export function Contacto({ isSuperAdmin=false, colegioId=null, items=[], cursoId
               {c.rol&&<div style={{fontSize:11,color:"#94A3B8"}}>{c.rol}</div>}
               <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                 {c.telefono&&<a href={`tel:${c.telefono}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>Tel: {c.telefono}</a>}
-                {c.telefono&&<a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{fontSize:14,textDecoration:"none"}}>💬</a>}
+                {c.telefono&&<a href={`https://wa.me/${c.telefono.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer" title="WhatsApp" style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>WhatsApp</a>}
                 {c.email&&<a href={`mailto:${c.email}`} style={{fontSize:12,color:"#3B82F6",fontWeight:600}}>{c.email}</a>}
               </div>
             </div>
             {isSuperAdmin&&<div style={{display:"flex",gap:6}}>
-              <button onClick={()=>{setModal(c);setForm({nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""});}} style={{padding:"5px 8px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}>Editar</button>
-              <button onClick={()=>eliminarContacto(c.id)} style={{padding:"5px 8px",borderRadius:8,border:"none",background:"#FEF2F2",cursor:"pointer",fontSize:12,color:"#EF4444"}}>Borrar</button>
+              <button onClick={()=>{setModal(c);setForm({nombre:c.nombre||"",rol:c.rol||"",telefono:c.telefono||"",email:c.email||""});}} aria-label="Editar contacto" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+              <button onClick={()=>eliminarContacto(c)} aria-label="Borrar contacto" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
             </div>}
           </Card>
         ))}
       </div>
-      {contactos.length===0&&<div style={{textAlign:"center",padding:24,color:"#94A3B8",fontSize:13}}>Sin contactos cargados</div>}
+      {contactos.length===0&&<EmptyState icono="telefono" titulo="Sin contactos cargados" nota={isSuperAdmin?"Sumá secretaría, preceptoría, enfermería… con su teléfono o mail.":null}/>}
 
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>

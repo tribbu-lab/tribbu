@@ -17,6 +17,7 @@ import { THEMES, SLATE } from "../../lib/tokens";
 import { Spinner } from "../../components/Spinner";
 import { PALETA_MATERIAS, useMaterias, etiquetaClase } from "./clasesDatos";
 import { useConfirmar } from "../../hooks/useConfirmar";
+import { Icono } from "../../components/Icono";
 
 const C = THEMES.light;
 const inp = { padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, outline: "none", fontFamily: "inherit", background: C.surfaceSunken, boxSizing: "border-box", color: C.text };
@@ -182,7 +183,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
       ) : null}
 
       <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
-        Las clases se asignan en 🕐 Horarios o en la ficha de cada maestro. Si hay dos nombres para lo mismo (“Gym” y “Educación Física”), usá <b style={{ color: C.text }}>Unificar</b>.
+        Las clases se asignan en Horarios o en la ficha de cada maestro. Si hay dos nombres para lo mismo (“Gym” y “Educación Física”), usá <b style={{ color: C.text }}>Unificar</b>.
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <input value={nueva} onChange={(e) => setNueva(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") crear(); }} placeholder="Nueva materia (ej: Inglés)" aria-label="Nueva materia" style={{ ...inp, flex: "1 1 220px" }} />
@@ -218,10 +219,10 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
                     {usos[m.id]} {usos[m.id] === 1 ? "clase" : "clases"} {abierta === m.id ? "▴" : "▾"}
                   </button>
                 ) : <span style={{ fontSize: 12, color: C.textFaint, minWidth: 64 }}>sin clases</span>}
-                <button onClick={() => setEditando({ id: m.id, nombre: m.nombre })} style={btnMini}>✏️ Renombrar</button>
+                <button onClick={() => setEditando({ id: m.id, nombre: m.nombre })} style={btnMini}>Renombrar</button>
                 <button onClick={() => { setUnificar(m); setDestino(""); setErrorUnificar(""); }} style={btnMini}>Unificar…</button>
                 <button onClick={() => actualizar(m.id, { activo: !m.activo })} style={btnMini}>{m.activo ? "Ocultar" : "Mostrar"}</button>
-                <button onClick={() => eliminar(m)} style={{ ...btnMini, color: C.danger }} aria-label={`Eliminar ${m.nombre}`} title="Eliminar">🗑</button>
+                <button onClick={() => eliminar(m)} style={{ ...btnMini, color: C.danger }} aria-label={`Eliminar ${m.nombre}`} title="Eliminar"><Icono nombre="papelera" size={15} color={C.danger}/></button>
               </>
             )}
             {abierta === m.id && clasesDe[m.id]?.length ? (
@@ -237,7 +238,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast }) {
                         <span style={{ color: C.textMuted }}> — </span>
                         <span style={{ color: c.maestros ? C.text : C.textFaint }}>{c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}</span>
                       </span>
-                      <button onClick={() => quitarClase(m, c)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${m.nombre} de ${c.cursos?.nombre || "este curso"}`} title="Quitar esta clase">🗑</button>
+                      <button onClick={() => quitarClase(m, c)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${m.nombre} de ${c.cursos?.nombre || "este curso"}`} title="Quitar esta clase"><Icono nombre="papelera" size={15} color={C.danger}/></button>
                     </div>
                   );
                 })}
@@ -302,7 +303,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio,
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
       {confirmUI}
-      <div style={{ fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Clases de {curso.nombre}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textMuted, marginBottom: 8 }}>Clases de {curso.nombre}</div>
       {!clases.length ? <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 10 }}>Este curso todavía no tiene clases. Agregá las materias que se dan y quién las da.</div> : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
         {clases.map((c) => (
@@ -317,7 +318,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio,
               <option value="">Sin maestra</option>
               {maestros.map((m) => <option key={m.id} value={m.id}>{fmtNombre(m)}</option>)}
             </select>
-            <button onClick={() => quitar(c, c._usos || 0)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${c.materias?.nombre}`}>🗑</button>
+            <button onClick={() => quitar(c, c._usos || 0)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${c.materias?.nombre}`}><Icono nombre="papelera" size={15} color={C.danger}/></button>
           </div>
         ))}
       </div>

@@ -530,7 +530,7 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null, nivel
       setStage("error");
       return;
     }
-    setMsg(`✅ ${aCargar.length} día${aCargar.length !== 1 ? "s" : ""} actualizado${aCargar.length !== 1 ? "s" : ""}`);
+    setMsg(`${aCargar.length} día${aCargar.length !== 1 ? "s" : ""} actualizado${aCargar.length !== 1 ? "s" : ""}`);
     setStage("idle");
     setPreview([]);
     onDone?.();

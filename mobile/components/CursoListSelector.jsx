@@ -39,19 +39,19 @@ export function CursoListSelector({ cursos, seleccionados, onToggle, multi = tru
           <Pressable
             key={c.id}
             onPress={() => onToggle(c.id)}
-            style={[cursoSelectorStyles.row, i > 0 && cursoSelectorStyles.rowBorder, sel && { backgroundColor: color + "1A" }]}
+            style={[cursoSelectorStyles.row, i > 0 && cursoSelectorStyles.rowBorder, sel && { backgroundColor: "#F8FAFC" }]}
           >
             {multi ? (
-              <View style={[cursoSelectorStyles.checkbox, sel && { borderColor: color, backgroundColor: color }]}>
+              <View style={[cursoSelectorStyles.checkbox, sel && { borderColor: "#2563EB", backgroundColor: "#2563EB" }]}>
                 {sel ? <Text style={cursoSelectorStyles.checkboxTick}>✓</Text> : null}
               </View>
             ) : (
               <View style={[cursoSelectorStyles.dot, { backgroundColor: color }]} />
             )}
-            <Text style={[cursoSelectorStyles.rowTxt, sel && { fontWeight: "700", color: multi ? T.text : color }]}>
-              {c.avatar} {c.nombre}
+            <Text style={[cursoSelectorStyles.rowTxt, sel && { fontWeight: "700", color: T.text }]}>
+              {c.nombre}
             </Text>
-            {!multi && sel ? <Text style={[cursoSelectorStyles.check, { color: color }]}>✓</Text> : null}
+            {!multi && sel ? <Text style={[cursoSelectorStyles.check, { color: "#2563EB" }]}>✓</Text> : null}
           </Pressable>
         );
       })}

@@ -44,6 +44,7 @@ import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
 import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
 import { CambiarPasswordModal } from "../auth";
@@ -803,10 +804,8 @@ export function SuperAdmin() {
             const admins = usuarios.filter((u) => u.rol === "room" && u.cursos.includes(c.id));
             const padres = usuarios.filter((u) => u.rol === "padre" && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
             return (
-              <View key={c.id} style={[styles.itemCard, { borderLeftWidth: 4, borderLeftColor: c.color }]}>
-                <View style={[styles.cursoAvatar, { backgroundColor: c.color + "22" }]}>
-                  <Text style={styles.cursoAvatarTxt}>{c.avatar}</Text>
-                </View>
+              <View key={c.id} style={styles.itemCard}>
+                <View style={[styles.cursoPunto, { backgroundColor: c.color || "#94A3B8" }]} />
                 <View style={styles.flex1}>
                   <Text style={styles.itemNombre}>{c.nombre}</Text>
                   <Text style={styles.itemMeta}>
@@ -1540,8 +1539,9 @@ function ColegioAdmin({ colegioId }) {
         ))}
       </View>
 
-      <Pressable onPress={abrir} style={[styles.dashedBtn, { borderColor: T.accent, backgroundColor: "#EFF6FF", marginTop: 14 }]}>
-        <Text style={[styles.dashedTxt, { color: T.accent }]}>Editar datos del colegio</Text>
+      <Pressable onPress={abrir} style={styles.enlaceBtn} accessibilityRole="button">
+        <MaterialCommunityIcons name="pencil-outline" size={18} color="#2563EB" />
+        <Text style={styles.enlaceTxt}>Editar datos del colegio</Text>
       </Pressable>
 
       {modal ? (
@@ -2207,11 +2207,9 @@ function UniformesAdmin({ cursos, colegioId }) {
     <View>
       <View style={styles.horHeaderSuper}>
         <Text style={styles.subtitle}>Categorías de uniforme del colegio</Text>
-        <Pressable onPress={() => openModal("newU")} style={styles.addBtn}>
-          <Text style={styles.addTxt}>+ Categoría</Text>
-        </Pressable>
+        <BotonNuevo label="Nueva categoría" onPress={() => openModal("newU")} />
       </View>
-      {uniformes.length === 0 ? <Text style={styles.muted}>Sin categorías creadas aún</Text> : null}
+      {uniformes.length === 0 ? <EmptyState icon="tshirt-crew-outline" title="Todavía no hay categorías de uniforme" note="Creá una (por ejemplo “Uniforme diario” o “Educación física”) y sumale las prendas." /> : null}
       {uniformes.map((u) => {
         const items = (u.uniforme_items || []).slice().sort((a, b) => a.item.localeCompare(b.item, "es"));
         const linked = links.filter((l) => l.uniforme_id === u.id).map((l) => l.curso_id);
@@ -2227,13 +2225,15 @@ function UniformesAdmin({ cursos, colegioId }) {
                 <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
               </Pressable>
               <Pressable
-                onPress={async () => {
-                  await supabase.from("uniformes").delete().eq("id", u.id);
-                  cargar();
-                }}
+                onPress={() =>
+                  Alert.alert(`¿Borrar ${u.tipo}?`, "No se puede deshacer.", [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "Borrar", style: "destructive", onPress: async () => { await supabase.from("uniformes").delete().eq("id", u.id); cargar(); } },
+                  ])}
                 style={styles.iconBtn}
+                accessibilityLabel="Borrar categoría"
               >
-                <Text>🗑</Text>
+                <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
               </Pressable>
             </View>
             {items.length === 0 ? <Text style={styles.uniSinItems}>Sin ítems aún.</Text> : null}
@@ -2245,13 +2245,15 @@ function UniformesAdmin({ cursos, colegioId }) {
                   <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                 </Pressable>
                 <Pressable
-                  onPress={async () => {
-                    await supabase.from("uniforme_items").delete().eq("id", it.id);
-                    cargar();
-                  }}
+                  onPress={() =>
+                  Alert.alert(`¿Borrar ${it.item}?`, "No se puede deshacer.", [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "Borrar", style: "destructive", onPress: async () => { await supabase.from("uniforme_items").delete().eq("id", it.id); cargar(); } },
+                  ])}
                   style={styles.iconBtn}
+                  accessibilityLabel="Borrar prenda"
                 >
-                  <Text>🗑</Text>
+                  <MaterialCommunityIcons name="trash-can-outline" size={19} color="#DC2626" />
                 </Pressable>
               </View>
             ))}
@@ -2459,6 +2461,8 @@ const styles = StyleSheet.create({
   filaTxt: { flex: 1, fontSize: 15, fontWeight: "600", color: "#0F172A" },
   globito: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 999, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
   globitoTxt: { color: "white", fontSize: 11, fontWeight: "700" },
+  enlaceBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 10, marginTop: 6 },
+  enlaceTxt: { color: "#2563EB", fontSize: 14.5, fontWeight: "700" },
   filaNuevo: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 12 },
   cuentaCard: { backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", padding: 16, marginBottom: 14, gap: 2 },
   statBorde: { borderLeftWidth: 1, borderLeftColor: "#F1F5F9" },
@@ -2492,8 +2496,7 @@ const styles = StyleSheet.create({
   itemBtns: { flexDirection: "row", gap: 4 },
   iconBtn: { padding: 6, minWidth: 32, minHeight: 32, alignItems: "center", justifyContent: "center" },
 
-  cursoAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cursoAvatarTxt: { fontSize: 22 },
+  cursoPunto: { width: 10, height: 10, borderRadius: 999 },
 
   // Modales
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 16 },
@@ -2551,8 +2554,8 @@ const styles = StyleSheet.create({
   uniCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, marginBottom: 12 },
   uniHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   uniEmoji: { fontSize: 20 },
-  uniMini: { backgroundColor: T.accent, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
-  uniMiniTxt: { color: "white", fontSize: 11, fontWeight: "700" },
+  uniMini: { paddingVertical: 4, paddingHorizontal: 6 },
+  uniMiniTxt: { color: "#2563EB", fontSize: 14, fontWeight: "700" },
   uniSinItems: { fontSize: 12, color: "#94A3B8", marginBottom: 6 },
   uniItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   uniDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#CBD5E1" },

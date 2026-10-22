@@ -28,7 +28,7 @@ const DUR_DEFAULT = 40;
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, outline: "none", fontFamily: "inherit", background: C.surfaceSunken, boxSizing: "border-box", color: C.text };
 const btnPri = { padding: "9px 16px", borderRadius: 10, border: "none", background: C.accent, color: "white", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" };
 const btnSec = { padding: "8px 13px", borderRadius: 10, border: `1px solid ${C.borderStrong}`, background: C.surface, cursor: "pointer", fontSize: 12.5, color: SLATE[700], fontWeight: 700, whiteSpace: "nowrap" };
-const lbl = { fontSize: 11, fontWeight: 800, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 };
+const lbl = { fontSize: 12.5, fontWeight: 600, color: C.textMuted, marginBottom: 6 };
 const sinAcentos = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 async function aplicarPlan({ actualizar = [], insertar = [], borrar = [] }) {
@@ -199,7 +199,7 @@ function BloqueModal({ curso, inicial, alcance, horarios, clases, conSabado, onC
 
       {choques.length ? (
         <div style={{ marginTop: 14, fontSize: 12.5, color: "#92400E", background: C.warningSoft, border: `1px solid ${C.warningBorder}`, borderRadius: 10, padding: "8px 12px", lineHeight: 1.45 }}>
-          ⚠️ Se superpone con {choques.slice(0, 3).map((h) => `${h.materia} (${DIA_CORTO[normalizarDia(h.dia)]} ${hhmm(h.hora_inicio)}–${hhmm(h.hora_fin)})`).join(", ")}{choques.length > 3 ? ` y ${choques.length - 3} más` : ""}. Si es un taller optativo puede estar bien.
+          Se superpone con {choques.slice(0, 3).map((h) => `${h.materia} (${DIA_CORTO[normalizarDia(h.dia)]} ${hhmm(h.hora_inicio)}–${hhmm(h.hora_fin)})`).join(", ")}{choques.length > 3 ? ` y ${choques.length - 3} más` : ""}. Si es un taller optativo puede estar bien.
         </div>
       ) : null}
       {error ? <div role="alert" style={{ marginTop: 12, fontSize: 13, color: C.danger, fontWeight: 600 }}>{error}</div> : null}
