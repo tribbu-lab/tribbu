@@ -49,3 +49,18 @@ export const getUserIdsByCurso = async (cursoId) => {
   if (error) { console.error("usuarios_de_curso:", error.message); return []; }
   return [...new Set((data || []).map((r) => (typeof r === "string" ? r : r.usuarios_de_curso)))];
 };
+
+/**
+ * Destinatarios de una alerta: las familias del curso y también sus maestras
+ * (las alertas son para todos; los avisos a familias no). RPC
+ * docentes_de_curso (supabase/alertas-a-docentes.sql).
+ */
+export const getUserIdsParaAlerta = async (cursoId) => {
+  const [familias, { data, error }] = await Promise.all([
+    getUserIdsByCurso(cursoId),
+    supabase.rpc("docentes_de_curso", { p_curso: cursoId }),
+  ]);
+  if (error) console.error("docentes_de_curso:", error.message);
+  const docentes = (data || []).map((r) => (typeof r === "string" ? r : r.docentes_de_curso));
+  return [...new Set([...familias, ...docentes])];
+};

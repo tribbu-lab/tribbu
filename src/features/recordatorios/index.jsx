@@ -20,7 +20,7 @@ import { SignedImg } from "../../components/SignedImg";
 import { separarAvisos, haceCuanto, fechaCortaAviso, fechaDelAviso, origenAviso, fotoDelAviso } from "../../lib/avisosLista";
 
 
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, conPropiosLeidos } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
@@ -174,7 +174,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
   const enviarAlerta = async (msg) => {
     await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
     await supabase.from("alertas").insert({curso_id:cursoId,mensaje:msg,hora:"Ahora",activa:true});
-    const userIds = await getUserIdsByCurso(cursoId);
+    const userIds = await getUserIdsParaAlerta(cursoId);
     await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
     cargar();
   };

@@ -168,7 +168,8 @@ export function Marketplace() {
           nInteresados={datos.interesadosDe[abierto.id] || 0}
           tag={tagDeCurso(abierto.curso_id)}
           onClose={() => setAbierto(null)}
-          onEscribir={() => { const a = abierto; setAbierto(null); escribir({ id: a.id, borrador: borradorInteres(a) }); }}
+          // La primera vez (todavía no le interesaba) se le avisa a quien publicó con un push.
+          onEscribir={() => { const a = abierto; setAbierto(null); escribir({ id: a.id, borrador: borradorInteres(a), avisar: datos.misInteres.has(a.id) ? null : a.titulo }); }}
           onVerInteresados={() => { const a = abierto; setAbierto(null); verInteresados(a); }}
           onVendido={() => { const a = abierto; setAbierto(null); abrirVendido(a); }}
           onEditar={() => { const a = abierto; setAbierto(null); setEditor({ articulo: a }); }}

@@ -389,7 +389,8 @@ function Tablero({ cursoIds, cursosPublicar, soloMirar = false, userId, tagDeCur
 
   // "Me interesa" / "Escribir": el chat lo abre Mensajes (RPC
   // abrir_conversacion_articulo, que además la anota como interesada).
-  const escribirAlVendedor = (a) => { setAbierto(null); onEscribir?.({ id: a.id, borrador: borradorInteres(a) }); };
+  // La primera vez (todavía no le interesaba) se le avisa a quien publicó con un push.
+  const escribirAlVendedor = (a) => { setAbierto(null); onEscribir?.({ id: a.id, borrador: borradorInteres(a), avisar: datos.misInteres.has(a.id) ? null : a.titulo }); };
   const escribirAInteresado = (a, c) => { setInteresados(null); setAbierto(null); onEscribir?.({ id: a.id, usuarioId: c.usuario_id, borrador: borradorVendedor(a) }); };
   const verInteresados = async (a) => {
     setInteresados({ articulo: a, lista: null });

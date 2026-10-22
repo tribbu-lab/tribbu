@@ -32,7 +32,7 @@ import { EmojiPicker } from "../shared";
 import { useToast } from "../../hooks/useToast";
 import { authAdminCreate, authAdminUpdate, authAdminFind, mensajeErrorAuth } from "../../lib/authAdmin";
 
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { Comedor } from "../comedor";
 import { Contacto, ApoderadosModal } from "../contacto";
 import { CambiarPasswordModal } from "../auth";
@@ -84,7 +84,7 @@ const SECCIONES = [
 
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve. Ver
 // specs/roles-por-nivel.md → Permisos.
-const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion","materias","uniformes","marketplace","talleres","perdidos","denuncias","colegio","menu"]);
+const SOLO_ADMIN_COLEGIO = new Set(["directivos","maestros","cursos","promocion","materias","uniformes","marketplace","perdidos","denuncias","colegio","menu"]);
 
 // Solo para rol "super" (plataforma) — antepuesto a SECCIONES, nunca visible
 // para colegio_admin. Ver specs/multi-colegio.md.
@@ -2219,7 +2219,7 @@ export function AlertasAdmin({ cursos }) {
     setLoading(true);
     await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoSel.id);
     await supabase.from("alertas").insert({curso_id:cursoSel.id,mensaje:msg,hora:"Ahora",activa:true});
-    const userIds = await getUserIdsByCurso(cursoSel.id);
+    const userIds = await getUserIdsParaAlerta(cursoSel.id);
     await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
     setLoading(false); setModal(false); cargar(cursoSel.id);
     setCursosConAlerta(p=>new Set([...p, cursoSel.id]));

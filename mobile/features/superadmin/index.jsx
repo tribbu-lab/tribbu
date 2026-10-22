@@ -12,7 +12,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
 import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite, colorColegio } from "@shared/helpers";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG } from "@shared/theme";
@@ -39,6 +39,7 @@ import { unirLecturasPorFamilia } from "@shared/lecturas";
 import { textoSecretaria, textoNiveles, nivelesDeCursos, nombreNivel, nivelesParaGuardar, ordenarNiveles } from "@shared/niveles";
 import { textoPlano } from "@shared/formato";
 import { EditorFormato } from "../../components/EditorFormato";
+import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 
 // Agrupados por categoría — misma agrupación que la web (src/features/superadmin),
 // para que el mismo mental model funcione en las dos plataformas. "Colegio" y
@@ -48,6 +49,7 @@ const SECCIONES = [
     { id: "usuarios", l: "👤 Apoderados" },
     { id: "maestros", l: "👨‍🏫 Maestros" },
     { id: "alumnos", l: "🎒 Alumnos" },
+    { id: "directivos", l: "🧭 Directivos" },
   ]},
   { grupo: "Cursos", items: [
     { id: "cursos", l: "🏫 Cursos" },
@@ -76,7 +78,7 @@ const SECCIONES = [
 ];
 const TODAS_SECCIONES = SECCIONES.flatMap((g) => g.items);
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve (mismo criterio que la web).
-const SOLO_ADMIN_COLEGIO = new Set(["maestros", "cursos", "materias", "uniformes", "talleres", "denuncias", "colegio", "menu"]);
+const SOLO_ADMIN_COLEGIO = new Set(["directivos", "maestros", "cursos", "materias", "uniformes", "denuncias", "colegio", "menu"]);
 const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6"];
 
 // Selector de curso(s) en lista, no chips — con muchos cursos, los chips que
@@ -403,7 +405,7 @@ export function SuperAdmin() {
   const guardarCurso = async () => {
     if (!form.nombre) return;
     if (modal === "editar_curso") {
-      const { error } = await supabase.from("cursos").update({ nombre: form.nombre, avatar: form.avatar, color: form.color }).eq("id", form.id);
+      const { error } = await supabase.from("cursos").update({ nombre: form.nombre, avatar: form.avatar, color: form.color, nivel: form.nivel || null }).eq("id", form.id);
       if (error) { Alert.alert("Error al guardar el curso", error.message); return; }
     } else {
       // cursos.colegio_id y cursos.año_lectivo son NOT NULL — sin esto el
@@ -415,6 +417,8 @@ export function SuperAdmin() {
         color: form.color || "#3B82F6",
         colegio_id: activeColegioId,
         año_lectivo: new Date().getFullYear(),
+        // Con un solo nivel, el curso nuevo lo toma solo (roles-por-nivel).
+        nivel: form.nivel || (colegioNiveles.length === 1 ? colegioNiveles[0] : null),
       });
       if (error) { Alert.alert("Error al guardar el curso", error.message); return; }
     }
@@ -926,6 +930,8 @@ export function SuperAdmin() {
       ) : null}
 
       {sec === "colegio" ? <ColegioAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
+      {sec === "colegio" ? <MembreteAdmin key={`m-${activeColegioId}`} colegioId={activeColegioId} /> : null}
+      {sec === "directivos" ? <DirectivosAdmin key={activeColegioId} colegioId={activeColegioId} usuarios={usuarios} onCambio={cargar} /> : null}
       {sec === "materias" ? <MateriasAdmin key={activeColegioId} colegioId={activeColegioId} /> : null}
       {sec === "horarios" ? <HorariosAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
@@ -1010,7 +1016,7 @@ export function SuperAdmin() {
         />
       ) : null}
       {modal === "nuevo_curso" || modal === "editar_curso" ? (
-        <CursoModal esNuevo={modal === "nuevo_curso"} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={guardarCurso} />
+        <CursoModal esNuevo={modal === "nuevo_curso"} niveles={colegioNiveles} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={guardarCurso} />
       ) : null}
       {modal === "nuevo_maestro" || modal === "editar_maestro" ? (
         <MaestroModal esNuevo={modal === "nuevo_maestro"} form={form} setForm={setForm} cursos={cursosVigentes} colegioId={activeColegioId} onClose={() => setModal(null)} onSave={guardarMaestro} />
@@ -1205,7 +1211,7 @@ function UsuarioModal({ esNuevo, form, setForm, cursos, hijos, ocultarAccesoEspe
   );
 }
 
-function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
+function CursoModal({ esNuevo, niveles = [], form, setForm, onClose, onSave }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
@@ -1222,6 +1228,21 @@ function CursoModal({ esNuevo, form, setForm, onClose, onSave }) {
                 <Pressable key={c} onPress={() => setForm((p) => ({ ...p, color: c }))} style={[styles.colorDot, { backgroundColor: c }, form.color === c && styles.colorDotOn]} />
               ))}
             </View>
+            {niveles.length > 1 ? (
+              <>
+                <Text style={styles.label}>NIVEL</Text>
+                <View style={styles.chipsWrap}>
+                  {[...niveles.map((k) => ({ k, l: nombreNivel(k) })), { k: null, l: "Sin nivel" }].map((n) => {
+                    const on = (form.nivel || null) === n.k;
+                    return (
+                      <Pressable key={n.k || "ninguno"} onPress={() => setForm((p) => ({ ...p, nivel: n.k }))} style={[cursoSelectorStyles.nivelChip, on && cursoSelectorStyles.nivelChipOn]}>
+                        <Text style={[cursoSelectorStyles.nivelTxt, on && cursoSelectorStyles.nivelTxtOn]}>{n.l}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
             <View style={styles.modalBtns}>
               <Pressable onPress={onClose} style={styles.cancelBtn}>
                 <Text style={styles.cancelTxt}>Cancelar</Text>
@@ -1615,7 +1636,7 @@ function AlertasAdmin({ cursos }) {
     setLoading(true);
     await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoSel.id);
     await supabase.from("alertas").insert({ curso_id: cursoSel.id, mensaje: msg.trim(), hora: "Ahora", activa: true });
-    const userIds = await getUserIdsByCurso(cursoSel.id);
+    const userIds = await getUserIdsParaAlerta(cursoSel.id);
     await sendPush({ type: "alerta", payload: { mensaje: msg.trim(), userIds } });
     setLoading(false);
     setModal(false);

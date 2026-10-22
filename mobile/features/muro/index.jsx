@@ -31,7 +31,7 @@ import { useRouter } from "expo-router";
 import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { talleresParaAnotarse, claveTalleresVistos, leerTalleresVistos, marcarTallerVisto } from "@shared/talleres";
@@ -286,7 +286,7 @@ export function Muro() {
   const enviarAlerta = async (msg) => {
     await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
     await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: msg, hora: "Ahora", activa: true });
-    const userIds = await getUserIdsByCurso(cursoId);
+    const userIds = await getUserIdsParaAlerta(cursoId);
     await sendPush({ type: "alerta", payload: { mensaje: msg, userIds } });
     setAlertaModal(false);
     cargar();

@@ -13,7 +13,7 @@ import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 
 
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
 import { HorarioCurso } from "../superadmin/horarios";
 
@@ -109,7 +109,7 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   const enviarAlerta = async (msg) => {
     await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
     await supabase.from("alertas").insert({curso_id:cursoId, mensaje:msg, hora:"Ahora", activa:true});
-    const userIds = await getUserIdsByCurso(cursoId);
+    const userIds = await getUserIdsParaAlerta(cursoId);
     await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
     setAlertaModal(false);
   };

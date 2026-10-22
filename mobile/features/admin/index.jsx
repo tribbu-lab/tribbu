@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
-import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
 import { THEMES, BLUE, SLATE, RADIUS } from "@shared/tokens";
@@ -126,7 +126,7 @@ export function AdminPanel() {
     setAlertaEnviando(true);
     await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
     await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: alertaMsg.trim(), hora: "Ahora", activa: true });
-    const userIds = await getUserIdsByCurso(cursoId);
+    const userIds = await getUserIdsParaAlerta(cursoId);
     await sendPush({ type: "alerta", payload: { mensaje: alertaMsg.trim(), userIds } });
     setAlertaEnviando(false);
     setAlertaSheet(false);

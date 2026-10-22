@@ -23,6 +23,7 @@ import { Spinner } from "../../components/Spinner";
 import { useCargar } from "../../hooks/useCargar";
 import { EVENTO_MENSAJE, EVENTO_RESYNC } from "../../hooks/useMensajesNoLeidos";
 import { useConfirmar } from "../../hooks/useConfirmar";
+import { sendPush } from "../../lib/push";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
@@ -1183,10 +1184,12 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
 
   // Marketplace: 1 a 1 por un artículo, aunque no compartan curso. El primer
   // mensaje queda escrito (borrador) para mandarlo o cambiarlo.
-  const abrirArticulo = useCallback(async ({ id: articulo, usuarioId, borrador }) => {
+  const abrirArticulo = useCallback(async ({ id: articulo, usuarioId, borrador, avisar }) => {
     const { data, error: e } = await supabase.rpc("abrir_conversacion_articulo", { p_articulo: articulo, p_usuario: usuarioId || null });
     const fila = data?.[0];
     if (e || !fila) { setError(e?.message || "No se pudo abrir el chat."); return false; }
+    // "Me interesa" por primera vez: aviso a quien publicó (abre su publicación en el Marketplace).
+    if (avisar && !usuarioId) sendPush({ type: "marketplace", payload: { titulo: `Alguien está interesado en: ${avisar}`, userIds: [fila.otro_id] } });
     const existente = (convs || []).find((c) => c.id === fila.conversacion_id);
     setActiva({ ...(existente || { id: fila.conversacion_id, tipo: "directo", otro_id: fila.otro_id, titulo: fila.nombre, subtitulo: "Marketplace" }), borrador });
     return true;

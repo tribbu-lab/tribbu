@@ -37,6 +37,7 @@ import { Buscador } from "../../components/Buscador";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
+import { sendPush } from "../../lib/push";
 
 const t = THEMES.light;
 const SOPORTE_VACIO = { id: null, tipo: "soporte", titulo: "Soporte tribbu", ultimo_en: null, no_leidos: 0 };
@@ -1124,10 +1125,12 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
     { tipo: "docente", titulo: `Familia de ${a.nombre} ${a.apellido || ""}`.trim(), subtitulo: a.curso_nombre });
   // Marketplace: 1 a 1 por un artículo, aunque no compartan curso. El primer
   // mensaje queda escrito (borrador) para mandarlo o cambiarlo.
-  const onArticulo = async ({ id: articulo, usuarioId, borrador }) => {
+  const onArticulo = async ({ id: articulo, usuarioId, borrador, avisar }) => {
     const { data, error } = await supabase.rpc("abrir_conversacion_articulo", { p_articulo: articulo, p_usuario: usuarioId || null });
     const fila = data?.[0];
     if (error || !fila) { Alert.alert("No se pudo abrir el chat", error?.message || "Probá de nuevo."); return; }
+    // "Me interesa" por primera vez: aviso a quien publicó (abre su publicación en el Marketplace).
+    if (avisar && !usuarioId) sendPush({ type: "marketplace", payload: { titulo: `Alguien está interesado en: ${avisar}`, userIds: [fila.otro_id] } });
     const existente = (convs || []).find((c) => c.id === fila.conversacion_id);
     setActiva({ ...(existente || { id: fila.conversacion_id, tipo: "directo", otro_id: fila.otro_id, titulo: fila.nombre, subtitulo: "Marketplace" }), borrador });
   };
