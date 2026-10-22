@@ -127,7 +127,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   const kpis = [
     { n: cursos.length, l: "Cursos" },
     { n: hijosAno.length, l: "Alumnos" },
-    { n: familias, l: "Familias" },
+    // Cuentas de apoderados (en una familia pueden ser dos), no familias.
+    { n: familias, l: "Apoderados" },
     { n: maestros.filter((m) => m.activo !== false).length, l: "Docentes" },
     { n: pctApp == null ? "—" : `${pctApp}%`, l: "Usan la app", sub: d?.adopcion.familias ? `${d.adopcion.conApp} de ${d.adopcion.familias}` : null },
   ];

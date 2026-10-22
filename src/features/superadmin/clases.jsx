@@ -19,6 +19,9 @@ import { Spinner } from "../../components/Spinner";
 import { PALETA_MATERIAS, useMaterias, etiquetaClase } from "./clasesDatos";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { Icono } from "../../components/Icono";
+import { Buscador } from "../../components/Buscador";
+import { BotonNuevo } from "../../components/BotonNuevo";
+import { EmptyState } from "../../components/EmptyState";
 
 const C = THEMES.light;
 const inp = { padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, outline: "none", fontFamily: "inherit", background: C.surfaceSunken, boxSizing: "border-box", color: C.text };
@@ -52,24 +55,25 @@ function PuntoColor({ color, onChange, label }) {
 
 // niveles: los del colegio (con más de uno, cada materia lleva nivel o "Todos").
 // nivelesPropios: los de la Secretaría/Dirección por nivel (edita solo esas); null = administrador.
+// Lista sobria (2026-10-22): nombre + "nivel · N clases" en gris y un solo
+// "Editar" por fila; todo lo demás (nombre, nivel, color, clases, unificar,
+// ocultar, eliminar) va adentro de Editar.
 export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles = [], nivelesPropios = null }) {
   const { materias, recargar } = useMaterias(colegioId);
   const conNiveles = (niveles || []).length > 1;
   const nivelesElegibles = NIVELES.filter((n) => (niveles || []).includes(n.k) && (!nivelesPropios || nivelesPropios.includes(n.k)));
-  const [nivelNueva, setNivelNueva] = useState(nivelesPropios?.[0] || "");
-  const [filtroNivel, setFiltroNivel] = useState("");
   const puede = (m) => puedeEditarMateria(m, nivelesPropios);
   const [usos, setUsos] = useState({}); // materia_id → nº de clases
   const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
-  const [abierta, setAbierta] = useState(null); // materia con la lista de clases desplegada
-  const [nueva, setNueva] = useState("");
-  const [editando, setEditando] = useState(null); // {id, nombre}
+  const [editor, setEditor] = useState(null); // { id|null, nombre, nivel, color, activo }
+  const [guardando, setGuardando] = useState(false);
   const [unificar, setUnificar] = useState(null); // materia origen
   const [destino, setDestino] = useState("");
   const [unificando, setUnificando] = useState(false);
   const [errorUnificar, setErrorUnificar] = useState("");
   const [verOcultas, setVerOcultas] = useState(false);
   const [q, setQ] = useState("");
+  const [filtroNivel, setFiltroNivel] = useState("");
   const [confirmar, confirmUI] = useConfirmar();
   const toast = (m, t) => (showToast ? showToast(m, t) : window.alert(m));
 
@@ -78,8 +82,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
     cargarClases();
   }, [materias]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Las clases de cada materia con su curso y maestra, para poder ver
-  // quién la da (antes solo se mostraba "2 clases").
+  // Las clases de cada materia con su curso y maestra (se ven adentro de Editar).
   async function cargarClases() {
     if (!materias?.length) return;
     const { data } = await supabase.from("clases")
@@ -107,31 +110,29 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
   };
 
   const duplicada = (nombre, exceptoId, nivel) => (materias || []).some((m) => m.id !== exceptoId && (m.nivel || "") === (nivel || "") && sinAcentos(m.nombre) === sinAcentos(nombre));
+  const abrirNueva = () => setEditor({ id: null, nombre: "", nivel: nivelesPropios?.[0] || null, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], activo: true });
+  const abrir = (m) => setEditor({ id: m.id, nombre: m.nombre, nivel: m.nivel || null, color: m.color, activo: m.activo });
 
-  const crear = async () => {
-    const nombre = sanitize(nueva).trim();
+  const guardarEditor = async () => {
+    const nombre = sanitize(editor.nombre).trim();
     if (!nombre) return;
-    const nivel = conNiveles ? (nivelNueva || null) : null;
-    if (duplicada(nombre, null, nivel)) { toast("Esa materia ya existe en ese nivel", "error"); return; }
-    const color = PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length];
-    const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre, color, orden: (materias?.length || 0) + 1, nivel });
-    if (error) { toast(`No se pudo crear: ${error.message}`, "error"); return; }
-    setNueva(""); recargar();
+    const nivel = conNiveles ? editor.nivel || null : null;
+    if (duplicada(nombre, editor.id, nivel)) { toast(editor.id ? "Ya hay otra materia con ese nombre en ese nivel. Usá “Unificar” si son la misma." : "Esa materia ya existe en ese nivel", "error"); return; }
+    setGuardando(true);
+    const datos = { nombre, nivel, color: editor.color };
+    const { error } = editor.id
+      ? await supabase.from("materias").update(datos).eq("id", editor.id)
+      : await supabase.from("materias").insert({ ...datos, colegio_id: colegioId, orden: (materias?.length || 0) + 1 });
+    setGuardando(false);
+    if (error) { toast(`No se pudo guardar: ${error.message}`, "error"); return; }
+    setEditor(null); recargar();
   };
-  const actualizar = async (id, cambios) => {
-    const { error } = await supabase.from("materias").update(cambios).eq("id", id);
-    if (error) { toast(`No se pudo guardar: ${error.message}`, "error"); return false; }
-    recargar(); return true;
+  const cambiarVisible = async (m) => {
+    const { error } = await supabase.from("materias").update({ activo: !m.activo }).eq("id", m.id);
+    if (error) { toast(`No se pudo guardar: ${error.message}`, "error"); return; }
+    setEditor(null); recargar();
   };
-  const guardarNombre = async () => {
-    const nombre = sanitize(editando.nombre).trim();
-    if (!nombre) return;
-    if (duplicada(nombre, editando.id, (materias || []).find((m) => m.id === editando.id)?.nivel)) { toast("Ya hay otra materia con ese nombre. Usá “Unificar” si son la misma.", "error"); return; }
-    if (await actualizar(editando.id, { nombre })) setEditando(null);
-  };
-  // El modal de Unificar ya es la confirmación (explica qué pasa antes del
-  // botón). Antes pedía además window.confirm, que en algunos navegadores
-  // embebidos devuelve false sin mostrarse: "Unificar no hacía nada".
+  // El modal de Unificar ya es la confirmación (explica qué pasa antes del botón).
   const confirmarUnificar = async () => {
     const d = materias.find((m) => m.id === destino);
     if (!d) return;
@@ -139,7 +140,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
     const { error } = await supabase.rpc("fusionar_materias", { p_origen: unificar.id, p_destino: d.id });
     setUnificando(false);
     if (error) { setErrorUnificar(`No se pudo unificar: ${error.message}`); return; }
-    toast(`✓ “${unificar.nombre}” ahora es “${d.nombre}”`, "success");
+    toast(`“${unificar.nombre}” ahora es “${d.nombre}”`, "success");
     setUnificar(null); setDestino(""); recargar();
   };
   const eliminar = async (m) => {
@@ -155,7 +156,7 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
     const { error } = await supabase.from("materias").delete().eq("id", m.id);
     if (error) { toast(`No se pudo eliminar: ${error.message}`, "error"); return; }
     toast(`Materia “${m.nombre}” eliminada`, "success");
-    recargar();
+    setEditor(null); recargar();
   };
 
   if (!colegioId) return <div style={{ color: C.textMuted, fontSize: 13 }}>Elegí un colegio primero.</div>;
@@ -165,123 +166,134 @@ export function MateriasAdmin({ colegioId, anoActual = null, showToast, niveles 
     && (!filtroNivel || (filtroNivel === "todos" ? !m.nivel : m.nivel === filtroNivel)));
   const ocultas = materias.filter((m) => !m.activo).length;
   const dest = materias.find((m) => m.id === destino);
+  const actual = editor?.id ? materias.find((m) => m.id === editor.id) : null;
+  const textoNivel = (m) => (m.nivel ? nombreNivel(m.nivel) : "Todos los niveles");
+  const lblEd = { fontSize: 12.5, fontWeight: 600, color: C.textMuted, margin: "14px 0 6px" };
+  const btnSecEd = { padding: "9px 14px", borderRadius: 10, border: `1px solid ${C.borderStrong}`, background: C.surface, cursor: "pointer", fontSize: 13, fontWeight: 700, color: SLATE[700], fontFamily: "inherit" };
 
   return (
     <div style={{ maxWidth: 720 }}>
       {confirmUI}
+
+      {/* Editar / nueva materia */}
+      {editor ? (
+        <div style={{ position: "fixed", inset: 0, background: C.overlay, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !guardando && setEditor(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label={editor.id ? "Editar materia" : "Nueva materia"} style={{ background: C.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.textStrong }}>{editor.id ? "Editar materia" : "Nueva materia"}</div>
+            <div style={lblEd}>Nombre</div>
+            <input autoFocus value={editor.nombre} onChange={(e) => setEditor({ ...editor, nombre: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") guardarEditor(); }}
+              placeholder="Ej: Inglés" aria-label="Nombre de la materia" style={{ ...inp, width: "100%" }} />
+            {conNiveles ? (
+              <>
+                <div style={lblEd}>Nivel</div>
+                <select value={editor.nivel || ""} onChange={(e) => setEditor({ ...editor, nivel: e.target.value || null })} aria-label="Nivel" style={{ ...inp, width: "100%" }}>
+                  {!nivelesPropios ? <option value="">Todos los niveles</option> : null}
+                  {nivelesElegibles.map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
+                </select>
+              </>
+            ) : null}
+            <div style={lblEd}>Color en el horario</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {PALETA_MATERIAS.map((c) => (
+                <button key={c} type="button" onClick={() => setEditor({ ...editor, color: c })} aria-label={`Color ${c}`}
+                  style={{ width: 24, height: 24, borderRadius: "50%", background: c, border: "2px solid white", boxShadow: `0 0 0 ${editor.color === c ? 2 : 1}px ${editor.color === c ? C.textStrong : C.borderStrong}`, cursor: "pointer", padding: 0 }} />
+              ))}
+            </div>
+
+            {actual ? (
+              <>
+                <div style={lblEd}>Dónde se da ({clasesDe[actual.id]?.length || 0})</div>
+                {!clasesDe[actual.id]?.length ? <div style={{ fontSize: 13, color: C.textMuted }}>Ningún curso la tiene todavía.</div> : (
+                  <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+                    {clasesDe[actual.id].map((c, i) => {
+                      const otroAno = anoActual && c.cursos?.año_lectivo && c.cursos.año_lectivo !== anoActual;
+                      return (
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: i ? `1px solid ${C.border}` : "none", fontSize: 13 }}>
+                          <span style={{ flex: 1, minWidth: 0, color: C.text }}>
+                            <b style={{ color: C.textStrong }}>{c.cursos?.nombre || "Curso eliminado"}</b>
+                            <span style={{ color: C.textMuted }}>{otroAno ? ` · ${c.cursos.año_lectivo}` : ""} · {c.maestros ? fmtNombre(c.maestros) : "sin maestra"}</span>
+                          </span>
+                          <button type="button" onClick={() => quitarClase(actual, c)} aria-label={`Quitar ${actual.nombre} de ${c.cursos?.nombre || "este curso"}`} title="Quitar esta clase"
+                            style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Icono nombre="papelera" size={15} color={C.danger} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 14 }}>
+                  <button type="button" onClick={() => { setUnificar(actual); setDestino(""); setErrorUnificar(""); setEditor(null); }} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.accent, fontFamily: "inherit" }}>Unificar con otra…</button>
+                  <button type="button" onClick={() => cambiarVisible(actual)} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.accent, fontFamily: "inherit" }}>{actual.activo ? "Ocultar de las listas" : "Volver a mostrar"}</button>
+                  <button type="button" onClick={() => eliminar(actual)} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.danger, fontFamily: "inherit" }}>Eliminar</button>
+                </div>
+              </>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+              <button type="button" onClick={() => setEditor(null)} disabled={guardando} style={{ ...btnSecEd, flex: 1 }}>Cancelar</button>
+              <button type="button" onClick={guardarEditor} disabled={guardando || !editor.nombre.trim()} style={{ ...btnPri, flex: 2, opacity: guardando || !editor.nombre.trim() ? 0.5 : 1 }}>{guardando ? "Guardando…" : editor.id ? "Guardar" : "Crear materia"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Unificar */}
       {unificar ? (
         <div style={{ position: "fixed", inset: 0, background: C.overlay, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !unificando && setUnificar(null)}>
           <div onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="unif-t" style={{ background: C.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 420 }}>
-            <div id="unif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong, marginBottom: 6 }}>Unificar “{unificar.nombre}”</div>
+            <div id="unif-t" style={{ fontSize: 18, fontWeight: 800, color: C.textStrong, marginBottom: 6 }}>Unificar “{unificar.nombre}”</div>
             <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Si son la misma materia con distinto nombre, elegí con cuál se queda.</div>
             <select value={destino} onChange={(e) => { setDestino(e.target.value); setErrorUnificar(""); }} style={{ ...inp, width: "100%", marginBottom: 12 }} aria-label="Materia con la que se queda">
               <option value="">Se queda como…</option>
-              {materias.filter((m) => m.id !== unificar.id && puede(m)).map((m) => <option key={m.id} value={m.id}>{m.nombre}{conNiveles ? ` · ${m.nivel ? nombreNivel(m.nivel) : "Todos los niveles"}` : ""}</option>)}
+              {materias.filter((m) => m.id !== unificar.id && puede(m)).map((m) => <option key={m.id} value={m.id}>{m.nombre}{conNiveles ? ` · ${textoNivel(m)}` : ""}</option>)}
             </select>
             {dest ? (
-              <div style={{ fontSize: 12.5, color: C.text, background: C.warningSoft, border: `1px solid ${C.warningBorder}`, borderRadius: 10, padding: "8px 12px", marginBottom: 12, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 13, color: C.text, marginBottom: 12, lineHeight: 1.45 }}>
                 {usos[unificar.id] ? `Sus ${usos[unificar.id]} ${usos[unificar.id] === 1 ? "clase pasa" : "clases pasan"}` : "Sus clases pasan"} a “{dest.nombre}”, igual que sus horarios, y “{unificar.nombre}” desaparece. No se puede deshacer.
               </div>
             ) : null}
-            {errorUnificar ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginBottom: 10 }}>{errorUnificar}</div> : null}
+            {errorUnificar ? <div role="alert" style={{ fontSize: 13, color: C.danger, marginBottom: 10 }}>{errorUnificar}</div> : null}
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setUnificar(null)} disabled={unificando} style={{ ...btnMini, flex: 1, padding: 10, fontSize: 13 }}>Cancelar</button>
+              <button onClick={() => setUnificar(null)} disabled={unificando} style={{ ...btnSecEd, flex: 1 }}>Cancelar</button>
               <button onClick={confirmarUnificar} disabled={!destino || unificando} style={{ ...btnPri, flex: 1, opacity: destino && !unificando ? 1 : 0.5 }}>{unificando ? "Unificando…" : "Unificar"}</button>
             </div>
           </div>
         </div>
       ) : null}
 
-      <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
-        Las clases se asignan en Horarios o en la ficha de cada maestro. Si hay dos nombres para lo mismo (“Gym” y “Educación Física”), usá <b style={{ color: C.text }}>Unificar</b>.
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <input value={nueva} onChange={(e) => setNueva(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") crear(); }} placeholder="Nueva materia (ej: Inglés)" aria-label="Nueva materia" style={{ ...inp, flex: "1 1 220px" }} />
-        {conNiveles ? (
-          <select value={nivelNueva} onChange={(e) => setNivelNueva(e.target.value)} aria-label="Nivel de la materia nueva" style={{ ...inp, flex: "0 1 180px" }}>
-            {!nivelesPropios ? <option value="">Todos los niveles</option> : null}
-            {nivelesElegibles.map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
-          </select>
-        ) : null}
-        <button onClick={crear} disabled={!nueva.trim()} style={{ ...btnPri, opacity: nueva.trim() ? 1 : 0.5 }}>+ Agregar</button>
-      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" aria-label="Buscar materia" style={{ ...inp, flex: "1 1 180px" }} />
+        <Buscador value={q} onChange={setQ} placeholder="Buscar materia…" style={{ flex: "1 1 200px", minWidth: 0, marginBottom: 0 }} />
         {conNiveles ? (
-          <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value)} aria-label="Ver materias de" style={{ ...inp, flex: "0 1 180px" }}>
-            <option value="">Todas</option>
-            <option value="todos">De todos los niveles</option>
+          <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value)} aria-label="Ver materias de" style={{ ...inp, flex: "0 1 190px" }}>
+            <option value="">Todos los niveles</option>
+            <option value="todos">Solo las compartidas</option>
             {NIVELES.filter((n) => (niveles || []).includes(n.k)).map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
           </select>
         ) : null}
-        {ocultas ? (
-          <label style={{ fontSize: 12.5, color: C.textMuted, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
-            <input type="checkbox" checked={verOcultas} onChange={(e) => setVerOcultas(e.target.checked)} />
-            <span style={{ color: C.textMuted }}>Ver ocultas ({ocultas})</span>
-          </label>
-        ) : null}
+        <BotonNuevo onClick={abrirNueva} ariaLabel="Nueva materia" />
       </div>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
-        {!visibles.length ? <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>No hay materias{q ? " con ese nombre" : ""}.</div> : null}
+      {ocultas ? (
+        <label style={{ fontSize: 13, color: C.textMuted, display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer", marginBottom: 10 }}>
+          <input type="checkbox" checked={verOcultas} onChange={(e) => setVerOcultas(e.target.checked)} />
+          <span style={{ color: C.textMuted }}>Ver ocultas ({ocultas})</span>
+        </label>
+      ) : null}
+
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
+        {!visibles.length ? <EmptyState sinBorde icono="lupa" titulo={q ? "Ninguna materia con ese nombre" : "No hay materias"} style={{ padding: 16 }} /> : null}
         {visibles.map((m, i) => (
-          <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: i ? `1px solid ${C.border}` : "none", opacity: m.activo ? 1 : 0.55, flexWrap: "wrap" }}>
-            {puede(m) ? <PuntoColor color={m.color} label={`Color de ${m.nombre}`} onChange={(c) => actualizar(m.id, { color: c })} /> : <span style={{ width: 14, height: 14, borderRadius: "50%", background: m.color || SLATE[400], margin: "0 4px", flexShrink: 0 }} />}
-            {editando?.id === m.id ? (
-              <>
-                <input autoFocus value={editando.nombre} onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === "Enter") guardarNombre(); if (e.key === "Escape") setEditando(null); }} aria-label="Nombre de la materia" style={{ ...inp, flex: "1 1 160px", padding: "6px 10px" }} />
-                <button onClick={guardarNombre} style={btnMini}>Guardar</button>
-                <button onClick={() => setEditando(null)} style={btnMini}>Cancelar</button>
-              </>
-            ) : (
-              <>
-                <span style={{ flex: "1 1 160px", display: "block", minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.textStrong }}>{m.nombre}{m.activo ? "" : " (oculta)"}</span>
-                  {conNiveles ? <span style={{ display: "block", fontSize: 12, color: C.textMuted }}>{m.nivel ? nombreNivel(m.nivel) : "Todos los niveles"}{puede(m) ? "" : " · solo lectura"}</span> : null}
-                </span>
-                {usos[m.id] ? (
-                  <button onClick={() => setAbierta(abierta === m.id ? null : m.id)} aria-expanded={abierta === m.id} title="Ver en qué cursos y quién la da"
-                    style={{ ...btnMini, minWidth: 64, color: C.accent, borderColor: abierta === m.id ? C.accent : C.borderStrong }}>
-                    {usos[m.id]} {usos[m.id] === 1 ? "clase" : "clases"} {abierta === m.id ? "▴" : "▾"}
-                  </button>
-                ) : <span style={{ fontSize: 12, color: C.textFaint, minWidth: 64 }}>sin clases</span>}
-                {puede(m) && conNiveles ? (
-                  <select value={m.nivel || ""} onChange={(e) => actualizar(m.id, { nivel: e.target.value || null })} aria-label={`Nivel de ${m.nombre}`} style={{ ...inp, padding: "5px 8px", fontSize: 12.5 }}>
-                    {!nivelesPropios ? <option value="">Todos los niveles</option> : null}
-                    {nivelesElegibles.map((n) => <option key={n.k} value={n.k}>{n.l}</option>)}
-                  </select>
-                ) : null}
-                {puede(m) ? <>
-                <button onClick={() => setEditando({ id: m.id, nombre: m.nombre })} style={btnMini}>Renombrar</button>
-                <button onClick={() => { setUnificar(m); setDestino(""); setErrorUnificar(""); }} style={btnMini}>Unificar…</button>
-                <button onClick={() => actualizar(m.id, { activo: !m.activo })} style={btnMini}>{m.activo ? "Ocultar" : "Mostrar"}</button>
-                <button onClick={() => eliminar(m)} style={{ ...btnMini, color: C.danger }} aria-label={`Eliminar ${m.nombre}`} title="Eliminar"><Icono nombre="papelera" size={15} color={C.danger}/></button>
-                </> : null}
-              </>
-            )}
-            {abierta === m.id && clasesDe[m.id]?.length ? (
-              <div style={{ flexBasis: "100%", margin: "4px 0 2px 32px", display: "flex", flexDirection: "column", gap: 4 }}>
-                {clasesDe[m.id].map((c) => {
-                  const otroAno = anoActual && c.cursos?.año_lectivo && c.cursos.año_lectivo !== anoActual;
-                  return (
-                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "6px 10px", borderRadius: 8, background: C.surfaceSunken }}>
-                      <span style={{ flex: "1 1 auto", color: C.text }}>
-                        <b style={{ color: C.textStrong }}>{c.cursos?.nombre || "Curso eliminado"}</b>
-                        <span style={{ color: C.textMuted }}> · {c.cursos?.año_lectivo || "—"}</span>
-                        {otroAno ? <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: C.warningSoft, color: "#B45309" }}>otro año</span> : null}
-                        <span style={{ color: C.textMuted }}> — </span>
-                        <span style={{ color: c.maestros ? C.text : C.textFaint }}>{c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}</span>
-                      </span>
-                      <button onClick={() => quitarClase(m, c)} style={{ ...btnMini, color: C.danger, border: "none", background: "transparent" }} aria-label={`Quitar ${m.nombre} de ${c.cursos?.nombre || "este curso"}`} title="Quitar esta clase"><Icono nombre="papelera" size={15} color={C.danger}/></button>
-                    </div>
-                  );
-                })}
-              </div>
+          <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderTop: i ? `1px solid ${C.border}` : "none", opacity: m.activo ? 1 : 0.55 }}>
+            <span style={{ flex: 1, minWidth: 0, display: "block" }}>
+              <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: C.textStrong }}>{m.nombre}</span>
+              <span style={{ display: "block", fontSize: 12.5, color: C.textMuted, marginTop: 1 }}>
+                {[conNiveles ? textoNivel(m) : null, usos[m.id] ? `${usos[m.id]} ${usos[m.id] === 1 ? "clase" : "clases"}` : "sin clases", m.activo ? null : "oculta", puede(m) ? null : "solo lectura"].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            {puede(m) ? (
+              <button type="button" onClick={() => abrir(m)} style={{ border: "none", background: "none", padding: "4px 0", cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: C.accent, fontFamily: "inherit" }}>Editar</button>
             ) : null}
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 8 }}>“Ocultar” la saca de las listas para elegir, sin tocar las clases que ya la usan. La papelera la elimina junto con sus clases.</div>
     </div>
   );
 }

@@ -215,7 +215,8 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
   const [materiaId, setMateriaId] = useState(clase?.materia_id || "");
   const [qMat, setQMat] = useState(clase ? "" : textoInicial);
   const [maestroId, setMaestroId] = useState(clase?.maestro_id || "");
-  const [qMae, setQMae] = useState("");
+  // Escribiendo una materia nueva (al tocar un hueco del horario con texto, arranca así).
+  const [creando, setCreando] = useState(!clase && !!textoInicial);
   const [optativa, setOptativa] = useState(!!clase?.optativa);
   const [alumnos, setAlumnos] = useState(null);
   const [anotados, setAnotados] = useState(new Set());
@@ -240,9 +241,6 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
   }, [curso.id, clase]);
 
   const activas = (materias || []).filter((m) => (m.activo && materiaDelNivel(m, curso.nivel)) || m.id === materiaId);
-  const matFiltradas = activas.filter((m) => !qMat || sinAcentos(m.nombre).includes(sinAcentos(qMat)));
-  const existeExacta = activas.some((m) => sinAcentos(m.nombre) === sinAcentos(qMat));
-  const maeFiltradas = maestros.filter((m) => !qMae || sinAcentos(fmtNombre(m)).includes(sinAcentos(qMae)));
   const alFiltrados = (alumnos || []).filter((a) => !qAl || sinAcentos(fmtNombre(a)).includes(sinAcentos(qAl)));
 
   const crearMateria = async () => {
@@ -252,7 +250,7 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
       .insert({ colegio_id: colegioId, nombre, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1, nivel: curso.nivel || null })
       .select("id").single();
     if (e) { setError(`No se pudo crear la materia: ${e.message}`); return; }
-    await recargar(); setMateriaId(data.id); setQMat("");
+    await recargar(); setMateriaId(data.id); setQMat(""); setCreando(false);
   };
 
   const guardar = async () => {
@@ -306,41 +304,31 @@ function ClaseModal({ curso, colegioId, clase, textoInicial = "", maestros, usos
         <button onClick={guardar} disabled={guardando} style={{ ...btnPri, opacity: guardando ? 0.6 : 1 }}>{guardando ? "Guardando…" : "Guardar clase"}</button>
       </>}>
       {confirmUI}
+      {/* Dos desplegables comunes (antes, pastillas de colores para cada materia y maestra). */}
       <div style={lbl}>Materia</div>
-      <input value={qMat} onChange={(e) => setQMat(e.target.value)} placeholder={materiaId ? (materias || []).find((m) => m.id === materiaId)?.nombre : "Buscar o escribir una materia nueva…"} aria-label="Materia" style={inp} />
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, maxHeight: 132, overflowY: "auto" }}>
-        {matFiltradas.map((m) => {
-          const on = m.id === materiaId;
-          return (
-            <button key={m.id} type="button" onClick={() => { setMateriaId(m.id); setQMat(""); setError(""); }} aria-pressed={on}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${on ? C.textStrong : C.borderStrong}`, background: on ? C.textStrong : C.surface, color: on ? "white" : C.text, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: m.color }} />
-              <span style={{ color: on ? "white" : C.text }}>{m.nombre}</span>
-            </button>
-          );
-        })}
-        {qMat.trim() && !existeExacta ? (
-          <button type="button" onClick={crearMateria} style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px dashed ${C.accent}`, background: C.surface, color: C.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-            + Crear materia “{qMat.trim()}”
-          </button>
-        ) : null}
-      </div>
+      {creando ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input autoFocus value={qMat} onChange={(e) => setQMat(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && qMat.trim()) crearMateria(); }}
+            placeholder="Nombre de la materia nueva" aria-label="Nombre de la materia nueva" style={{ ...inp, flex: "1 1 220px" }} />
+          <button type="button" onClick={crearMateria} disabled={!qMat.trim()} style={{ ...btnPri, opacity: qMat.trim() ? 1 : 0.5 }}>Crear</button>
+          <button type="button" onClick={() => { setCreando(false); setQMat(""); }} style={btnSec}>Cancelar</button>
+        </div>
+      ) : (
+        <select value={materiaId} aria-label="Materia" style={{ ...inp, width: "100%" }}
+          onChange={(e) => { if (e.target.value === "__nueva") { setCreando(true); setQMat(""); return; } setMateriaId(e.target.value); setError(""); }}>
+          <option value="">Elegí la materia…</option>
+          {activas.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          <option value="__nueva">+ Crear una materia nueva…</option>
+        </select>
+      )}
 
       <div style={{ ...lbl, marginTop: 18 }}>Maestra</div>
-      <input value={qMae} onChange={(e) => setQMae(e.target.value)} placeholder="Buscar maestra…" aria-label="Buscar maestra" style={inp} />
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, maxHeight: 132, overflowY: "auto" }}>
-        {[{ id: "", _sin: true }, ...maeFiltradas].map((m) => {
-          const on = (maestroId || "") === m.id;
-          return (
-            <button key={m.id || "sin"} type="button" onClick={() => setMaestroId(m.id)} aria-pressed={on}
-              style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${on ? C.textStrong : C.borderStrong}`, background: on ? C.textStrong : C.surface, color: on ? "white" : C.text, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-              <span style={{ color: on ? "white" : m._sin ? C.textMuted : C.text }}>{m._sin ? "Sin maestra (recreo, almuerzo…)" : fmtNombre(m)}</span>
-            </button>
-          );
-        })}
-      </div>
+      <select value={maestroId || ""} onChange={(e) => setMaestroId(e.target.value)} aria-label="Maestra" style={{ ...inp, width: "100%" }}>
+        <option value="">Sin maestra (recreo, almuerzo…)</option>
+        {maestros.map((m) => <option key={m.id} value={m.id}>{fmtNombre(m)}</option>)}
+      </select>
 
-      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 18, padding: 12, border: `1px solid ${optativa ? "#DDD6FE" : C.border}`, background: optativa ? "#F5F3FF" : C.surface, borderRadius: 12, cursor: "pointer" }}>
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 18, padding: 12, border: `1px solid ${C.border}`, background: optativa ? C.surfaceSunken : C.surface, borderRadius: 12, cursor: "pointer" }}>
         <input type="checkbox" checked={optativa} onChange={(e) => setOptativa(e.target.checked)} style={{ marginTop: 3 }} />
         <span>
           <b style={{ fontSize: 13.5, color: C.textStrong, display: "block" }}>Es un taller optativo</b>
@@ -603,16 +591,16 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
             {puedeEditarClases ? "Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra)." : "El colegio todavía no cargó las clases de este curso."}
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          // Lista en dos columnas, sin pastillas: materia en negrita, maestra y bloques en gris.
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "2px 16px" }}>
             {clases.map((c) => (
               <button key={c.id} type="button" onClick={puedeEditarClases ? () => setClaseEd({ clase: c }) : undefined} disabled={!puedeEditarClases}
                 title={puedeEditarClases ? "Editar clase" : undefined}
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 999, border: `1px ${c.optativa ? "dashed" : "solid"} ${c.optativa ? "#C4B5FD" : C.borderStrong}`, background: c.optativa ? "#F5F3FF" : C.surfaceSunken, cursor: puedeEditarClases ? "pointer" : "default", fontSize: 12.5 }}>
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.materias?.color || SLATE[400] }} />
-                <b style={{ color: C.textStrong }}>{c.materias?.nombre}</b>
-                <span style={{ color: c.maestros ? C.textMuted : C.textFaint }}>{c.maestros ? fmtNombre(c.maestros) : "sin maestra"}</span>
-                {c.optativa ? <span style={{ fontSize: 10.5, fontWeight: 800, color: "#7C3AED" }}>✦ TALLER · {anotadosPorClase[c.id] || 0}</span> : null}
-                <span style={{ fontSize: 11, color: usos[c.id] ? C.textFaint : "#B45309" }}>{usos[c.id] ? `${usos[c.id]} bl.` : "sin bloques"}</span>
+                style={{ display: "block", textAlign: "left", padding: "7px 0", border: "none", borderBottom: `1px solid ${C.border}`, background: "none", cursor: puedeEditarClases ? "pointer" : "default", fontFamily: "inherit" }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: C.textStrong }}>{c.materias?.nombre}{c.optativa ? <span style={{ fontWeight: 600, color: C.textMuted }}> · taller optativo ({anotadosPorClase[c.id] || 0})</span> : null}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: C.textMuted, marginTop: 1 }}>
+                  {c.maestros ? fmtNombre(c.maestros) : "Sin maestra"} · <span style={{ color: usos[c.id] ? C.textMuted : "#B45309" }}>{usos[c.id] ? `${usos[c.id]} ${usos[c.id] === 1 ? "bloque" : "bloques"}` : "todavía no está en el horario"}</span>
+                </span>
               </button>
             ))}
           </div>

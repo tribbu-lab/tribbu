@@ -155,6 +155,7 @@ export function SuperAdmin() {
   const [menuRefreshKey, setMenuRefreshKey] = useState(0);
   // Menú por niveles (roles-por-nivel): niveles del colegio + para cuáles se carga (vacío = todos).
   const [colegioNiveles, setColegioNiveles] = useState([]);
+  const [nombreColegio, setNombreColegio] = useState(""); // el colegio_admin no tiene la lista de colegios
   const [menuNiveles, setMenuNiveles] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [cursos, setCursos] = useState([]);
@@ -187,10 +188,11 @@ export function SuperAdmin() {
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
-      supabase.from("colegios").select("año_lectivo_actual, niveles").eq("id", activeColegioId).maybeSingle(),
+      supabase.from("colegios").select("nombre, año_lectivo_actual, niveles").eq("id", activeColegioId).maybeSingle(),
     ]);
     setAnoActual(col.data?.año_lectivo_actual ?? null);
     setColegioNiveles(ordenarNiveles(col.data?.niveles));
+    setNombreColegio(col.data?.nombre || "");
     // RLS ya acota todo para colegio_admin; para super este filtro es el que
     // separa un colegio de otro (ver el comentario de arriba).
     const cursosDelColegio = (c.data || []).filter((x) => x.colegio_id === activeColegioId);
@@ -589,7 +591,9 @@ export function SuperAdmin() {
 
   // ── List controls ──────────────────────────────────────────────────────────
   // Las docentes se manejan desde Maestros (web), no en Usuarios.
-  const ctrlUsuarios = useListControls(usuarios.filter((u) => u.rol !== "docente"), {
+  // Solo apoderados y Room Parents, como en la web: las cuentas del colegio
+  // (administración, directivos, docentes, super) se gestionan en otras pantallas.
+  const ctrlUsuarios = useListControls(usuarios.filter((u) => !["docente", "super", "colegio_admin", "nivel_admin"].includes(u.rol)), {
     searchFn: (u, q) => u.nombre.toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q),
     sortOptions: [
       { key: "nombre", label: "Nombre", val: (u) => u.nombre },
@@ -603,7 +607,6 @@ export function SuperAdmin() {
         options: [
           { value: "padre", label: "Apoderado" },
           { value: "room", label: "Room Parent" },
-          { value: "super", label: "Super Admin" },
         ],
         match: (u, v) => u.rol === v,
       },
@@ -660,7 +663,7 @@ export function SuperAdmin() {
   const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
   const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
-  const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || "";
+  const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || nombreColegio;
   const hoyTxt = (() => { const t = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -776,7 +779,7 @@ export function SuperAdmin() {
                   <MaterialCommunityIcons name="pencil-outline" size={19} color="#475569" />
                 </Pressable>
                 <Pressable onPress={() => toggleActivo(u)} style={styles.iconBtn}>
-                  <MaterialCommunityIcons name={u.activo ? "account-cancel-outline" : "account-check-outline"} size={19} color={u.activo ? "#DC2626" : "#059669"} />
+                  <MaterialCommunityIcons name={u.activo ? "account-cancel-outline" : "account-check-outline"} size={19} color="#64748B" />
                 </Pressable>
                 {u.rol !== "super" ? (
                   <Pressable
@@ -806,14 +809,15 @@ export function SuperAdmin() {
           </View>
           {cursos.map((c) => {
             const admins = usuarios.filter((u) => u.rol === "room" && u.cursos.includes(c.id));
-            const padres = usuarios.filter((u) => u.rol === "padre" && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
+            // Apoderados (padre o Room Parent) con algún hijo en el curso: son cuentas, no familias.
+            const padres = usuarios.filter((u) => (u.rol === "padre" || u.rol === "room") && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
             return (
               <View key={c.id} style={styles.itemCard}>
                 <View style={[styles.cursoPunto, { backgroundColor: c.color || "#94A3B8" }]} />
                 <View style={styles.flex1}>
                   <Text style={styles.itemNombre}>{c.nombre}</Text>
                   <Text style={styles.itemMeta}>
-                    {admins.length} Room Parent{admins.length !== 1 ? "s" : ""} · {padres.length} familias
+                    {admins.length} Room Parent{admins.length !== 1 ? "s" : ""} · {padres.length} {padres.length === 1 ? "apoderado" : "apoderados"}
                   </Text>
                 </View>
                 <View style={styles.itemBtns}>

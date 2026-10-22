@@ -174,6 +174,16 @@ function BloqueSheet({ visible, borrador, setBorrador, curso, horarios, clases, 
 
 // ── Hoja: clase (materia + maestra + taller) ────────────────────────────────
 
+// Fila de una lista de opciones: nombre y ✓ en la elegida.
+function Opcion({ label, on, primera, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={[s.opcion, !primera && s.opcionBorde]} accessibilityRole="radio" accessibilityState={{ selected: !!on }}>
+      <Text style={[s.opcionTxt, on && s.opcionTxtOn]} numberOfLines={1}>{label}</Text>
+      {on ? <Text style={s.opcionTxtOn}>✓</Text> : null}
+    </Pressable>
+  );
+}
+
 function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, usos, onClose, onGuardada }) {
   const { materias, recargar } = useMaterias(colegioId);
   const [materiaId, setMateriaId] = useState(clase?.materia_id || "");
@@ -254,16 +264,23 @@ function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, 
       <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }}>
         <Text style={s.label}>Materia</Text>
         <TextInput value={qMat} onChangeText={setQMat} placeholder={materiaId ? activas.find((m) => m.id === materiaId)?.nombre : "Buscar o escribir una materia nueva…"} placeholderTextColor={t.placeholder} style={s.input} />
-        <View style={[s.wrap, { marginTop: 8 }]}>
-          {matF.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={m.id === materiaId} onPress={() => { setMateriaId(m.id); setQMat(""); setError(""); }} />)}
-          {qMat.trim() && !existe ? <Chip dashed label={`+ Crear “${qMat.trim()}”`} onPress={crearMateria} /> : null}
+        {/* Lista simple de nombres (antes, pastillas de colores). */}
+        <View style={s.opciones}>
+          {matF.slice(0, 8).map((m, i) => (
+            <Opcion key={m.id} label={m.nombre} on={m.id === materiaId} primera={i === 0} onPress={() => { setMateriaId(m.id); setQMat(""); setError(""); }} />
+          ))}
+          {matF.length > 8 ? <Text style={[s.muted, { paddingHorizontal: SPACE.md, paddingVertical: 8 }]}>Escribí para ver más…</Text> : null}
         </View>
+        {qMat.trim() && !existe ? (
+          <Pressable onPress={crearMateria} hitSlop={6} style={{ marginTop: 8 }}><Text style={s.link}>+ Crear la materia “{qMat.trim()}”</Text></Pressable>
+        ) : null}
 
         <Text style={[s.label, { marginTop: SPACE.md }]}>Maestra</Text>
         <TextInput value={qMae} onChangeText={setQMae} placeholder="Buscar maestra…" placeholderTextColor={t.placeholder} style={s.input} />
-        <View style={[s.wrap, { marginTop: 8 }]}>
-          <Chip label="Sin maestra (recreo…)" on={!maestroId} onPress={() => setMaestroId("")} />
-          {maeF.map((m) => <Chip key={m.id} label={fmtNombre(m)} on={maestroId === m.id} onPress={() => setMaestroId(m.id)} />)}
+        <View style={s.opciones}>
+          <Opcion label="Sin maestra (recreo, almuerzo…)" on={!maestroId} primera onPress={() => setMaestroId("")} />
+          {maeF.slice(0, 8).map((m) => <Opcion key={m.id} label={fmtNombre(m)} on={maestroId === m.id} onPress={() => setMaestroId(m.id)} />)}
+          {maeF.length > 8 ? <Text style={[s.muted, { paddingHorizontal: SPACE.md, paddingVertical: 8 }]}>Escribí para ver más…</Text> : null}
         </View>
 
         <View style={[s.optativa, optativa && s.optativaOn]}>
@@ -276,7 +293,7 @@ function ClaseSheet({ visible, curso, colegioId, clase, textoInicial, maestros, 
         {optativa ? (
           <View style={{ marginTop: 8 }}>
             <View style={s.row}>
-              <Text style={[s.label, s.flex1, { marginBottom: 0 }]}>ANOTADOS · {anotados.size}</Text>
+              <Text style={[s.label, s.flex1, { marginBottom: 0 }]}>Anotados · {anotados.size}</Text>
               <Pressable onPress={() => setAnotados(new Set((alumnos || []).map((a) => a.id)))} hitSlop={6}><Text style={s.link}>Todos</Text></Pressable>
               <Pressable onPress={() => setAnotados(new Set())} hitSlop={6}><Text style={s.link}>Ninguno</Text></Pressable>
             </View>
@@ -446,19 +463,18 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
       {/* Clases */}
       <View style={s.card}>
         <View style={s.row}>
-          <Text style={[s.label, s.flex1, { marginBottom: 0 }]}>CLASES DE {curso.nombre?.toUpperCase()} · {clases.length}</Text>
+          <Text style={[s.label, s.flex1, { marginBottom: 0 }]}>Clases de {curso.nombre} · {clases.length}</Text>
           {puedeEditarClases ? <Pressable onPress={() => { setClaseEd({}); setHoja("clase"); }} hitSlop={6}><Text style={s.link}>+ Nueva</Text></Pressable> : null}
         </View>
         {!clases.length ? <Text style={[s.muted, { marginTop: 6 }]}>{puedeEditarClases ? "Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra)." : "El colegio todavía no cargó las clases de este curso."}</Text> : null}
-        <View style={[s.wrap, { marginTop: 8 }]}>
-          {clases.map((c) => (
-            <Pressable key={c.id} disabled={!puedeEditarClases} onPress={() => { setClaseEd({ clase: c }); setHoja("clase"); }} style={[s.claseChip, c.optativa && s.claseChipOpt]}>
-              <View style={[s.dot, { backgroundColor: c.materias?.color || SLATE[400] }]} />
-              <Text style={s.claseChipTxt} numberOfLines={1}>
-                <Text style={{ fontWeight: "800", color: t.textStrong }}>{c.materias?.nombre}</Text>
-                <Text style={{ color: t.textMuted }}>{c.maestros ? ` ${fmtNombre(c.maestros)}` : " sin maestra"}</Text>
-                {c.optativa ? <Text style={{ color: "#7C3AED", fontWeight: "800" }}>{` ✦ ${anotadosPorClase[c.id] || 0}`}</Text> : null}
-                {!usos[c.id] ? <Text style={{ color: "#B45309" }}> · sin bloques</Text> : null}
+        {/* Lista sin pastillas: materia en negrita; maestra y bloques en gris. */}
+        <View style={{ marginTop: 4 }}>
+          {clases.map((c, i) => (
+            <Pressable key={c.id} disabled={!puedeEditarClases} onPress={() => { setClaseEd({ clase: c }); setHoja("clase"); }} style={[s.claseListaFila, i > 0 && s.opcionBorde]}>
+              <Text style={{ fontSize: 14.5, fontWeight: "700", color: t.textStrong }}>{c.materias?.nombre}{c.optativa ? <Text style={{ fontWeight: "600", color: t.textMuted }}>{` · taller optativo (${anotadosPorClase[c.id] || 0})`}</Text> : null}</Text>
+              <Text style={{ fontSize: 12.5, color: t.textMuted, marginTop: 1 }}>
+                {c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}{" · "}
+                <Text style={{ color: usos[c.id] ? t.textMuted : "#B45309" }}>{usos[c.id] ? `${usos[c.id]} ${usos[c.id] === 1 ? "bloque" : "bloques"}` : "todavía no está en el horario"}</Text>
               </Text>
             </Pressable>
           ))}
@@ -565,12 +581,18 @@ const s = StyleSheet.create({
   sinClase: { fontSize: 12, fontWeight: "600", color: "#B45309", marginTop: 2 },
   bloqueMat: { fontSize: 14.5, fontWeight: "800", color: t.textStrong },
   optativa: { flexDirection: "row", alignItems: "center", gap: SPACE.md, marginTop: SPACE.md, padding: SPACE.md, borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.md },
-  optativaOn: { borderColor: "#DDD6FE", backgroundColor: "#F5F3FF" },
+  optativaOn: { backgroundColor: t.surfaceSunken },
   optTitulo: { fontSize: 14, fontWeight: "800", color: t.textStrong },
   alumnoFila: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 40 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: t.accent, borderColor: t.accent },
   checkTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  claseListaFila: { paddingVertical: 9 },
+  opciones: { marginTop: 8, borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.lg, backgroundColor: t.surface, overflow: "hidden" },
+  opcion: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: SPACE.md, gap: 8 },
+  opcionBorde: { borderTopWidth: 1, borderTopColor: t.border },
+  opcionTxt: { flex: 1, fontSize: 14.5, color: t.text },
+  opcionTxtOn: { fontWeight: "800", color: BLUE[700] },
 });
 
 // ── Semana de una maestra (ficha del maestro) ───────────────────────────────

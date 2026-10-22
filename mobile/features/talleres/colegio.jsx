@@ -30,7 +30,7 @@ const confirmar = (titulo, detalle, texto, destructivo = true) => new Promise((r
 
 function EstadoPill({ estado }) {
   const [bg, fg] = COLOR_ESTADO[estado] || COLOR_ESTADO.borrador;
-  return <Text style={[s.pill, { backgroundColor: bg, color: fg }]}>{(ESTADOS_TALLER[estado] || estado).toUpperCase()}</Text>;
+  return <Text style={[s.pill, { backgroundColor: bg, color: fg }]}>{ESTADOS_TALLER[estado] || estado}</Text>;
 }
 
 function Detalle({ taller, cupos, onCambio }) {

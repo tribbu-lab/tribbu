@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, Alert, ActivityIndicator, StyleSheet, Modal, KeyboardAvoidingView, ScrollView } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
+import { BotonNuevo } from "../../components/BotonNuevo";
 import { fmtNombre, sanitize } from "@shared/helpers";
 import { NIVELES, nombreNivel, materiaDelNivel, puedeEditarMateria } from "@shared/niveles";
 import { THEMES, SLATE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
@@ -67,22 +68,22 @@ function Chip({ label, on, onPress, color }) {
 export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }) {
   const conNiveles = (niveles || []).length > 1;
   const nivelesElegibles = NIVELES.filter((n) => (niveles || []).includes(n.k) && (!nivelesPropios || nivelesPropios.includes(n.k)));
-  const [nivelNueva, setNivelNueva] = useState(nivelesPropios?.[0] || null);
   const puede = (m) => puedeEditarMateria(m, nivelesPropios);
   const { materias, recargar } = useMaterias(colegioId);
-  const [usos, setUsos] = useState({});
+  const [usos, setUsos] = useState(null); // null = todavía cargando (no mostrar "sin clases")
   const [clasesDe, setClasesDe] = useState({}); // materia_id → [{id, cursos, maestros}]
-  const [nueva, setNueva] = useState("");
   const [sel, setSel] = useState(null); // materia abierta en el sheet de edición
   const [nombre, setNombre] = useState("");
   const [unificarCon, setUnificarCon] = useState(null);
+  const [verUnificar, setVerUnificar] = useState(false);
 
   // Las clases de cada materia con su curso y maestra, para ver quién la da.
   const cargarClases = useCallback(async () => {
     if (!materias?.length) return;
-    const { data } = await supabase.from("clases")
-      .select("id,materia_id,maestro_id,cursos(nombre,año_lectivo),maestros(nombre,apellido)")
+    const { data, error } = await supabase.from("clases")
+      .select("id,materia_id,maestro_id,cursos(*),maestros(nombre,apellido)") // cursos(*): la ñ de año_lectivo en la URL falla en RN
       .in("materia_id", materias.map((m) => m.id));
+    if (error) console.warn("materias: clases", error.message);
     const n = {}, de = {};
     for (const r of data || []) {
       n[r.materia_id] = (n[r.materia_id] || 0) + 1;
@@ -106,15 +107,6 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
   };
 
   const duplicada = (n, id, nivel) => (materias || []).some((m) => m.id !== id && (m.nivel || "") === (nivel || "") && sinAcentos(m.nombre) === sinAcentos(n));
-  const crear = async () => {
-    const n = sanitize(nueva).trim();
-    if (!n) return;
-    const nivel = conNiveles ? nivelNueva || null : null;
-    if (duplicada(n, null, nivel)) { Alert.alert("Esa materia ya existe en ese nivel"); return; }
-    const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre: n, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], orden: (materias?.length || 0) + 1, nivel });
-    if (error) { Alert.alert("No se pudo crear", error.message); return; }
-    setNueva(""); recargar();
-  };
   const actualizar = async (cambios) => {
     const { error } = await supabase.from("materias").update(cambios).eq("id", sel.id);
     if (error) { Alert.alert("No se pudo guardar", error.message); return false; }
@@ -123,9 +115,18 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
   const guardar = async () => {
     const n = sanitize(nombre).trim();
     if (!n) return;
-    if (duplicada(n, sel.id, sel.nivel)) { Alert.alert("Ya hay otra materia con ese nombre", "Usá “Unificar” si son la misma."); return; }
+    const nivel = conNiveles ? sel.nivel || null : null;
+    if (duplicada(n, sel.id, nivel)) { Alert.alert("Ya hay otra materia con ese nombre en ese nivel", sel.id ? "Usá “Unificar” si son la misma." : undefined); return; }
+    if (!sel.id) {
+      const { error } = await supabase.from("materias").insert({ colegio_id: colegioId, nombre: n, color: sel.color, nivel, orden: (materias?.length || 0) + 1 });
+      if (error) { Alert.alert("No se pudo crear", error.message); return; }
+      setSel(null); recargar(); return;
+    }
     if (await actualizar({ nombre: n })) setSel(null);
   };
+  const abrirNueva = () => { setSel({ id: null, nombre: "", nivel: nivelesPropios?.[0] || null, color: PALETA_MATERIAS[(materias?.length || 0) % PALETA_MATERIAS.length], activo: true }); setNombre(""); setUnificarCon(null); };
+  // En una materia nueva el color y el nivel se guardan al crear; en una existente, al tocarlos.
+  const cambiar = (cambios) => { if (sel?.id) actualizar(cambios); setSel((p) => ({ ...p, ...cambios })); };
   const unificar = () => {
     if (!unificarCon) return;
     Alert.alert(`¿Unificar “${sel.nombre}” en “${unificarCon.nombre}”?`, `Sus clases y horarios pasan a “${unificarCon.nombre}” y “${sel.nombre}” desaparece.`, [
@@ -139,7 +140,7 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
   };
 
   const eliminar = () => {
-    const n = usos[sel.id] || 0;
+    const n = (usos || {})[sel.id] || 0;
     Alert.alert(`¿Eliminar “${sel.nombre}”?`, n
       ? `Se quitan sus ${n} ${n === 1 ? "clase" : "clases"} de los cursos (los bloques de horario quedan con su texto, sin clase). Si es la misma que otra, usá “Unificar”.`
       : "No la usa ningún curso.", [
@@ -156,26 +157,18 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
   if (materias === null) return <ActivityIndicator color={t.accent} />;
   return (
     <View>
-      <Text style={s.intro}>La lista de materias del colegio. Las clases de cada curso se arman eligiendo de acá (en Horarios o en la ficha de cada maestro).</Text>
-      <View style={s.row}>
-        <TextInput value={nueva} onChangeText={setNueva} placeholder="Nueva materia (ej: Inglés)" placeholderTextColor={t.placeholder} style={[s.input, s.flex1]} onSubmitEditing={crear} />
-        <Pressable onPress={crear} style={[s.btnPri, !nueva.trim() && s.off]} disabled={!nueva.trim()}><Text style={s.btnPriTxt}>Agregar</Text></Pressable>
+      <View style={[s.row, { justifyContent: "flex-end" }]}>
+        <BotonNuevo accessibilityLabel="Nueva materia" onPress={abrirNueva} />
       </View>
-      {conNiveles ? (
-        <View style={[s.wrap, { marginBottom: SPACE.md }]}>
-          {!nivelesPropios ? <Chip label="Todos los niveles" on={!nivelNueva} onPress={() => setNivelNueva(null)} /> : null}
-          {nivelesElegibles.map((n) => <Chip key={n.k} label={n.l} on={nivelNueva === n.k} onPress={() => setNivelNueva(n.k)} />)}
-        </View>
-      ) : null}
+      {/* Lista sobria: nombre y, en gris, nivel · clases; se toca para editar. */}
       <View style={s.card}>
         {materias.map((m, i) => (
-          <Pressable key={m.id} onPress={() => (puede(m) ? (setSel(m), setNombre(m.nombre), setUnificarCon(null)) : null)} style={[s.fila, i > 0 && s.borde, !m.activo && s.off]} accessibilityRole="button">
-            <View style={[s.dotGrande, { backgroundColor: m.color }]} />
+          <Pressable key={m.id} onPress={() => (puede(m) ? (setSel(m), setNombre(m.nombre), setUnificarCon(null), setVerUnificar(false)) : null)} style={[s.fila, i > 0 && s.borde, !m.activo && s.off]} accessibilityRole="button">
             <View style={s.flex1}>
-              <Text style={s.filaTxt}>{m.nombre}{m.activo ? "" : " (oculta)"}</Text>
-              {conNiveles ? <Text style={s.meta}>{m.nivel ? nombreNivel(m.nivel) : "Todos los niveles"}{puede(m) ? "" : " · solo lectura"}</Text> : null}
+              <Text style={s.filaTxt}>{m.nombre}</Text>
+              <Text style={s.meta}>{[conNiveles ? (m.nivel ? nombreNivel(m.nivel) : "Todos los niveles") : null, usos === null ? null : usos[m.id] ? `${usos[m.id]} ${usos[m.id] === 1 ? "clase" : "clases"}` : "sin clases", m.activo ? null : "oculta", puede(m) ? null : "solo lectura"].filter(Boolean).join(" · ")}</Text>
             </View>
-            <Text style={s.meta}>{usos[m.id] ? `${usos[m.id]} ${usos[m.id] === 1 ? "clase" : "clases"}` : "sin clases"}</Text>
+            {puede(m) ? <Text style={s.editar}>Editar</Text> : null}
           </Pressable>
         ))}
       </View>
@@ -184,25 +177,26 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
         <KeyboardAvoidingView style={s.overlay} behavior="padding">
           <View style={s.modalCard}>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={s.modalTitle}>Materia</Text>
+              <Text style={s.modalTitle}>{sel?.id ? "Editar materia" : "Nueva materia"}</Text>
               <Text style={s.label}>Nombre</Text>
-              <TextInput value={nombre} onChangeText={setNombre} style={s.input} />
-              <Text style={s.label}>Color</Text>
+              <TextInput value={nombre} onChangeText={setNombre} placeholder="Ej: Inglés" placeholderTextColor={t.placeholder} style={s.input} />
+              <Text style={s.label}>Color en el horario</Text>
               <View style={s.wrap}>
                 {PALETA_MATERIAS.map((c) => (
-                  <Pressable key={c} onPress={() => { actualizar({ color: c }); setSel((p) => ({ ...p, color: c })); }} style={[s.colorDot, { backgroundColor: c }, sel?.color === c && s.colorOn]} accessibilityLabel={`Color ${c}`} />
+                  <Pressable key={c} onPress={() => cambiar({ color: c })} style={[s.colorDot, { backgroundColor: c }, sel?.color === c && s.colorOn]} accessibilityLabel={`Color ${c}`} />
                 ))}
               </View>
               {conNiveles ? (
                 <>
                   <Text style={s.label}>Nivel</Text>
                   <View style={s.wrap}>
-                    {!nivelesPropios ? <Chip label="Todos los niveles" on={!sel?.nivel} onPress={() => { actualizar({ nivel: null }); setSel((p) => ({ ...p, nivel: null })); }} /> : null}
-                    {nivelesElegibles.map((n) => <Chip key={n.k} label={n.l} on={sel?.nivel === n.k} onPress={() => { actualizar({ nivel: n.k }); setSel((p) => ({ ...p, nivel: n.k })); }} />)}
+                    {!nivelesPropios ? <Chip label="Todos los niveles" on={!sel?.nivel} onPress={() => cambiar({ nivel: null })} /> : null}
+                    {nivelesElegibles.map((n) => <Chip key={n.k} label={n.l} on={sel?.nivel === n.k} onPress={() => cambiar({ nivel: n.k })} />)}
                   </View>
                 </>
               ) : null}
-              <Text style={s.label}>Clases ({clasesDe[sel?.id]?.length || 0})</Text>
+              {sel?.id ? <>
+              <Text style={s.label}>Dónde se da ({clasesDe[sel?.id]?.length || 0})</Text>
               {!clasesDe[sel?.id]?.length ? <Text style={s.muted}>Ningún curso la tiene.</Text> : clasesDe[sel.id].map((c) => (
                 <View key={c.id} style={s.claseFila}>
                   <Text style={[s.flex1, { fontSize: 13.5, color: t.text }]}>
@@ -215,12 +209,20 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
                   </Pressable>
                 </View>
               ))}
-              <Text style={s.label}>Unificar con otra (si es la misma materia)</Text>
-              <View style={s.wrap}>
-                {(materias || []).filter((m) => m.id !== sel?.id && puede(m)).map((m) => (
-                  <Chip key={m.id} label={m.nombre} color={m.color} on={unificarCon?.id === m.id} onPress={() => setUnificarCon(unificarCon?.id === m.id ? null : m)} />
-                ))}
-              </View>
+              {/* Plegado: una lista simple de nombres (antes, pastillas de colores). */}
+              <Pressable onPress={() => { setVerUnificar((v) => !v); setUnificarCon(null); }} hitSlop={6} style={{ marginTop: SPACE.md }}>
+                <Text style={s.editar}>{verUnificar ? "Cerrar" : "Unificar con otra…"}</Text>
+              </Pressable>
+              {verUnificar ? (
+                <View style={[s.card, { marginTop: SPACE.sm }]}>
+                  {(materias || []).filter((m) => m.id !== sel?.id && puede(m)).map((m, i) => (
+                    <Pressable key={m.id} onPress={() => setUnificarCon(unificarCon?.id === m.id ? null : m)} style={[s.fila, i > 0 && s.borde, { minHeight: 44 }]}>
+                      <Text style={[s.filaTxt, s.flex1, { fontWeight: unificarCon?.id === m.id ? "800" : "600" }]}>{m.nombre}</Text>
+                      {unificarCon?.id === m.id ? <Text style={s.editar}>✓</Text> : null}
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
               {unificarCon ? <Pressable onPress={unificar} style={[s.btnSec, { marginTop: SPACE.sm }]}><Text style={s.btnSecTxt}>Unificar en “{unificarCon.nombre}”</Text></Pressable> : null}
               <Pressable onPress={async () => { if (await actualizar({ activo: !sel.activo })) setSel(null); }} style={[s.btnSec, { marginTop: SPACE.md }]}>
                 <Text style={s.btnSecTxt}>{sel?.activo ? "Ocultar de las listas" : "Volver a mostrar"}</Text>
@@ -228,9 +230,10 @@ export function MateriasAdmin({ colegioId, niveles = [], nivelesPropios = null }
               <Pressable onPress={eliminar} style={[s.btnSec, { marginTop: SPACE.sm, borderColor: t.dangerBorder }]}>
                 <Text style={[s.btnSecTxt, { color: t.danger }]}>Eliminar materia</Text>
               </Pressable>
+              </> : null}
               <View style={[s.row, { marginTop: SPACE.lg }]}>
-                <Pressable onPress={() => setSel(null)} style={[s.btnSec, s.flex1]}><Text style={s.btnSecTxt}>Cerrar</Text></Pressable>
-                <Pressable onPress={guardar} style={[s.btnPri, s.flex1]}><Text style={s.btnPriTxt}>Guardar nombre</Text></Pressable>
+                <Pressable onPress={() => setSel(null)} style={[s.btnSec, s.flex1]}><Text style={s.btnSecTxt}>Cancelar</Text></Pressable>
+                <Pressable onPress={guardar} style={[s.btnPri, s.flex1]}><Text style={s.btnPriTxt}>{sel?.id ? "Guardar" : "Crear materia"}</Text></Pressable>
               </View>
             </ScrollView>
           </View>
@@ -370,7 +373,8 @@ const s = StyleSheet.create({
   fila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingHorizontal: SPACE.md, minHeight: MIN_TOUCH + 4 },
   borde: { borderTopWidth: 1, borderTopColor: t.border },
   filaTxt: { fontSize: 14.5, fontWeight: "700", color: t.textStrong },
-  meta: { fontSize: 12, color: t.textFaint },
+  meta: { fontSize: 12.5, color: t.textMuted, marginTop: 1 },
+  editar: { fontSize: 14, fontWeight: "700", color: t.accent },
   claseFila: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, minHeight: 36 },
   dot: { width: 9, height: 9, borderRadius: 5 },
   dotGrande: { width: 14, height: 14, borderRadius: 7 },

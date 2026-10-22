@@ -2,7 +2,7 @@
 // sobre la consola completa (SuperAdmin), que gestiona usuarios, cursos,
 // maestros, alumnos, códigos, horarios, uniformes, alertas y menú.
 
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
@@ -13,7 +13,7 @@ import { ANCHO_MAX_CONTENIDO, columnaCentrada } from "../../lib/layout";
 
 export default function SuperHome() {
   const insets = useSafeAreaInsets();
-  const { logout, usuario } = useSession();
+  const { usuario } = useSession();
   // Canal Realtime de mensajes: la bandeja de soporte y Ayuda y soporte se
   // actualizan en vivo (sin badge en el panel).
   useMensajesNoLeidos(usuario?.id ?? null, { contar: false });
@@ -29,9 +29,7 @@ export default function SuperHome() {
           <Text style={styles.logo}>
             tribbu<Text style={styles.dot}>.</Text>
           </Text>
-          <Pressable onPress={logout} style={styles.salirBtn} hitSlop={8}>
-            <Text style={styles.salirTxt}>Salir</Text>
-          </Pressable>
+          {/* Cerrar sesión está en el panel → Mi cuenta, como en la app de la familia. */}
         </View>
       </View>
       <View style={[styles.flex1, { paddingLeft: insets.left, paddingRight: insets.right }]}>
