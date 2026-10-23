@@ -16,6 +16,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
+import { mensajeErrorAuth } from "@shared/erroresAuth";
 import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite, colorColegio } from "@shared/helpers";
 import { T, ROL_LABEL } from "@shared/theme";
 import { pickAndUploadImage } from "../../lib/media";
@@ -459,8 +460,60 @@ export function SuperAdmin() {
     // deriva la base. Solo se tocan las clases de los cursos del año vigente.
     const eClases = await guardarClasesMaestro(maestroId, form.clases || [], form._clasesOrig || [], cursosVigentes.map((c) => c.id));
     if (eClases) { Alert.alert("Maestro guardado, pero falló guardar sus clases", eClases.message); return; }
+    if (form.darAcceso && !form.usuario_id) {
+      if (!(await crearAccesoDocente(maestroId))) return;
+    } else if (form.usuario_id && form.accesoPass?.trim()) {
+      if (!(await cambiarPassDocente(form.usuario_id, form.accesoPass.trim()))) return;
+    }
     setModal(null);
     cargar();
+  };
+
+  // Acceso a tribbu para la maestra (rol "docente"): cuenta propia vinculada a
+  // la ficha (maestros.usuario_id). Mismo flujo que la web (crearAccesoDocente).
+  const crearAccesoDocente = async (maestroId) => {
+    const email = sanitize(form.email || "").toLowerCase().trim();
+    if (!email || !form.accesoPass?.trim()) { Alert.alert("Faltan datos", "Para dar acceso hacen falta email y contraseña."); return false; }
+    if (!activeColegioId) { Alert.alert("Elegí un colegio primero"); return false; }
+    let auth_id = null;
+    try {
+      ({ auth_id } = await authAdminCreate(email, form.accesoPass.trim()));
+    } catch (e) { Alert.alert("No se pudo crear el acceso", mensajeErrorAuth(e)); return false; }
+    const usuarioId = uuidLite();
+    const apellido = form.apellido || "";
+    const { error: eU } = await supabase.from("usuarios").insert({
+      id: usuarioId, nombre: sanitize(form.nombre), apellido: sanitize(apellido) || null, email,
+      rol: "docente", colegio_id: activeColegioId, auth_id, activo: true,
+      avatar: `${(form.nombre || "")[0] || ""}${apellido[0] || ""}`.toUpperCase(),
+    });
+    if (eU) { Alert.alert("No se pudo crear la cuenta", eU.message); return false; }
+    const { error: eM } = await supabase.from("maestros").update({ usuario_id: usuarioId }).eq("id", maestroId);
+    if (eM) { Alert.alert("Cuenta creada, pero no se pudo vincular", eM.message); return false; }
+    Alert.alert("Acceso creado", "Ya puede entrar a tribbu con ese email.");
+    return true;
+  };
+  const cambiarPassDocente = async (usuarioId, pass) => {
+    const { data: u } = await supabase.from("usuarios").select("auth_id,email").eq("id", usuarioId).maybeSingle();
+    try {
+      const r = await authAdminUpdate(u?.auth_id, { password: pass, current_email: u?.email });
+      if (r?.auth_id_reparado) await supabase.from("usuarios").update({ auth_id: r.auth_id_reparado }).eq("id", usuarioId);
+    } catch (e) { Alert.alert("No se pudo cambiar la contraseña", mensajeErrorAuth(e)); return false; }
+    return true;
+  };
+  const quitarAccesoDocente = () => {
+    if (!form.usuario_id) return;
+    Alert.alert("¿Quitarle el acceso?", "Ya no va a poder entrar a tribbu; sus conversaciones se conservan.", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Quitar acceso", style: "destructive", onPress: async () => {
+          await supabase.from("usuarios").update({ activo: false }).eq("id", form.usuario_id);
+          const { error } = await supabase.from("maestros").update({ usuario_id: null }).eq("id", form.id);
+          if (error) { Alert.alert("No se pudo quitar el acceso", error.message); return; }
+          setForm((p) => ({ ...p, usuario_id: null }));
+          cargar();
+        },
+      },
+    ]);
   };
 
   const guardarAlumno = async () => {
@@ -1032,7 +1085,7 @@ export function SuperAdmin() {
         <CursoModal esNuevo={modal === "nuevo_curso"} niveles={colegioNiveles} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={guardarCurso} />
       ) : null}
       {modal === "nuevo_maestro" || modal === "editar_maestro" ? (
-        <MaestroModal esNuevo={modal === "nuevo_maestro"} form={form} setForm={setForm} cursos={cursosVigentes} colegioId={activeColegioId} onClose={() => setModal(null)} onSave={guardarMaestro} />
+        <MaestroModal esNuevo={modal === "nuevo_maestro"} form={form} setForm={setForm} cursos={cursosVigentes} colegioId={activeColegioId} onClose={() => setModal(null)} onSave={guardarMaestro} onQuitarAcceso={quitarAccesoDocente} />
       ) : null}
       {modal === "nuevo_alumno" || modal === "editar_alumno" ? (
         <AlumnoModal esNuevo={modal === "nuevo_alumno"} form={form} setForm={setForm} cursos={cursos} onClose={() => setModal(null)} onSave={guardarAlumno} />
@@ -1268,7 +1321,7 @@ function CursoModal({ esNuevo, niveles = [], form, setForm, onClose, onSave }) {
   );
 }
 
-function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSave }) {
+function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSave, onQuitarAcceso }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior="padding">
@@ -1315,6 +1368,45 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 })()}
               </>
             ) : null}
+            <Text style={styles.label}>Acceso a tribbu</Text>
+            {form.usuario_id ? (
+              <>
+                <Text style={styles.muted}>Puede entrar a tribbu con {form.email || "su email"}: ve sus cursos y chatea con las familias.</Text>
+                <TextInput
+                  value={form.accesoPass || ""}
+                  onChangeText={(t) => setForm((p) => ({ ...p, accesoPass: t }))}
+                  placeholder="Nueva contraseña (opcional)"
+                  placeholderTextColor="#94A3B8"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  style={[styles.input, { marginTop: 8 }]}
+                />
+                <Pressable onPress={onQuitarAcceso} hitSlop={6} style={{ alignSelf: "flex-start", marginTop: 4 }}>
+                  <Text style={{ color: "#DC2626", fontSize: 13, fontWeight: "700" }}>Quitar acceso</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.switchFila}>
+                  <Text style={styles.switchTxt}>Darle acceso a tribbu</Text>
+                  <Switch value={!!form.darAcceso} onValueChange={(v) => setForm((p) => ({ ...p, darAcceso: v }))} />
+                </View>
+                {form.darAcceso ? (
+                  <>
+                    <Text style={styles.muted}>Entra con el email de arriba y esta contraseña. Ve sus cursos y chatea con las familias; el colegio puede leer sus chats.</Text>
+                    <TextInput
+                      value={form.accesoPass || ""}
+                      onChangeText={(t) => setForm((p) => ({ ...p, accesoPass: t }))}
+                      placeholder="Contraseña inicial"
+                      placeholderTextColor="#94A3B8"
+                      secureTextEntry
+                      autoCapitalize="none"
+                      style={[styles.input, { marginTop: 8 }]}
+                    />
+                  </>
+                ) : null}
+              </>
+            )}
             <View style={styles.switchFila}>
               <Text style={styles.switchTxt}>Activo</Text>
               <Switch value={form.activo !== false} onValueChange={(v) => setForm((p) => ({ ...p, activo: v }))} />

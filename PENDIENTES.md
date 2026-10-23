@@ -1,6 +1,6 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-22).
+Lista viva de lo que queda por hacer (última actualización: 2026-10-23).
 Tachá o borrá cada ítem cuando se resuelva.
 
 ## Hecho 2026-10-16
@@ -72,19 +72,26 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
 
 ## Mejoras chicas que quedaron (Mensajes / docentes)
 
-- [ ] **Fotos en la difusión** (hoy "Mensaje a varias familias" es solo texto).
+- [x] **Fotos en la difusión** (2026-10-23): hasta 3 fotos, se suben una sola
+      vez a `mensajes/difusion/<usuario>/` y las usan todos los mensajes
+      (`supabase/mensajes-fotos.sql`, aplicado). Web + app; en la app falta
+      publicar la versión nueva.
 - [x] **Push en el panel mobile** (2026-10-22): tocar una notificación siendo
       administrador, Secretaría o super abre la sección del panel (mensaje →
       Mensajes del personal / de familias / Ayuda y soporte según el chat;
       soporte, denuncia, autorización, taller, evento, aviso, alerta). Falta
       probarlo con un push real en un teléfono.
-- [ ] **Etiqueta "👩‍🏫 docente" en la app** también en Inicio, Calendario y la
-      campanita (en la web ya está en todos; en la app solo en Avisos).
-- [ ] **Dar acceso a docentes desde el panel mobile** (hoy solo web).
-- [ ] **Fotos de Mensajes**: cualquier usuario logueado que tenga la ruta
-      exacta puede verlas (igual que el resto de las imágenes privadas: la
-      policy de lectura de `adjuntos` es de todo el bucket). Acotar por
-      conversación/curso.
+- [x] **Etiqueta de docente en la app** (2026-10-23): Avisos e Inicio ya la
+      tenían; ahora también Calendario (Próximos y el detalle del día). La
+      campanita ya no existe en la app.
+- [x] **Dar acceso a docentes desde el panel mobile** (2026-10-23): Personas →
+      Maestros → editar → "Acceso a tribbu" (dar acceso, cambiar contraseña,
+      quitar acceso), igual que la web.
+- [x] **Fotos de Mensajes privadas** (2026-10-23, `supabase/mensajes-fotos.sql`,
+      aplicado; 15 chequeos con rollback): un archivo bajo `mensajes/` lo lee
+      solo quien lo subió, quien ve esa conversación, quien ve un mensaje que
+      lo usa (difusión) o quien gestiona la denuncia. El resto del bucket
+      `adjuntos` sigue igual.
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 

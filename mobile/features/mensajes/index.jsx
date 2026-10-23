@@ -27,7 +27,7 @@ import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
   AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
   fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
-  hijosDeFamilia, metaSoporte, pathFotoMensaje, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
+  hijosDeFamilia, metaSoporte, pathFotoMensaje, pathFotoDifusion, fotosParaBorrar, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
 } from "@shared/mensajes";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -472,25 +472,63 @@ function GrupoSheet({ visible, grupo = null, personal = false, cursos, cursoId =
   );
 }
 
-function DifusionSheet({ visible, cursos, cursoId = null, onCerrar, onListo }) {
+function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
   const [texto, setTexto] = useState("");
+  const [fotos, setFotos] = useState([]); // assets de pickImages: se suben recién al enviar
   const [enviando, setEnviando] = useState(false);
-  useEffect(() => { if (visible) { setSeleccion([]); setTexto(""); } }, [visible]);
+  useEffect(() => { if (visible) { setSeleccion([]); setTexto(""); setFotos([]); } }, [visible]);
+  const elegirFotos = async () => {
+    try {
+      const assets = await pickImages({ max: MAX_FOTOS_MENSAJE - fotos.length });
+      if (assets.length) setFotos((prev) => [...prev, ...assets].slice(0, MAX_FOTOS_MENSAJE));
+    } catch (e) {
+      Alert.alert("No se pudo elegir la foto", e.message);
+    }
+  };
   const enviar = async () => {
     if (!seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
-    if (!texto.trim()) { Alert.alert("Escribí el mensaje"); return; }
+    if (!texto.trim() && !fotos.length) { Alert.alert("Escribí el mensaje o sumá una foto"); return; }
     setEnviando(true);
-    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId });
+    // Las fotos se suben UNA vez y las usan todos los mensajes de la difusión.
+    let paths = [];
+    if (fotos.length) {
+      const ts = Date.now();
+      try {
+        const subidas = await Promise.all(fotos.map((a, i) => uploadImage(a, { bucket: "adjuntos", path: pathFotoDifusion(userId, i, ts) })));
+        paths = subidas.map((r) => r.url);
+      } catch {
+        setEnviando(false);
+        Alert.alert("No se pudo subir una de las fotos");
+        return;
+      }
+    }
+    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
     setEnviando(false);
-    if (error) { Alert.alert("No se pudo enviar", error.message); return; }
+    if (error) { borrarArchivos(paths, "adjuntos"); Alert.alert("No se pudo enviar", error.message); return; }
     const r = Array.isArray(data) ? data[0] : data;
+    if (!r?.enviados) borrarArchivos(paths, "adjuntos");
     onListo(r?.enviados || 0, r?.omitidos || 0);
   };
   return (
     <Sheet visible={visible} onClose={onCerrar} title="Mensaje a varias familias" style={s.sheetAlto}>
       <Text style={s.sheetIntro}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</Text>
       <TextInput value={texto} onChangeText={(v) => setTexto(v.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" placeholderTextColor={t.placeholder} multiline style={[s.inputArea, { marginBottom: SPACE.sm }]} accessibilityLabel="Mensaje" />
+      <View style={[s.previewsRow, { alignItems: "center", marginBottom: SPACE.sm }]}>
+        {fotos.map((a, i) => (
+          <View key={a.uri}>
+            <Image source={{ uri: a.uri }} style={s.previewImg} />
+            <Pressable onPress={() => setFotos((p) => p.filter((_, j) => j !== i))} style={s.quitarFoto} hitSlop={8} accessibilityLabel={`Quitar foto ${i + 1}`}>
+              <MaterialCommunityIcons name="close" size={12} color="white" />
+            </Pressable>
+          </View>
+        ))}
+        {fotos.length < MAX_FOTOS_MENSAJE ? (
+          <Pressable onPress={elegirFotos} hitSlop={6} accessibilityRole="button">
+            <Text style={{ color: t.accent, fontSize: 14, fontWeight: "700" }}>{fotos.length ? "+ Otra foto" : "+ Sumar fotos"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
@@ -761,7 +799,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
     if (!plan) { Alert.alert("El mensaje quedaría vacío", "Para sacarlo entero, usá Eliminar."); return; }
     const { data, error } = await supabase.from("mensajes").update(plan.cambios).eq("id", editando.id).select().single();
     if (error) { Alert.alert("No se pudo editar el mensaje"); return; }
-    if (plan.quitadas.length) borrarArchivos(plan.quitadas, "adjuntos");
+    if (plan.quitadas.length) borrarArchivos(fotosParaBorrar(plan.quitadas), "adjuntos");
     setMensajes((prev) => fusionarMensajes(prev, [data]));
     setEditando(null);
   };
@@ -772,7 +810,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       { text: "Eliminar", style: "destructive", onPress: async () => {
         const { data, error } = await supabase.from("mensajes").update({ borrado_en: new Date().toISOString() }).eq("id", m.id).select().single();
         if (error) { Alert.alert("No se pudo eliminar el mensaje"); return; }
-        borrarArchivos(m.fotos || [], "adjuntos");
+        borrarArchivos(fotosParaBorrar(m.fotos), "adjuntos");
         setMensajes((prev) => fusionarMensajes(prev, [data]));
         onCambio?.();
       } },
@@ -850,7 +888,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
       { text: "Eliminar grupo", style: "destructive", onPress: async () => {
         const { data: fotos, error } = await supabase.rpc("eliminar_grupo", { p_conv: conv.id });
         if (error) { Alert.alert("No se pudo eliminar el grupo"); return; }
-        if (fotos?.length) borrarArchivos(fotos, "adjuntos").catch(() => {});
+        if (fotos?.length) borrarArchivos(fotosParaBorrar(fotos), "adjuntos").catch(() => {});
         onSalioGrupo?.();
       } },
     ]);
@@ -1295,7 +1333,7 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />
       <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} personal={!!grupoSheet?.personal || esGrupoPersonal(grupoSheet?.grupo)} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoSheet(null)}
         onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: grupoSheet?.personal ? "personal" : "grupo", titulo: "Grupo", creado_por: userId }); }} />
-      <DifusionSheet visible={difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setDifusion(false)}
+      <DifusionSheet visible={difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} userId={userId} onCerrar={() => setDifusion(false)}
         onListo={(n, omitidos) => { setDifusion(false); onCambio(); Alert.alert("Mensaje enviado", `Le llegó a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       <NormasSheet visible={!!normas} userId={userId} onCerrar={() => setNormas(null)}
         onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn?.(); }} />

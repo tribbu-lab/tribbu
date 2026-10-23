@@ -169,6 +169,19 @@ export function metaSoporte({ plataforma, version, sistema, dispositivo, pantall
 export const pathFotoMensaje = (conversacionId, i, ts = Date.now()) => `mensajes/${conversacionId}/${ts}-${i}`;
 
 /**
+ * Foto de una difusión: se sube UNA vez a mensajes/difusion/<usuario>/… y la
+ * usan todos los mensajes de esa difusión (supabase/mensajes-fotos.sql).
+ */
+export const pathFotoDifusion = (usuarioId, i, ts = Date.now()) => `mensajes/difusion/${usuarioId}/${ts}-${i}`;
+
+/**
+ * Fotos que se pueden borrar del Storage al editar o borrar UN mensaje: las de
+ * difusión no, porque las comparten los mensajes de las otras familias (las
+ * limpia mensajes-retencion cuando ninguno las usa).
+ */
+export const fotosParaBorrar = (paths) => (paths || []).filter((p) => !String(p).startsWith("mensajes/difusion/"));
+
+/**
  * "Escribir por tribbu" en Contacto: Secretaría (un chat por hijo) y las
  * maestras que usan tribbu en los cursos en vista. `docentes` = filas de
  * docentes_para_mensaje(); `hijos` = items "hijo" de Mi acceso.

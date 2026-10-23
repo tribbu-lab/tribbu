@@ -1247,10 +1247,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               );
             })():null}
             <div style={{marginBottom:12,padding:12,borderRadius:12,border:"1px solid #E2E8F0",background:"#F8FAFC"}}>
-              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Acceso a Mensajes</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:"#475569",marginBottom:6}}>Acceso a tribbu</div>
               {form.usuario_id ? (
                 <>
-                  <div style={{fontSize:12.5,color:"#065F46",fontWeight:700,marginBottom:8}}>✓ Puede entrar a tribbu y chatear con las familias de sus cursos{form.email?` (${form.email})`:""}.</div>
+                  <div style={{fontSize:12.5,color:"#065F46",fontWeight:700,marginBottom:8}}>✓ Puede entrar a tribbu: ve sus cursos y chatea con las familias{form.email?` (${form.email})`:""}.</div>
                   <input type="password" value={form.accesoPass||""} onChange={e=>setForm(p=>({...p,accesoPass:e.target.value}))} placeholder="Nueva contraseña (opcional)" autoComplete="new-password" style={{...inp,marginBottom:8}}/>
                   <button onClick={quitarAccesoDocente} style={{border:"none",background:"none",color:"#EF4444",fontSize:12,fontWeight:700,cursor:"pointer",padding:0}}>Quitar acceso</button>
                 </>
@@ -1258,11 +1258,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <>
                   <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer"}}>
                     <input type="checkbox" checked={!!form.darAcceso} onChange={e=>setForm(p=>({...p,darAcceso:e.target.checked}))}/>
-                    <span style={{color:"#0F172A"}}>Darle acceso para chatear con las familias</span>
+                    <span style={{color:"#0F172A"}}>Darle acceso a tribbu</span>
                   </label>
                   {form.darAcceso?(
                     <div style={{marginTop:8}}>
-                      <div style={{fontSize:11.5,color:"#64748B",marginBottom:6}}>Entra con el email de arriba y esta contraseña. Solo ve Mensajes; el colegio puede leer sus chats.</div>
+                      <div style={{fontSize:11.5,color:"#64748B",marginBottom:6}}>Entra con el email de arriba y esta contraseña. Ve sus cursos y chatea con las familias; el colegio puede leer sus chats.</div>
                       <input type="password" value={form.accesoPass||""} onChange={e=>setForm(p=>({...p,accesoPass:e.target.value}))} placeholder="Contraseña inicial" autoComplete="new-password" style={inp}/>
                     </div>
                   ):null}

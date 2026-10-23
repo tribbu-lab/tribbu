@@ -10,6 +10,7 @@
 //   · las archivadas hace más de 180 días (antes se borraban apenas cerraba el año)
 //   · hilos de soporte sin mensajes hace más de 180 días
 //   · denuncias resueltas hace más de 180 días
+//   · fotos de difusión que ya no usa ningún mensaje (mensajes/difusion/…)
 // Las fotos (bucket privado `adjuntos`, `mensajes/<conversacion_id>/…`) se
 // borran por la API de Storage antes de las filas (no se puede por SQL).
 //
@@ -44,6 +45,40 @@ async function borrarCarpeta(sb: SupabaseClient, convId: string) {
     if (data.length < 100) break;
   }
   return total;
+}
+
+// Fotos de difusión (mensajes/difusion/<usuario>/…, supabase/mensajes-fotos.sql):
+// las comparten los mensajes de todas las familias de esa difusión, así que no
+// están en la carpeta de ningún chat. Se borran cuando ningún mensaje ni
+// denuncia las usa (editado, borrado o chat vencido), con 2 días de gracia
+// para no tocar una que se está enviando.
+const DIAS_GRACIA_DIFUSION = 2;
+async function fotosDifusionHuerfanas(sb: SupabaseClient) {
+  const base = "mensajes/difusion";
+  const limite = Date.now() - DIAS_GRACIA_DIFUSION * 86400_000;
+  const huerfanas: string[] = [];
+  const { data: carpetas } = await sb.storage.from("adjuntos").list(base, { limit: 1000 });
+  for (const c of carpetas || []) {
+    if (c.id) continue; // solo carpetas (una por usuario)
+    const pref = `${base}/${c.name}`;
+    const { data: archivos } = await sb.storage.from("adjuntos").list(pref, { limit: 1000 });
+    const nombres = new Set((archivos || []).filter((a) => a.id).map((a) => a.name));
+    for (const a of archivos || []) {
+      if (!a.id || a.name.endsWith(".thumb.jpg")) continue;
+      if (new Date(a.created_at).getTime() > limite) continue;
+      const path = `${pref}/${a.name}`;
+      const usada = JSON.stringify([path]);
+      const [{ count: enMensajes }, { count: enDenuncias }] = await Promise.all([
+        sb.from("mensajes").select("id", { count: "exact", head: true }).filter("fotos", "cs", usada),
+        sb.from("mensaje_denuncias").select("id", { count: "exact", head: true }).filter("fotos_snapshot", "cs", usada),
+      ]);
+      if (enMensajes || enDenuncias) continue;
+      huerfanas.push(path);
+      const mini = `${a.name.replace(/\.[^./]+$/, "")}.thumb.jpg`;
+      if (nombres.has(mini)) huerfanas.push(`${pref}/${mini}`);
+    }
+  }
+  return huerfanas;
 }
 
 serve(async (req) => {
@@ -103,7 +138,9 @@ serve(async (req) => {
     .eq("estado", "resuelta")
     .lt("resuelta_en", limiteDenuncias);
 
-  if (dry) return json({ dry: true, archivar: aArchivar.length, conversaciones: vencidas, denuncias: denunciasViejas ?? 0 });
+  const difusion = await fotosDifusionHuerfanas(sb);
+
+  if (dry) return json({ dry: true, archivar: aArchivar.length, conversaciones: vencidas, denuncias: denunciasViejas ?? 0, fotos_difusion: difusion });
 
   const ahora = new Date().toISOString();
   for (let i = 0; i < aArchivar.length; i += 100) {
@@ -120,5 +157,10 @@ serve(async (req) => {
   }
   await sb.from("mensaje_denuncias").delete().eq("estado", "resuelta").lt("resuelta_en", limiteDenuncias);
 
-  return json({ archivadas: aArchivar.length, conversaciones: ids.length, archivos, denuncias: denunciasViejas ?? 0 });
+  for (let i = 0; i < difusion.length; i += 100) {
+    const { error } = await sb.storage.from("adjuntos").remove(difusion.slice(i, i + 100));
+    if (error) console.error("retención: fotos de difusión", error.message);
+  }
+
+  return json({ archivadas: aArchivar.length, conversaciones: ids.length, archivos, denuncias: denunciasViejas ?? 0, fotos_difusion: difusion.length });
 });

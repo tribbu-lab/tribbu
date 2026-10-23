@@ -29,6 +29,8 @@ import { FestejoDetalleModal } from "../cumples";
 import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/horarios";
 import { bloquesDeTalleres } from "@shared/talleres";
 import { textoPlano } from "@shared/formato";
+import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
+import { etiquetaDocente } from "@shared/docentes";
 
 const t = THEMES.light;
 
@@ -59,6 +61,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
   const diaHorarioSel = (dias) => (dias.includes(diaHorario) ? diaHorario : dias.includes(diaDeHoy()) ? diaDeHoy() : dias[0]);
   const [mes, setMes] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [eventos, setEventos] = useState([]);
+  // Quién de los autores es docente: "Laura Fernández · Inglés" (como en la web).
+  const docenteDe = useAutoresDocentes(eventos.map((e) => e.creado_por));
   const [cumples, setCumples] = useState([]);
   const [recordatorios, setRecordatorios] = useState([]);
   const [horarios, setHorarios] = useState([]);
@@ -366,6 +370,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
                     key={e.id || i}
                     e={e}
                     tag={tagDeCurso(e.curso_id)}
+                    docente={docenteDe(e.creado_por)}
                     isAdmin={isAdmin}
                     userId={userId}
                     onAsistencia={() => setEventoDetalle(e)}
@@ -408,6 +413,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
                   <View style={styles.flex1}>
                     <Text style={styles.eventoTitulo}>{e.titulo}</Text>
                     <TagHijo tag={tagDeCurso(e.curso_id)} />
+                    {docenteDe(e.creado_por) ? <Text style={styles.eventoDocente}>{etiquetaDocente(docenteDe(e.creado_por)).replace(/^👩‍🏫\s*/, "")}</Text> : null}
                     <Text style={styles.eventoMeta}>
                       {[TIPO_CONFIG[e.tipo]?.label, e.fecha_fin && e.fecha_fin !== e.fecha ? fmtRangoFecha(e.fecha, e.fecha_fin) : null, e.hora ? `${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : null].filter(Boolean).join(" · ")}
                     </Text>
@@ -549,7 +555,7 @@ function TagHijo({ tag }) {
   );
 }
 
-function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, onEditar, onEliminar }) {
+function EventoRow({ e, tag = null, docente = null, isAdmin, userId, onAsistencia, onFestejo, onEditar, onEliminar }) {
   const cfg = TIPO_CONFIG[e.tipo] || TIPO_CONFIG.acto;
   // Solo quien lo creó lo edita/borra (Room Parent incluida), igual que la
   // RLS (puede_editar_evento). El colegio lo hace desde su panel.
@@ -559,6 +565,7 @@ function EventoRow({ e, tag = null, isAdmin, userId, onAsistencia, onFestejo, on
       <View style={styles.flex1}>
         <Text style={styles.eventoTitulo}>{e.titulo}</Text>
         <TagHijo tag={tag} />
+        {docente ? <Text style={styles.eventoDocente}>{etiquetaDocente(docente).replace(/^👩‍🏫\s*/, "")}</Text> : null}
         <Text style={styles.eventoMeta}>
           {cfg.label}
           {e.hora ? ` · ${e.hora}${e.hora_fin ? ` – ${e.hora_fin}` : ""}` : ""}
@@ -1027,6 +1034,7 @@ const styles = StyleSheet.create({
   iconTxt: { fontSize: 18 },
   eventoTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   eventoMeta: { fontSize: 12, color: t.textMuted, marginTop: 2 },
+  eventoDocente: { fontSize: 12, fontWeight: "600", color: t.textMuted, marginTop: 2 },
   eventoDesc: { fontSize: 12, color: t.textMuted, marginTop: 2 },
   fotoFestejo: { width: 64, height: 64, borderRadius: 8, marginTop: 6 },
   lugarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
