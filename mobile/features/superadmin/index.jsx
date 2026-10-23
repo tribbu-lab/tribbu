@@ -652,7 +652,8 @@ export function SuperAdmin() {
     { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente").length, l: "Apoderados" },
     { n: usuarios.filter((u) => u.rol === "room").length, l: "Room Parents" },
     { n: usuarios.filter((u) => !u.activo).length, l: "Inactivos" },
-    { n: cursos.length, l: "Cursos" },
+    // Solo los del año vigente, como el Inicio de la web.
+    { n: cursosVigentes.length, l: "Cursos" },
   ];
   const seccionesVisibles = SECCIONES
     .map((g) => ({ ...g, items: g.items.filter((i) => (esColegioAdmin ? !i.soloSuper : !i.soloColegioAdmin) && !(esSecretaria && SOLO_ADMIN_COLEGIO.has(i.id))) }))
@@ -691,7 +692,7 @@ export function SuperAdmin() {
           <View style={styles.statsRow}>
             {stats.map((s, i) => (
               <View key={s.l} style={[styles.statCard, i > 0 && styles.statBorde]}>
-                <Text style={styles.statLbl}>{s.l}</Text>
+                <Text style={styles.statLbl} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{s.l}</Text>
                 <Text style={styles.statNum}>{s.n}</Text>
               </View>
             ))}
@@ -949,7 +950,7 @@ export function SuperAdmin() {
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
-      {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} /> : null}
+      {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
       {sec === "talleres" ? <TalleresColegio key={activeColegioId} colegioId={activeColegioId} anoActual={anoActual} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}

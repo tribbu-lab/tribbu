@@ -8,6 +8,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { exportRowsToExcel } from "../../lib/media";
 import { Sheet } from "../../components/Sheet";
+import { EmptyState } from "../../components/EmptyState";
 import { fmtNombre, sanitize } from "@shared/helpers";
 import { THEMES, SLATE, SPACE, RADIUS, MIN_TOUCH } from "@shared/tokens";
 import { MODOS, ESTADOS_TALLER, SELECT_TALLER, hoyAR, textoLugares, textoHorario, inscripcionAbierta } from "@shared/talleres";
@@ -158,7 +159,7 @@ export function TalleresColegio({ colegioId, anoActual = null }) {
   return (
     <View>
       <Text style={[s.muted, { marginBottom: SPACE.md }]}>Gestioná inscriptos, lista de espera y sorteos. Para crear o editar un taller entrá a tribbu.ar/app desde la computadora.</Text>
-      {!talleres.length ? <Text style={s.muted}>Todavía no hay talleres.</Text> : null}
+      {!talleres.length ? <EmptyState icon="palette-outline" title="Todavía no hay talleres" note="Se publican desde tribbu.ar/app en la computadora; acá vas a gestionar inscriptos, lista de espera y sorteos." /> : null}
       {talleres.map((x) => {
         const cu = cupos[x.id] || {};
         return (

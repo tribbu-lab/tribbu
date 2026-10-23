@@ -1823,7 +1823,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <ComunicacionesAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="eventos"&&(
-        <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper}/>
+        <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper} usuarios={usuarios}/>
       )}
       {sec==="marketplace"&&(
         <MarketplaceColegio cursos={cursosAnoActual} userId={usuario?.id}/>

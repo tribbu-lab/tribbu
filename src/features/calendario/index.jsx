@@ -957,7 +957,8 @@ function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
  * (creador colegio_admin o super). Los festejos solo se borran acá — se editan
  * desde Cumpleaños.
  */
-export function EventosColegio({ cursos = [], userId, esSuper = false }) {
+// usuarios: los que el panel ya tiene cargados; solo se piden los autores que falten.
+export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [] }) {
   const { showToast, Toast } = useToast();
   const [eventos, setEventos] = useState(null);
   const [autores, setAutores] = useState({});
@@ -975,14 +976,16 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const cargar = useCallback(async () => {
     const cursoIds = ids ? ids.split(",") : [];
     if (!cursoIds.length) { setEventos([]); return; }
-    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha");
+    // Los festejos son entre familias: ni se piden.
+    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).neq("tipo", "festejo").order("fecha");
     if (error) { showToast(`No se pudieron cargar los eventos: ${error.message}`, "error"); return; }
     const lista = data || [];
-    const creadores = [...new Set(lista.map(e => e.creado_por).filter(Boolean))];
-    const { data: us } = creadores.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", creadores) : { data: [] };
-    setAutores(Object.fromEntries((us || []).map(u => [u.id, u])));
+    const conocidos = Object.fromEntries(usuarios.map(u => [u.id, u]));
+    const faltan = [...new Set(lista.map(e => e.creado_por).filter(id => id && !conocidos[id]))];
+    const { data: us } = faltan.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", faltan) : { data: [] };
+    setAutores({ ...conocidos, ...Object.fromEntries((us || []).map(u => [u.id, u])) });
     setEventos(lista);
-  }, [ids, showToast]);
+  }, [ids, showToast, usuarios]);
   useCargar(cargar);
 
   const nombreCurso = (id) => cursos.find(c => c.id === id)?.nombre || "—";

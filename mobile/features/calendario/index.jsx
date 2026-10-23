@@ -1121,7 +1121,8 @@ const styles = StyleSheet.create({
  * que creó el colegio. Festejos solo se borran (se editan en Cumpleaños).
  * Crear un evento notifica al curso, igual que en el Calendario.
  */
-export function EventosColegio({ cursos = [], userId, esSuper = false }) {
+// usuarios: los que el panel ya tiene cargados; solo se piden los autores que falten.
+export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [] }) {
   const [eventos, setEventos] = useState(null);
   const [autores, setAutores] = useState({});
   const [cursoSel, setCursoSel] = useState("");
@@ -1134,14 +1135,16 @@ export function EventosColegio({ cursos = [], userId, esSuper = false }) {
   const cargar = useCallback(async () => {
     const cursoIds = ids ? ids.split(",") : [];
     if (!cursoIds.length) { setEventos([]); return; }
-    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).order("fecha");
+    // Los festejos son entre familias: ni se piden.
+    const { data, error } = await supabase.from("eventos").select("*").in("curso_id", cursoIds).neq("tipo", "festejo").order("fecha");
     if (error) { Alert.alert("No se pudieron cargar los eventos", error.message); return; }
     const lista = data || [];
-    const creadores = [...new Set(lista.map((e) => e.creado_por).filter(Boolean))];
-    const { data: us } = creadores.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", creadores) : { data: [] };
-    setAutores(Object.fromEntries((us || []).map((u) => [u.id, u])));
+    const conocidos = Object.fromEntries(usuarios.map((u) => [u.id, u]));
+    const faltan = [...new Set(lista.map((e) => e.creado_por).filter((id) => id && !conocidos[id]))];
+    const { data: us } = faltan.length ? await supabase.from("usuarios").select("id,nombre,apellido,rol").in("id", faltan) : { data: [] };
+    setAutores({ ...conocidos, ...Object.fromEntries((us || []).map((u) => [u.id, u])) });
     setEventos(lista);
-  }, [ids]);
+  }, [ids, usuarios]);
   useEffect(() => { cargar(); }, [cargar]);
 
   const nombreCurso = (id) => cursos.find((c) => c.id === id)?.nombre || "—";
