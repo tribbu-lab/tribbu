@@ -48,9 +48,13 @@ const pad = (n) => String(n).padStart(2, "0");
 
 // soloHorario: la pestaña "Horario" de Agenda (ruta (tabs)/horario).
 export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = false }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null, esDocente = false } = useSession();
-  // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
-  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null, esDocente = false, items = [] } = useSession();
+  // Room Parent o docente de este curso: pueden cargar eventos. En "Todos" (sin
+  // curso elegido), en los cursos donde lo son: el formulario pide "Para el curso de".
+  const cursosRoom = items.filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id);
+  const cursosCreables = cursoId ? [] : (cursoIds || []).filter((c) => cursosDocente.includes(c) || cursosRoom.includes(c));
+  const opcionesCurso = cursosCreables.map((c) => ({ curso_id: c, tag: tagDeCurso(c) }));
+  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId)) || cursosCreables.length > 0;
   const userId = usuario?.id ?? null;
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -497,6 +501,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
           evento={modal === "nuevo" ? null : modal}
           cursoId={cursoId}
           userId={userId}
+          cursosOpciones={opcionesCurso}
           onClose={() => setModal(null)}
           onSave={() => {
             setModal(null);
@@ -667,7 +672,10 @@ async function crearAsistenciaPendiente(eventoId, cursoId) {
 // Lo que se copia a los otros cursos de un evento multi-curso al editarlo.
 const CAMPOS_GRUPO = ["titulo", "tipo", "fecha", "fecha_fin", "hora", "hora_fin", "todo_el_dia", "lugar", "url_ubicacion", "descripcion", "adjuntos", "confirma_asistencia"];
 
-export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
+// cursosOpciones: en "Todos" (sin curso elegido), los cursos donde se puede crear.
+export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onClose, onSave }) {
+  const [cursoElegido, setCursoElegido] = useState(cursosOpciones[0]?.curso_id ?? null);
+  const cursoDelForm = evento?.curso_id ?? cursoId ?? cursoElegido;
   const esNuevo = !evento;
   const [form, setForm] = useState({
     titulo: evento?.titulo || "",
@@ -695,8 +703,8 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     if (!form.titulo || !form.fecha || fechaFinInvalida) return;
     setSaving(true);
     // Al editar, el curso es el del evento (nunca el de sesión); al crear, el
-    // cursoId de sesión (el modal solo se abre con isAdmin, nunca en vista Todos).
-    const cursoEvento = evento?.curso_id ?? cursoId;
+    // cursoId de sesión, o en "Todos" el elegido en "Para el curso de".
+    const cursoEvento = cursoDelForm;
     // fecha_fin es columna `date`: "" no es válido, tiene que viajar null.
     const payload = { ...form, fecha_fin: form.fecha_fin || null, curso_id: cursoEvento };
     let eventoId = evento?.id;
@@ -738,6 +746,22 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{esNuevo ? "Nuevo evento" : "Editar evento"}</Text>
 
+            {esNuevo && !cursoId && cursosOpciones.length > 1 ? (
+              <>
+                <Text style={styles.label}>PARA EL CURSO DE</Text>
+                <View style={styles.tipoWrap}>
+                  {cursosOpciones.map((o) => {
+                    const act = cursoElegido === o.curso_id;
+                    return (
+                      <Pressable key={o.curso_id} onPress={() => setCursoElegido(o.curso_id)} style={[styles.tipoChip, styles.cursoChip, act && styles.cursoChipOn]}>
+                        <View style={[styles.cursoDot, { backgroundColor: o.tag?.color || "#94A3B8" }]} />
+                        <Text style={[styles.tipoTxt, act && styles.cursoChipTxtOn]} numberOfLines={1}>{o.tag?.nombre || "Curso"}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
             <Text style={styles.label}>TIPO</Text>
             <View style={styles.tipoWrap}>
               {Object.entries(TIPO_CONFIG)
@@ -831,7 +855,7 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
             <AdjuntosInput
               adjuntos={form.adjuntos || []}
               onChange={(adj) => setForm((p) => ({ ...p, adjuntos: adj }))}
-              cursoId={cursoId}
+              cursoId={cursoDelForm}
               onUploadingChange={setSubiendoAdj}
             />
 
@@ -1088,6 +1112,10 @@ const styles = StyleSheet.create({
   errorTxt: { fontSize: 11, color: t.danger, marginTop: 4 },
   input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: SPACE.md, fontSize: 13, color: t.text },
   tipoWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  cursoChip: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cursoChipOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  cursoChipTxtOn: { color: BLUE[600] },
+  cursoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
   tipoChip: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: t.surface },
   tipoTxt: { fontSize: 12, fontWeight: "700", color: t.textFaint },
   horaRow: { flexDirection: "row", alignItems: "center", gap: 8 },

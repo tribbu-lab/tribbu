@@ -150,6 +150,7 @@ export function SuperAdmin() {
   // Sin leer de Mensajes (familias / personal) y Ayuda: solo el staff del colegio.
   const noLeidos = useNoLeidosPanel(esColegioAdmin, sec);
   const [anoActual, setAnoActual] = useState(null); // colegios.año_lectivo_actual del colegio activo
+  const [anoCursosSel, setAnoCursosSel] = useState(null); // año que se mira en Colegio → Cursos (null = el vigente)
   // Fuerza a <Comedor> (Menú) a recargar tras un upload de Excel — key
   // remontada en vez de exponer un callback nuevo en un componente que hoy
   // no toma props de recarga externa.
@@ -413,7 +414,8 @@ export function SuperAdmin() {
         avatar: form.avatar || "🏫",
         color: form.color || "#3B82F6",
         colegio_id: activeColegioId,
-        año_lectivo: new Date().getFullYear(),
+        // El año que se está mirando en Cursos (el vigente por defecto), como la web.
+        año_lectivo: form.año_lectivo || anoActual || new Date().getFullYear(),
         // Con un solo nivel, el curso nuevo lo toma solo (roles-por-nivel).
         nivel: form.nivel || (colegioNiveles.length === 1 ? colegioNiveles[0] : null),
       });
@@ -704,6 +706,10 @@ export function SuperAdmin() {
 
   // Autorizaciones y Adopción: solo los cursos del año lectivo vigente (como la web).
   const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
+  // Colegio → Cursos: un año por vez (el vigente por defecto), como la web.
+  const anoCursos = anoCursosSel ?? anoActual;
+  const anosCursos = [...new Set(cursos.map((c) => c.año_lectivo).filter(Boolean))].sort((a, b) => b - a);
+  const cursosDelAno = anoCursos ? cursos.filter((c) => c.año_lectivo === anoCursos) : cursos;
 
   const stats = [
     { n: usuarios.filter((u) => u.rol !== "super" && u.rol !== "colegio_admin" && u.rol !== "nivel_admin" && u.rol !== "docente").length, l: "Apoderados" },
@@ -860,12 +866,25 @@ export function SuperAdmin() {
             <BotonNuevo
               accessibilityLabel="Agregar nuevo curso"
               onPress={() => {
-              setForm({ nombre: "", avatar: "🏫", color: "#3B82F6" });
+              setForm({ nombre: "", avatar: "🏫", color: "#3B82F6", año_lectivo: anoCursos });
               setModal("nuevo_curso");
               }}
             />
           </View>
-          {cursos.map((c) => {
+          {anosCursos.length > 1 ? (
+            <View style={[styles.chipsWrap, { marginBottom: 12 }]}>
+              {anosCursos.map((a) => {
+                const act = a === anoCursos;
+                return (
+                  <Pressable key={a} onPress={() => setAnoCursosSel(a)} style={[styles.chip, act && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: act }}>
+                    <Text style={[styles.chipTxt, act && styles.chipTxtOn]}>{a}{a === anoActual ? " (vigente)" : ""}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          {!cursosDelAno.length ? <EmptyState icon="school-outline" title={`No hay cursos de ${anoCursos}`} note="Se crean con “+ Nuevo”." /> : null}
+          {cursosDelAno.map((c) => {
             const admins = usuarios.filter((u) => u.rol === "room" && u.cursos.includes(c.id));
             // Apoderados (padre o Room Parent) con algún hijo en el curso: son cuentas, no familias.
             const padres = usuarios.filter((u) => (u.rol === "padre" || u.rol === "room") && hijos.filter((h) => h.curso_id === c.id).some((h) => u.hijos.includes(h.id)));
@@ -875,8 +894,6 @@ export function SuperAdmin() {
                 <View style={styles.flex1}>
                   <Text style={styles.itemNombre}>{c.nombre}</Text>
                   <Text style={styles.itemMeta}>
-                    {/* El año solo cuando no es el vigente (p. ej. el curso del año que viene, armado con "Duplicar"). */}
-                    {anoActual && c.año_lectivo && c.año_lectivo !== anoActual ? `Año ${c.año_lectivo} · ` : ""}
                     {admins.length} Room Parent{admins.length !== 1 ? "s" : ""} · {padres.length} {padres.length === 1 ? "apoderado" : "apoderados"}
                   </Text>
                 </View>

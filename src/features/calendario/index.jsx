@@ -52,9 +52,13 @@ function TagHijo({ tag }) {
   );
 }
 
-export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, openFecha=null, onClearOpenFecha, cursosDocente=[], soloHorario=false }) {
+export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=()=>null, userId, isAdmin, misHijos=[], hijoActivo=null, openFecha=null, onClearOpenFecha, cursosDocente=[], cursosAdmin=[], soloHorario=false }) {
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
-  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
+  // En "Todos" (sin curso elegido) se puede crear en los cursos donde es
+  // docente o Room Parent: el formulario pide "Para el curso de" (como Avisos).
+  const cursosCreables = cursoId ? [] : (cursoIds||[]).filter(c=>cursosDocente.includes(c)||cursosAdmin.includes(c));
+  const opcionesCurso = cursosCreables.map(c=>({ curso_id:c, tag:tagDeCurso(c) }));
+  const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId)) || cursosCreables.length>0;
   const hoy       = new Date(); hoy.setHours(0,0,0,0);
   const [horarios, setHorarios] = useState([]);
   const [talleresInsc, setTalleresInsc] = useState([]); // inscripciones "inscripto" de mis hijos con su taller
@@ -243,7 +247,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   return (
     <div>
       <Toast/>
-      {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
+      {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} cursosOpciones={opcionesCurso} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
       {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} tag={tagDeCurso(eventoDetalle.curso_id)} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {confirm && (
@@ -584,7 +588,9 @@ async function crearAsistenciaPendiente(eventoId, cursoId) {
 // Lo que se copia a los otros cursos de un evento multi-curso al editarlo.
 const CAMPOS_GRUPO = ["titulo","tipo","fecha","fecha_fin","hora","hora_fin","todo_el_dia","lugar","url_ubicacion","descripcion","adjuntos","confirma_asistencia"];
 
-export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
+// cursosOpciones: en la vista "Todos" (sin curso elegido), los cursos donde se
+// puede crear — [{curso_id, tag:{nombre,color}}]; se elige con "PARA EL CURSO DE".
+export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onClose, onSave }) {
   const esNuevo = !evento;
   const [form, setForm] = useState({
     titulo:      evento?.titulo      || "",
@@ -609,7 +615,8 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
   const [guardando, setGuardando] = useState(false);
   const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
   // Escrituras siempre sobre el curso del evento (nunca el de sesión al editar)
-  const cursoEvento = evento?.curso_id ?? cursoId;
+  const [cursoElegido, setCursoElegido] = useState(cursosOpciones[0]?.curso_id ?? null);
+  const cursoEvento = evento?.curso_id ?? cursoId ?? cursoElegido;
   const fechaFinInvalida = form.fecha_fin && form.fecha && form.fecha_fin < form.fecha;
   const guardar = async () => {
     if(!form.titulo || !form.fecha || fechaFinInvalida) return;
@@ -652,6 +659,22 @@ export function EventoModal({ evento, cursoId, userId, onClose, onSave }) {
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <Card style={{padding:24,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{fontSize:16,fontWeight:900,marginBottom:16}}>{esNuevo?"Nuevo evento":"Editar evento"}</div>
+        {esNuevo && !cursoId && cursosOpciones.length>1 ? (
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Para el curso de</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {cursosOpciones.map(o=>{
+                const act = cursoElegido===o.curso_id;
+                return (
+                  <button key={o.curso_id} onClick={()=>setCursoElegido(o.curso_id)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${act?"#3B82F6":"#E2E8F0"}`,background:act?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:act?"#3B82F6":"#94A3B8"}}>
+                    <span style={{width:8,height:8,borderRadius:"50%",background:o.tag?.color||"#94A3B8",display:"inline-block"}}/>
+                    {o.tag?.nombre||"Curso"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         <div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
