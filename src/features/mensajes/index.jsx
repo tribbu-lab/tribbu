@@ -326,13 +326,13 @@ function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursos
           {error ? <div role="alert" style={{ fontSize: 13, color: C.danger, padding: 12 }}>{error}</div> : null}
           {pestana === "familias" && onCrearGrupo ? (
             <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px", flexWrap: "wrap" }}>
-              <button type="button" onClick={onCrearGrupo} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>👥 Crear un grupo</button>
-              <button type="button" onClick={onDifusion} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>📣 A varias familias</button>
+              <button type="button" onClick={onCrearGrupo} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>Crear un grupo</button>
+              <button type="button" onClick={onDifusion} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>A varias familias</button>
             </div>
           ) : null}
           {pestana === "personal" && onCrearGrupoPersonal ? (
             <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px" }}>
-              <button type="button" onClick={onCrearGrupoPersonal} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>👥 Crear un grupo del personal</button>
+              <button type="button" onClick={onCrearGrupoPersonal} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>Crear un grupo del personal</button>
             </div>
           ) : null}
           {contenido}

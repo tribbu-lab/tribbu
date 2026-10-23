@@ -871,6 +871,8 @@ export function SuperAdmin() {
                 <View style={styles.flex1}>
                   <Text style={styles.itemNombre}>{c.nombre}</Text>
                   <Text style={styles.itemMeta}>
+                    {/* El año solo cuando no es el vigente (p. ej. el curso del año que viene, armado con "Duplicar"). */}
+                    {anoActual && c.año_lectivo && c.año_lectivo !== anoActual ? `Año ${c.año_lectivo} · ` : ""}
                     {admins.length} Room Parent{admins.length !== 1 ? "s" : ""} · {padres.length} {padres.length === 1 ? "apoderado" : "apoderados"}
                   </Text>
                 </View>
@@ -1371,7 +1373,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
             <Text style={styles.label}>Acceso a tribbu</Text>
             {form.usuario_id ? (
               <>
-                <Text style={styles.muted}>Puede entrar a tribbu con {form.email || "su email"}: ve sus cursos y chatea con las familias.</Text>
+                <Text style={styles.notaForm}>Puede entrar a tribbu con {form.email || "su email"}: ve sus cursos y chatea con las familias.</Text>
                 <TextInput
                   value={form.accesoPass || ""}
                   onChangeText={(t) => setForm((p) => ({ ...p, accesoPass: t }))}
@@ -1393,7 +1395,7 @@ function MaestroModal({ esNuevo, form, setForm, cursos, colegioId, onClose, onSa
                 </View>
                 {form.darAcceso ? (
                   <>
-                    <Text style={styles.muted}>Entra con el email de arriba y esta contraseña. Ve sus cursos y chatea con las familias; el colegio puede leer sus chats.</Text>
+                    <Text style={styles.notaForm}>Entra con el email de arriba y esta contraseña. Ve sus cursos y chatea con las familias; el colegio puede leer sus chats.</Text>
                     <TextInput
                       value={form.accesoPass || ""}
                       onChangeText={(t) => setForm((p) => ({ ...p, accesoPass: t }))}
@@ -2565,6 +2567,7 @@ const styles = StyleSheet.create({
   statBorde: { borderLeftWidth: 1, borderLeftColor: "#F1F5F9" },
   subtitle: { fontSize: 13, color: "#64748B", marginBottom: 14 },
   muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 24 },
+  notaForm: { fontSize: 13, color: "#64748B", lineHeight: 18, marginTop: 4 },
   cardTitle: { fontSize: 15, fontWeight: "900", color: T.text, marginBottom: 6 },
 
   statsRow: { flexDirection: "row", marginBottom: 14, backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", overflow: "hidden" },

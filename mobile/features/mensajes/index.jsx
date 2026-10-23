@@ -286,13 +286,13 @@ function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [
       <Text style={s.nota}>{AYUDA_NUEVO[pestana]}</Text>
       {pestana === "familias" && onCrearGrupo ? (
         <View style={s.sheetBotones}>
-          <Button title="Crear un grupo" icon="👥" variant="outline" size="sm" onPress={onCrearGrupo} full={false} style={s.flex1} />
-          <Button title="A varias familias" icon="📣" variant="outline" size="sm" onPress={onDifusion} full={false} style={s.flex1} />
+          <Button title="Crear un grupo" variant="outline" size="sm" onPress={onCrearGrupo} full={false} style={s.flex1} />
+          <Button title="A varias familias" variant="outline" size="sm" onPress={onDifusion} full={false} style={s.flex1} />
         </View>
       ) : null}
       {pestana === "personal" && onCrearGrupoPersonal ? (
         <View style={s.sheetBotones}>
-          <Button title="Crear un grupo del personal" icon="👥" variant="outline" size="sm" onPress={onCrearGrupoPersonal} full={false} style={s.flex1} />
+          <Button title="Crear un grupo del personal" variant="outline" size="sm" onPress={onCrearGrupoPersonal} full={false} style={s.flex1} />
         </View>
       ) : null}
       {cargando ? <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} /> : (

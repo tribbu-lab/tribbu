@@ -28,18 +28,15 @@ web y app juntas, mostrar capturas antes de commitear.
       Emma", separar "Abierta" de "Tu respuesta".
 - [x] **Etapa 4 — "‹ Curso"** (hecha 2026-10-14) para volver desde las pantallas de esa sección.
 
-## Publicar lo nuevo (Mensajes, docentes, materias y clases, talleres, navegación)
+## Publicar lo nuevo
 
-Todo esto está en `main` y la base de producción ya tiene las tablas, pero
-**los usuarios todavía no lo ven** hasta publicar:
-
-- [ ] **Web**: desplegar `main` (si Vercel no lo hace solo al subir).
-- [ ] **App 1.13.0**: la 1.12.0 se armó antes de Mensajes. Subir
-      `expo.version` y correr `/store-release` + `/store-promote` (iOS desde la
-      Mac). Novedades: Mensajes (1 a 1, grupo del curso, grupos, difusión,
-      Secretaría, maestras, soporte), vista docente, materias y clases,
-      talleres extraprogramáticos, editor de horarios y la navegación nueva
-      (Hoy · Agenda · Comunicaciones · Curso).
+- [x] **Web**: se publica sola — Vercel despliega cada push a `main` en
+      www.tribbu.ar (verificado 2026-10-23).
+- [ ] **App 1.14.0**: la última armada es la 1.13.1. Lo de después (panel del
+      colegio rediseñado, mensajes del personal, chats archivados, materias por
+      nivel, zoom en fotos, fotos en la difusión, acceso de docentes desde el
+      panel, etiqueta de docente en el Calendario) llega con la próxima:
+      subir `expo.version` y correr `/store-release` + `/store-promote`.
 - [ ] **Antes de publicar, probar en un celular** (Android e iPhone): chat
       (enviar, fotos, editar, borrar), notificación de mensaje → abre el chat,
       crear y editar un grupo, difusión, teclado en el chat, vista docente.
@@ -127,11 +124,11 @@ Todo esto está en `main` y la base de producción ya tiene las tablas, pero
       `supabase/mensajes-personal.sql`): 1 a 1 y grupos entre maestras,
       Secretarías, Dirección y administración. El push ya abre el panel
       (2026-10-22).
-- [ ] **Fotos por evento**: galería privada por evento (acto, excursión) donde
+- [ ] **Fotos por evento** (postergado 2026-10-23, "por ahora no"): galería privada por evento (acto, excursión) donde
       las familias suben y ven fotos. Reusar el bucket privado `adjuntos` /
       `SignedImg`. Definir: quién sube, moderación, límite por evento.
-- [ ] **Carga asistida con IA** (spec en `specs/carga-asistida-con-ia.md`, sin
-      commitear todavía).
+- [ ] **Carga asistida con IA** (spec en `specs/carga-asistida-con-ia.md`,
+      borrador; falta decidir y construir).
 - [ ] **Pago de colectas con Mercado Pago** (postergado): requiere cuenta de MP
       del curso/colegio y webhooks. Se construye junto con el cobro del
       Marketplace (misma integración).
