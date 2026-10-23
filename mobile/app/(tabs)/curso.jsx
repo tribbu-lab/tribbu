@@ -76,7 +76,7 @@ export default function CursoScreen() {
       refreshControl={<RefreshControl refreshing={!!refrescando} onRefresh={onRefresh} />}
     >
       <Text style={styles.h1}>Curso</Text>
-      <Text style={styles.sub}>Lo del colegio y lo que organizan las familias.</Text>
+      <Text style={styles.sub}>{esDocente ? "Tus alumnos y lo que publicás para sus familias." : "Lo del colegio y lo que organizan las familias."}</Text>
       <SelectorHijos style={{ marginTop: SPACE.md }} />
       {grupos.map((g) => (
         <View key={g.titulo}>

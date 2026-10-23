@@ -30,7 +30,7 @@ import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/ho
 import { bloquesDeTalleres } from "@shared/talleres";
 import { textoPlano } from "@shared/formato";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
-import { etiquetaDocente } from "@shared/docentes";
+import { etiquetaDocente, separarCumplesDocente } from "@shared/docentes";
 
 const t = THEMES.light;
 
@@ -48,7 +48,7 @@ const pad = (n) => String(n).padStart(2, "0");
 
 // soloHorario: la pestaña "Horario" de Agenda (ruta (tabs)/horario).
 export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = false }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, misHijos = [], cursosDocente = [], hijoActivoId = null, esDocente = false } = useSession();
   // Room Parent o docente de este curso: pueden cargar eventos (no en "Todos").
   const puedeCrear = isAdmin || (!!cursoId && cursosDocente.includes(cursoId));
   const userId = usuario?.id ?? null;
@@ -99,6 +99,8 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
   const cargar = useCallback(async () => {
     if (!cursoIds?.length || !rangoEventos) return;
     const hoyStr = fmtLocalDate(new Date());
+    // Docente: la RLS no le deja leer hijos/maestros → cumpleaños por RPC (una sola llamada para las dos listas).
+    const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente", { p_cursos: cursoIds }).then((r) => separarCumplesDocente(r.data)) : null;
     const [ev, al, ma, hor, recs, tal] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase
@@ -108,11 +110,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
         .lte("fecha", rangoEventos.hasta)
         .or(filtroDesdeEventos(rangoEventos.desde))
         .order("fecha"),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
-      supabase
-        .from("maestros")
-        .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
-        .in("maestro_cursos.curso_id", cursoIds),
+      cumplesDoc ? cumplesDoc.then((x) => ({ data: x.hijos })) : supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
+      cumplesDoc
+        ? cumplesDoc.then((x) => ({ data: x.maestros }))
+        : supabase
+          .from("maestros")
+          .select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)")
+          .in("maestro_cursos.curso_id", cursoIds),
       // clases(optativa, clase_alumnos): talleres optativos — por RLS cada
       // familia recibe solo las filas de sus hijos (ver horariosVisibles).
       supabase.from("horarios").select("*, clases(optativa, clase_alumnos(hijo_id))").in("curso_id", cursoIds).order("hora_inicio"),
@@ -154,7 +158,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
           curso_id: m.maestro_cursos?.[0]?.curso_id ?? null,
         })),
     ]);
-  }, [cursoIds, userId, rangoEventos, misHijos]);
+  }, [cursoIds, userId, rangoEventos, misHijos, esDocente]);
 
   useEffect(() => {
     cargar();

@@ -49,7 +49,7 @@ import { SelectorHijos } from "../../components/SelectorHijos";
 import { TablaMenu } from "../../components/TablaMenu";
 import { textoPlano } from "@shared/formato";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
-import { etiquetaDocente } from "@shared/docentes";
+import { etiquetaDocente, separarCumplesDocente } from "@shared/docentes";
 
 const t = THEMES.light;
 
@@ -72,7 +72,7 @@ const diasHasta = (fechaStr) => {
 
 export function Muro() {
   const router = useRouter();
-  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso } = useSession();
+  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso, esDocente } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab de Avisos + el punto de la campana (hook
   // levantado en (tabs)/_layout.jsx) cuando desde acá se marca un aviso leído
@@ -105,6 +105,8 @@ export function Muro() {
     // colegio_id por curso sale de la sesión (items), sin ir a "cursos".
     const colegios = [...new Set(cursosScope.map((cid) => (items || []).find((i) => i.curso_id === cid)?.cursos?.colegio_id).filter(Boolean))];
 
+    // Docente: la RLS no le deja leer hijos/maestros → cumpleaños por RPC (una sola llamada para las dos listas).
+    const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente", { p_cursos: cursosScope }).then((r) => separarCumplesDocente(r.data)) : null;
     const [
       alerta,
       menu,
@@ -135,8 +137,8 @@ export function Muro() {
         .or(`fecha.is.null,fecha.gte.${fechaHoy}`)
         .order("creado_en", { ascending: false }),
       supabase.from("colectas").select("*").in("curso_id", cursosScope),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
-      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
+      cumplesDoc ? cumplesDoc.then((x) => ({ data: x.hijos })) : supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursosScope),
+      cumplesDoc ? cumplesDoc.then((x) => ({ data: x.maestros })) : supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursosScope),
       supabase.from("eventos").select("*").in("curso_id", cursosScope).gte("fecha", fechaHoy).lte("fecha", fecha15).order("fecha"),
       userId && misHijosIds.length
         ? supabase
@@ -268,7 +270,7 @@ export function Muro() {
       console.warn("No se pudo actualizar el muro:", e?.message);
       setError(true);
     }
-  }, [cursoIds, userId, misHijos, items]);
+  }, [cursoIds, userId, misHijos, items, esDocente]);
 
   useEffect(() => {
     setDatos(null);

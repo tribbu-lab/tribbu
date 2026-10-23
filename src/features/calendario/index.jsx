@@ -24,7 +24,7 @@ import BotonAgregarCalendario from "./BotonAgregarCalendarioWeb";
 import { useCargar } from "../../hooks/useCargar";
 import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib/calendarioRango";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
-import { etiquetaDocente } from "../../lib/docentes";
+import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
 import { diasVisibles, normalizarDia } from "../../lib/horarios";
 import { bloquesDeTalleres } from "../../lib/talleres";
 import { textoPlano } from "../../lib/formato";
@@ -103,14 +103,18 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
     setRecordatorios(recs.data||[]);
   }, [cursoIds, userId]);
 
+  // Booleano (no el array cursosDocente, que llega nuevo en cada render) para no recargar en bucle.
+  const esDocente = cursosDocente.length > 0;
   const cargar = useCallback(async () => {
     if(!cursoIds?.length || !rangoEventos) return;
+    const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente", { p_cursos: cursoIds }).then(r=>separarCumplesDocente(r.data)) : null;
     const [ev, al, ma, hor, col, tal] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase.from("eventos").select("*").in("curso_id", cursoIds)
         .lte("fecha", rangoEventos.hasta).or(filtroDesdeEventos(rangoEventos.desde)).order("fecha"),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
-      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
+      // Docente: la RLS no le deja leer hijos/maestros → cumpleaños por RPC (una sola llamada para las dos listas).
+      cumplesDoc ? cumplesDoc.then(x=>({data:x.hijos})) : supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id", cursoIds),
+      cumplesDoc ? cumplesDoc.then(x=>({data:x.maestros})) : supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id", cursoIds),
       // clases(optativa, clase_alumnos): talleres optativos — por RLS cada
       // familia recibe solo las filas de sus hijos (ver horariosVisibles abajo).
       supabase.from("horarios").select("*, clases(optativa, clase_alumnos(hijo_id))").in("curso_id", cursoIds).order("hora_inicio"),
@@ -141,7 +145,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       })),
     ];
     setCumples(todos);
-  }, [cursoIds, rangoEventos, misHijos]);
+  }, [cursoIds, rangoEventos, misHijos, esDocente]);
   useCargar(cargar);
   useCargar(cargarRecs);
 

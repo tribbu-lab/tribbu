@@ -34,7 +34,7 @@ import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
 import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
-import { etiquetaDocente } from "../../lib/docentes";
+import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
 import { textoPlano } from "../../lib/formato";
 
 // Tag de hijo estándar (solo visible en vista Todos: tagDeCurso devuelve null en vista por hijo)
@@ -92,7 +92,7 @@ const Encabezado = ({titulo,cuenta,derecha}) => (
 );
 
 
-export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], userName, userId, misHijos: misHijosProp=[], onNavigate, isMobile=true }) {
+export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], esDocente=false, userName, userId, misHijos: misHijosProp=[], onNavigate, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -118,6 +118,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // depende de los cursos/usuario. Lote 2: lo que necesita ids del lote 1.
     // colegio_id por curso sale de "Mi acceso" (items), sin ir a "cursos".
     const colegios = [...new Set(cursoIds.map(cid=>(items||[]).find(i=>i.curso_id===cid)?.cursos?.colegio_id).filter(Boolean))];
+    const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente",{p_cursos:cursoIds}).then(r=>separarCumplesDocente(r.data)) : null;
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,encuestasData,objsData,autsData,talleresData,tallerInscData] = await Promise.all([
       supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       // Puede haber un menú general y otros por nivel (roles-por-nivel): se elige abajo.
@@ -132,8 +133,9 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
         .order("creado_en",{ascending:false}),
       supabase.from("cumples").select("*").in("curso_id",cursoIds).order("id"),
       supabase.from("colectas").select("*").in("curso_id",cursoIds),
-      supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
-      supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
+      // Docente: la RLS no le deja leer hijos/maestros → cumpleaños por RPC (una sola llamada para las dos listas).
+      cumplesDoc ? cumplesDoc.then(x=>({data:x.hijos})) : supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
+      cumplesDoc ? cumplesDoc.then(x=>({data:x.maestros})) : supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
       (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).in("asiste",["pendiente","no"]) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),

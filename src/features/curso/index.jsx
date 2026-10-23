@@ -84,7 +84,7 @@ export function Curso({ cursoIds, items, userId, isAdmin, esDocente, onNavigate 
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3, color: "#0F172A" }}>Curso</div>
-      <div style={{ fontSize: 14, color: "#64748B", marginTop: 4 }}>Lo del colegio y lo que organizan las familias.</div>
+      <div style={{ fontSize: 14, color: "#64748B", marginTop: 4 }}>{esDocente ? "Tus alumnos y lo que publicás para sus familias." : "Lo del colegio y lo que organizan las familias."}</div>
       {grupos.map((g) => (
         <div key={g.titulo}>
           <div style={tituloGrupo}>{g.titulo}</div>

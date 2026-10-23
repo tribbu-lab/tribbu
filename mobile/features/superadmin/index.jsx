@@ -183,13 +183,18 @@ export function SuperAdmin() {
     // super sin colegio resuelto todavía: no hay nada que mostrar.
     if (!activeColegioId) return;
     setLoading(true);
-    const [u, c, h, m, mc, col] = await Promise.all([
+    // Un solo lote (antes los alumnos con sus familias iban en un segundo viaje, en serie).
+    const [u, c, h, m, mc, col, al] = await Promise.all([
       supabase.from("usuarios").select("*, usuario_hijos(hijo_id), usuario_cursos(curso_id, rol)").order("id"),
       supabase.from("cursos").select("*").order("nombre"),
       supabase.from("hijos").select("*").order("id"),
       supabase.from("maestros").select("*").order("id"),
       supabase.from("maestro_cursos").select("*"),
       supabase.from("colegios").select("nombre, año_lectivo_actual, niveles").eq("id", activeColegioId).maybeSingle(),
+      supabase
+        .from("hijos")
+        .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))")
+        .order("nombre"),
     ]);
     setAnoActual(col.data?.año_lectivo_actual ?? null);
     setColegioNiveles(ordenarNiveles(col.data?.niveles));
@@ -223,10 +228,6 @@ export function SuperAdmin() {
         .filter((x) => maestroIdsSet.has(x.id))
         .map((x) => ({ ...x, cursos: mcData.filter((r) => r.maestro_id === x.id).map((r) => r.curso_id) }))
     );
-    const al = await supabase
-      .from("hijos")
-      .select("*, usuarios:usuario_hijos(usuario_id, usuarios(id,nombre,apellido,email,telefono))")
-      .order("nombre");
     setAlumnos((al.data || []).filter((x) => cursoIdsSet.has(x.curso_id)));
     setLoading(false);
   }, [activeColegioId]);
@@ -696,7 +697,10 @@ export function SuperAdmin() {
     pageSize: 12,
   });
 
-  if (loading) return <Spinner />;
+  // El Inicio del panel (secciones, Ayuda, Mi cuenta) no necesita los datos:
+  // se muestra enseguida y los números se completan al llegar. Las pantallas
+  // de cada sección sí esperan.
+  if (loading && sec !== null) return <Spinner />;
 
   // Autorizaciones y Adopción: solo los cursos del año lectivo vigente (como la web).
   const cursosVigentes = anoActual ? cursos.filter((c) => c.año_lectivo === anoActual) : cursos;
@@ -746,7 +750,7 @@ export function SuperAdmin() {
             {stats.map((s, i) => (
               <View key={s.l} style={[styles.statCard, i > 0 && styles.statBorde]}>
                 <Text style={styles.statLbl} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{s.l}</Text>
-                <Text style={styles.statNum}>{s.n}</Text>
+                <Text style={styles.statNum}>{loading ? "—" : s.n}</Text>
               </View>
             ))}
           </View>

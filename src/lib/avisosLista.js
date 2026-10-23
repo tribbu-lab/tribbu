@@ -1,7 +1,7 @@
 // src/lib/avisosLista.js
 //
 // Formato de la lista de Avisos (web + mobile, @shared/avisosLista):
-// "Requiere tu atención" arriba (prioridad alta o urgente, sin leer) y
+// "Requiere tu atención" arriba (prioridad alta o urgente, sin leer, no vencido) y
 // "Recientes" abajo, en tarjetas con prioridad, de quién viene, hace cuánto se
 // mandó, miniatura de la foto adjunta y una cajita con la fecha del aviso.
 // Puro: sin supabase ni APIs de plataforma.
@@ -10,8 +10,16 @@ const DIA = 86400000;
 const soloFecha = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const capital = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-/** ¿Va en "Requiere tu atención"? Sin leer y de prioridad alta (o marcado urgente). */
-export const requiereAtencion = (r, leido) => !leido && (r?.prioridad === "alta" || !!r?.urgente);
+const hoyISO = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/**
+ * ¿Va en "Requiere tu atención"? Sin leer, de prioridad alta (o marcado
+ * urgente) y que no haya pasado: un aviso cuya fecha ya pasó queda en
+ * "Recientes" (sin leer igual). Los avisos sin fecha no vencen.
+ */
+export const requiereAtencion = (r, leido, hoy = hoyISO()) =>
+  !leido && (r?.prioridad === "alta" || !!r?.urgente) && !(r?.fecha && r.fecha < hoy);
 
 /** Separa los avisos (ya filtrados y ordenados) en { atencion, recientes }. */
 export const separarAvisos = (avisos = [], leidosSet = new Set()) => {

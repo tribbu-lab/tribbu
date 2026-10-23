@@ -19,6 +19,12 @@ const parseYmd = (v) => {
 const fmtYmd = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+// Lo que ve la persona: "23/10/2026" (el valor sigue siendo "AAAA-MM-DD").
+const fmtVisible = (v) => {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec((v || "").trim());
+  return m ? `${m[3].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[1]}` : v;
+};
+
 const useStyles = makeThemedStyles((t) => ({
   value: { flex: 1, fontSize: 14, color: t.name === "dark" ? t.textStrong : t.text },
   placeholder: { color: t.placeholder },
@@ -67,7 +73,7 @@ export function DateField({
     <View>
       <Pressable onPress={() => setOpen(true)} style={[style, inner.row]}>
         <Text style={[s.value, !value && s.placeholder]} numberOfLines={1}>
-          {value || placeholder}
+          {value ? fmtVisible(value) : placeholder}
         </Text>
         {clearable && value ? (
           <Pressable hitSlop={10} onPress={() => onChange("")} style={inner.clear}>
