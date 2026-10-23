@@ -18,7 +18,7 @@ export default {
     slug: "tribbu",
     owner: "albatross-tech",
     scheme: "tribbu",
-    version: "1.13.1",
+    version: "1.14.0",
     // Vale para iOS. En Android lo reemplaza plugins/withPantallasGrandes
     // (celular en vertical desde el código, tablets libres).
     orientation: "portrait",
