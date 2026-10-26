@@ -1,20 +1,25 @@
 # Release notes 1.14.0 (es-419)
 
-Android vc ? · iOS build ? (se completan al buildear) · commits `64b5131..84159c8` (desde 1.13.1)
+Android vc51 · iOS build 45 · commits `c4dd095..4b10f8f` (desde 1.13.0, la última publicada)
+
+> **Se saltea 1.13.1** (vc50 / build 44, subida el 2026-10-21 y nunca promovida; decidido el 2026-10-26). Las Novedades de abajo suman lo que traía 1.13.1 (`c4dd095..64b5131`, ver `release-notes-1.13.1.md`): quién escribe en los chats, sacar fotos de un mensaje, cursos de las maestras, Usuarios sin docentes y tablets en Android. vc50 y build 44 (y vc49 y build 43) quedan sin usar.
+> 1.14.0 es la primera versión en producción con R8: el AAB de vc51 trae `r8.json` + `proguard.map` y Firebase ×2.
+> Subidos el 2026-10-23: Android vc51 → Play interno (submission `0a89375c`, R8 con `r8.json` y `proguard.map`, Firebase ×2, AAB 55 MB); iOS build 45 → ASC (submission `8daa9bbc`, `DTSDKName=iphoneos26.2`, IPA 16 MB).
 
 Login, alta de cuentas y onboarding no cambiaron: la cuenta demo (demo@tribbu.app) sigue valiendo y las Review Notes de 1.13.0 siguen siendo válidas, salvo la línea del Marketplace, que ya no se arregla "por fuera" sino por Mensajes (actualizada abajo).
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
 ```
-• Marketplace: "Me interesa" abre un chat con quien publicó, sin compartir teléfono ni mail.
+• Marketplace: "Me interesa" abre un chat con quien publicó.
+• Mensajes: ves quién escribe y de qué familia, fotos con zoom y podés sacar fotos al editar.
 • Avisos del colegio con formato y membrete.
 • Ayuda con preguntas frecuentes en Mi cuenta.
-• Fotos con zoom en el chat y en los adjuntos.
-• Chats del año anterior archivados, para leerlos.
-• Docentes: chats con el personal del colegio y avisos que llegan al celular.
-• Panel del colegio más simple, con Secretarías por nivel.
-• Mejoras de estabilidad.
+• Chats del año anterior archivados.
+• Docentes: chats con el personal del colegio y siempre sus cursos del año.
+• Panel del colegio más simple, por nivel.
+• Ahora también en tablets y plegables.
+• Mejoras de rendimiento y estabilidad.
 ```
 
 ## App Store Connect — "Novedades de esta versión"
@@ -24,6 +29,8 @@ Novedades para las familias
 • Marketplace más seguro: "Me interesa" abre un chat con quien publicó, sin compartir teléfono, mail ni WhatsApp. El primer mensaje ya viene escrito.
 • Los avisos del colegio pueden tener negritas, títulos, listas y links, y llegar con el membrete del colegio.
 • Nueva sección de Ayuda en Mi cuenta, con preguntas frecuentes para resolver lo más común sin escribir a soporte.
+• Mensajes: en los grupos y en los chats con la maestra o Secretaría ves el nombre de quien escribe adentro de cada mensaje, con un color por persona y de qué familia es («María · familia de Sofía»); la maestra aparece con su materia.
+• Al editar un mensaje tuyo, ahora también podés sacarle fotos.
 • Tocá una foto del chat o de un adjunto para agrandarla y hacer zoom.
 • Al empezar el año nuevo, los chats del año anterior quedan archivados: se pueden leer, pero no escribir.
 • Los talleres optativos ya no aparecen como respuestas pendientes, y un taller que ya miraste sale de Novedades.
@@ -33,11 +40,13 @@ Para docentes
 • Los avisos que mandás a tu curso llegan al celular de las familias.
 • Nuevo: chats con el personal del colegio (maestras, Secretaría y Dirección), de a uno o en grupo.
 • Ya no ves como novedad lo que publicaste vos.
+• La app muestra siempre tus cursos del año en curso, también cuando el colegio ya preparó los del año que viene.
 
 Para el colegio
 • El panel del colegio es más simple: seis secciones con pestañas, sin íconos de colores.
 • Secretarías y Direcciones por nivel (Inicial, Primaria, Secundaria), cada una con lo de su nivel.
 • Menú del comedor y materias por nivel.
+• Las maestras ya no aparecen como apoderadas en Usuarios.
 
 Y mejoras de estabilidad.
 ```
@@ -58,7 +67,7 @@ Sign in with the demo account provided above. It belongs to "María", parent of 
 The account menu (Mi cuenta) opens from the circle with the user's initials (or profile photo) at the top right; the chat bubble icon next to it opens Mensajes. Mi cuenta → Ayuda y soporte shows frequently asked questions and a chat with the tribbu team.
 
 USER-GENERATED CONTENT (Mensajes)
-Families of the same classroom can message each other and the classroom group, and write to their children's teachers and to the school office. Before writing to other families, users must accept the chat rules (no offensive content, no spam). Any message from another family can be reported (tap the message → Denunciar), and any user can be blocked (from the menu of a one-to-one chat, or by tapping their message in a group → Bloquear). Reports are reviewed by the school; blocked users are managed in Mi cuenta → Usuarios bloqueados. Phone numbers and emails are never shown in the app. The demo classroom has another family, so a chat can be started from Comunicaciones → Mensajes → + Nuevo.
+Families of the same classroom can message each other and the classroom group, and write to their children's teachers and to the school office. Before writing to other families, users must accept the chat rules (no offensive content, no spam). Any message from another family can be reported (tap the message → Denunciar), and any user can be blocked (from the menu of a one-to-one chat, or by tapping their message in a group → Bloquear). Reports are reviewed by the school; blocked users are managed in Mi cuenta → Usuarios bloqueados. Families' phone numbers and emails are never shown to other users (only the school's own contact details appear, in Contacto). The demo classroom has another family, so a chat can be started from Comunicaciones → Mensajes → + Nuevo.
 
 HOW USERS GET AN ACCOUNT
 Accounts are created by the school: the school's administrator adds each family from the school's admin panel (one by one or by importing a spreadsheet) and gives the family its login. There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
@@ -71,7 +80,7 @@ Account deletion is available in-app under Mi cuenta (circle at the top right) �
 
 ## Qué entró realmente (interno, no publicar)
 
-Commits que tocan `mobile/` o `src/lib/` desde 1.13.1 (`64b5131`):
+Commits que tocan `mobile/` o `src/lib/` desde 1.13.1 (`64b5131`). Lo de `c4dd095..64b5131` (1.13.1, salteada) está detallado en `release-notes-1.13.1.md`:
 
 - `169ccb0` Marketplace por Mensajes (RPC `abrir_conversacion_articulo`), el colegio solo mira, Alumnos sin contactos, avisos de maestras con push.
 - `a12ed62` + `1c45664` + `cfa6038` Roles por nivel (`nivel_admin`, Secretaría/Dirección con cargo), niveles opcionales, menú por nivel; el error al crear una cuenta dice el motivo.
