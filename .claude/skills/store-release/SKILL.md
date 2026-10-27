@@ -74,6 +74,17 @@ git diff --stat <commit-release-anterior>..HEAD -- mobile/ src/lib/
    fails, ask the user to run `npx eas-cli login` — you can't do OAuth for them).
 6. Artifacts go to `mobile/tribbu-production.ipa` / `.aab` (gitignored — never
    commit them).
+7. **Capturas de las fichas** (spec `specs/capturas-de-tienda-al-dia.md`):
+
+```bash
+cd <repo>/mobile && node scripts/capturas-tienda.mjs detectar
+```
+
+   Sin red: compara las pantallas de `mobile/stores/capturas.json` contra el
+   commit `desde` del que salió el set actual y dice cuáles quedaron viejas y
+   por qué archivos (un cambio en `comunes` —barra de pestañas,
+   `mobile/components/`, tokens— las deja viejas a todas). Decilo en el plan.
+   Si hay alguna vieja, se regenera el set entero en la Phase 2b.
 
 ## Phase 1 — iOS (build → submit)
 
@@ -147,6 +158,51 @@ npx -y eas-cli@latest submit -p android --profile production \
   --path ./tribbu-production.aab --non-interactive
 ```
 
+## Phase 2b — Capturas (solo si `detectar` marcó alguna vieja)
+
+Después del build de Android (no compitas por CPU con los builds) y mientras
+ASC procesa el IPA. Si `detectar` dijo "capturas al día", decilo y salteá esta
+fase. Una falla acá **no frena** los submits: se reporta al final.
+
+1. **Datos del Colegio Demo al día** (escribe en prod, pero solo en el colegio
+   demo, filtrando por id; idempotente):
+
+```bash
+cd <repo> && npx supabase db query --linked -f supabase/demo-al-dia.sql
+```
+
+2. **Capturar** (≈15–25 min; build Release de iOS para simulador con Xcode
+   26.2 + el AAB recién compilado en el emulador, sin gastar buildNumber ni
+   versionCode):
+
+```bash
+cd <repo>/mobile && node scripts/capturas-tienda.mjs capturar --plataforma all
+```
+
+   Entra con la cuenta demo (la contraseña la lee de la API de ASC y la tacha
+   de los logs), barra de estado 9:41, navega por deep link y saca las 6
+   pantallas con Maestro en `ios/` (1320×2868), `ios-6.5/` (1284×2778, derivada)
+   y `android/` (1080×2400). Escribe en una carpeta temporal y reemplaza el set
+   del repo solo si salieron las 18; ahí actualiza `desde` en el manifiesto.
+   `--sin-build` reusa la app ya instalada (para reintentar sin recompilar).
+   - **Dispositivos compartidos**: el emulador `emulator-5554` y los simuladores
+     los usa también la sesión de desgrava. Antes de capturar, `ListAgents` y,
+     si hay otra sesión con Maestro o el emulador, coordiná por SendMessage. El
+     script solo toca `com.tribbu.app`, restaura los umbrales de almacenamiento
+     y la barra de estado, y apaga el emulador si lo levantó él.
+   - Maestro necesita Java: el script usa el JBR de Android Studio si no hay
+     `JAVA_HOME`. Si falla con `Command failed (tcp:7001): closed`, el driver de
+     Android quedó colgado (suele ser otra corrida de Maestro): coordiná y
+     reintentá con `--sin-build`.
+3. **Revisión visual (obligatoria)**: achicá cada captura nueva y la anterior
+   (`git show HEAD:<png>`) con `sips -Z 700` al scratchpad, abrilas con Read y
+   decí qué cambió en cada pantalla. Descartá y repetí el set si alguna muestra
+   el login, un spinner, el teclado, un error, un overlay de desarrollo, un
+   diálogo del sistema o datos que no sean del Colegio Demo.
+4. **PR**: rama `capturas-<versión>`, commit `chore(stores): capturas <versión>`
+   con los PNG y `mobile/stores/capturas.json`, PR y squash merge (el flujo de
+   siempre). `/store-promote` solo sube capturas commiteadas.
+
 ### Variante — APK compartible (sin submit)
 
 Si el usuario pide una **APK para compartir** (distribución directa, no
@@ -214,18 +270,21 @@ frena el envío a review y hay que avisarlo **antes** de que el usuario mande.
    - Don't pipe a background build through `tail -N`: it buffers the whole run,
      so you lose the header (where the version increment is logged) and get no
      live progress. Redirect the raw output instead.
-2. Report submission status from each submit command's output (ASC: el build
+2. Capturas: "al día", o qué pantallas se regeneraron y el PR, o por qué
+   fallaron (lo arreglás y corrés la Phase 2b de nuevo; los submits ya están).
+3. Report submission status from each submit command's output (ASC: el build
    tarda ~10–30 min en procesarse y luego hay que asignarlo a la versión en App
    Store Connect; Play: aparece en el track interno en minutos).
-3. El siguiente paso es **`/store-promote`**: promueve el vc del track interno
+4. El siguiente paso es **`/store-promote`**: promueve el vc del track interno
    a producción en Play y, en ASC, asigna el build a la versión, carga las
-   Novedades y la envía a review, todo con las notas de la Phase 3. Con ASC hay
+   Novedades, deja las capturas iguales a las del repo y la envía a review,
+   todo con las notas de la Phase 3. Con ASC hay
    que esperar a que el build termine de procesarse (si no, el skill aborta y
    pide reintentar). Pegá igual en el chat los dos bloques de
    `mobile/stores/release-notes-<version>.md` y levantá ahí cualquier problema
    con las Review Notes: `/store-promote` no envía a review mientras las notas
    mencionen el código demo.
-4. Delete or leave the local artifacts as the user prefers (they're gitignored).
+5. Delete or leave the local artifacts as the user prefers (they're gitignored).
 
 ## Failure fallbacks
 

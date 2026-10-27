@@ -90,7 +90,7 @@ Sección homónima en `docs/notas-tecnicas.md` + spec/SQL principal:
 | Multi-colegio, año lectivo y promoción | `specs/multi-colegio.md`, `specs/ano-lectivo-y-promocion-de-curso.md` |
 | Avisos automáticos (push diario/semanal) | `supabase/avisos-automaticos*.sql` |
 | Auth: recuperación de contraseña, cuentas, borrar cuenta | `specs/recuperacion-de-contrasena-por-email.md` |
-| App: build, tiendas, R8, pantallas grandes, huella | `mobile/STORE_RELEASE.md`, `specs/calidad-tecnica-para-google-play.md`, `specs/desbloqueo-con-huella-digital.md` |
+| App: build, tiendas, capturas de las fichas, R8, pantallas grandes, huella | `mobile/STORE_RELEASE.md`, `specs/capturas-de-tienda-al-dia.md`, `specs/calidad-tecnica-para-google-play.md`, `specs/desbloqueo-con-huella-digital.md` |
 
 ## Skills (`.claude/skills/`)
 

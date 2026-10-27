@@ -1,0 +1,57 @@
+{
+  "_doc": "Capturas de las fichas de App Store y Google Play. Lo usan scripts/capturas-tienda.mjs (detectar / capturar) y scripts/promover-release.mjs (subir). Spec: specs/capturas-de-tienda-al-dia.md. 'desde' = commit del código del que salió el set actual (lo escribe 'capturar'). Cada captura: 'ruta' (deep link tribbu://<ruta>), 'pasos' opcionales (comandos de Maestro después de abrirla), 'debeVer'/'noDebeVer' (regex de Maestro; usar textos que aparecen recién con los datos de supabase/demo-al-dia.sql, no títulos fijos, o la captura sale antes de que carguen) y 'fuentes'. Un cambio en 'comunes' o en las 'fuentes' de una captura desde ese commit deja viejo el set entero.",
+  "desde": "4aa06c5",
+  "comunes": [
+    "mobile/app/(tabs)/_layout.jsx",
+    "mobile/components/",
+    "mobile/lib/layout.js",
+    "src/lib/tokens.js",
+    "src/lib/theme.js"
+  ],
+  "dispositivos": {
+    "ios": { "simulador": "iPhone 17 Pro Max", "ancho": 1320, "alto": 2868 },
+    "ios-6.5": { "derivadaDe": "ios", "ancho": 1284, "alto": 2778 },
+    "android": { "avd": "Medium_Phone_API_36.1", "ancho": 1080, "alto": 2400 }
+  },
+  "capturas": [
+    {
+      "id": "01-hoy",
+      "ruta": "muro",
+      "debeVer": "Hola.*",
+      "noDebeVer": "Estás al día",
+      "fuentes": ["mobile/app/(tabs)/muro.jsx", "mobile/features/muro/", "src/lib/muro.js", "src/lib/leidos.js", "src/lib/formato.js", "src/lib/autorizaciones.js", "src/lib/perdidos.js", "src/lib/talleres.js"]
+    },
+    {
+      "id": "02-agenda",
+      "ruta": "calendario",
+      "pasos": [{ "tapOn": "Próximos" }],
+      "debeVer": "Reunión de padres 3°A",
+      "fuentes": ["mobile/app/(tabs)/calendario.jsx", "mobile/features/calendario/", "src/lib/calendarioRango.js", "src/lib/horarios.js"]
+    },
+    {
+      "id": "03-avisos",
+      "ruta": "recordatorios",
+      "debeVer": "Temario de la reunión de padres",
+      "fuentes": ["mobile/app/(tabs)/recordatorios.jsx", "mobile/features/recordatorios/", "src/lib/avisosLista.js", "src/lib/leidos.js", "src/lib/formato.js"]
+    },
+    {
+      "id": "04-curso",
+      "ruta": "curso",
+      "debeVer": "Lo del colegio.*",
+      "fuentes": ["mobile/app/(tabs)/curso.jsx", "src/lib/gestiones.js"]
+    },
+    {
+      "id": "05-colectas",
+      "ruta": "finanzas",
+      "debeVer": ".*Regalo para la seño Laura.*",
+      "fuentes": ["mobile/app/(tabs)/finanzas.jsx", "mobile/features/finanzas/", "src/lib/muro.js"]
+    },
+    {
+      "id": "06-comedor",
+      "ruta": "comedor",
+      "pasos": [{ "tapOn": ".*Ver semana.*" }],
+      "debeVer": ".*Milanesa de pollo.*",
+      "fuentes": ["mobile/app/(tabs)/comedor.jsx", "mobile/features/comedor/", "src/lib/menu.js"]
+    }
+  ]
+}
