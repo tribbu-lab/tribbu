@@ -13,6 +13,8 @@ import { useTabActiva } from "../../hooks/useTabActiva";
 import { supabase } from "../../supabase";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Buscador } from "../../components/Buscador";
+import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
+import { conCambio, filtrosBandejaColegio, filtrarBandejaColegio, filtrosBandejaSoporte, filtrarBandejaSoporte, filtrosDenuncias, filtrarDenuncias } from "../../lib/bandejasPanel";
 import { EmptyState } from "../../components/EmptyState";
 import { Icono } from "../../components/Icono";
 import { safeUrl, uuidLite } from "../../lib/helpers";
@@ -1494,18 +1496,24 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
   );
 }
 
-// ── Super Admin: bandeja de soporte (solo super) ────────────────────────────
+// ── Panel: buscador + "Filtros" (chips en modal) de las bandejas ────────────
 
-const FILTROS_SOPORTE = [
-  { k: "sin_responder", label: "Sin responder" },
-  { k: "abiertos", label: "Abiertos" },
-  { k: "resueltos", label: "Resueltos" },
-  { k: "todos", label: "Todos" },
-];
+function BarraBandeja({ q, setQ, placeholder, grupos }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      {setQ ? <Buscador value={q} onChange={setQ} placeholder={placeholder} style={{ flex: "1 1 160px", minWidth: 0, marginBottom: 0 }} /> : <div style={{ flex: 1 }} />}
+      <BotonFiltros grupos={grupos} onClick={() => setAbierto(true)} />
+      {abierto ? <FiltrosModal grupos={grupos} onClose={() => setAbierto(false)} /> : null}
+    </div>
+  );
+}
+
+// ── Super Admin: bandeja de soporte (solo super) ────────────────────────────
 
 export function BandejaSoporte({ userId, isMobile }) {
   const [hilos, setHilos] = useState(null);
-  const [filtro, setFiltro] = useState("sin_responder");
+  const [filtros, setFiltros] = useState({});
   const [q, setQ] = useState("");
   const [activa, setActiva] = useState(null);
   const [detalle, setDetalle] = useState(null);
@@ -1533,16 +1541,8 @@ export function BandejaSoporte({ userId, isMobile }) {
     return () => { vivo = false; setDetalle(null); };
   }, [activa]);
 
-  const visibles = useMemo(() => {
-    const t = (q || "").toLowerCase().trim();
-    return (hilos || []).filter((h) => {
-      if (filtro === "sin_responder" && !(h.sin_responder && h.estado !== "resuelta")) return false;
-      if (filtro === "abiertos" && h.estado !== "abierta") return false;
-      if (filtro === "resueltos" && h.estado !== "resuelta") return false;
-      if (t && !`${h.nombre} ${h.email} ${h.colegio || ""}`.toLowerCase().includes(t)) return false;
-      return true;
-    });
-  }, [hilos, filtro, q]);
+  const visibles = useMemo(() => filtrarBandejaSoporte(hilos, filtros, q), [hilos, filtros, q]);
+  const grupos = conCambio(filtrosBandejaSoporte(hilos), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
 
   const conv = activa ? { id: activa.id, tipo: "soporte", titulo: activa.nombre, subtitulo: [activa.email, activa.colegio].filter(Boolean).join(" · "), estado: activa.estado } : null;
 
@@ -1559,19 +1559,7 @@ export function BandejaSoporte({ userId, isMobile }) {
 
   const lista = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 0, height: "100%" }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {FILTROS_SOPORTE.map((f) => {
-          const n = f.k === "sin_responder" ? (hilos || []).filter((h) => h.sin_responder && h.estado !== "resuelta").length : null;
-          return (
-            <button key={f.k} onClick={() => setFiltro(f.k)} aria-pressed={filtro === f.k}
-              style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${filtro === f.k ? C.accent : C.borderStrong}`, background: filtro === f.k ? C.accentSoft : C.surface, color: filtro === f.k ? BLUE[700] : SLATE[600], fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {f.label}{n ? ` · ${n}` : ""}
-            </button>
-          );
-        })}
-      </div>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, email o colegio" aria-label="Buscar"
-        style={{ padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+      <BarraBandeja q={q} setQ={setQ} placeholder="Buscar por nombre, email o colegio" grupos={grupos} />
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
         {hilos === null ? <Spinner /> : null}
         {hilos && !visibles.length ? <Vacio texto="No hay consultas acá." /> : null}
@@ -1649,7 +1637,7 @@ export function SoporteColegioAdmin({ userId, colegioNombre, isMobile }) {
 
 export function DenunciasColegio({ colegioId }) {
   const [denuncias, setDenuncias] = useState(null);
-  const [filtro, setFiltro] = useState("pendiente");
+  const [filtros, setFiltros] = useState({});
   const [trabajando, setTrabajando] = useState(null);
   const [confirmar, confirmUI] = useConfirmar();
   const [error, setError] = useState("");
@@ -1677,8 +1665,9 @@ export function DenunciasColegio({ colegioId }) {
     cargar();
   };
 
-  const visibles = (denuncias || []).filter((d) => filtro === "todas" || d.estado === filtro);
-  const pendientes = (denuncias || []).filter((d) => d.estado === "pendiente").length;
+  const visibles = filtrarDenuncias(denuncias, filtros);
+  const grupos = conCambio(filtrosDenuncias(denuncias), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
+  const soloPendientes = grupos[0].value === "pendiente";
 
   return (
     <div>
@@ -1686,17 +1675,12 @@ export function DenunciasColegio({ colegioId }) {
       <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 12, lineHeight: 1.5, maxWidth: 640 }}>
         Acá ves <b>solo</b> los mensajes que una familia denunció — nunca el resto de las conversaciones. Podés eliminar el mensaje (queda como “Mensaje eliminado”) o marcar la denuncia como resuelta sin hacer nada.
       </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {[{ k: "pendiente", l: `Pendientes${pendientes ? ` · ${pendientes}` : ""}` }, { k: "resuelta", l: "Resueltas" }, { k: "todas", l: "Todas" }].map((f) => (
-          <button key={f.k} onClick={() => setFiltro(f.k)} aria-pressed={filtro === f.k}
-            style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${filtro === f.k ? C.accent : C.borderStrong}`, background: filtro === f.k ? C.accentSoft : C.surface, color: filtro === f.k ? BLUE[700] : SLATE[600], fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{f.l}</button>
-        ))}
-      </div>
+      <div style={{ marginBottom: 12, maxWidth: 640 }}><BarraBandeja grupos={grupos} /></div>
       {error ? <div role="alert" style={{ color: C.danger, fontSize: 13, marginBottom: 8 }}>{error}</div> : null}
       {denuncias === null ? <Spinner /> : null}
       {denuncias && !visibles.length ? (
         <div style={{ border: `1.5px dashed ${C.borderStrong}`, borderRadius: 16, padding: 24, textAlign: "center", color: C.textMuted, fontSize: 13 }}>
-          {filtro === "pendiente" ? "No hay denuncias pendientes." : "No hay denuncias."}
+          {soloPendientes ? "No hay denuncias pendientes." : "No hay denuncias."}
         </div>
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1736,15 +1720,9 @@ export function DenunciasColegio({ colegioId }) {
 // Secretaría: el colegio responde (firma "Secretaría"). Hilos con docentes:
 // el colegio solo lee (decisión 2026-10-10: son conversaciones institucionales).
 
-const FILTROS_COLEGIO = [
-  { k: "sin_responder", label: "Sin responder" },
-  { k: "secretaria", label: "Secretaría" },
-  { k: "docentes", label: "Con maestras" },
-];
-
 export function BandejaColegio({ userId, isMobile }) {
   const [hilos, setHilos] = useState(null);
-  const [filtro, setFiltro] = useState("sin_responder");
+  const [filtros, setFiltros] = useState({});
   const [q, setQ] = useState("");
   const [activa, setActiva] = useState(null);
   const [error, setError] = useState("");
@@ -1762,16 +1740,9 @@ export function BandejaColegio({ userId, isMobile }) {
     return () => { window.removeEventListener(EVENTO_MENSAJE, onMsg); clearTimeout(timer.current); };
   }, [cargar]);
 
-  const visibles = useMemo(() => {
-    const t = q.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-    return (hilos || []).filter((h) => {
-      if (filtro === "sin_responder" && !h.sin_responder) return false;
-      if (filtro === "secretaria" && h.tipo !== "colegio") return false;
-      if (filtro === "docentes" && h.tipo !== "docente") return false;
-      if (t && !`${h.alumno} ${h.curso} ${h.docente || ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(t)) return false;
-      return true;
-    });
-  }, [hilos, filtro, q]);
+  const visibles = useMemo(() => filtrarBandejaColegio(hilos, filtros, q), [hilos, filtros, q]);
+  const grupos = conCambio(filtrosBandejaColegio(hilos), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
+  const soloSinResponder = grupos[0].value === "sin_responder";
 
   const conv = activa ? {
     id: activa.id, tipo: activa.tipo,
@@ -1781,23 +1752,11 @@ export function BandejaColegio({ userId, isMobile }) {
 
   const lista = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 0, height: "100%" }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {FILTROS_COLEGIO.map((f) => {
-          const n = f.k === "sin_responder" ? (hilos || []).filter((h) => h.sin_responder).length : null;
-          return (
-            <button key={f.k} onClick={() => setFiltro(f.k)} aria-pressed={filtro === f.k}
-              style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${filtro === f.k ? C.accent : C.borderStrong}`, background: filtro === f.k ? C.accentSoft : C.surface, color: filtro === f.k ? BLUE[700] : SLATE[600], fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {f.label}{n ? ` · ${n}` : ""}
-            </button>
-          );
-        })}
-      </div>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por alumno, curso o maestra" aria-label="Buscar"
-        style={{ padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+      <BarraBandeja q={q} setQ={setQ} placeholder="Buscar por alumno, curso o maestra" grupos={grupos} />
       {error ? <div role="alert" style={{ color: C.danger, fontSize: 13 }}>{error}</div> : null}
       <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
         {hilos === null ? <Spinner /> : null}
-        {hilos && !visibles.length ? <Vacio texto={filtro === "sin_responder" ? "No hay mensajes sin responder." : "No hay conversaciones acá."} /> : null}
+        {hilos && !visibles.length ? <Vacio texto={soloSinResponder ? "No hay mensajes sin responder." : "No hay conversaciones acá."} /> : null}
         {visibles.map((h) => (
           <button key={h.id} onClick={() => setActiva(h)}
             style={{ width: "100%", textAlign: "left", display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", border: "none", borderRadius: 12, background: activa?.id === h.id ? C.accentSoft : "transparent", cursor: "pointer", minHeight: 60 }}>

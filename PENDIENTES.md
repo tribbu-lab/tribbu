@@ -48,6 +48,9 @@ web y app juntas, mostrar capturas antes de commitear.
 - [ ] **Textos de las fichas** (descripción corta/larga de Play y ASC): siguen
       siendo los de agosto ("Recordatorios", "Contactos del curso"); no cubren
       Hoy, Mensajes, Marketplace ni el panel del colegio.
+- [ ] **Próxima versión de la app (después de 1.14.0)**: lleva los filtros
+      nuevos del panel (bandejas de Mensajes/Soporte/Denuncias y filtro por
+      curso en Apoderados, 2026-10-27; en la web ya están).
 - [ ] **Antes de publicar, probar en un celular** (Android e iPhone): chat
       (enviar, fotos, editar, borrar), notificación de mensaje → abre el chat,
       crear y editar un grupo, difusión, teclado en el chat, vista docente.
@@ -69,6 +72,11 @@ web y app juntas, mostrar capturas antes de commitear.
       borrarlo si fue una prueba.
 
 ## Probar
+
+- [ ] **Filtros del panel (2026-10-27; lint web/app, build y export Android
+      ya pasan)**: probar a mano Mensajes →
+      De familias (Estado/Conversación/Curso + buscador), Denuncias y
+      Apoderados → Filtros → Curso, en la web y en la app.
 
 - [ ] **Vista docente** con una cuenta real: cursos en "Mi acceso", publicar
       aviso/evento/encuesta/autorización, Alumnos → "Escribir a la familia".

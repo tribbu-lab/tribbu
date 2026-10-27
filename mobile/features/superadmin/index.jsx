@@ -19,6 +19,7 @@ import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authA
 import { mensajeErrorAuth } from "@shared/erroresAuth";
 import { fmtNombre, fmtF, fmtRangoHora, fmtLocalDate, sanitize, safeUrl, uuidLite, colorColegio } from "@shared/helpers";
 import { T, ROL_LABEL } from "@shared/theme";
+import { apoderadoEnCurso, opcionesCursoApoderados } from "@shared/apoderados";
 import { pickAndUploadImage } from "../../lib/media";
 import { SignedImage } from "../../components/SignedImage";
 import { Pill } from "../../components/Pill";
@@ -675,6 +676,7 @@ export function SuperAdmin() {
         ],
         match: (u, v) => (v === "si" ? u.activo : !u.activo),
       },
+      { key: "curso", label: "Curso", options: opcionesCursoApoderados(cursos, anoActual), match: (u, v) => apoderadoEnCurso(u, v, hijos) },
     ],
     pageSize: 12,
   });

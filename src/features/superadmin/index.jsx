@@ -36,6 +36,7 @@ import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector
 import { EmojiPicker } from "../shared";
 import { useToast } from "../../hooks/useToast";
 import { authAdminCreate, authAdminUpdate, authAdminFind, mensajeErrorAuth } from "../../lib/authAdmin";
+import { apoderadoEnCurso, opcionesCursoApoderados } from "../../lib/apoderados";
 
 import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { Comedor } from "../comedor";
@@ -244,12 +245,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     filterOptions: [
       {key:"rol", label:"Rol", options:[{value:"padre",label:"Apoderado"},{value:"room",label:"Room Parent"}], match:(u,v)=>u.rol===v},
       {key:"activo", label:"Estado", options:[{value:"si",label:"Activo"},{value:"no",label:"Inactivo"}], match:(u,v)=>v==="si"?u.activo:!u.activo},
-      {key:"curso", label:"Curso", options:[], match:(u,v)=>{
-        const cid=v;
-        if(u.rol==="room") return (u.cursos||[]).includes(cid);
-        if(u.rol==="padre") return (u.hijos||[]).some(hid=>hijos.find(h=>h.id===hid&&h.curso_id===cid));
-        return false;
-      }},
+      {key:"curso", label:"Curso", options:[], match:(u,v)=>apoderadoEnCurso(u,v,hijos)},
     ],
     pageSize:12,
   });
@@ -1519,7 +1515,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       })()}
 
       {sec==="usuarios" && (() => {
-            const cursoOpts = cursos.map(c=>({value:String(c.id),label:c.nombre}));
+            const cursoOpts = opcionesCursoApoderados(cursos, anoActual);
             // Un chip por acceso real a un curso: filas explícitas de
             // usuario_cursos (cualquier rol) + acceso derivado por hijo para
             // apoderados sin fila propia (ver "Fix RLS: padres sin fila en
@@ -1574,7 +1570,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             </div>
 
             {ctrlUsuarios.items.length===0 ? (
-              <EmptyState sinBorde icono="lupa" titulo="Ningún apoderado coincide" nota="Probá con otro nombre, o saliendo de los filtros de rol y estado." accion="Limpiar filtros" onAccion={ctrlUsuarios.resetFiltros} style={{padding:"28px 20px"}}/>
+              <EmptyState sinBorde icono="lupa" titulo="Ningún apoderado coincide" nota="Probá con otro nombre, o saliendo de los filtros de rol, estado y curso." accion="Limpiar filtros" onAccion={ctrlUsuarios.resetFiltros} style={{padding:"28px 20px"}}/>
             ) : ctrlUsuarios.items.map(u=>{
               const marcado = selUsuarios.has(u.id);
               const hijosNombres = (u.hijos||[]).map(hid=>hijos.find(h=>h.id===hid)?.nombre).filter(Boolean).join(", ");

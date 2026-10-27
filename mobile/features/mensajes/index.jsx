@@ -34,6 +34,8 @@ import { useSession } from "../../context/Session";
 import { Button } from "../../components/Button";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Buscador } from "../../components/Buscador";
+import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Filtros";
+import { conCambio, filtrosBandejaColegio, filtrarBandejaColegio, filtrosBandejaSoporte, filtrarBandejaSoporte, filtrosDenuncias, filtrarDenuncias } from "@shared/bandejasPanel";
 import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { SignedImage } from "../../components/SignedImage";
@@ -1458,17 +1460,23 @@ export function BloqueadosSheet({ visible, onCerrar }) {
 
 // ── Panel (super / colegio_admin) ───────────────────────────────────────────
 
-const FILTROS_SOPORTE = [
-  { k: "sin_responder", label: "Sin responder" },
-  { k: "abiertos", label: "Abiertos" },
-  { k: "resueltos", label: "Resueltos" },
-  { k: "todos", label: "Todos" },
-];
+// Buscador + "Filtros" (chips en una Sheet), como el resto de las listas.
+function BarraBandeja({ q, setQ, placeholder, grupos }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <View style={s.barraBandeja}>
+      {setQ ? <Buscador value={q} onChange={setQ} placeholder={placeholder} style={s.barraBuscador} /> : <View style={s.flex1} />}
+      <BotonFiltros activos={filtrosActivos(grupos)} onPress={() => setAbierto(true)} />
+      <FiltrosSheet visible={abierto} onClose={() => setAbierto(false)} grupos={grupos} />
+    </View>
+  );
+}
 
 export function BandejaSoporte() {
   const { usuario } = useSession();
   const [hilos, setHilos] = useState(null);
-  const [filtro, setFiltro] = useState("sin_responder");
+  const [filtros, setFiltros] = useState({});
+  const [q, setQ] = useState("");
   const [activa, setActiva] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const timer = useRef(null);
@@ -1491,10 +1499,8 @@ export function BandejaSoporte() {
     return () => { vivo = false; };
   }, [activa]);
 
-  const visibles = (hilos || []).filter((h) =>
-    filtro === "todos" ? true
-    : filtro === "sin_responder" ? h.sin_responder && h.estado !== "resuelta"
-    : filtro === "abiertos" ? h.estado === "abierta" : h.estado === "resuelta");
+  const visibles = filtrarBandejaSoporte(hilos, filtros, q);
+  const grupos = conCambio(filtrosBandejaSoporte(hilos), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
 
   const extra = detalle ? (
     <View style={s.detalleUsuario}>
@@ -1508,13 +1514,7 @@ export function BandejaSoporte() {
     <View>
       <ChatModal conv={activa ? { id: activa.id, tipo: "soporte", titulo: activa.nombre, subtitulo: [activa.email, activa.colegio].filter(Boolean).join(" · "), estado: activa.estado } : null}
         onClose={() => { setActiva(null); cargar(); }} userId={usuario?.id} modo="staff" onCambio={cargar} encabezadoExtra={extra} />
-      <View style={s.chipsRow}>
-        {FILTROS_SOPORTE.map((f) => (
-          <Pressable key={f.k} onPress={() => setFiltro(f.k)} style={[s.chip, filtro === f.k && s.chipOn]} accessibilityRole="button" accessibilityState={{ selected: filtro === f.k }}>
-            <Text style={[s.chipTxt, filtro === f.k && s.chipTxtOn]}>{f.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <BarraBandeja q={q} setQ={setQ} placeholder="Buscar por nombre, email o colegio" grupos={grupos} />
       {hilos === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? <Text style={s.vacioTxt}>No hay consultas acá.</Text> : visibles.map((h) => (
         <Pressable key={h.id} onPress={() => setActiva(h)} style={[s.card, s.filaPanel]} accessibilityRole="button">
           <Iniciales texto={h.nombre} color={SLATE[600]} size={40} />
@@ -1559,7 +1559,7 @@ export function SoporteColegioAdmin() {
 
 export function DenunciasColegio({ colegioId }) {
   const [denuncias, setDenuncias] = useState(null);
-  const [filtro, setFiltro] = useState("pendiente");
+  const [filtros, setFiltros] = useState({});
   const cargar = useCallback(async () => {
     let q = supabase.from("mensaje_denuncias").select("*").order("creado_en", { ascending: false }).limit(200);
     if (colegioId) q = q.eq("colegio_id", colegioId);
@@ -1578,18 +1578,13 @@ export function DenunciasColegio({ colegioId }) {
       { text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive", onPress: hacer },
     ]);
   };
-  const visibles = (denuncias || []).filter((d) => filtro === "todas" || d.estado === filtro);
+  const visibles = filtrarDenuncias(denuncias, filtros);
+  const grupos = conCambio(filtrosDenuncias(denuncias), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
   return (
     <View>
       <Text style={s.sheetIntro}>Acá ves solo los mensajes que una familia denunció — nunca el resto de las conversaciones.</Text>
-      <View style={s.chipsRow}>
-        {[{ k: "pendiente", l: "Pendientes" }, { k: "resuelta", l: "Resueltas" }, { k: "todas", l: "Todas" }].map((f) => (
-          <Pressable key={f.k} onPress={() => setFiltro(f.k)} style={[s.chip, filtro === f.k && s.chipOn]} accessibilityRole="button">
-            <Text style={[s.chipTxt, filtro === f.k && s.chipTxtOn]}>{f.l}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {denuncias === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? <Text style={s.vacioTxt}>{filtro === "pendiente" ? "No hay denuncias pendientes." : "No hay denuncias."}</Text> : visibles.map((d) => (
+      <BarraBandeja grupos={grupos} />
+      {denuncias === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? <Text style={s.vacioTxt}>{grupos[0].value === "pendiente" ? "No hay denuncias pendientes." : "No hay denuncias."}</Text> : visibles.map((d) => (
         <View key={d.id} style={[s.card, s.denuncia]}>
           <View style={s.rowCenter}>
             <Text style={[s.estadoPill, d.estado === "pendiente" ? s.pillPend : s.pillOk]}>{d.estado === "pendiente" ? "Pendiente" : d.accion === "mensaje_eliminado" ? "Mensaje eliminado" : "Resuelta"}</Text>
@@ -1612,16 +1607,11 @@ export function DenunciasColegio({ colegioId }) {
 
 // ── Panel colegio: Secretaría + chats familia ↔ docente (solo lectura) ─────
 
-const FILTROS_COLEGIO = [
-  { k: "sin_responder", label: "Sin responder" },
-  { k: "secretaria", label: "Secretaría" },
-  { k: "docentes", label: "Con maestras" },
-];
-
 export function BandejaColegio() {
   const { usuario } = useSession();
   const [hilos, setHilos] = useState(null);
-  const [filtro, setFiltro] = useState("sin_responder");
+  const [filtros, setFiltros] = useState({});
+  const [q, setQ] = useState("");
   const [activa, setActiva] = useState(null);
   const timer = useRef(null);
   const cargar = useCallback(async () => {
@@ -1634,8 +1624,8 @@ export function BandejaColegio() {
     return () => { sub.remove(); clearTimeout(timer.current); };
   }, [cargar]);
 
-  const visibles = (hilos || []).filter((h) =>
-    filtro === "sin_responder" ? h.sin_responder : filtro === "secretaria" ? h.tipo === "colegio" : h.tipo === "docente");
+  const visibles = filtrarBandejaColegio(hilos, filtros, q);
+  const grupos = conCambio(filtrosBandejaColegio(hilos), filtros, (k, v) => setFiltros((p) => ({ ...p, [k]: v })));
   const conv = activa ? {
     id: activa.id, tipo: activa.tipo, subtitulo: activa.curso,
     titulo: activa.tipo === "docente" ? `${activa.docente} ↔ familia de ${activa.alumno}` : `Familia de ${activa.alumno}`,
@@ -1646,18 +1636,9 @@ export function BandejaColegio() {
       <ChatModal conv={conv} onClose={() => { setActiva(null); cargar(); }} userId={usuario?.id} modo="staff" rolPropio="colegio"
         soloLectura={activa?.tipo === "docente"} onCambio={cargar} />
       <Text style={s.sheetIntro}>Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras.</Text>
-      <View style={s.chipsRow}>
-        {FILTROS_COLEGIO.map((f) => {
-          const n = f.k === "sin_responder" ? (hilos || []).filter((h) => h.sin_responder).length : 0;
-          return (
-            <Pressable key={f.k} onPress={() => setFiltro(f.k)} style={[s.chip, filtro === f.k && s.chipOn]} accessibilityRole="button" accessibilityState={{ selected: filtro === f.k }}>
-              <Text style={[s.chipTxt, filtro === f.k && s.chipTxtOn]}>{f.label}{n ? ` · ${n}` : ""}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <BarraBandeja q={q} setQ={setQ} placeholder="Buscar por alumno, curso o maestra" grupos={grupos} />
       {hilos === null ? <ActivityIndicator color={t.accent} /> : !visibles.length ? (
-        <Text style={s.vacioTxt}>{filtro === "sin_responder" ? "No hay mensajes sin responder." : "No hay conversaciones acá."}</Text>
+        <Text style={s.vacioTxt}>{grupos[0].value === "sin_responder" ? "No hay mensajes sin responder." : "No hay conversaciones acá."}</Text>
       ) : visibles.map((h) => (
         <Pressable key={h.id} onPress={() => setActiva(h)} style={[s.card, s.filaPanel]} accessibilityRole="button">
           <Iniciales icono={h.tipo === "docente" ? "human-male-board" : "school-outline"} color={SLATE[600]} size={40} />
@@ -1738,6 +1719,8 @@ const s = StyleSheet.create({
   menuFila: { flexDirection: "row", alignItems: "center", gap: SPACE.md, paddingVertical: SPACE.md, minHeight: MIN_TOUCH },
   menuTxt: { fontSize: 15, color: t.text, fontWeight: "600" },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: SPACE.md },
+  barraBandeja: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, marginBottom: SPACE.md },
+  barraBuscador: { flex: 1, marginBottom: 0 },
   tabs: { flexDirection: "row", gap: 4, backgroundColor: t.surface2, borderRadius: RADIUS.lg, padding: 3, marginBottom: SPACE.md },
   tab: { flex: 1, minHeight: 38, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
   tabOn: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border },
