@@ -30,6 +30,7 @@ const AdminPanel       = aLazy(() => import("./features/admin"), "AdminPanel");
 const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmin");
 const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
+const CambiosSalida    = aLazy(() => import("./features/salidas"), "CambiosSalida");
 const Talleres         = aLazy(() => import("./features/talleres"), "Talleres");
 const Comunidad        = aLazy(() => import("./features/comunidad"), "Comunidad");
 const Perdidos         = aLazy(() => import("./features/perdidos"), "Perdidos");
@@ -60,7 +61,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta","ayuda"]);
+const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","salidas","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta","ayuda"]);
 // Navegación en 4 secciones (Hoy · Agenda · Comunicaciones · Curso), igual
 // que mobile. Cada una agrupa tabs: queda marcada en cualquiera de ellas y
 // tocarla va a la primera. Lo que no está en las tres primeras es de Curso.
@@ -90,7 +91,8 @@ const TAB_MAP = {
   festejo:      "cumples",
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
-  taller:       "talleres",
+  cambio_salida_visto: "salidas",
+  taller:      "talleres",
   perdido:      "perdidos",
   marketplace:  "marketplace",
   resumen:      "muro", // resumen semanal (avisos-automaticos)
@@ -586,6 +588,7 @@ function App() {
         return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items} onEscribir={(articulo)=>navegarA("mensajes",{articulo})}/>;
       case "perdidos": return <Perdidos abrirTab={abrirTabPerdidos} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} abrir={openAutorizacion}/>;
+      case "salidas":   return <CambiosSalida cursoIds={cursoIds} items={items} userId={usuario.id} tagDeCurso={tagDeCurso} esDocente={esDocente} hijoActivo={hijoActivoId}/>;
       case "talleres":  return <Talleres items={items} esVistaTodos={esVistaTodos} hijoActivo={hijoActivoId} tagDeCurso={tagDeCurso} esDocente={esDocente} openTaller={openTaller}/>;
       case "encuestas": return <Encuestas cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente}/>;
       case "contacto": return <Contacto cursoId={cursoId} cursoIds={cursoIds} isSuperAdmin={usuario?.rol==="super"} items={items} esDocente={esDocente} onEscribir={(extra)=>navegarA("mensajes",extra)}/>;

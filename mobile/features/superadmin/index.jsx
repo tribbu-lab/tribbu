@@ -34,6 +34,7 @@ import { UploadMenuExcel, Comedor } from "../comedor";
 import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
+import { CambiosSalidaColegio } from "../salidas";
 import { TalleresColegio } from "../talleres/colegio";
 import { EventosColegio } from "../calendario";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
@@ -62,6 +63,7 @@ const SECCIONES = [
     { id: "alertas", l: "Alertas" },
     { id: "eventos", l: "Eventos" },
     { id: "autorizaciones", l: "Autorizaciones" },
+    { id: "salidas", l: "Cambios en la salida" },
   ]},
   { id: "g_mensajes", l: "Mensajes", icono: "message-text-outline", items: [
     { id: "mensajes_familias", l: "De familias", soloColegioAdmin: true },
@@ -1030,6 +1032,7 @@ export function SuperAdmin() {
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
       {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
+      {sec === "salidas" ? <CambiosSalidaColegio key={activeColegioId} cursos={cursosVigentes} /> : null}
       {sec === "talleres" ? <TalleresColegio key={activeColegioId} colegioId={activeColegioId} anoActual={anoActual} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
       {sec === "denuncias" ? <DenunciasColegio key={activeColegioId} colegioId={activeColegioId} /> : null}

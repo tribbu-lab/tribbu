@@ -28,6 +28,21 @@ web y app juntas, mostrar capturas antes de commitear.
       Emma", separar "Abierta" de "Tu respuesta".
 - [x] **Etapa 4 — "‹ Curso"** (hecha 2026-10-14) para volver desde las pantallas de esa sección.
 
+## Cambios en la salida (2026-10-27)
+
+- [x] Tabla, RLS y RPC aplicados (`supabase/cambios-salida.sql`), send-push
+      redesplegado, web y app hechas (ver notas técnicas).
+- [ ] Probarlo a mano: familia avisa → le llega el push a la Secretaría del
+      nivel → la Secretaría lo marca como visto → le llega el push a la familia;
+      cancelar; la docente lo ve en Mis cursos; vista "Todos" con hijos en dos
+      niveles.
+- [ ] Sale en la app con la próxima versión.
+
+## Horarios (pedido 2026-10-27)
+
+- [ ] Carga masiva del horario de clases desde el panel del colegio.
+- [ ] Exportar el horario: familia y colegio.
+
 ## Publicar lo nuevo
 
 - [x] **Web**: se publica sola — Vercel despliega cada push a `main` en

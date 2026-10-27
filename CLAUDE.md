@@ -81,6 +81,7 @@ Sección homónima en `docs/notas-tecnicas.md` + spec/SQL principal:
 | Calendario, eventos multi-curso, sincronización ICS | `specs/sincronizacion-de-calendario.md`, `specs/eleccion-de-calendario-mobile.md` |
 | Colectas (participantes, "Ya transferí") | `supabase/colectas-*.sql`, `supabase/colecta-participantes.sql` |
 | Autorizaciones | `specs/autorizaciones.md` |
+| Cambios en la salida (Secretaría del nivel) | `supabase/cambios-salida.sql`, `src/lib/cambiosSalida.js` |
 | Encuestas | `specs/encuestas.md` |
 | Mensajes (1 a 1, grupos, difusión, Secretaría, docentes, personal, archivo, fotos) | `specs/mensajes.md`, `specs/docentes-clases-y-grupos.md`, `supabase/mensajes*.sql` |
 | Docentes, materias y clases, horarios | `specs/docentes-clases-y-grupos.md`, `supabase/materias-*.sql`, `supabase/horarios-talleres.sql` |

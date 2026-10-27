@@ -64,6 +64,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="comedor" options={hidden} />
         <Tabs.Screen name="encuestas" options={hidden} />
         <Tabs.Screen name="autorizaciones" options={hidden} />
+        <Tabs.Screen name="salidas" options={hidden} />
         <Tabs.Screen name="talleres" options={hidden} />
         <Tabs.Screen name="comunidad" options={hidden} />
         <Tabs.Screen name="perdidos" options={hidden} />

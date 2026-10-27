@@ -30,7 +30,7 @@ const TABS = [
     name: "curso",
     label: "Curso",
     icon: "bag-personal-outline",
-    rutas: ["curso", "finanzas", "autorizaciones", "encuestas", "comedor", "talleres", "comunidad", "perdidos", "info", "contacto", "admin", "alumnos"],
+    rutas: ["curso", "finanzas", "autorizaciones", "salidas", "encuestas", "comedor", "talleres", "comunidad", "perdidos", "info", "contacto", "admin", "alumnos"],
   },
 ];
 

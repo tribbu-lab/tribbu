@@ -23,6 +23,7 @@ const t = THEMES.light;
 const GRUPOS_FAMILIA = [
   { titulo: "Del colegio", items: [
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icon: "file-sign" },
+    { id: "salidas", label: "Cambios en la salida", desc: "Avisá si se retira distinto a lo habitual", icon: "clock-outline" },
     { id: "comedor", label: "Comedor", desc: "Menú y servicio de comedor", icon: "silverware-fork-knife" },
     { id: "talleres", label: "Talleres", desc: "Actividades e inscripciones", icon: "palette-outline" },
     { id: "info", label: "Info útil", desc: "Útiles, uniformes, libros y alumnos", icon: "information-outline" },
@@ -42,6 +43,7 @@ const GRUPOS_DOCENTE = [
   { titulo: "Mis cursos", items: [
     { id: "alumnos", label: "Alumnos", desc: "Tus alumnos y sus familias", icon: "account-school-outline" },
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icon: "file-sign" },
+    { id: "salidas", label: "Cambios en la salida", desc: "Alumnos que se retiran distinto", icon: "clock-outline" },
     { id: "encuestas", label: "Encuestas", desc: "Consultas a las familias", icon: "chart-box-outline" },
     { id: "talleres", label: "Mis talleres", desc: "Inscriptos y avisos", icon: "palette-outline" },
   ] },

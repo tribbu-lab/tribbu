@@ -51,7 +51,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     const vacio = { data: [], count: 0 };
     (async () => {
       const en7 = masDias(hoy, 7);
-      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu, convs] = await Promise.all([
+      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu, convs, salidas] = await Promise.all([
         ids.length ? supabase.rpc("adopcion_por_curso", { p_ids: ids }) : vacio,
         esColegioAdmin ? supabase.rpc("bandeja_colegio") : vacio,
         supabase.from("mensaje_denuncias").select("id", { count: "exact", head: true }).eq("estado", "pendiente").eq("colegio_id", colegioId),
@@ -62,6 +62,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
         supabase.from("menu").select("fecha").eq("colegio_id", colegioId).gte("fecha", hoy).lte("fecha", en7),
         // Mis chats (personal del colegio y soporte): solo el staff los tiene.
         esColegioAdmin ? supabase.rpc("mis_conversaciones") : vacio,
+        // Cambios en la salida de hoy en adelante que nadie vio todavía.
+        ids.length ? supabase.from("cambios_salida").select("fecha").in("curso_id", ids).gte("fecha", hoy).is("visto_en", null).is("cancelado_en", null) : vacio,
       ]);
       if (!vivo) return;
       const a = (adop.data || []).reduce((s, r) => ({ familias: s.familias + (r.familias || 0), conApp: s.conApp + (r.con_app || 0), activas: s.activas + (r.activas_30d || 0) }), { familias: 0, conApp: 0, activas: 0 });
@@ -93,6 +95,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
         talleresPend: talleresPend.count || 0,
         autorizaciones: autsUnicas,
         sinMenu: habiles.filter((f) => !conMenu.has(f)),
+        salidasSinVer: (salidas.data || []).length,
+        salidasHoy: (salidas.data || []).filter((s) => s.fecha === hoy).length,
       });
     })();
     return () => { vivo = false; };
@@ -108,6 +112,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   // Lo que espera algo del colegio, en orden de urgencia: primero lo que
   // escribió alguien, después lo que falta cargar.
   const pendientes = d ? [
+    d.salidasSinVer ? { sec: "salidas", tipo: "Cambios en la salida", titulo: plural(d.salidasSinVer, "cambio en la salida sin ver", "cambios en la salida sin ver"), dato: d.salidasHoy ? (d.salidasHoy === d.salidasSinVer ? "Para hoy" : `${d.salidasHoy} para hoy`) : null, accion: "Ver los cambios" } : null,
     esColegioAdmin && d.sinLeer ? { sec: "mensajes_familias", tipo: "Mensajes de familias", titulo: plural(d.sinLeer, "mensaje sin leer", "mensajes sin leer"), dato: d.sinResponder ? `${plural(d.sinResponder, "conversación espera", "conversaciones esperan")} respuesta de Secretaría` : null, accion: "Leer y responder" } : null,
     esColegioAdmin && d.personalSinLeer ? { sec: "mensajes_personal", tipo: "Mensajes del personal", titulo: plural(d.personalSinLeer, "mensaje sin leer", "mensajes sin leer"), dato: d.personalChats > 1 ? `En ${d.personalChats} chats` : null, accion: "Leer mensajes" } : null,
     esColegioAdmin && d.soporteSinLeer ? { sec: "soporte_colegio", tipo: "Ayuda y soporte", titulo: "El equipo de tribbu te respondió", dato: null, accion: "Ver la respuesta" } : null,
