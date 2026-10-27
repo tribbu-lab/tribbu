@@ -35,13 +35,16 @@ cubre el tramo manual de consolas, con el copy listo para pegar.
    confirmación de asistencia—, 3 recordatorios y 1 colecta con pagos
    parciales). Cargar estas credenciales en App Review (iOS) y App access
    (Play). No borrar el curso 3°A mientras la app esté en revisión.
-3. **Capturas** (con la cuenta demo): las de **iOS ya están** en
-   `mobile/assets/store/screenshots/ios/` (6 pantallas, 1320×2868 del
-   iPhone 17 Pro Max — el tamaño 6.9″ que exige App Store Connect) y las de
-   **Android** en `mobile/assets/store/screenshots/android/`. Regenerarlas:
-   levantar la app (`npx expo run:ios|android`) y correr los flows de Maestro
-   o capturar a mano (`xcrun simctl io booted screenshot` / `adb exec-out
-   screencap`). Solo se exigen capturas de teléfono (iPad descartado:
+3. **Capturas** (con la cuenta demo): se generan y se suben solas
+   (`specs/capturas-de-tienda-al-dia.md`). Viven en
+   `mobile/assets/store/screenshots/` — `ios/` (1320×2868, iPhone 17 Pro Max),
+   `ios-6.5/` (1284×2778, la que usa la ficha de ASC) y `android/`
+   (1080×2400). `/store-release` corre `node scripts/capturas-tienda.mjs
+   detectar` y, si alguna pantalla cambió desde la última captura, pone al día
+   el Colegio Demo (`supabase/demo-al-dia.sql`) y regenera el set con
+   `capturar` (Maestro en el simulador y el emulador). `/store-promote` las
+   sube si la ficha difiere del repo; `promover-release.mjs --solo-capturas`
+   lo hace sin release. Solo se exigen capturas de teléfono (iPad descartado:
    `supportsTablet: false`).
 
 ## ✅ Resuelto — eliminación de cuenta in-app (guideline 5.1.1(v))

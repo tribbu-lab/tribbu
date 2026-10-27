@@ -41,6 +41,8 @@ mobile/.expo
 
 # Locales - no versionar
 android/
+# …salvo las capturas de la ficha de Play (scripts/capturas-tienda.mjs)
+!mobile/assets/store/screenshots/android/
 _temp/
 edge-functions/
 

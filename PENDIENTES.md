@@ -1,6 +1,6 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-23).
+Lista viva de lo que queda por hacer (última actualización: 2026-10-27).
 Tachá o borrá cada ítem cuando se resuelva.
 
 ## Hecho 2026-10-16
@@ -32,11 +32,22 @@ web y app juntas, mostrar capturas antes de commitear.
 
 - [x] **Web**: se publica sola — Vercel despliega cada push a `main` en
       www.tribbu.ar (verificado 2026-10-23).
-- [ ] **App 1.14.0**: la última armada es la 1.13.1. Lo de después (panel del
-      colegio rediseñado, mensajes del personal, chats archivados, materias por
-      nivel, zoom en fotos, fotos en la difusión, acceso de docentes desde el
-      panel, etiqueta de docente en el Calendario) llega con la próxima:
-      subir `expo.version` y correr `/store-release` + `/store-promote`.
+- [x] ~~**App 1.14.0**~~: promovida el 2026-10-26 (Play producción vc51;
+      Apple la aprobó el 2026-10-27). 1.13.1 se salteó.
+- [ ] **Crash en Android después del login** (visto en vc51 / 1.14.0, en el
+      emulador, 2026-10-27): `RetryableMountingLayerException: Unable to find
+      viewState for tag 22` en Fabric (`SurfaceMountingManager.addViewAt`), al
+      pasar del login a Hoy mientras aparece la hoja "Save password to Google
+      Password Manager?". Pasó 1 de 2 veces. Mirar Android vitals en Play
+      Console y reproducirlo con `/fix-bug` (las capturas lo esquivan apagando
+      el autofill del emulador).
+- [ ] **Capturas nuevas en las fichas** (2026-10-27, ya en el repo): en Play,
+      `cd mobile && node scripts/promover-release.mjs --solo-capturas
+      --plataforma android` (plan → OK → `--aplicar`); en App Store suben solas
+      con la próxima versión (1.14.0 ya está aprobada y no se puede editar).
+- [ ] **Textos de las fichas** (descripción corta/larga de Play y ASC): siguen
+      siendo los de agosto ("Recordatorios", "Contactos del curso"); no cubren
+      Hoy, Mensajes, Marketplace ni el panel del colegio.
 - [ ] **Antes de publicar, probar en un celular** (Android e iPhone): chat
       (enviar, fotos, editar, borrar), notificación de mensaje → abre el chat,
       crear y editar un grupo, difusión, teclado en el chat, vista docente.

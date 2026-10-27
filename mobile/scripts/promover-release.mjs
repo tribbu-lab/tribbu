@@ -1,57 +1,42 @@
 #!/usr/bin/env node
 // Promueve una versión ya subida por /store-release a producción en ambas
 // tiendas, con las "Novedades" (y las Review Notes de ASC, si la sección
-// "App Review" está) de mobile/stores/release-notes-<versión>.md.
-// Spec: specs/promover-release-a-produccion.md · Skill: /store-promote.
+// "App Review" está) de mobile/stores/release-notes-<versión>.md, y deja las
+// capturas de cada ficha iguales a las del repo (mobile/assets/store/screenshots).
+// Specs: specs/promover-release-a-produccion.md, specs/capturas-de-tienda-al-dia.md
+// · Skill: /store-promote.
 //
-//   node scripts/promover-release.mjs [--version 1.11.0] [--plataforma all|ios|android] [--aplicar]
+//   node scripts/promover-release.mjs [--version 1.11.0] [--plataforma all|ios|android] [--solo-capturas] [--aplicar]
 //
 // Sin --aplicar solo lee y muestra el plan (el edit de Play se descarta).
+// --solo-capturas: no promueve nada, solo sincroniza las capturas (Play en
+// cualquier momento; iOS si hay una versión editable).
 // Solo built-ins de Node: nada de dependencias.
 
-import { Buffer } from "node:buffer";
-import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  Aborto, ESTADOS_EDITABLES, ESTADOS_ENVIADOS, MOBILE, PLAY_API, ascAppId, clienteAsc, estadoDe, pedir, tokenPlay,
+} from "./tiendas.mjs";
+import { estadoDelRepo, planAsc, planPlay, subirAsc, subirPlay } from "./capturas.mjs";
 
-const MOBILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PAQUETE = "com.tribbu.app";
-const PLAY_SA = path.join(MOBILE, "play-service-account.json");
-const ASC_KEY_ID = process.env.ASC_KEY_ID || "332U7L8KB5";
-const ASC_ISSUER_ID = process.env.ASC_ISSUER_ID || "a1c49f10-67ff-454f-9b91-682a89b53ad1";
-const ASC_KEY_PATH = process.env.ASC_KEY_PATH
-  || path.join(os.homedir(), ".appstoreconnect/private_keys", `AuthKey_${ASC_KEY_ID}.p8`);
 const MAX_PLAY = 500;
 const MAX_ASC = 4000;
 const MAX_REVIEW = 4000; // appStoreReviewDetail.notes
-const TIMEOUT_MS = 40_000;
 
 // Review Notes vencidas: el código demo de cuando existía el registro con código
 // (sacado en 1.6.1) — mandarlas así deja al revisor sin forma de entrar.
 const NOTAS_VENCIDAS = [/Y5WPT2/, /c[óo]digo\s+(de\s+invitaci[óo]n|demo)/i, /(invitation|demo)\s+code/i];
 
-// appVersionState de ASC
-const ESTADOS_EDITABLES = new Set([
-  "PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
-  "INVALID_BINARY", "READY_FOR_REVIEW",
-]);
-const ESTADOS_ENVIADOS = new Set([
-  "WAITING_FOR_REVIEW", "IN_REVIEW", "WAITING_FOR_EXPORT_COMPLIANCE", "PENDING_DEVELOPER_RELEASE",
-  "PENDING_APPLE_RELEASE", "PROCESSING_FOR_DISTRIBUTION", "READY_FOR_DISTRIBUTION", "ACCEPTED",
-  "READY_FOR_SALE", "REPLACED_WITH_NEW_VERSION",
-]);
-
-class Aborto extends Error {}
 
 // ─── args ────────────────────────────────────────────────────────────────────
 
 function leerArgs(argv) {
-  const a = { plataforma: "all", aplicar: false, version: null };
+  const a = { plataforma: "all", aplicar: false, version: null, soloCapturas: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--aplicar") a.aplicar = true;
+    else if (k === "--solo-capturas") a.soloCapturas = true;
     else if (k === "--version") a.version = argv[++i];
     else if (k === "--plataforma") a.plataforma = argv[++i];
     else throw new Aborto(`Argumento desconocido: ${k}`);
@@ -100,91 +85,82 @@ function leerNotas(version) {
   return { play, asc, review, vc: vc ? Number(vc) : null, build: build ? Number(build) : null };
 }
 
-// ─── http ────────────────────────────────────────────────────────────────────
-
-async function pedir(url, { method = "GET", token, body, form } = {}) {
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  let payload;
-  if (form) { headers["Content-Type"] = "application/x-www-form-urlencoded"; payload = new URLSearchParams(form).toString(); }
-  else if (body !== undefined) { headers["Content-Type"] = "application/json"; payload = JSON.stringify(body); }
-  let r;
-  try {
-    r = await fetch(url, { method, headers, body: payload, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (e) {
-    throw new Error(`${method} ${url} → sin respuesta (${e.cause?.code || e.name}). No reintenté: verificá el estado antes de volver a correr.`);
-  }
-  const texto = await r.text();
-  const json = texto ? (() => { try { return JSON.parse(texto); } catch { return texto; } })() : null;
-  if (!r.ok) {
-    const det = typeof json === "object" ? JSON.stringify(json.errors || json.error || json) : texto;
-    throw new Error(`${method} ${url.replace(/\?.*/, "")} → ${r.status}: ${det.slice(0, 800)}`);
-  }
-  return json;
-}
-
-const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-
 // ─── Google Play ─────────────────────────────────────────────────────────────
-
-async function tokenPlay() {
-  if (!fs.existsSync(PLAY_SA)) throw new Aborto("Falta mobile/play-service-account.json (gitignoreado; ver mobile/README.md)");
-  const sa = JSON.parse(fs.readFileSync(PLAY_SA, "utf8"));
-  const ahora = Math.floor(Date.now() / 1000);
-  const datos = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
-    iss: sa.client_email, scope: "https://www.googleapis.com/auth/androidpublisher",
-    aud: sa.token_uri, iat: ahora, exp: ahora + 3600,
-  })}`;
-  const firma = crypto.sign("sha256", Buffer.from(datos), sa.private_key).toString("base64url");
-  const r = await pedir(sa.token_uri, {
-    method: "POST",
-    form: { grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${datos}.${firma}` },
-  });
-  return r.access_token;
-}
 
 const vcsDe = (track) => (track?.releases || []).flatMap((r) => (r.versionCodes || []).map(Number));
 
-async function android({ version, notas, aplicar, log }) {
-  const base = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PAQUETE}`;
+// Capturas que se van a subir a una tienda, o null (con el motivo en el log).
+function capturasSubibles(cap, log) {
+  if (cap.pendientes.length) { log("capturas: hay cambios sin commitear en el set del repo — no se tocan"); return false; }
+  if (cap.errores.length) { log(`capturas: el set del repo tiene problemas (${cap.errores[0]}${cap.errores.length > 1 ? "…" : ""}) — no se tocan`); return false; }
+  return true;
+}
+
+async function android({ version, notas, aplicar, soloCapturas, cap, log }) {
   const token = await tokenPlay();
-  const edit = await pedir(`${base}/edits`, { method: "POST", token, body: {} });
-  const e = `${base}/edits/${edit.id}`;
+  const edit = await pedir(`${PLAY_API}/edits`, { method: "POST", token, body: {} });
+  const e = `${PLAY_API}/edits/${edit.id}`;
   let commiteado = false;
   try {
-    const interno = await pedir(`${e}/tracks/internal`, { token });
-    const prod = await pedir(`${e}/tracks/production`, { token });
-    const vcs = vcsDe(interno);
-    if (!vcs.length) throw new Aborto("El track interno está vacío");
-    const vc = Math.max(...vcs);
-    const relInterno = interno.releases.find((r) => (r.versionCodes || []).map(Number).includes(vc));
-    log(`interno: vc${vc} (${relInterno?.name || "sin nombre"}, ${relInterno?.status})`);
-    log(`producción hoy: ${(prod.releases || []).map((r) => `${r.name || "?"} [${(r.versionCodes || []).join(",")}] ${r.status}`).join(" · ") || "vacío"}`);
-    if (notas.vc && notas.vc !== vc) {
-      throw new Aborto(`Las notas dicen vc${notas.vc} pero el último del track interno es vc${vc} — ¿falta subir el AAB o son las notas de otra versión?`);
+    // 1. Release: el vc más alto del track interno → producción.
+    let release = null;
+    if (!soloCapturas) {
+      const interno = await pedir(`${e}/tracks/internal`, { token });
+      const prod = await pedir(`${e}/tracks/production`, { token });
+      const vcs = vcsDe(interno);
+      if (!vcs.length) throw new Aborto("El track interno está vacío");
+      const vc = Math.max(...vcs);
+      const relInterno = interno.releases.find((r) => (r.versionCodes || []).map(Number).includes(vc));
+      log(`interno: vc${vc} (${relInterno?.name || "sin nombre"}, ${relInterno?.status})`);
+      log(`producción hoy: ${(prod.releases || []).map((r) => `${r.name || "?"} [${(r.versionCodes || []).join(",")}] ${r.status}`).join(" · ") || "vacío"}`);
+      if (notas.vc && notas.vc !== vc) {
+        throw new Aborto(`Las notas dicen vc${notas.vc} pero el último del track interno es vc${vc} — ¿falta subir el AAB o son las notas de otra versión?`);
+      }
+      if (vcsDe(prod).includes(vc)) {
+        log(`vc${vc} ya está en producción — nada que hacer`);
+      } else {
+        release = { vc, nombre: relInterno?.name || version };
+        log(`PUT production → vc${vc} "${release.nombre}" status=completed, notas es-419 (${[...notas.play].length} chars)`);
+      }
     }
-    if (vcsDe(prod).includes(vc)) {
-      log(`vc${vc} ya está en producción — nada que hacer`);
-      return { estado: `ya en producción (vc${vc})` };
+
+    // 2. Capturas de la ficha (es-419): van en el mismo edit que el release.
+    let capturas = null;
+    if (capturasSubibles(cap, log)) {
+      const p = await planPlay({ token, e, man: cap.man });
+      if (p.alDia) log(`capturas: al día (${p.publicadas.length})`);
+      else {
+        capturas = p;
+        log(`capturas: reemplazar ${p.publicadas.length} → ${p.locales.length} (${p.locales.map((l) => l.nombre).join(", ")})`);
+      }
     }
-    log(`PUT production → vc${vc} "${relInterno?.name || version}" status=completed, notas es-419 (${[...notas.play].length} chars)`);
-    if (!aplicar) return { estado: `plan: promover vc${vc}` };
-    await pedir(`${e}/tracks/production`, {
-      method: "PUT", token,
-      body: {
-        track: "production",
-        releases: [{
-          name: relInterno?.name || version,
-          versionCodes: [String(vc)],
-          status: "completed",
-          releaseNotes: [{ language: "es-419", text: notas.play }],
-        }],
-      },
-    });
+
+    const que = [release && `promover vc${release.vc}`, capturas && "reemplazar capturas"].filter(Boolean);
+    if (!que.length) return { estado: soloCapturas ? "capturas al día" : "ya en producción, capturas sin cambios" };
+    if (!aplicar) return { estado: `plan: ${que.join(" + ")}` };
+
+    if (capturas) {
+      await subirPlay({ token, e, editId: edit.id, locales: capturas.locales, log });
+      log(`✔ capturas subidas al edit (${capturas.locales.length})`);
+    }
+    if (release) {
+      await pedir(`${e}/tracks/production`, {
+        method: "PUT", token,
+        body: {
+          track: "production",
+          releases: [{
+            name: release.nombre,
+            versionCodes: [String(release.vc)],
+            status: "completed",
+            releaseNotes: [{ language: "es-419", text: notas.play }],
+          }],
+        },
+      });
+    }
     await pedir(`${e}:commit`, { method: "POST", token });
     commiteado = true;
-    log(`✔ commit OK — vc${vc} enviado a producción (pasa por la revisión de Google)`);
-    return { estado: `vc${vc} enviado a producción` };
+    log(`✔ commit OK — ${que.join(" + ")} (pasa por la revisión de Google)`);
+    return { estado: release ? `vc${release.vc} enviado a producción${capturas ? " + capturas nuevas" : ""}` : "capturas nuevas enviadas" };
   } finally {
     if (!commiteado) await pedir(e, { method: "DELETE", token }).catch(() => {});
   }
@@ -192,33 +168,33 @@ async function android({ version, notas, aplicar, log }) {
 
 // ─── App Store Connect ───────────────────────────────────────────────────────
 
-function tokenAsc() {
-  if (!fs.existsSync(ASC_KEY_PATH)) throw new Aborto(`Falta la key de ASC en ${ASC_KEY_PATH} (o seteá ASC_KEY_PATH)`);
-  const ahora = Math.floor(Date.now() / 1000);
-  const datos = `${b64({ alg: "ES256", kid: ASC_KEY_ID, typ: "JWT" })}.${b64({
-    iss: ASC_ISSUER_ID, iat: ahora, exp: ahora + 1200, aud: "appstoreconnect-v1",
-  })}`;
-  const firma = crypto.sign("sha256", Buffer.from(datos), { key: fs.readFileSync(ASC_KEY_PATH), dsaEncoding: "ieee-p1363" });
-  return `${datos}.${firma.toString("base64url")}`;
+const resumenAsc = (p) => `reemplazar ${p.sets.map((x) => `${x.locale} ${x.capturas.length}`).join(", ")} → ${p.locales.length} (${p.locales.map((l) => l.nombre).join(", ")})`;
+
+// --solo-capturas en iOS: las capturas son por versión y solo se cambian en una
+// versión editable; si no hay, quedan para la próxima.
+async function iosSoloCapturas({ g, w, app, aplicar, cap, log }) {
+  const versiones = (await g(`/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=50`)).data;
+  const editable = versiones.find((v) => ESTADOS_EDITABLES.has(estadoDe(v)));
+  const v = editable || versiones[0];
+  if (!v) throw new Aborto("La app no tiene versiones en ASC");
+  const nombre = `${v.attributes.versionString} (${estadoDe(v)})`;
+  const p = await planAsc({ g, versionId: v.id, man: cap.man });
+  if (p.alDia) { log(`capturas de ${nombre}: al día`); return { estado: "capturas al día" }; }
+  if (!editable) {
+    log(`capturas de ${nombre}: difieren de las del repo, pero no hay versión editable — quedan para la próxima versión`);
+    return { estado: "capturas para la próxima versión" };
+  }
+  log(`capturas de ${nombre}: ${resumenAsc(p)}`);
+  if (!aplicar) return { estado: "plan: reemplazar capturas" };
+  await subirAsc({ g, w, versionId: v.id, man: cap.man, log });
+  return { estado: `capturas nuevas en ${v.attributes.versionString}` };
 }
 
-function ascAppId() {
-  const eas = JSON.parse(fs.readFileSync(path.join(MOBILE, "eas.json"), "utf8"));
-  const id = eas.submit?.production?.ios?.ascAppId;
-  if (!id) throw new Aborto("Falta submit.production.ios.ascAppId en eas.json");
-  return id;
-}
-
-const estadoDe = (v) => v.attributes.appVersionState || v.attributes.appStoreState;
-
-async function ios({ version, notas, aplicar, log }) {
-  const API = "https://api.appstoreconnect.apple.com/v1";
-  const token = tokenAsc();
+async function ios({ version, notas, aplicar, soloCapturas, cap, log }) {
+  const { g, w, gOpcional } = clienteAsc();
   const app = ascAppId();
-  const g = (p) => pedir(`${API}${p}`, { token });
-  const w = (p, method, data) => pedir(`${API}${p}`, { method, token, body: { data } });
-  // Recurso que puede no existir (404 → null); cualquier otro error corta.
-  const gOpcional = (p) => g(p).catch((e) => { if (/→ 404\b/.test(e.message)) return null; throw e; });
+  const subibles = capturasSubibles(cap, log);
+  if (soloCapturas) return subibles ? iosSoloCapturas({ g, w, app, aplicar, cap, log }) : { estado: "capturas: no se tocan" };
 
   // 1. Build
   const builds = (await g(`/builds?filter[app]=${app}&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=50`)).data;
@@ -249,6 +225,10 @@ async function ios({ version, notas, aplicar, log }) {
     const idBuild = await buildDe(misma);
     if (idBuild === build.id) {
       log(`${version} ya está ${estadoDe(misma)} con el build ${nBuild} — nada que hacer`);
+      if (subibles) {
+        const p = await planAsc({ g, versionId: misma.id, man: cap.man });
+        log(p.alDia ? "capturas: al día" : `capturas: difieren de las del repo, pero ${version} ya no es editable — quedan para la próxima versión`);
+      }
       return { estado: `ya ${estadoDe(misma)} (build ${nBuild})` };
     }
     throw new Aborto(`${version} ya está ${estadoDe(misma)} con OTRO build — sacala de review en ASC si querés cambiarlo (fuera del alcance del script)`);
@@ -278,6 +258,13 @@ async function ios({ version, notas, aplicar, log }) {
   if (notasVencidas) log("⚠ Las Review Notes mencionan un código de invitación/demo que ya no existe — NO se envía a review");
 
   log(`asignar build ${nBuild} y cargar "Novedades" (${[...notas.asc].length} chars) en todos los locales`);
+
+  // Capturas: contra la versión que se va a usar o, si se crea, contra la última
+  // (ASC copia las capturas de la versión anterior al crear una).
+  if (subibles && fuenteNotas) {
+    const p = await planAsc({ g, versionId: fuenteNotas.id, man: cap.man });
+    log(p.alDia ? "capturas: al día" : `capturas: ${resumenAsc(p)}`);
+  }
   if (!aplicar) {
     if (versionObj) {
       const locs = (await g(`/appStoreVersions/${versionObj.id}/appStoreVersionLocalizations`)).data;
@@ -334,6 +321,18 @@ async function ios({ version, notas, aplicar, log }) {
     log("✔ Review Notes cargadas");
   }
 
+  if (subibles) {
+    const p = await planAsc({ g, versionId: versionObj.id, man: cap.man });
+    if (!p.alDia) {
+      try {
+        await subirAsc({ g, w, versionId: versionObj.id, man: cap.man, log });
+      } catch (err) {
+        log(`✖ capturas: ${err.message}`);
+        return { estado: `versión ${version} lista con build ${nBuild}, SIN enviar (fallaron las capturas)`, bloqueado: true };
+      }
+    }
+  }
+
   if (notasVencidas) {
     return { estado: `versión ${version} lista con build ${nBuild}, SIN enviar (Review Notes vencidas)`, bloqueado: true };
   }
@@ -367,9 +366,15 @@ async function ios({ version, notas, aplicar, log }) {
 
 async function main() {
   const args = leerArgs(process.argv.slice(2));
-  const notas = leerNotas(args.version);
-  console.log(`Promover ${args.version} → producción · ${args.aplicar ? "APLICANDO" : "PLAN (sin cambios)"}`);
-  console.log(`notas: Play ${[...notas.play].length}/${MAX_PLAY} chars · ASC ${[...notas.asc].length}/${MAX_ASC} chars · encabezado vc${notas.vc ?? "?"} / build ${notas.build ?? "?"}`);
+  const notas = args.soloCapturas ? null : leerNotas(args.version);
+  const modo = args.aplicar ? "APLICANDO" : "PLAN (sin cambios)";
+  if (notas) {
+    console.log(`Promover ${args.version} → producción · ${modo}`);
+    console.log(`notas: Play ${[...notas.play].length}/${MAX_PLAY} chars · ASC ${[...notas.asc].length}/${MAX_ASC} chars · encabezado vc${notas.vc ?? "?"} / build ${notas.build ?? "?"}`);
+  } else console.log(`Capturas de las fichas · ${modo}`);
+  const cap = estadoDelRepo();
+  console.log(`capturas del repo: ${cap.man.capturas.map((c) => c.id).join(", ")} (desde ${cap.man.desde})`);
+  if (cap.viejas.length) console.log(`⚠ las capturas del repo quedaron viejas respecto de HEAD (${cap.viejas.join(", ")}): regenerarlas con scripts/capturas-tienda.mjs capturar`);
 
   // Android primero (commit atómico); un fallo no frena a la otra plataforma.
   const plataformas = args.plataforma === "all" ? ["android", "ios"] : [args.plataforma];
@@ -378,7 +383,7 @@ async function main() {
   for (const p of plataformas) {
     const log = (m) => console.log(`[${p}] ${m}`);
     try {
-      const r = await (p === "android" ? android : ios)({ ...args, notas, log });
+      const r = await (p === "android" ? android : ios)({ ...args, notas, cap, log });
       resultados[p] = r.estado;
       if (r.bloqueado) fallo = true;
     } catch (e) {

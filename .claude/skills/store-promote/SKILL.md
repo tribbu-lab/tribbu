@@ -18,6 +18,10 @@ API). El skill es el protocolo para correrlo: **plan → confirmación → aplic
 explícito del usuario en este turno: publicar a producción y enviar a review
 son acciones públicas y no se deshacen.
 
+Además deja las **capturas** de cada ficha iguales a las del repo
+(`mobile/assets/store/screenshots/`, spec `specs/capturas-de-tienda-al-dia.md`):
+las compara por hash y, si difieren, las sube en el mismo plan.
+
 Argumentos: `$ARGUMENTS` → versión (default: `expo.version` de
 `mobile/app.config.js`) y plataforma (`all` por default; Android primero,
 después iOS).
@@ -67,6 +71,17 @@ sin commit). Qué valida e imprime:
   directamente aborta al leer las notas): describen el registro con código que
   se sacó en 1.6.1 y el revisor no tiene dónde usarlo.
 
+- **Capturas**: compara la ficha publicada con el repo por hash, sin bajar
+  imágenes. Play: `phoneScreenshots` es-419 (`sha256`, en orden) contra
+  `screenshots/android/`. ASC: el set `APP_IPHONE_65` de cada locale de la
+  versión (`sourceFileChecksum` = MD5) contra `screenshots/ios-6.5/`. Imprime
+  "capturas: al día" o "capturas: reemplazar N → 6 (…)". Solo sube lo
+  commiteado: con cambios sin commitear en el set lo dice y no las toca (el
+  resto sigue). Si el set del repo quedó viejo respecto de `HEAD` (lo que dice
+  `capturas-tienda.mjs detectar`), avisa pero no bloquea. En iOS las capturas
+  son por versión: si la versión ya está en review o aprobada, quedan "para la
+  próxima versión".
+
 Pegá el plan en el chat tal cual. Si hay bloqueo de Review Notes, decilo
 primero. El arreglo es corregir la sección `## App Review` de las notas de
 release y volver a correr el skill (no hace falta tocar ASC a mano).
@@ -77,17 +92,31 @@ release y volver a correr el skill (no hace falta tocar ASC a mano).
 cd <repo>/mobile && node scripts/promover-release.mjs --version <v> --plataforma <p> --aplicar
 ```
 
-- **Android**: `PUT tracks/production` con el vc, `status: completed` (100%) y
-  notas `es-419` → `edits:commit`. Google revisa la versión antes de publicarla
+- **Android**: si hay capturas para cambiar, en el mismo edit borra las de
+  teléfono (es-419) y sube las del repo en orden; `PUT tracks/production` con
+  el vc, `status: completed` (100%) y notas `es-419` → `edits:commit`. Google revisa la versión antes de publicarla
   (de horas a días); eso no es un fallo.
 - **iOS**: versión (crear/renombrar/reusar, `releaseType AFTER_APPROVAL` = se
   publica sola al aprobarse) → asigna el build → `whatsNew` en **todos** los
-  locales (hoy solo `es-MX`) → `reviewSubmission` (reusa una abierta o crea una)
+  locales (hoy solo `es-MX`) → capturas (si difieren: borra las del set,
+  sube las nuevas, las ordena y espera a que ASC las procese; si alguna falla
+  o tarda más de 5 min, **no envía a review**) → `reviewSubmission` (reusa una abierta o crea una)
   + item + `submitted: true`.
 - Es **idempotente**: si se corta a mitad de camino, volvé a correrlo (primero
   en plan). Lo ya hecho aparece como "nada que hacer" y no se duplica.
 - Un fallo de una plataforma no frena a la otra; exit code ≠ 0 si alguna falló
   o quedó bloqueada.
+
+### Solo capturas (sin release)
+
+```bash
+cd <repo>/mobile && node scripts/promover-release.mjs --solo-capturas [--plataforma all|ios|android] [--aplicar]
+```
+
+No lee notas ni toca tracks ni versiones. Play actualiza la ficha en cualquier
+momento (edit y commit propios; pasa por la revisión de Google). iOS solo si
+hay una versión editable; si no, "quedan para la próxima versión". Mismo
+protocolo: plan → OK explícito → `--aplicar`.
 
 ## Phase 3 — Reporte
 
@@ -113,6 +142,6 @@ cd <repo>/mobile && node scripts/promover-release.mjs --version <v> --plataforma
   `ITSAppUsesNonExemptEncryption: false`, así que los builds llegan con
   `usesNonExemptEncryption=false`. Si algún día aparece `null`, el script
   aborta en lugar de declararlo por su cuenta.
-- Este skill no toca builds, binarios ni la ficha de la tienda (descripción,
-  screenshots, privacidad). Eso sigue siendo `/store-release` o
-  `mobile/STORE_RELEASE.md`.
+- Este skill no toca builds, binarios ni el resto de la ficha (descripción,
+  feature graphic, privacidad). Las capturas las **genera** `/store-release`
+  (Phase 2b, `scripts/capturas-tienda.mjs`); acá solo se suben.

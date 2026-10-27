@@ -1,0 +1,37 @@
+# Login con la cuenta demo, desde cero (clearState): lo corre el flow que
+# genera scripts/capturas-tienda.mjs antes de capturar cada pantalla.
+# DEMO_EMAIL / DEMO_PASS llegan por -e (la contraseña sale de la API de ASC y
+# nunca se escribe en el repo). Los labels se ven en mayúsculas, de ahí el (?i).
+appId: com.tribbu.app
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: deny
+# iOS: un "Open in 'tribbu'?" de una corrida anterior sobrevive al reinicio.
+- runFlow:
+    when:
+      visible: "Open|Abrir"
+    commands:
+      - tapOn: "Open|Abrir"
+- extendedWaitUntil:
+    visible: "Ingresar"
+    timeout: 60000
+- tapOn: "correo@mail.com"
+- inputText: ${DEMO_EMAIL}
+# En Android el teclado abierto tapa el árbol de la app.
+- hideKeyboard
+# El campo de contraseña no tiene placeholder: el primero debajo del label.
+- tapOn:
+    below: "(?i)contraseña"
+- inputText: ${DEMO_PASS}
+- hideKeyboard
+- tapOn: "Ingresar"
+- extendedWaitUntil:
+    visible: "Hola.*"
+    timeout: 60000
+# iOS (Contraseñas) y Android (Google Password Manager) ofrecen guardar la
+# contraseña con una hoja que tapa la app.
+- tapOn:
+    text: "(?i)not now|ahora no"
+    optional: true

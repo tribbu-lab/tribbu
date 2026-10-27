@@ -42,7 +42,7 @@ Hoy `/store-release` deja cada versión de tribbu mobile en el track interno de 
 ## Out of Scope
 
 - Rollout escalonado en Play (`inProgress` + `userFraction`), y pausar o detener un rollout.
-- Editar la ficha (descripción, keywords, screenshots), el contacto o la cuenta demo de App Review, las respuestas de App Privacy/Data safety o cualquier metadata fuera de "Novedades".
+- Editar la ficha (descripción, keywords), el contacto o la cuenta demo de App Review, las respuestas de App Privacy/Data safety o cualquier metadata fuera de "Novedades". Las capturas sí: desde 2026-10-27 las sincroniza este mismo script (`specs/capturas-de-tienda-al-dia.md`).
 - Liberación manual en iOS (`releaseType: MANUAL`), lanzamiento por fases (phased release) y TestFlight externo.
 - Sacar una versión de review (`IN_REVIEW` → cancelar) para cambiarle el build.
 - Builds y submits (siguen siendo `/store-release`) y la APK compartible.
