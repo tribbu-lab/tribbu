@@ -64,7 +64,7 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] **Primeros pasos** (2026-10-28, web y app): tarjeta en el Inicio del
       panel con progreso. Probada en la web (St John's: 3 de 6).
 - [x] **Ficha por alumno** (2026-10-28, web): familia, salidas,
-      autorizaciones y chats. Probada. Falta en la app.
+      autorizaciones y chats. Probada en la web; también en la app.
 - [ ] Integración con el sistema de gestión escolar (boletines,
       asistencias): averiguar cuál usa St John's; arrancar por archivos.
 

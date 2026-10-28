@@ -49,6 +49,7 @@ import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { ConfiguracionInicio } from "./configuracion";
 import { PrimerosPasos } from "./primerosPasos";
+import { FichaAlumno } from "./fichaAlumno";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Button } from "../../components/Button";
@@ -1078,8 +1079,8 @@ export function SuperAdmin() {
                   {apods.length > 0 ? <Text style={styles.itemMeta}>Familia: {apods.map((p) => fmtNombre(p)).join(", ")}</Text> : <Text style={[styles.itemMeta, { color: "#B45309" }]}>Sin apoderado vinculado</Text>}
                 </View>
                 <View style={styles.itemBtns}>
-                  <Pressable onPress={() => setVerApod(a)} style={styles.iconBtn} accessibilityLabel="Ver apoderados">
-                    <MaterialCommunityIcons name="account-multiple-outline" size={19} color="#475569" />
+                  <Pressable onPress={() => setVerApod(a)} style={styles.iconBtn} accessibilityLabel={`Ficha de ${fmtNombre(a)}`}>
+                    <MaterialCommunityIcons name="file-document-outline" size={19} color="#475569" />
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -1197,7 +1198,7 @@ export function SuperAdmin() {
       {modal === "nuevo_alumno" || modal === "editar_alumno" ? (
         <AlumnoModal esNuevo={modal === "nuevo_alumno"} form={form} setForm={setForm} cursos={cursos} onClose={() => setModal(null)} onSave={guardarAlumno} />
       ) : null}
-      {verApod ? <ApoderadosModal alumno={verApod} onClose={() => setVerApod(null)} /> : null}
+      {verApod ? <FichaAlumno alumno={verApod} curso={cursos.find((c) => c.id === verApod.curso_id)} onClose={() => setVerApod(null)} /> : null}
       {confirm ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
           <View style={styles.overlay}>
@@ -1567,34 +1568,6 @@ function AlumnoModal({ esNuevo, form, setForm, cursos, onClose, onSave }) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-function ApoderadosModal({ alumno, onClose }) {
-  const apods = (alumno.usuarios || []).map((x) => x.usuarios).filter(Boolean);
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.modalCard, { maxHeight: "70%" }]}>
-          <View style={styles.pagosHeader}>
-            <Text style={styles.modalTitle}>Apoderados de {fmtNombre(alumno)}</Text>
-            <Pressable onPress={onClose} hitSlop={8}>
-              <Text style={styles.closeTxt}>✕</Text>
-            </Pressable>
-          </View>
-          <ScrollView>
-            {apods.length === 0 ? <Text style={styles.muted}>Sin apoderados vinculados</Text> : null}
-            {apods.map((p) => (
-              <View key={p.id} style={styles.apodRow}>
-                <Text style={styles.itemNombre}>{fmtNombre(p)}</Text>
-                {p.telefono ? <Text style={styles.itemMeta}>Tel. {p.telefono}</Text> : null}
-                {p.email ? <Text style={styles.itemMeta}>{p.email}</Text> : null}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
     </Modal>
   );
 }
