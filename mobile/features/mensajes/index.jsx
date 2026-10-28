@@ -207,7 +207,7 @@ function FilaOpcion({ titulo, sub, avatar, onPress, deshabilitada, abriendo, not
 
 // soloPersonal: el administrador o la Secretaría (panel), que solo le escriben al
 // personal del colegio. La docente ve Familias (de sus alumnos) y Personal.
-function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [], cursosVista = null, onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, tagDeCurso }) {
+function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [], cursosVista = null, onCerrar, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, onACurso, tagDeCurso }) {
   const pestanas = soloPersonal ? [] : esDocente ? PESTANAS_DOCENTE : PESTANAS_NUEVO;
   const [pestana, setPestana] = useState(soloPersonal ? "personal" : esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({});
@@ -290,6 +290,11 @@ function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [
         <View style={s.sheetBotones}>
           <Button title="Crear un grupo" variant="outline" size="sm" onPress={onCrearGrupo} full={false} style={s.flex1} />
           <Button title="A varias familias" variant="outline" size="sm" onPress={onDifusion} full={false} style={s.flex1} />
+        </View>
+      ) : null}
+      {pestana === "alumnos" && onACurso ? (
+        <View style={s.sheetBotones}>
+          <Button title="A todo el curso" variant="outline" size="sm" onPress={onACurso} full={false} style={s.flex1} />
         </View>
       ) : null}
       {pestana === "personal" && onCrearGrupoPersonal ? (
@@ -474,12 +479,17 @@ function GrupoSheet({ visible, grupo = null, personal = false, cursos, cursoId =
   );
 }
 
-function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onListo }) {
+// aCurso: la docente le escribe a la familia de cada alumno de un curso, en su
+// chat docente de cada alumno (RPC enviar_a_curso_docente).
+function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
+  const [cursoSel, setCursoSel] = useState(null);
   const [texto, setTexto] = useState("");
   const [fotos, setFotos] = useState([]); // assets de pickImages: se suben recién al enviar
   const [enviando, setEnviando] = useState(false);
-  useEffect(() => { if (visible) { setSeleccion([]); setTexto(""); setFotos([]); } }, [visible]);
+  useEffect(() => {
+    if (visible) { setSeleccion([]); setTexto(""); setFotos([]); setCursoSel(cursoId || (cursos.length === 1 ? cursos[0].id : null)); }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
   const elegirFotos = async () => {
     try {
       const assets = await pickImages({ max: MAX_FOTOS_MENSAJE - fotos.length });
@@ -489,7 +499,7 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onLi
     }
   };
   const enviar = async () => {
-    if (!seleccion.length) { Alert.alert("Elegí al menos una familia"); return; }
+    if (aCurso ? !cursoSel : !seleccion.length) { Alert.alert(aCurso ? "Elegí el curso" : "Elegí al menos una familia"); return; }
     if (!texto.trim() && !fotos.length) { Alert.alert("Escribí el mensaje o sumá una foto"); return; }
     setEnviando(true);
     // Las fotos se suben UNA vez y las usan todos los mensajes de la difusión.
@@ -505,7 +515,9 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onLi
         return;
       }
     }
-    const { data, error } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
+    const { data, error } = aCurso
+      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths })
+      : await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
     setEnviando(false);
     if (error) { borrarArchivos(paths, "adjuntos"); Alert.alert("No se pudo enviar", error.message); return; }
     const r = Array.isArray(data) ? data[0] : data;
@@ -513,8 +525,17 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onLi
     onListo(r?.enviados || 0, r?.omitidos || 0);
   };
   return (
-    <Sheet visible={visible} onClose={onCerrar} title="Mensaje a varias familias" style={s.sheetAlto}>
-      <Text style={s.sheetIntro}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</Text>
+    <Sheet visible={visible} onClose={onCerrar} title={aCurso ? "Mensaje a todo el curso" : "Mensaje a varias familias"} style={s.sheetAlto}>
+      <Text style={s.sheetIntro}>{aCurso ? "Le llega a la familia de cada alumno en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</Text>
+      {aCurso && cursos.length > 1 ? (
+        <View style={s.chipsRow} accessibilityRole="radiogroup">
+          {cursos.map((c) => (
+            <Pressable key={c.id} onPress={() => setCursoSel(c.id)} style={[s.chip, cursoSel === c.id && s.chipOn]} accessibilityRole="radio" accessibilityState={{ checked: cursoSel === c.id }}>
+              <Text style={[s.chipTxt, cursoSel === c.id && s.chipTxtOn]}>{c.nombre}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <TextInput value={texto} onChangeText={(v) => setTexto(v.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" placeholderTextColor={t.placeholder} multiline style={[s.inputArea, { marginBottom: SPACE.sm }]} accessibilityLabel="Mensaje" />
       <View style={[s.previewsRow, { alignItems: "center", marginBottom: SPACE.sm }]}>
         {fotos.map((a, i) => (
@@ -531,10 +552,10 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, onCerrar, onLi
           </Pressable>
         ) : null}
       </View>
-      <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />
+      {aCurso ? null : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
-        <Button title={`Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
+        <Button title={aCurso ? "Enviar a todo el curso" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
       </View>
     </Sheet>
   );
@@ -1332,10 +1353,11 @@ export function Mensajes({ abrirConv = null, abrirSoporte: pedirSoporte = false,
         onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} onPersonal={onPersonal}
         onCrearGrupoPersonal={esDocente || soloPersonal ? () => { setNuevo(false); setTimeout(() => setGrupoSheet({ grupo: null, personal: true }), 350); } : null}
         onCrearGrupo={esDocente ? null : () => { setNuevo(false); setTimeout(() => conNormas(() => setGrupoSheet({ grupo: null })), 350); }}
-        onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }} />
+        onDifusion={() => { setNuevo(false); setTimeout(() => conNormas(() => setDifusion(true)), 350); }}
+        onACurso={esDocente && cursosVistaLista.length ? () => { setNuevo(false); setTimeout(() => setDifusion("curso"), 350); } : null} />
       <GrupoSheet visible={!!grupoSheet} grupo={grupoSheet?.grupo || null} personal={!!grupoSheet?.personal || esGrupoPersonal(grupoSheet?.grupo)} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoSheet(null)}
         onListo={(id) => { const g = grupoSheet?.grupo; setGrupoSheet(null); onCambio(); setActiva(g ? { ...g } : { id, tipo: grupoSheet?.personal ? "personal" : "grupo", titulo: "Grupo", creado_por: userId }); }} />
-      <DifusionSheet visible={difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} userId={userId} onCerrar={() => setDifusion(false)}
+      <DifusionSheet visible={!!difusion} cursos={cursosVistaLista} cursoId={cursoPerfil} userId={userId} aCurso={difusion === "curso"} onCerrar={() => setDifusion(false)}
         onListo={(n, omitidos) => { setDifusion(false); onCambio(); Alert.alert("Mensaje enviado", `Le llegó a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       <NormasSheet visible={!!normas} userId={userId} onCerrar={() => setNormas(null)}
         onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn?.(); }} />

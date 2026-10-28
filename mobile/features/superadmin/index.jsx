@@ -35,6 +35,8 @@ import { ChipLecturas, LecturasSheet } from "../../components/Lecturas";
 import { AdopcionLista } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
+import { PreguntasFrecuentes } from "../ayuda";
+import { preguntasPara } from "@shared/ayuda";
 import { TalleresColegio } from "../talleres/colegio";
 import { EventosColegio } from "../calendario";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
@@ -112,6 +114,24 @@ function Fila({ icono, label, onPress, primera, n = 0 }) {
   );
 
 }
+// Ayuda y soporte del colegio: preguntas frecuentes del panel (@shared/ayuda)
+// y, desde ahí, el chat con el equipo de tribbu (directo al chat si hay una
+// respuesta sin leer). Los botones solo llevan a secciones que existen acá.
+const SECS_PANEL = new Set([...SECCIONES.flatMap((g) => g.items.map((i) => i.id)), "cuenta"]);
+function AyudaColegio({ rol, conChat, onIr }) {
+  const [verChat, setVerChat] = useState(conChat);
+  if (!verChat) return <PreguntasFrecuentes lista={preguntasPara(rol)} destino="panel" onIr={onIr} puedeIr={(sec) => SECS_PANEL.has(sec)} onSoporte={() => setVerChat(true)} />;
+  return (
+    <View>
+      <Pressable onPress={() => setVerChat(false)} hitSlop={8} accessibilityRole="button" style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginBottom: 8 }}>
+        <MaterialCommunityIcons name="chevron-left" size={20} color="#2563EB" />
+        <Text style={{ fontSize: 14, fontWeight: "700", color: "#2563EB" }}>Preguntas frecuentes</Text>
+      </Pressable>
+      <SoporteColegioAdmin />
+    </View>
+  );
+}
+
 // Lo que es de todo el colegio: la Secretaría (por nivel) no lo ve (mismo criterio que la web).
 // Materias no: la Secretaría administra las de sus niveles.
 const SOLO_ADMIN_COLEGIO = new Set(["directivos", "maestros", "cursos", "uniformes", "denuncias", "colegio", "menu"]);
@@ -1037,7 +1057,7 @@ export function SuperAdmin() {
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
       {sec === "denuncias" ? <DenunciasColegio key={activeColegioId} colegioId={activeColegioId} /> : null}
       {sec === "soporte" && !esColegioAdmin ? <BandejaSoporte /> : null}
-      {sec === "soporte_colegio" ? <SoporteColegioAdmin /> : null}
+      {sec === "soporte_colegio" ? <AyudaColegio rol={usuario?.rol} conChat={noLeidos.soporte > 0} onIr={setSec} /> : null}
       {sec === "mensajes_familias" && esColegioAdmin ? <BandejaColegio /> : null}
       {sec === "mensajes_personal" && esColegioAdmin ? <Mensajes soloPersonal abrirConv={abrirConv?.id || null} nonce={abrirConv?.n || null} /> : null}
       {sec === "menu" ? (

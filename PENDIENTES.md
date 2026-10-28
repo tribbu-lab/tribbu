@@ -38,6 +38,17 @@ web y app juntas, mostrar capturas antes de commitear.
       niveles.
 - [ ] Sale en la app con la próxima versión.
 
+## Mensajes y ayuda (2026-10-27)
+
+- [x] La docente le escribe a todo el curso (Mensajes → Nuevo → Familias →
+      "A todo el curso"), web y app. SQL aplicado.
+- [x] Preguntas frecuentes para docentes y para el panel (administrador y
+      Secretaría), web y app.
+- [ ] Push de los mensajes de la maestra que no le llegan a Yanina: el
+      servidor los manda y Expo/Apple los aceptan (receipt ok, prueba
+      2026-10-27). Su cuenta tiene un solo token, de iPhone, del 23/10:
+      revisar en qué dispositivo prueba y los permisos de notificaciones.
+
 ## Horarios (pedido 2026-10-27)
 
 - [ ] Carga masiva del horario de clases desde el panel del colegio.

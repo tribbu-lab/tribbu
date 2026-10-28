@@ -1,15 +1,17 @@
-// Ayuda (Mi cuenta → Ayuda y soporte): preguntas frecuentes de las familias
-// sobre lo básico de la app, con buscador y un botón que lleva a la pantalla,
-// y al final "Escribile al equipo de tribbu" (el chat de soporte de siempre).
-// Contenido en src/lib/ayuda.js (@shared/ayuda), el mismo que mobile.
+// Ayuda (Mi cuenta → Ayuda y soporte): preguntas frecuentes de cada perfil
+// (familias, docentes, panel del colegio) con buscador y un botón que lleva a
+// la pantalla, y al final "Escribile al equipo de tribbu" (el chat de soporte
+// de siempre). Contenido en src/lib/ayuda.js (@shared/ayuda), el mismo que
+// mobile. `destino`: qué clave de `ir` usa el botón ("web" = tab de App.jsx,
+// "panel" = sección del panel del colegio).
 import { useState } from "react";
-import { buscarPreguntas } from "../../lib/ayuda";
+import { buscarPreguntas, PREGUNTAS_FRECUENTES } from "../../lib/ayuda";
 import { Icono } from "../../components/Icono";
 import { EmptyState } from "../../components/EmptyState";
 
 const tarjeta = { background: "white", border: "1px solid #E7ECF3", borderRadius: 16, overflow: "hidden" };
 
-function Pregunta({ p, primera, abierta, onToggle, onIr }) {
+function Pregunta({ p, primera, abierta, onToggle, onIr, destino }) {
   return (
     <div style={{ borderTop: primera ? "none" : "1px solid #F1F5F9" }}>
       <button onClick={onToggle} aria-expanded={abierta} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", border: "none", background: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
@@ -19,8 +21,8 @@ function Pregunta({ p, primera, abierta, onToggle, onIr }) {
       {abierta && (
         <div style={{ padding: "0 16px 16px" }}>
           <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.55 }}>{p.respuesta}</div>
-          {p.ir?.web && (
-            <button onClick={() => onIr(p.ir.web)} style={{ marginTop: 10, border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
+          {p.ir?.[destino] && onIr && (
+            <button onClick={() => onIr(p.ir[destino])} style={{ marginTop: 10, border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: "#2563EB" }}>{p.ir.label} →</span>
             </button>
           )}
@@ -30,10 +32,10 @@ function Pregunta({ p, primera, abierta, onToggle, onIr }) {
   );
 }
 
-export function Ayuda({ onIr, onSoporte, onVolver }) {
+export function Ayuda({ lista = PREGUNTAS_FRECUENTES, destino = "web", sinTitulo = false, onIr, onSoporte, onVolver }) {
   const [busqueda, setBusqueda] = useState("");
   const [abierta, setAbierta] = useState(null);
-  const grupos = buscarPreguntas(busqueda);
+  const grupos = buscarPreguntas(busqueda, lista);
   return (
     <div style={{ maxWidth: 680 }}>
       {onVolver && (
@@ -41,11 +43,15 @@ export function Ayuda({ onIr, onSoporte, onVolver }) {
           <Icono nombre="atras" size={17} color="#2563EB" /><span style={{ fontSize: 14, fontWeight: 700, color: "#2563EB" }}>Mi cuenta</span>
         </button>
       )}
-      <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3, color: "#0F172A" }}>Ayuda</div>
-      <div style={{ fontSize: 13.5, color: "#64748B", marginTop: 4, marginBottom: 16 }}>Cómo hacer lo básico en tribbu. Si no encontrás lo que buscás, escribinos.</div>
+      {sinTitulo ? null : (
+        <>
+          <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3, color: "#0F172A" }}>Ayuda</div>
+          <div style={{ fontSize: 13.5, color: "#64748B", marginTop: 4, marginBottom: 16 }}>Cómo hacer lo básico en tribbu. Si no encontrás lo que buscás, escribinos.</div>
+        </>
+      )}
       <div style={{ position: "relative", marginBottom: 18 }}>
         <Icono nombre="lupa" size={17} color="#94A3B8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
-        <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: colecta, autorización, contraseña…" aria-label="Buscar en la ayuda"
+        <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder={lista === PREGUNTAS_FRECUENTES ? "Buscar: colecta, autorización, contraseña…" : "Buscar: comunicado, mensaje, contraseña…"} aria-label="Buscar en la ayuda"
           style={{ width: "100%", padding: "11px 12px 11px 36px", borderRadius: 12, border: "1.5px solid #E2E8F0", fontSize: 14, outline: "none", fontFamily: "inherit", background: "white", boxSizing: "border-box" }} />
       </div>
       {grupos.length === 0 ? (
@@ -56,7 +62,7 @@ export function Ayuda({ onIr, onSoporte, onVolver }) {
           <div style={tarjeta}>
             {g.items.map((p, i) => (
               <Pregunta key={p.id} p={p} primera={i === 0} abierta={abierta === p.id || !!busqueda.trim() && g.items.length === 1}
-                onToggle={() => setAbierta((a) => (a === p.id ? null : p.id))} onIr={onIr} />
+                onToggle={() => setAbierta((a) => (a === p.id ? null : p.id))} onIr={onIr} destino={destino} />
             ))}
           </div>
         </div>

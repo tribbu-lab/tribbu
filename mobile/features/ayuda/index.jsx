@@ -1,45 +1,45 @@
-// Ayuda (Mi cuenta → Ayuda y soporte): preguntas frecuentes de las familias,
-// con buscador, botón a cada pantalla y al final "Escribile al equipo de
-// tribbu". Puerto de src/features/ayuda; contenido en @shared/ayuda.
+// Ayuda (Mi cuenta → Ayuda y soporte): preguntas frecuentes de cada perfil
+// (familias, docentes, panel del colegio), con buscador, botón a cada
+// pantalla y al final "Escribile al equipo de tribbu". Puerto de
+// src/features/ayuda; contenido en @shared/ayuda. PreguntasFrecuentes (sin
+// ScrollView propio) la usa también el panel del colegio.
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { buscarPreguntas } from "@shared/ayuda";
+import { buscarPreguntas, preguntasPara, PREGUNTAS_FRECUENTES } from "@shared/ayuda";
 import { THEMES, SLATE, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { EmptyState } from "../../components/EmptyState";
+import { useSession } from "../../context/Session";
 
 const t = THEMES.light;
 
-export function Ayuda() {
-  const router = useRouter();
+/**
+ * Buscador + preguntas + "Escribile al equipo de tribbu". `destino`: qué
+ * clave de `ir` usa el botón ("mobile" = ruta, "panel" = sección del panel);
+ * `puedeIr(valor)` descarta destinos que esta pantalla no tiene.
+ */
+export function PreguntasFrecuentes({ lista = PREGUNTAS_FRECUENTES, destino = "mobile", onIr, puedeIr = () => true, onSoporte }) {
   const [busqueda, setBusqueda] = useState("");
   const [abierta, setAbierta] = useState(null);
-  const grupos = buscarPreguntas(busqueda);
-  const soporte = () => router.push({ pathname: "/(tabs)/mensajes", params: { soporte: "1", t: String(Date.now()) } });
-
+  const grupos = buscarPreguntas(busqueda, lista);
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-      <Pressable onPress={() => router.push("/(tabs)/cuenta")} style={s.volver} hitSlop={8} accessibilityRole="button">
-        <MaterialCommunityIcons name="chevron-left" size={20} color={BLUE[600]} />
-        <Text style={s.volverTxt}>Mi cuenta</Text>
-      </Pressable>
-      <Text style={s.titulo}>Ayuda</Text>
-      <Text style={s.sub}>Cómo hacer lo básico en tribbu. Si no encontrás lo que buscás, escribinos.</Text>
+    <View>
       <View style={s.buscar}>
         <MaterialCommunityIcons name="magnify" size={18} color={SLATE[400]} />
-        <TextInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar: colecta, autorización…" placeholderTextColor={t.placeholder} style={s.buscarInput} accessibilityLabel="Buscar en la ayuda" />
+        <TextInput value={busqueda} onChangeText={setBusqueda} placeholder={lista === PREGUNTAS_FRECUENTES ? "Buscar: colecta, autorización…" : "Buscar: comunicado, mensaje…"} placeholderTextColor={t.placeholder} style={s.buscarInput} accessibilityLabel="Buscar en la ayuda" />
       </View>
 
       {grupos.length === 0 ? (
-        <EmptyState icon="magnify" title="No encontramos nada con esa búsqueda" note="Probá con otra palabra o escribile al equipo de tribbu." actionLabel="Escribirnos" onAction={soporte} />
+        <EmptyState icon="magnify" title="No encontramos nada con esa búsqueda" note="Probá con otra palabra o escribile al equipo de tribbu." actionLabel="Escribirnos" onAction={onSoporte} />
       ) : grupos.map((g) => (
         <View key={g.tema} style={s.grupo}>
           <Text style={s.tema}>{g.tema.toUpperCase()}</Text>
           <View style={s.card}>
             {g.items.map((p, i) => {
               const open = abierta === p.id || (!!busqueda.trim() && g.items.length === 1);
+              const ir = p.ir?.[destino];
               return (
                 <View key={p.id} style={i ? s.borde : null}>
                   <Pressable onPress={() => setAbierta((a) => (a === p.id ? null : p.id))} style={s.fila} accessibilityRole="button" accessibilityState={{ expanded: open }}>
@@ -49,8 +49,8 @@ export function Ayuda() {
                   {open ? (
                     <View style={s.respuestaCaja}>
                       <Text style={s.respuesta}>{p.respuesta}</Text>
-                      {p.ir?.mobile ? (
-                        <Pressable onPress={() => router.push(p.ir.mobile)} hitSlop={6} style={s.irBtn}>
+                      {ir && onIr && puedeIr(ir) ? (
+                        <Pressable onPress={() => onIr(ir)} hitSlop={6} style={s.irBtn}>
                           <Text style={s.irTxt}>{p.ir.label} →</Text>
                         </Pressable>
                       ) : null}
@@ -63,7 +63,7 @@ export function Ayuda() {
         </View>
       ))}
 
-      <Pressable onPress={soporte} style={[s.card, s.soporte]} accessibilityRole="button">
+      <Pressable onPress={onSoporte} style={[s.card, s.soporte]} accessibilityRole="button">
         <View style={s.soporteIcono}><MaterialCommunityIcons name="lifebuoy" size={20} color={t.textMuted} /></View>
         <View style={s.flex1}>
           <Text style={s.soporteTitulo}>¿No encontraste lo que buscabas?</Text>
@@ -71,6 +71,24 @@ export function Ayuda() {
         </View>
         <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
       </Pressable>
+    </View>
+  );
+}
+
+export function Ayuda() {
+  const router = useRouter();
+  const { usuario } = useSession();
+  const soporte = () => router.push({ pathname: "/(tabs)/mensajes", params: { soporte: "1", t: String(Date.now()) } });
+
+  return (
+    <ScrollView style={s.screen} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={() => router.push("/(tabs)/cuenta")} style={s.volver} hitSlop={8} accessibilityRole="button">
+        <MaterialCommunityIcons name="chevron-left" size={20} color={BLUE[600]} />
+        <Text style={s.volverTxt}>Mi cuenta</Text>
+      </Pressable>
+      <Text style={s.titulo}>Ayuda</Text>
+      <Text style={s.sub}>Cómo hacer lo básico en tribbu. Si no encontrás lo que buscás, escribinos.</Text>
+      <PreguntasFrecuentes lista={preguntasPara(usuario?.rol)} onIr={(ruta) => router.push(ruta)} onSoporte={soporte} />
     </ScrollView>
   );
 }

@@ -201,7 +201,7 @@ const PESTANAS_DOCENTE = [
 
 // soloPersonal: el administrador o la Secretaría (panel del colegio), que solo
 // le escriben al personal. La docente ve Familias (de sus alumnos) y Personal.
-function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursosVista = null, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, onCerrar, tagDeCurso }) {
+function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursosVista = null, onFamilia, onDocente, onSecretaria, onAlumno, onPersonal, onCrearGrupo, onCrearGrupoPersonal, onDifusion, onACurso, onCerrar, tagDeCurso }) {
   const pestanas = soloPersonal ? [] : esDocente ? PESTANAS_DOCENTE : PESTANAS_NUEVO;
   const [pestana, setPestana] = useState(soloPersonal ? "personal" : esDocente ? "alumnos" : "familias");
   const [datos, setDatos] = useState({}); // por pestaña
@@ -330,6 +330,11 @@ function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursos
             <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px", flexWrap: "wrap" }}>
               <button type="button" onClick={onCrearGrupo} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>Crear un grupo</button>
               <button type="button" onClick={onDifusion} style={{ ...btnSec, flex: "1 1 150px", padding: "9px 10px" }}>A varias familias</button>
+            </div>
+          ) : null}
+          {pestana === "alumnos" && onACurso ? (
+            <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px" }}>
+              <button type="button" onClick={onACurso} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>A todo el curso</button>
             </div>
           ) : null}
           {pestana === "personal" && onCrearGrupoPersonal ? (
@@ -520,9 +525,14 @@ function GrupoModal({ grupo = null, personal = false, cursos, cursoId = null, on
   );
 }
 
-/** Mismo mensaje a varias familias, cada una en su chat privado. */
-function DifusionModal({ cursos, cursoId = null, userId, onCerrar, onListo }) {
+/**
+ * Mismo mensaje a varias familias, cada una en su chat privado. `aCurso`: la
+ * docente le escribe a la familia de cada alumno de un curso, en su chat
+ * docente de cada alumno (RPC enviar_a_curso_docente).
+ */
+function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
+  const [cursoSel, setCursoSel] = useState(cursoId || (cursos.length === 1 ? cursos[0].id : null));
   const [texto, setTexto] = useState("");
   const [fotos, setFotos] = useState([]); // { file, url } — se suben recién al enviar
   const [enviando, setEnviando] = useState(false);
@@ -535,7 +545,7 @@ function DifusionModal({ cursos, cursoId = null, userId, onCerrar, onListo }) {
     setError("");
   };
   const enviar = async () => {
-    if (!seleccion.length) { setError("Elegí al menos una familia."); return; }
+    if (aCurso ? !cursoSel : !seleccion.length) { setError(aCurso ? "Elegí el curso." : "Elegí al menos una familia."); return; }
     if (!texto.trim() && !fotos.length) { setError("Escribí el mensaje o sumá una foto."); return; }
     setEnviando(true); setError("");
     // Las fotos se suben UNA vez y las usan todos los mensajes de la difusión.
@@ -549,7 +559,9 @@ function DifusionModal({ cursos, cursoId = null, userId, onCerrar, onListo }) {
         setEnviando(false); setError("No se pudo subir una de las fotos."); return;
       }
     }
-    const { data, error: e } = await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
+    const { data, error: e } = aCurso
+      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths })
+      : await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
     setEnviando(false);
     if (e) { borrarArchivos(paths, "adjuntos"); setError(e.message || "No se pudo enviar."); return; }
     const r = Array.isArray(data) ? data[0] : data;
@@ -560,10 +572,20 @@ function DifusionModal({ cursos, cursoId = null, userId, onCerrar, onListo }) {
     <div style={overlay} onClick={onCerrar}>
       <div style={{ ...modalCard, display: "flex", flexDirection: "column", height: "min(720px, 90vh)" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="dif-t">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div id="dif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>Mensaje a varias familias</div>
+          <div id="dif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{aCurso ? "Mensaje a todo el curso" : "Mensaje a varias familias"}</div>
           <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
         </div>
-        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás.</div>
+        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>{aCurso ? "Le llega a la familia de cada alumno en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</div>
+        {aCurso && cursos.length > 1 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }} role="radiogroup" aria-label="Curso">
+            {cursos.map((c) => (
+              <button key={c.id} type="button" role="radio" aria-checked={cursoSel === c.id} onClick={() => setCursoSel(c.id)}
+                style={{ padding: "8px 14px", borderRadius: 999, border: `1px solid ${cursoSel === c.id ? SLATE[900] : C.borderStrong}`, background: cursoSel === c.id ? SLATE[900] : C.surface, cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: cursoSel === c.id ? "white" : SLATE[700] }}>{c.nombre}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <textarea value={texto} onChange={(e) => setTexto(e.target.value.slice(0, MAX_TEXTO))} placeholder="Escribí el mensaje" rows={3} aria-label="Mensaje"
           style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 14, fontFamily: "inherit", resize: "vertical", marginBottom: 8, background: C.surfaceSunken }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -580,11 +602,11 @@ function DifusionModal({ cursos, cursoId = null, userId, onCerrar, onListo }) {
             </label>
           ) : null}
         </div>
-        <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />
+        {aCurso ? <div style={{ flex: 1 }} /> : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
         {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
-          <button onClick={enviar} disabled={enviando} style={{ ...btnPri, flex: 1, opacity: enviando ? 0.6 : 1 }}>{enviando ? "Enviando…" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`}</button>
+          <button onClick={enviar} disabled={enviando} style={{ ...btnPri, flex: 1, opacity: enviando ? 0.6 : 1 }}>{enviando ? "Enviando…" : aCurso ? "Enviar a todo el curso" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`}</button>
         </div>
       </div>
     </div>
@@ -1470,14 +1492,15 @@ export function Mensajes({ userId, items = [], tagDeCurso, isMobile, abrir, onCa
           onFamilia={onFamilia} onDocente={onDocente} onSecretaria={onSecretaria} onAlumno={onAlumno} onPersonal={onPersonal}
           onCrearGrupoPersonal={esDocente || soloPersonal ? () => { setNuevo(false); setGrupoModal({ grupo: null, personal: true }); } : null}
           onCrearGrupo={esDocente ? null : () => { setNuevo(false); conNormas(() => setGrupoModal({ grupo: null })); }}
-          onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }} />
+          onDifusion={() => { setNuevo(false); conNormas(() => setDifusion(true)); }}
+          onACurso={esDocente && cursosVistaLista.length ? () => { setNuevo(false); setDifusion("curso"); } : null} />
       ) : null}
       {grupoModal ? (
         <GrupoModal grupo={grupoModal.grupo} personal={!!grupoModal.personal || esGrupoPersonal(grupoModal.grupo)} cursos={cursosVistaLista} cursoId={cursoPerfil} onCerrar={() => setGrupoModal(null)}
           onListo={(id) => { const tipo = grupoModal.personal || esGrupoPersonal(grupoModal.grupo) ? "personal" : "grupo"; setGrupoModal(null); recargar(); setActiva((a) => (a?.id === id ? a : { id, tipo, titulo: "Grupo", creado_por: userId })); }} />
       ) : null}
       {difusion ? (
-        <DifusionModal cursos={cursosVistaLista} cursoId={cursoPerfil} userId={userId} onCerrar={() => setDifusion(false)}
+        <DifusionModal cursos={cursosVistaLista} cursoId={cursoPerfil} userId={userId} aCurso={difusion === "curso"} onCerrar={() => setDifusion(false)}
           onListo={(n, omitidos) => { setDifusion(false); recargar(); setError(""); setAviso(`✓ Enviado a ${n} ${n === 1 ? "familia" : "familias"}${omitidos ? ` (${omitidos} no se pudieron)` : ""}.`); }} />
       ) : null}
       {normas ? <NormasModal userId={userId} onCerrar={() => setNormas(null)} onAceptar={() => { const fn = normas; setNormas(null); setNormasOk(true); fn(); }} /> : null}

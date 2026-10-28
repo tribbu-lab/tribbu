@@ -21,6 +21,8 @@ import { NIVELES, nombreNivel, textoSecretaria, ordenarNiveles, CARGOS, CARGO_DE
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
+import { Ayuda } from "../ayuda";
+import { preguntasPara } from "../../lib/ayuda";
 import { PerdidosColegio } from "../perdidos";
 import { MarketplaceColegio } from "../marketplace";
 import { TalleresColegio } from "../talleres/colegio";
@@ -133,7 +135,7 @@ const SECCION_INFO = {
   mensajes_personal:{ titulo:"Mensajes del personal", descripcion:"Chats con las maestras, las Secretarías y Dirección del colegio, 1 a 1 o en grupo. Las familias no los ven." },
   denuncias:      { titulo:"Denuncias de Mensajes", descripcion:"Mensajes que una familia denunció en el chat. Ves solo el mensaje denunciado, nunca el resto de la conversación." },
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
-  soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Escribile al equipo de tribbu si algo no funciona o tenés una duda." },
+  soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Cómo hacer lo básico en el panel. Si algo no funciona o no encontrás tu duda, escribile al equipo de tribbu." },
   cuenta:         { titulo:"Mi cuenta", descripcion:"" },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y los directivos por nivel (Dirección, Secretaría, Coordinación…), que gestionan solo los cursos de sus niveles." },
@@ -159,6 +161,23 @@ function ModuloStats({ items }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Ayuda y soporte del colegio: preguntas frecuentes del panel (las de la
+// Secretaría sin lo que es solo del administrador, @shared/ayuda) y, desde
+// ahí, el chat con el equipo de tribbu. Con una respuesta sin leer entra
+// directo al chat.
+function AyudaColegio({ rol, conChat, onIr, chat }) {
+  const [verChat, setVerChat] = useState(conChat);
+  if (!verChat) return <Ayuda lista={preguntasPara(rol)} destino="panel" sinTitulo onIr={onIr} onSoporte={()=>setVerChat(true)}/>;
+  return (
+    <div>
+      <button onClick={()=>setVerChat(false)} style={{display:"inline-flex",alignItems:"center",gap:2,border:"none",background:"none",padding:0,marginBottom:10,cursor:"pointer",fontFamily:"inherit"}}>
+        <Icono nombre="atras" size={17} color="#2563EB"/><span style={{fontSize:14,fontWeight:700,color:"#2563EB"}}>Preguntas frecuentes</span>
+      </button>
+      {chat}
     </div>
   );
 }
@@ -1846,7 +1865,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <BandejaSoporte userId={usuario?.id} isMobile={isMobile}/>
       )}
       {sec==="soporte_colegio"&&(
-        <SoporteColegioAdmin userId={usuario?.id} colegioNombre={colegioNombre} isMobile={isMobile}/>
+        <AyudaColegio rol={usuario?.rol} conChat={noLeidos.soporte>0} onIr={setSec}
+          chat={<SoporteColegioAdmin userId={usuario?.id} colegioNombre={colegioNombre} isMobile={isMobile}/>}/>
       )}
       {sec==="perdidos"&&(
         <PerdidosColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>

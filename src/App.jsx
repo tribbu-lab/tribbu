@@ -40,6 +40,7 @@ const Curso            = aLazy(() => import("./features/curso"), "Curso");
 const MiCuenta         = aLazy(() => import("./features/curso"), "MiCuenta");
 const Ayuda            = aLazy(() => import("./features/ayuda"), "Ayuda");
 import { SubSeccion } from "./components/SubSeccion";
+import { preguntasPara } from "./lib/ayuda";
 import { SelectorHijos } from "./components/SelectorHijos";
 import { Icono } from "./components/Icono";
 import { AvatarPerfil } from "./components/AvatarPerfil";
@@ -597,8 +598,8 @@ function App() {
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
       case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA}/>;
       // Preguntas frecuentes de las familias (src/lib/ayuda.js) + "Escribile al equipo de tribbu".
-      case "ayuda":    return <Ayuda onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
-      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>esDocente?navegarA("mensajes",{soporte:true}):navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
+      case "ayuda":    return <Ayuda lista={preguntasPara(usuario.rol)} onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
+      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
       default: return null;
     }
   };
