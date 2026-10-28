@@ -10,9 +10,6 @@ import { useState, useEffect, useCallback } from "react";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLocalSearchParams } from "expo-router";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler, Switch } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
-import * as XLSX from "xlsx";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
 import { authAdminCreate, authAdminUpdate, authAdminFind } from "../../lib/authAdmin";
@@ -159,17 +156,6 @@ const COLORES = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899
 // Horarios/Uniformes por separado): `multi` decide checkbox (varios) vs.
 // checkmark de selección única.
 
-const leerExcel = async () => {
-  const res = await DocumentPicker.getDocumentAsync({
-    type: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "*/*"],
-    copyToCacheDirectory: true,
-  });
-  if (res.canceled || !res.assets?.[0]) return null;
-  const b64 = await FileSystem.readAsStringAsync(res.assets[0].uri, { encoding: "base64" });
-  const wb = XLSX.read(b64, { type: "base64", cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { raw: true });
-};
 
 export function SuperAdmin() {
   // colegio_admin: mismo panel, acotado a su colegio por RLS. Sin sección
@@ -884,7 +870,7 @@ export function SuperAdmin() {
 
       {sec === "usuarios" ? (
         <View>
-          <UploadApoderadosExcel onDone={cargar} />
+          <NotaImportarWeb que="familias" />
           <View style={styles.filaNuevo}>
             <BotonNuevo
               accessibilityLabel="Agregar apoderado individual"
@@ -1053,7 +1039,7 @@ export function SuperAdmin() {
 
       {sec === "alumnos" ? (
         <View>
-          <UploadAlumnosExcel cursos={cursos} onDone={cargar} />
+          <NotaImportarWeb que="alumnos" />
           <View style={styles.filaNuevo}>
             <BotonNuevo
               accessibilityLabel="Agregar alumno individual"
@@ -2483,132 +2469,18 @@ function UniformesAdmin({ cursos, colegioId }) {
 }
 
 // ── Cargas masivas Excel ──────────────────────────────────────────────────────
-const parseFecha = (val) => {
-  if (!val) return null;
-  if (val instanceof Date) return val.toISOString().split("T")[0];
-  const s = String(val).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const [d, m, y] = s.split("/");
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-  return null;
-};
-
-function UploadAlumnosExcel({ cursos, onDone }) {
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-  const handle = async () => {
-    setMsg("");
-    try {
-      const rows = await leerExcel();
-      if (rows === null) return;
-      setLoading(true);
-      if (!rows.length) throw new Error("Archivo vacío");
-      const findCurso = (val) => {
-        if (!val) return null;
-        const n = Number(val);
-        if (!isNaN(n)) return n;
-        const c = cursos.find((c) => c.nombre.toLowerCase() === String(val).trim().toLowerCase());
-        return c?.id || null;
-      };
-      const inserts = rows
-        .map((r) => {
-          const nombre = String(r.nombre || "").trim();
-          const apellido = String(r.apellido || "").trim();
-          const curso_id = findCurso(r.curso_id || r.curso);
-          if (!nombre || !curso_id) return null;
-          const avatar = `${nombre[0] || ""}${apellido[0] || ""}`.toUpperCase() || nombre.slice(0, 2).toUpperCase();
-          return { nombre, apellido: apellido || null, curso_id, avatar, color: COLORES[nombre.length % COLORES.length], fecha_nacimiento: parseFecha(r.fecha_nacimiento || r.fecha), dni: r.dni ? String(r.dni).trim() : null };
-        })
-        .filter(Boolean);
-      if (!inserts.length) throw new Error("Sin filas válidas (columnas: nombre, apellido, curso_id, fecha_nacimiento, dni)");
-      let ok = 0;
-      for (const al of inserts) {
-        const { data: existing } = await supabase.from("hijos").select("id").eq("nombre", al.nombre).eq("apellido", al.apellido || "").eq("curso_id", al.curso_id).maybeSingle();
-        if (existing?.id) await supabase.from("hijos").update({ fecha_nacimiento: al.fecha_nacimiento || null, dni: al.dni || null, avatar: al.avatar, color: al.color }).eq("id", existing.id);
-        else await supabase.from("hijos").insert(al);
-        ok++;
-      }
-      setMsg(`${ok} alumnos procesados`);
-      onDone();
-    } catch (err) {
-      setMsg(`Error: ${err.message}`);
-    }
-    setLoading(false);
-  };
+// Las cargas masivas viven en la web (Configuración → Importar datos): modelo
+// para descargar, vista previa con errores y recién ahí cargar. Las viejas de
+// la app subían sin modelo ni vista previa (y con clave por defecto).
+function NotaImportarWeb({ que }) {
   return (
-    <Pressable onPress={handle} disabled={loading} style={styles.uploadBtn}>
-      <MaterialCommunityIcons name="file-upload-outline" size={22} color="#475569" />
+    <View style={styles.uploadBtn}>
+      <MaterialCommunityIcons name="file-excel-outline" size={22} color="#475569" />
       <View style={styles.flex1}>
-        <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
-        <Text style={styles.uploadHint}>{msg || "Columnas: nombre, apellido, curso_id, fecha_nacimiento, dni"}</Text>
+        <Text style={styles.uploadTitle}>¿Muchos {que} juntos?</Text>
+        <Text style={styles.uploadHint}>Cargalos desde la web: Configuración → Importar datos. Ahí descargás el modelo de Excel y ves una vista previa antes de cargar.</Text>
       </View>
-    </Pressable>
-  );
-}
-
-function UploadApoderadosExcel({ onDone }) {
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-  const handle = async () => {
-    setMsg("");
-    try {
-      const rows = await leerExcel();
-      if (rows === null) return;
-      setLoading(true);
-      if (!rows.length) throw new Error("Archivo vacío");
-      const inserts = rows
-        .map((r) => {
-          const nombre = String(r.nombre || "").trim();
-          const apellido = String(r.apellido || "").trim();
-          const email = String(r.email || "").trim().toLowerCase();
-          const pass = String(r.pass || r.password || "1234").trim();
-          if (!nombre || !email) return null;
-          const avatar = apellido ? `${nombre[0] || ""}${apellido[0] || ""}`.toUpperCase() : nombre.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-          return { nombre, apellido: apellido || null, email, pass, avatar, dni: r.dni ? String(r.dni).trim() : null, telefono: r.telefono ? String(r.telefono).trim() : null, rol: r.rol || "padre", activo: true };
-        })
-        .filter(Boolean);
-      if (!inserts.length) throw new Error("Sin filas válidas (columnas: nombre, apellido, email, pass, telefono, dni)");
-      let ok = 0;
-      const sinAuth = []; // emails cuya cuenta de Auth falló al crearse — antes
-                           // se tragaba el error y quedaban sin forma de entrar.
-      for (const u of inserts) {
-        const { data: existing } = await supabase.from("usuarios").select("id").eq("email", u.email).maybeSingle();
-        if (existing?.id) {
-          await supabase.from("usuarios").update({ nombre: u.nombre, apellido: u.apellido || null, telefono: u.telefono || null, dni: u.dni || null, activo: true }).eq("id", existing.id);
-          ok++;
-        } else {
-          let auth_id = null;
-          try {
-            const { auth_id: newId } = await authAdminCreate(u.email, u.pass);
-            auth_id = newId || null;
-          } catch (e) {
-            console.warn("Auth create:", u.email, e);
-            sinAuth.push(u.email);
-          }
-          await supabase.from("usuarios").insert({ nombre: u.nombre, apellido: u.apellido || null, email: u.email, avatar: u.avatar, dni: u.dni || null, telefono: u.telefono || null, rol: u.rol || "padre", activo: true, auth_id });
-          ok++;
-        }
-      }
-      const avisoSinAuth = sinAuth.length
-        ? ` Atención: ${sinAuth.length} sin cuenta de Auth: ${sinAuth.join(", ")} — asignales una clave desde Usuarios.`
-        : "";
-      setMsg(`${ok} apoderados procesados.${avisoSinAuth}`);
-      onDone();
-    } catch (err) {
-      setMsg(`Error: ${err.message}`);
-    }
-    setLoading(false);
-  };
-  return (
-    <Pressable onPress={handle} disabled={loading} style={styles.uploadBtn}>
-      <MaterialCommunityIcons name="file-upload-outline" size={22} color="#475569" />
-      <View style={styles.flex1}>
-        <Text style={styles.uploadTitle}>{loading ? "Procesando..." : "Carga masiva desde Excel"}</Text>
-        <Text style={styles.uploadHint}>{msg || "Columnas: nombre, apellido, email, pass, telefono, dni, rol"}</Text>
-      </View>
-    </Pressable>
+    </View>
   );
 }
 

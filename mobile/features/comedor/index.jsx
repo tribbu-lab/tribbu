@@ -19,6 +19,9 @@ import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { TablaMenu } from "../../components/TablaMenu";
 import { menusParaNivel, nivelDeVista } from "@shared/niveles";
+import { COLUMNAS_MENU, filasModeloMenuDe } from "@shared/menuExcel";
+import { fmtLocalDate } from "@shared/helpers";
+import { exportRowsToExcel } from "../../lib/media";
 
 const t = THEMES.light;
 
@@ -428,6 +431,19 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null, nivel
   const [preview, setPreview] = useState([]);
   const [confirmando, setConfirmando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [bajando, setBajando] = useState(false);
+
+  // Modelo con las mismas columnas que lee la carga: el menú del mes o una semana de ejemplo.
+  const descargarModelo = async () => {
+    setBajando(true);
+    try {
+      const rows = await filasModeloMenuDe(supabase, { colegioId: colegioIdProp, niveles, hoy: fmtLocalDate() });
+      await exportRowsToExcel({ rows, cols: COLUMNAS_MENU.map((c) => ({ wch: c === "Fecha" ? 12 : 22 })), nombreHoja: "Menú", fileName: "menu_tribbu" });
+    } catch (e) {
+      setErrorMsg(e.message || "No se pudo armar el modelo."); setStage("error");
+    }
+    setBajando(false);
+  };
 
   const parseFecha = (val) => {
     if (!val) return null;
@@ -587,10 +603,17 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null, nivel
           <MaterialCommunityIcons name="tray-arrow-up" size={18} color={BLUE[600]} />
           <View>
             <Text style={styles.uploadTitle}>{stage === "leyendo" ? "Leyendo archivo..." : "Subir archivo Excel"}</Text>
-            <Text style={styles.uploadHint}>Columnas: fecha, plato 1-3, postre, etiquetas, notas</Text>
+            <Text style={styles.uploadHint}>Columnas: fecha, entrada, plato 1-3, postre 1-2, etiquetas, notas</Text>
           </View>
         </Pressable>
       )}
+
+      {stage === "idle" ? (
+        <Pressable onPress={descargarModelo} disabled={bajando} style={styles.modeloBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="tray-arrow-down" size={16} color={BLUE[600]} />
+          <Text style={styles.modeloTxt}>{bajando ? "Preparando…" : "Descargar modelo"}</Text>
+        </Pressable>
+      ) : null}
 
       {msg ? <Text style={[styles.uploadMsg, { color: T.green }]}>{msg}</Text> : null}
     </View>
@@ -657,6 +680,8 @@ const styles = StyleSheet.create({
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 14, borderRadius: RADIUS.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: t.accent, backgroundColor: t.accentSoft, minHeight: 44 },
   uploadTitle: { fontSize: 13, fontWeight: "700", color: BLUE[600] },
   uploadHint: { fontSize: 11, color: t.textFaint },
+  modeloBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 10, minHeight: 44 },
+  modeloTxt: { fontSize: 13, fontWeight: "700", color: BLUE[600], textDecorationLine: "underline" },
   previewBox: { padding: SPACE.md, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface },
   previewTitle: { fontSize: 12.5, fontWeight: "700", color: t.textStrong, marginBottom: SPACE.sm },
   previewList: { maxHeight: 220 },

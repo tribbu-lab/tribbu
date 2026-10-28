@@ -1545,11 +1545,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <div style={{fontSize:13,color:"#64748B",lineHeight:1.5,maxWidth:640,flex:"1 1 320px"}}>{info.descripcion}</div>
                 {sec==="usuarios" && (
                   <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-                    <label style={btnSec}>
+                    <button onClick={()=>irSec("importar")} style={btnSec}>
                       <Icono nombre="documento" size={15} color="#475569"/>
-                      <span style={{color:"#334155"}}>Cargar Excel</span>
-                      <UploadApoderadosExcel onDone={cargar} compact/>
-                    </label>
+                      <span style={{color:"#334155"}}>Importar Excel</span>
+                    </button>
                     <BotonNuevo ariaLabel="Nuevo apoderado" onClick={()=>{ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }}/>
                   </div>
                 )}
@@ -1815,7 +1814,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             {n:alumnos.length-conApoderado, l:"Sin apoderado", c:"#B45309"},
             {n:sinCumple, l:"Sin cumpleaños", c:"#94A3B8"},
           ]}/>
-          <UploadAlumnosExcel cursos={cursosAnoActual} onDone={cargar}/>
+          <ImportarDesdeExcel onIr={()=>irSec("importar")}/>
           <ListToolbar busqueda={ctrlAlumnos.busqueda} setBusqueda={ctrlAlumnos.setBusqueda} sortOptions={[{key:"nombre",label:"Nombre"},{key:"apellido",label:"Apellido"},{key:"nacimiento",label:"Cumpleaños"}]} sortKey={ctrlAlumnos.sortKey} sortAsc={ctrlAlumnos.sortAsc} toggleSort={ctrlAlumnos.toggleSort} filterOptions={[{key:"curso",label:"Curso",options:cursos.map(c=>({value:String(c.id),label:c.nombre}))}]} filtros={ctrlAlumnos.filtros} setFiltro={ctrlAlumnos.setFiltro} resetFiltros={ctrlAlumnos.resetFiltros} total={ctrlAlumnos.total} placeholder="Buscar alumno..."/>
 
           <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
@@ -3044,213 +3043,17 @@ export function UniformesAdmin({ cursos }) {
   );
 }
 
-export function UploadAlumnosExcel({ cursos, onDone }) {
-  const [loading,setLoading] = useState(false);
-  const [msg,setMsg]         = useState(null);
-
-  const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    setLoading(true); setMsg(null);
-    try {
-      const data = await file.arrayBuffer();
-      const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
-      const wb = XLSX.read(data, {cellDates:true});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
-      if(!rows.length) throw new Error("Archivo vacío");
-      console.log("Alumnos - primera fila:", rows[0]);
-
-      const parseFecha = (val) => {
-        if(!val) return null;
-        if(val instanceof Date) return val.toISOString().split("T")[0];
-        const s = String(val).trim();
-        if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-        if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-          const [d,m,y]=s.split("/");
-          return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-        }
-        return null;
-      };
-
-      const findCurso = (val) => {
-        if(!val) return null;
-        const n = Number(val);
-        if(!isNaN(n)) return n;
-        const s = String(val).trim().toLowerCase();
-        const c = cursos.find(c=>c.nombre.toLowerCase()===s);
-        return c?.id||null;
-      };
-
-      const colors = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
-      const inserts = rows.map(r=>{
-        const nombre   = String(r.nombre||"").trim();
-        const apellido = String(r.apellido||"").trim();
-        const curso_id = findCurso(r.curso_id||r.curso);
-        if(!nombre||!curso_id) return null;
-        const avatar = `${nombre[0]||""}${apellido[0]||""}`.toUpperCase() || nombre.slice(0,2).toUpperCase();
-        const color  = colors[Math.floor(Math.random()*colors.length)];
-        const dni = r.dni ? String(r.dni).trim() : null;
-        return { nombre, apellido:apellido||null, curso_id, avatar, color, fecha_nacimiento:parseFecha(r.fecha_nacimiento||r.fecha), dni };
-      }).filter(Boolean);
-
-      if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, apellido, curso_id, fecha_nacimiento, dni");
-
-      // Upsert por nombre+apellido+curso_id — NO borrar relaciones usuario_hijos
-      let ok = 0;
-      for(const alumno of inserts) {
-        const { data: existing } = await supabase.from("hijos")
-          .select("id")
-          .eq("nombre", alumno.nombre)
-          .eq("apellido", alumno.apellido||"")
-          .eq("curso_id", alumno.curso_id)
-          .maybeSingle();
-        if(existing?.id) {
-          await supabase.from("hijos").update({
-            fecha_nacimiento: alumno.fecha_nacimiento||null,
-            dni: alumno.dni||null,
-            avatar: alumno.avatar,
-            color: alumno.color,
-          }).eq("id", existing.id);
-        } else {
-          await supabase.from("hijos").insert(alumno);
-        }
-        ok++;
-      }
-      setMsg({ok:true,t:`${ok} alumnos procesados correctamente`});
-      onDone();
-    } catch(err) {
-      setMsg({ok:false,t:`${err.message}`});
-      console.error(err);
-    }
-    setLoading(false);
-    e.target.value="";
-  };
-
+// Alumnos y familias se cargan por Configuración → Importar datos (modelo,
+// vista previa con errores y carga); acá queda el acceso.
+function ImportarDesdeExcel({ onIr }) {
   return (
-    <div style={{marginBottom:16}}>
-      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",cursor:"pointer",maxWidth:"100%"}}>
-        <Icono nombre="documento" size={20} color="#475569"/>
-        <div>
-          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
-          <div style={{fontSize:12,color:"#64748B"}}>Columnas: nombre, apellido, curso_id, fecha_nacimiento, dni</div>
-        </div>
-        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
-      </label>
-      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.ok?"#047857":"#B91C1C"}}>{msg.t}</div>}
-    </div>
-  );
-}
-
-// `compact`: variante para el header contextual (handoff Tribbu Admin) — solo
-// el input + mensaje, sin el cuadro punteado grande, que en el mockup no
-// existe (ahí el CTA principal es "+ Nuevo apoderado" arriba a la derecha).
-export function UploadApoderadosExcel({ onDone, compact=false }) {
-  const [loading,setLoading] = useState(false);
-  const [msg,setMsg]         = useState(null);
-
-  const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    setLoading(true); setMsg(null);
-    try {
-      const data = await file.arrayBuffer();
-      const XLSX = await import("xlsx"); // xlsx (~400 KB) se carga recién al exportar/importar, no con la app.
-      const wb = XLSX.read(data, {cellDates:true});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {raw:true});
-      if(!rows.length) throw new Error("Archivo vacío");
-      console.log("Apoderados - primera fila:", rows[0]);
-
-      const inserts = rows.map(r=>{
-        // Soportar columna "nombre" (nombre completo) o "nombre" + "apellido" por separado
-        const nombre   = String(r.nombre||"").trim();
-        const apellido = String(r.apellido||"").trim();
-        const email    = String(r.email||"").trim().toLowerCase();
-        const pass     = String(r.pass||r.contraseña||r.password||"1234").trim();
-        if(!nombre||!email) return null;
-        // Avatar: iniciales de nombre + apellido si están separados, si no del nombre completo
-        const avatar = apellido
-          ? `${nombre[0]||""}${apellido[0]||""}`.toUpperCase()
-          : nombre.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-        const dni = r.dni ? String(r.dni).trim() : null;
-        return {
-          nombre, apellido: apellido||null, email, pass, avatar, dni,
-          telefono: r.telefono ? String(r.telefono).trim() : null,
-          rol:      r.rol||"padre",
-          activo:   true,
-        };
-      }).filter(Boolean);
-
-      if(!inserts.length) throw new Error("No se encontraron filas válidas. Verificá las columnas: nombre, apellido, email, pass, telefono, dni");
-
-      // Upsert por email — actualizar si existe, crear en Auth si no. NO borrar relaciones.
-      let ok = 0, err2 = null;
-      const sinAuth = []; // emails cuya cuenta de Auth falló al crearse — antes
-                           // se tragaba el error y el apoderado quedaba creado
-                           // sin forma de entrar, contado igual como "ok".
-      for(const u of inserts) {
-        const { data: existing } = await supabase.from("usuarios").select("id,auth_id").eq("email", u.email).maybeSingle();
-        if(existing?.id) {
-          // Ya existe — solo actualizar datos, no tocar pass ni auth
-          const { error: e } = await supabase.from("usuarios").update({
-            nombre:u.nombre, apellido:u.apellido||null, telefono:u.telefono||null, dni:u.dni||null, activo:true
-          }).eq("id", existing.id);
-          if(e) err2 = e; else ok++;
-        } else {
-          // Nuevo usuario — crear en Supabase Auth via Edge Function
-          let auth_id = null;
-          try {
-            const { auth_id: newId } = await authAdminCreate(u.email, u.pass);
-            auth_id = newId || null;
-          } catch(authErr) {
-            console.error("Error creando en Auth:", u.email, authErr);
-            sinAuth.push(u.email);
-          }
-          const { error: e } = await supabase.from("usuarios").insert({
-            nombre: u.nombre, apellido: u.apellido||null, email: u.email,
-            avatar: u.avatar, dni: u.dni||null,
-            telefono: u.telefono||null, rol: u.rol||"padre",
-            activo: true, auth_id,
-          });
-          if(e) err2 = e; else ok++;
-        }
-      }
-      if(err2) throw err2;
-      const avisoSinAuth = sinAuth.length
-        ? ` Atención: ${sinAuth.length} sin cuenta de Auth (no van a poder entrar hasta que les asignes una clave desde Usuarios): ${sinAuth.join(", ")}`
-        : "";
-      setMsg({ok:true,t:`${ok} apoderados procesados correctamente.${avisoSinAuth}`});
-      onDone();
-    } catch(err) {
-      setMsg({ok:false,t:`${err.message}`});
-      console.error(err);
-    }
-    setLoading(false);
-    e.target.value="";
-  };
-
-  if(compact) {
-    return (
-      <>
-        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading} title="Columnas: nombre, apellido, email, pass, telefono, dni, rol"/>
-        {loading && <span style={{fontSize:11,color:"#94A3B8"}}>Procesando...</span>}
-        {msg&&<span style={{position:"fixed",bottom:20,right:20,zIndex:600,background:msg.ok?"#F0FDF4":"#FEF2F2",border:`1px solid ${msg.ok?"#BBF7D0":"#FECACA"}`,borderRadius:10,padding:"10px 14px",fontSize:12.5,fontWeight:600,color:msg.ok?"#065F46":"#991B1B",boxShadow:"0 8px 24px rgba(0,0,0,0.12)"}}>{msg.t}</span>}
-      </>
-    );
-  }
-
-  return (
-    <div style={{marginBottom:16}}>
-      <label style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",cursor:"pointer",maxWidth:"100%"}}>
-        <Icono nombre="documento" size={20} color="#475569"/>
-        <div>
-          <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{loading?"Procesando...":"Carga masiva desde Excel"}</div>
-          <div style={{fontSize:12,color:"#64748B"}}>Columnas: nombre, apellido, email, pass, telefono, dni, rol</div>
-        </div>
-        <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}} disabled={loading}/>
-      </label>
-      {msg&&<div style={{fontSize:13,marginTop:8,fontWeight:600,color:msg.ok?"#047857":"#B91C1C"}}>{msg.t}</div>}
+    <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:12,border:"1px dashed #CBD5E1",background:"white",marginBottom:16,maxWidth:640}}>
+      <Icono nombre="documento" size={20} color="#475569"/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>¿Muchos alumnos juntos?</div>
+        <div style={{fontSize:12,color:"#64748B"}}>Descargá el modelo de Excel, completalo y revisá la vista previa antes de cargar.</div>
+      </div>
+      <button onClick={onIr} style={{border:"1px solid #E2E8F0",background:"white",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:700,color:"#0F172A",cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Importar datos</button>
     </div>
   );
 }

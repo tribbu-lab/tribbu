@@ -435,7 +435,7 @@ export const PREGUNTAS_COLEGIO = [
         id: "col-menu",
         soloAdmin: true,
         pregunta: "¿Cómo cargo el menú del comedor?",
-        respuesta: "En Configuración → Menú subís el Excel del mes. Si el colegio tiene más de un nivel, elegís a qué niveles aplica. Después podés corregir un día puntual sin volver a subir todo.",
+        respuesta: "En Configuración → Menú tocá \"Descargar modelo\": baja un Excel con las columnas que hacen falta (Fecha, Entrada, Plato 1 a 3, Postre 1 y 2, Etiquetas, Notas), con el menú que ya está cargado este mes o, si no hay nada, una semana de ejemplo. Completalo y subilo con \"Subir archivo Excel\" (también desde la app). Si el colegio tiene más de un nivel, elegís a qué niveles aplica. Si una fecha ya tenía menú, se reemplaza, y después podés corregir un día puntual sin volver a subir todo.",
         ir: { panel: "menu", label: "Ir a Menú" },
       },
       {

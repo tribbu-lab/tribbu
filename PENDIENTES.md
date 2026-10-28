@@ -75,6 +75,9 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] Carga masiva desde Excel (panel web) con vista previa y errores por fila.
 - [x] Exportar el horario: colegio (todos los cursos) y familias (web y app).
 - [ ] Probar a mano la carga masiva con el Excel real del colegio.
+- [x] "Descargar modelo" en toda carga por Excel (2026-10-28): menú (web y
+      app, con el menú del mes o una semana de ejemplo); las cargas viejas de
+      alumnos y apoderados se reemplazaron por Importar datos.
 - [ ] **URGENTE — Android 1.14.0 sin push** (confirmado 2026-10-27: el
       Android de Yanina tiene la 1.14 y ningún Android se registra desde el
       26/10, cuando salió). Casi seguro el build salió sin Firebase. Sacar un

@@ -13,6 +13,7 @@ import { TablaMenu } from "../../components/TablaMenu";
 import { Icono } from "../../components/Icono";
 import { EmptyState } from "../../components/EmptyState";
 import { filasMenu } from "../../lib/menu";
+import { COLUMNAS_MENU, filasModeloMenuDe } from "../../lib/menuExcel";
 import { NIVELES, nombreNivel, menusParaNivel, nivelesParaGuardar } from "../../lib/niveles";
 
 
@@ -330,6 +331,22 @@ function MenuDiaModal({ dia, onClose, onSave, onBorrar }) {
 export function UploadMenuExcel({ onDone, colegioId=null, niveles=null }) {
   const [loading,setLoading] = useState(false);
   const [msg,setMsg]         = useState("");
+  const [bajando,setBajando] = useState(false);
+
+  // Modelo con las mismas columnas que lee handleFile: el menú del mes o una semana de ejemplo.
+  const descargarModelo = async () => {
+    setBajando(true);
+    try {
+      const filas = await filasModeloMenuDe(supabase, { colegioId, niveles, hoy: fmtLocalDate() });
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.json_to_sheet(filas, { header: COLUMNAS_MENU });
+      ws["!cols"] = COLUMNAS_MENU.map(c => ({ wch: c === "Fecha" ? 12 : 22 }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Menú");
+      XLSX.writeFile(wb, "menu_tribbu.xlsx");
+    } catch(err) { setMsg(`Error: ${err.message}`); }
+    setBajando(false);
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -429,6 +446,12 @@ export function UploadMenuExcel({ onDone, colegioId=null, niveles=null }) {
         </div>
         <input type="file" accept=".xlsx" onChange={handleFile} style={{display:"none"}}/>
       </label>
+      <div style={{fontSize:12,color:"#64748B",marginTop:8,maxWidth:560,lineHeight:1.5}}>
+        Columnas: {COLUMNAS_MENU.join(", ")}. Etiquetas separadas por “;”. Si la fecha ya tiene menú, se reemplaza.{" "}
+        <button onClick={descargarModelo} disabled={bajando} style={{background:"none",border:"none",padding:0,fontSize:12,fontWeight:700,color:T.primary||"#0F172A",textDecoration:"underline",cursor:"pointer"}}>
+          {bajando?"Preparando…":"Descargar modelo"}
+        </button>
+      </div>
       {msg&&<div style={{fontSize:13,marginTop:10,fontWeight:600,color:msg.startsWith("Error")?"#B91C1C":"#047857"}}>{msg}</div>}
     </div>
   );
