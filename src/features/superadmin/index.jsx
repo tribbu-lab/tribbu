@@ -23,6 +23,7 @@ import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
 import { ConfiguracionInicio } from "./configuracion";
 import { ImportarDatos } from "./importar";
+import { FichaAlumno } from "./fichaAlumno";
 import { Ayuda } from "../ayuda";
 import { preguntasPara } from "../../lib/ayuda";
 import { PerdidosColegio } from "../perdidos";
@@ -252,6 +253,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const [maestros,setMaestros] = useState([]);
   const [alumnos,setAlumnos]   = useState([]);
   const [verApodSA,setVerApodSA]     = useState(null);
+  const [fichaAlumno,setFichaAlumno] = useState(null); // alumno con la ficha abierta
   const [authSyncMsg,setAuthSyncMsg] = useState(null);
   const [anoActual,setAnoActual]     = useState(new Date().getFullYear());
   const [anoCursosSel,setAnoCursosSel] = useState(null);
@@ -980,6 +982,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       <Toast />
       {confirmUI}
       {menuCrearUI}
+      {fichaAlumno&&(
+        <FichaAlumno alumno={fichaAlumno} curso={cursos.find(c=>c.id===fichaAlumno.curso_id)} onCerrar={()=>setFichaAlumno(null)}
+          onEditar={()=>{ const a=fichaAlumno; setFichaAlumno(null); setForm({...a}); setModal("editar_alumno"); }}
+          onIr={(id)=>{ setFichaAlumno(null); irSec(id); }}/>
+      )}
       {/* Feedback banner para operaciones de Auth */}
       {authSyncMsg&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:400,maxWidth:480,width:"90%",background:authSyncMsg.ok?"#F0FDF4":"#FFFBEB",border:`1.5px solid ${authSyncMsg.ok?"#10B981":"#F59E0B"}`,borderRadius:14,padding:"14px 18px",boxShadow:"0 8px 24px rgba(0,0,0,0.12)",display:"flex",alignItems:"flex-start",gap:10}}>
@@ -1833,7 +1840,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
                     <div style={{width:34,height:34,borderRadius:999,background:"#F1F5F9",color:"#334155",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{`${(a.nombre||"")[0]||""}${(a.apellido||"")[0]||""}`.toUpperCase()}</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:13.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(a)}</div>
+                      <button onClick={()=>setFichaAlumno(a)} title="Ver la ficha" style={{display:"block",maxWidth:"100%",border:"none",background:"none",padding:0,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                        <span style={{display:"block",fontSize:13.5,fontWeight:700,color:"#1D4ED8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{fmtNombre(a)}</span>
+                      </button>
                       {a.dni&&<div style={{fontSize:11.5,color:"#94A3B8",marginTop:1}}>DNI: {a.dni}</div>}
                     </div>
                   </div>
@@ -1841,7 +1850,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                   <div style={{fontSize:12.5,color:"#64748B"}}>{apoderados.length>0?apoderados.map(p=>`${p.nombre}${p.apellido?` ${p.apellido}`:""}`).join(", "):<span style={{color:"#B45309",fontWeight:700}}>Sin registrar</span>}</div>
                   <div style={{fontSize:12.5,color:a.fecha_nacimiento?"#334155":"#CBD5E1"}}>{a.fecha_nacimiento?fmtF(a.fecha_nacimiento):"—"}</div>
                   <div style={{display:"flex",gap:6,justifyContent:isMobile?"flex-start":"flex-end"}}>
-                    <button onClick={()=>setVerApodSA(a)} title="Ver apoderados" style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="usuarios" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
+                    <button onClick={()=>setFichaAlumno(a)} title="Ficha: familia, salidas, autorizaciones y mensajes" aria-label={`Ficha de ${fmtNombre(a)}`} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="documento" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>{ setForm({...a}); setModal("editar_alumno"); }} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="lapiz" size={15} color="#475569" style={{margin:"0 auto"}}/></button>
                     <button onClick={()=>setConfirm({nombre:fmtNombre(a),msg:"Esta acción no se puede deshacer.",action:()=>eliminarAlumno(a.id)})} style={{width:32,height:32,borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12}}><Icono nombre="papelera" size={15} color="#DC2626" style={{margin:"0 auto"}}/></button>
                   </div>

@@ -63,8 +63,8 @@ web y app juntas, mostrar capturas antes de commitear.
       si se sacan las cargas viejas de Personas → Alumnos / Apoderados.
 - [x] **Primeros pasos** (2026-10-28, web y app): tarjeta en el Inicio del
       panel con progreso. Probada en la web (St John's: 3 de 6).
-- [ ] **Ficha por alumno**: familia, curso, chats, autorizaciones y cambios
-      en la salida en un solo lugar.
+- [x] **Ficha por alumno** (2026-10-28, web): familia, salidas,
+      autorizaciones y chats. Probada. Falta en la app.
 - [ ] Integración con el sistema de gestión escolar (boletines,
       asistencias): averiguar cuál usa St John's; arrancar por archivos.
 
