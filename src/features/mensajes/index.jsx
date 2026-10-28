@@ -334,7 +334,7 @@ function NuevoMensajeModal({ esDocente, soloPersonal = false, hijos = [], cursos
           ) : null}
           {pestana === "alumnos" && onACurso ? (
             <div style={{ display: "flex", gap: 8, padding: "4px 4px 10px" }}>
-              <button type="button" onClick={onACurso} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>A todo el curso</button>
+              <button type="button" onClick={onACurso} style={{ ...btnSec, flex: 1, padding: "9px 10px" }}>A varias familias o a todo el curso</button>
             </div>
           ) : null}
           {pestana === "personal" && onCrearGrupoPersonal ? (
@@ -526,13 +526,60 @@ function GrupoModal({ grupo = null, personal = false, cursos, cursoId = null, on
 }
 
 /**
+ * Alumnos de un curso con casillas (la docente elige a qué familias le
+ * escribe). `excluidos`: Set de hijo_id destildados (por defecto van todos).
+ */
+function SelectorAlumnosCurso({ alumnos, excluidos, onChange }) {
+  const [q, setQ] = useState("");
+  if (alumnos === null) return <Spinner />;
+  if (!alumnos.length) return <Vacio texto="Este curso no tiene alumnos con familia en tribbu." />;
+  const t = q.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  const visibles = alumnos.filter((a) => !t || `${a.nombre} ${a.apellido || ""}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(t));
+  const n = alumnos.length - excluidos.size;
+  const toggle = (id) => { const s = new Set(excluidos); if (s.has(id)) s.delete(id); else s.add(id); onChange(s); };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: C.textMuted }}>Familias de {n} de {alumnos.length} alumnos</span>
+        <button type="button" onClick={() => onChange(excluidos.size ? new Set() : new Set(alumnos.map((a) => a.hijo_id)))} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.accent }}>{excluidos.size ? "Todos" : "Ninguno"}</span>
+        </button>
+      </div>
+      {alumnos.length > 8 ? (
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar alumno" aria-label="Buscar alumno"
+          style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${C.borderStrong}`, fontSize: 13.5, fontFamily: "inherit", outline: "none", background: C.surfaceSunken, marginBottom: 6 }} />
+      ) : null}
+      <div style={{ overflowY: "auto", flex: 1, minHeight: 80, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+        {visibles.map((a, i) => (
+          <label key={a.hijo_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: i ? `1px solid ${C.border}` : "none", cursor: "pointer" }}>
+            <input type="checkbox" checked={!excluidos.has(a.hijo_id)} onChange={() => toggle(a.hijo_id)} />
+            <span style={{ fontSize: 13.5, color: C.textStrong }}>{a.nombre} {a.apellido || ""}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Mismo mensaje a varias familias, cada una en su chat privado. `aCurso`: la
- * docente le escribe a la familia de cada alumno de un curso, en su chat
- * docente de cada alumno (RPC enviar_a_curso_docente).
+ * docente elige un curso y los alumnos (todos tildados) y le escribe a la
+ * familia de cada uno en su chat docente (RPC enviar_a_curso_docente).
  */
 function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
   const [cursoSel, setCursoSel] = useState(cursoId || (cursos.length === 1 ? cursos[0].id : null));
+  const [alumnosDocente, setAlumnosDocente] = useState(null); // aCurso: alumnos_para_docente
+  const [excluidos, setExcluidos] = useState(() => new Set()); // aCurso: hijo_id destildados
+  useEffect(() => {
+    if (!aCurso) return undefined;
+    let vivo = true;
+    supabase.rpc("alumnos_para_docente").then(({ data }) => { if (vivo) setAlumnosDocente(data || []); });
+    return () => { vivo = false; };
+  }, [aCurso]);
+  // Una fila por alumno (la RPC repite si la docente tiene varias fichas).
+  const alumnosCurso = alumnosDocente === null ? null : [...new Map(alumnosDocente.filter((a) => a.curso_id === cursoSel).map((a) => [a.hijo_id, a])).values()];
+  const elegidos = (alumnosCurso || []).filter((a) => !excluidos.has(a.hijo_id)).length;
   const [texto, setTexto] = useState("");
   const [fotos, setFotos] = useState([]); // { file, url } — se suben recién al enviar
   const [enviando, setEnviando] = useState(false);
@@ -546,6 +593,7 @@ function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerra
   };
   const enviar = async () => {
     if (aCurso ? !cursoSel : !seleccion.length) { setError(aCurso ? "Elegí el curso." : "Elegí al menos una familia."); return; }
+    if (aCurso && !elegidos) { setError("Elegí al menos un alumno."); return; }
     if (!texto.trim() && !fotos.length) { setError("Escribí el mensaje o sumá una foto."); return; }
     setEnviando(true); setError("");
     // Las fotos se suben UNA vez y las usan todos los mensajes de la difusión.
@@ -560,7 +608,8 @@ function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerra
       }
     }
     const { data, error: e } = aCurso
-      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths })
+      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths,
+          p_hijos: excluidos.size ? alumnosCurso.filter((a) => !excluidos.has(a.hijo_id)).map((a) => a.hijo_id) : null })
       : await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
     setEnviando(false);
     if (e) { borrarArchivos(paths, "adjuntos"); setError(e.message || "No se pudo enviar."); return; }
@@ -572,14 +621,14 @@ function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerra
     <div style={overlay} onClick={onCerrar}>
       <div style={{ ...modalCard, display: "flex", flexDirection: "column", height: "min(720px, 90vh)" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="dif-t">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div id="dif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{aCurso ? "Mensaje a todo el curso" : "Mensaje a varias familias"}</div>
+          <div id="dif-t" style={{ fontSize: 17, fontWeight: 800, color: C.textStrong }}>{aCurso ? "Mensaje a las familias del curso" : "Mensaje a varias familias"}</div>
           <button onClick={onCerrar} aria-label="Cerrar" style={btnIcon}>✕</button>
         </div>
-        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>{aCurso ? "Le llega a la familia de cada alumno en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</div>
+        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>{aCurso ? "Le llega a la familia de cada alumno que elijas, en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</div>
         {aCurso && cursos.length > 1 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }} role="radiogroup" aria-label="Curso">
             {cursos.map((c) => (
-              <button key={c.id} type="button" role="radio" aria-checked={cursoSel === c.id} onClick={() => setCursoSel(c.id)}
+              <button key={c.id} type="button" role="radio" aria-checked={cursoSel === c.id} onClick={() => { setCursoSel(c.id); setExcluidos(new Set()); }}
                 style={{ padding: "8px 14px", borderRadius: 999, border: `1px solid ${cursoSel === c.id ? SLATE[900] : C.borderStrong}`, background: cursoSel === c.id ? SLATE[900] : C.surface, cursor: "pointer", fontFamily: "inherit" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: cursoSel === c.id ? "white" : SLATE[700] }}>{c.nombre}</span>
               </button>
@@ -602,11 +651,11 @@ function DifusionModal({ cursos, cursoId = null, userId, aCurso = false, onCerra
             </label>
           ) : null}
         </div>
-        {aCurso ? <div style={{ flex: 1 }} /> : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
+        {aCurso ? (cursoSel ? <SelectorAlumnosCurso alumnos={alumnosCurso} excluidos={excluidos} onChange={setExcluidos} /> : <div style={{ flex: 1 }} />) : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
         {error ? <div role="alert" style={{ fontSize: 12.5, color: C.danger, marginTop: 8 }}>{error}</div> : null}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button onClick={onCerrar} style={{ ...btnSec, flex: 1 }}>Cancelar</button>
-          <button onClick={enviar} disabled={enviando} style={{ ...btnPri, flex: 1, opacity: enviando ? 0.6 : 1 }}>{enviando ? "Enviando…" : aCurso ? "Enviar a todo el curso" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`}</button>
+          <button onClick={enviar} disabled={enviando} style={{ ...btnPri, flex: 1, opacity: enviando ? 0.6 : 1 }}>{enviando ? "Enviando…" : aCurso ? (alumnosCurso && elegidos < alumnosCurso.length ? `Enviar a ${elegidos} ${elegidos === 1 ? "familia" : "familias"}` : "Enviar a todo el curso") : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`}</button>
         </div>
       </div>
     </div>

@@ -180,8 +180,8 @@ export const PREGUNTAS_DOCENTE = [
       },
       {
         id: "doc-curso",
-        pregunta: "¿Cómo le mando un mensaje a todo el curso?",
-        respuesta: "En Mensajes → \"+ Nuevo\" → Familias tocá \"A todo el curso\", elegí el curso, escribí el mensaje (podés sumar hasta 3 fotos) y enviá. Le llega a la familia de cada alumno en su chat con vos, con notificación. Si responden, la respuesta es privada: las demás familias no la ven.",
+        pregunta: "¿Cómo le mando un mensaje a todo el curso o a varias familias?",
+        respuesta: "En Mensajes → \"+ Nuevo\" → Familias tocá \"A varias familias o a todo el curso\" y elegí el curso. Aparecen todos los alumnos tildados: destildá los que no van (o tocá \"Ninguno\" y marcá solo los que sí). Escribí el mensaje (podés sumar hasta 3 fotos) y enviá. Le llega a la familia de cada alumno elegido en su chat con vos, con notificación. Si responden, la respuesta es privada: las demás familias no la ven.",
         ir: { web: "mensajes", mobile: "/(tabs)/mensajes", label: "Ir a Mensajes" },
       },
       {

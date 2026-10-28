@@ -9,10 +9,15 @@
 -- las mismas reglas que enviar_difusion (hasta 3, solo rutas propias de
 -- mensajes/difusion/<yo>/). El push sale por el trigger de cada mensaje.
 --
+-- `p_hijos` (opcional, 2026-10-27): solo a las familias de esos alumnos del
+-- curso ("Mensaje a varias familias": la docente destilda los que no van).
+-- null = todo el curso. Los que no son del curso se ignoran.
+--
 -- Correr después de mensajes-docentes.sql y mensajes-fotos.sql. Idempotente.
 
+drop function if exists public.enviar_a_curso_docente(uuid, text, jsonb);
 create or replace function public.enviar_a_curso_docente(
-  p_curso uuid, p_texto text, p_fotos jsonb default '[]'::jsonb
+  p_curso uuid, p_texto text, p_fotos jsonb default '[]'::jsonb, p_hijos uuid[] default null
 )
 returns table (enviados int, omitidos int)
 language plpgsql security definer set search_path = public, pg_temp
@@ -40,10 +45,12 @@ begin
     raise exception 'Foto no válida';
   end if;
   if t = '' and jsonb_array_length(f) = 0 then raise exception 'Escribí el mensaje'; end if;
+  if p_hijos is not null and coalesce(array_length(p_hijos, 1), 0) = 0 then raise exception 'Elegí al menos un alumno'; end if;
 
   for h in
     select hi.id from public.hijos hi
      where hi.curso_id = p_curso
+       and (p_hijos is null or hi.id = any(p_hijos))
        and exists (select 1 from public.usuario_hijos uh where uh.hijo_id = hi.id)
   loop
     n_total := n_total + 1;
@@ -57,5 +64,5 @@ begin
   end loop;
   return query select n_ok, n_total - n_ok;
 end $$;
-revoke all on function public.enviar_a_curso_docente(uuid, text, jsonb) from public, anon;
-grant execute on function public.enviar_a_curso_docente(uuid, text, jsonb) to authenticated;
+revoke all on function public.enviar_a_curso_docente(uuid, text, jsonb, uuid[]) from public, anon;
+grant execute on function public.enviar_a_curso_docente(uuid, text, jsonb, uuid[]) to authenticated;

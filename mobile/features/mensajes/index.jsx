@@ -294,7 +294,7 @@ function NuevoMensajeSheet({ visible, esDocente, soloPersonal = false, hijos = [
       ) : null}
       {pestana === "alumnos" && onACurso ? (
         <View style={s.sheetBotones}>
-          <Button title="A todo el curso" variant="outline" size="sm" onPress={onACurso} full={false} style={s.flex1} />
+          <Button title="A varias familias o a todo el curso" variant="outline" size="sm" onPress={onACurso} full={false} style={s.flex1} />
         </View>
       ) : null}
       {pestana === "personal" && onCrearGrupoPersonal ? (
@@ -481,15 +481,64 @@ function GrupoSheet({ visible, grupo = null, personal = false, cursos, cursoId =
 
 // aCurso: la docente le escribe a la familia de cada alumno de un curso, en su
 // chat docente de cada alumno (RPC enviar_a_curso_docente).
+// Alumnos de un curso con casillas (la docente elige a qué familias le
+// escribe). `excluidos`: Set de hijo_id destildados (por defecto van todos).
+function SelectorAlumnosCurso({ alumnos, excluidos, onChange }) {
+  const [q, setQ] = useState("");
+  if (alumnos === null) return <ActivityIndicator style={{ marginTop: SPACE.lg }} color={t.accent} />;
+  if (!alumnos.length) return <Text style={s.vacioTxt}>Este curso no tiene alumnos con familia en tribbu.</Text>;
+  const sinAc = (x) => x.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const visibles = alumnos.filter((a) => !q.trim() || sinAc(`${a.nombre} ${a.apellido || ""}`).includes(sinAc(q.trim())));
+  const n = alumnos.length - excluidos.size;
+  const toggle = (id) => { const x = new Set(excluidos); if (x.has(id)) x.delete(id); else x.add(id); onChange(x); };
+  return (
+    <View style={s.flexShrink}>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+        <Text style={[s.notaChica, s.flex1]}>Familias de {n} de {alumnos.length} alumnos</Text>
+        <Pressable onPress={() => onChange(excluidos.size ? new Set() : new Set(alumnos.map((a) => a.hijo_id)))} hitSlop={8} accessibilityRole="button">
+          <Text style={{ color: t.accent, fontSize: 13, fontWeight: "700" }}>{excluidos.size ? "Todos" : "Ninguno"}</Text>
+        </Pressable>
+      </View>
+      {alumnos.length > 8 ? <TextInput value={q} onChangeText={setQ} placeholder="Buscar alumno" placeholderTextColor={t.placeholder} style={s.input} autoCorrect={false} accessibilityLabel="Buscar alumno" /> : null}
+      <FlatList
+        data={visibles}
+        keyExtractor={(a) => a.hijo_id}
+        keyboardShouldPersistTaps="handled"
+        style={s.flexShrink}
+        renderItem={({ item: a }) => {
+          const on = !excluidos.has(a.hijo_id);
+          return (
+            <Pressable onPress={() => toggle(a.hijo_id)} style={[s.filaFamilia, on && s.filaOn]} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+              <MaterialCommunityIcons name={on ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={on ? t.accent : SLATE[400]} />
+              <Text style={[s.filaTitulo, s.flex1]} numberOfLines={1}>{a.nombre} {a.apellido || ""}</Text>
+            </Pressable>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
 function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false, onCerrar, onListo }) {
   const [seleccion, setSeleccion] = useState([]);
   const [cursoSel, setCursoSel] = useState(null);
   const [texto, setTexto] = useState("");
   const [fotos, setFotos] = useState([]); // assets de pickImages: se suben recién al enviar
   const [enviando, setEnviando] = useState(false);
+  const [alumnosDocente, setAlumnosDocente] = useState(null); // aCurso: alumnos_para_docente
+  const [excluidos, setExcluidos] = useState(() => new Set()); // aCurso: hijo_id destildados
   useEffect(() => {
-    if (visible) { setSeleccion([]); setTexto(""); setFotos([]); setCursoSel(cursoId || (cursos.length === 1 ? cursos[0].id : null)); }
+    if (visible) { setSeleccion([]); setTexto(""); setFotos([]); setExcluidos(new Set()); setCursoSel(cursoId || (cursos.length === 1 ? cursos[0].id : null)); }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!visible || !aCurso) return undefined;
+    let vivo = true;
+    supabase.rpc("alumnos_para_docente").then(({ data }) => { if (vivo) setAlumnosDocente(data || []); });
+    return () => { vivo = false; };
+  }, [visible, aCurso]);
+  // Una fila por alumno (la RPC repite si la docente tiene varias fichas).
+  const alumnosCurso = alumnosDocente === null ? null : [...new Map(alumnosDocente.filter((a) => a.curso_id === cursoSel).map((a) => [a.hijo_id, a])).values()];
+  const elegidos = (alumnosCurso || []).filter((a) => !excluidos.has(a.hijo_id)).length;
   const elegirFotos = async () => {
     try {
       const assets = await pickImages({ max: MAX_FOTOS_MENSAJE - fotos.length });
@@ -500,6 +549,7 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false
   };
   const enviar = async () => {
     if (aCurso ? !cursoSel : !seleccion.length) { Alert.alert(aCurso ? "Elegí el curso" : "Elegí al menos una familia"); return; }
+    if (aCurso && !elegidos) { Alert.alert("Elegí al menos un alumno"); return; }
     if (!texto.trim() && !fotos.length) { Alert.alert("Escribí el mensaje o sumá una foto"); return; }
     setEnviando(true);
     // Las fotos se suben UNA vez y las usan todos los mensajes de la difusión.
@@ -516,7 +566,8 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false
       }
     }
     const { data, error } = aCurso
-      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths })
+      ? await supabase.rpc("enviar_a_curso_docente", { p_curso: cursoSel, p_texto: limpiarTexto(texto), p_fotos: paths,
+          p_hijos: excluidos.size ? alumnosCurso.filter((a) => !excluidos.has(a.hijo_id)).map((a) => a.hijo_id) : null })
       : await supabase.rpc("enviar_difusion", { p_usuarios: seleccion, p_texto: limpiarTexto(texto), p_curso: cursoId, p_fotos: paths });
     setEnviando(false);
     if (error) { borrarArchivos(paths, "adjuntos"); Alert.alert("No se pudo enviar", error.message); return; }
@@ -525,12 +576,12 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false
     onListo(r?.enviados || 0, r?.omitidos || 0);
   };
   return (
-    <Sheet visible={visible} onClose={onCerrar} title={aCurso ? "Mensaje a todo el curso" : "Mensaje a varias familias"} style={s.sheetAlto}>
-      <Text style={s.sheetIntro}>{aCurso ? "Le llega a la familia de cada alumno en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</Text>
+    <Sheet visible={visible} onClose={onCerrar} title={aCurso ? "Mensaje a las familias del curso" : "Mensaje a varias familias"} style={s.sheetAlto}>
+      <Text style={s.sheetIntro}>{aCurso ? "Le llega a la familia de cada alumno que elijas, en su chat con vos. Las respuestas no las ven las demás familias; el colegio puede leer estos chats." : "A cada familia le llega en su chat privado con vos. Las respuestas no las ven las demás."}</Text>
       {aCurso && cursos.length > 1 ? (
         <View style={s.chipsRow} accessibilityRole="radiogroup">
           {cursos.map((c) => (
-            <Pressable key={c.id} onPress={() => setCursoSel(c.id)} style={[s.chip, cursoSel === c.id && s.chipOn]} accessibilityRole="radio" accessibilityState={{ checked: cursoSel === c.id }}>
+            <Pressable key={c.id} onPress={() => { setCursoSel(c.id); setExcluidos(new Set()); }} style={[s.chip, cursoSel === c.id && s.chipOn]} accessibilityRole="radio" accessibilityState={{ checked: cursoSel === c.id }}>
               <Text style={[s.chipTxt, cursoSel === c.id && s.chipTxtOn]}>{c.nombre}</Text>
             </Pressable>
           ))}
@@ -552,10 +603,10 @@ function DifusionSheet({ visible, cursos, cursoId = null, userId, aCurso = false
           </Pressable>
         ) : null}
       </View>
-      {aCurso ? null : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
+      {aCurso ? (cursoSel ? <SelectorAlumnosCurso alumnos={alumnosCurso} excluidos={excluidos} onChange={setExcluidos} /> : null) : <SelectorFamilias seleccion={seleccion} onChange={setSeleccion} cursos={cursos} max={50} soloDe={cursoId ? [cursoId] : null} />}
       <View style={s.sheetBotones}>
         <Button title="Cancelar" variant="outline" onPress={onCerrar} full={false} style={s.flex1} />
-        <Button title={aCurso ? "Enviar a todo el curso" : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
+        <Button title={aCurso ? (alumnosCurso && elegidos < alumnosCurso.length ? `Enviar a ${elegidos}` : "Enviar a todo el curso") : `Enviar${seleccion.length ? ` a ${seleccion.length}` : ""}`} onPress={enviar} loading={enviando} full={false} style={s.flex1} />
       </View>
     </Sheet>
   );
