@@ -38,7 +38,7 @@ const Encabezado = ({ titulo, cuenta, derecha }) => (
   </div>
 );
 
-export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, ocultas = null, onIr }) {
+export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, ocultas = null, onIr, onCrear }) {
   const [d, setD] = useState(null);
   const isMobile = useIsMobile();
   const hoy = hoyAR();
@@ -124,9 +124,10 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
   ].filter((p) => p && !ocultas?.has(p.sec)) : [];
   const [destacado, ...resto] = pendientes;
 
+  // [ícono, texto, sección, opción de "+ Crear" que abre el formulario directo]
   const accesos = [
-    ["comunicaciones", "Nuevo comunicado", "comunicaciones"], ["agenda", "Nuevo evento", "eventos"], ["firma", "Pedir una autorización", "autorizaciones"],
-    ["alerta", "Enviar una alerta", "alertas"], ["paleta", "Talleres", "talleres"], ["grafico", "Adopción de la app", "adopcion"],
+    ["comunicaciones", "Nuevo comunicado", "comunicaciones", "comunicado"], ["agenda", "Nuevo evento", "eventos", "evento"], ["firma", "Pedir una autorización", "autorizaciones", "autorizacion"],
+    ["alerta", "Enviar una alerta", "alertas", "alerta"], ["paleta", "Talleres", "talleres"], ["grafico", "Adopción de la app", "adopcion"],
   ].filter(([, , sec]) => !ocultas?.has(sec));
 
   const kpis = [
@@ -215,8 +216,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     <div style={{ marginBottom: 28 }}>
       <Encabezado titulo="Accesos rápidos" />
       <div style={{ ...card, overflow: "hidden" }}>
-        {accesos.map(([ico, l, sec], i) => (
-          <button key={sec} onClick={() => onIr(sec)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 18px", border: "none", borderTop: i ? "1px solid #F1F5F9" : "none", background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+        {accesos.map(([ico, l, sec, crear], i) => (
+          <button key={sec} onClick={() => (crear && onCrear ? onCrear(crear) : onIr(sec))} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 18px", border: "none", borderTop: i ? "1px solid #F1F5F9" : "none", background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
             <Icono nombre={ico} size={18} color="#475569" />
             <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{l}</span>
             <Icono nombre="flecha" size={15} color="#94A3B8" />

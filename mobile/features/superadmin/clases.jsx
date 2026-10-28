@@ -304,7 +304,7 @@ export function ClasesCurso({ curso, colegioId, clases, maestros = [], onCambio 
           <View style={s.wrap}>
             {activas.map((m) => <Chip key={m.id} label={m.nombre} color={m.color} on={materiaId === m.id} onPress={() => setMateriaId(m.id)} />)}
           </View>
-          {!activas.length ? <Text style={s.muted}>Primero cargá las materias en Colegio → Materias.</Text> : null}
+          {!activas.length ? <Text style={s.muted}>Primero cargá las materias en Configuración → Materias.</Text> : null}
           <Text style={s.label}>Maestra</Text>
           <View style={s.wrap}>
             <Chip label="Sin maestra" on={!maestroId} onPress={() => setMaestroId(null)} />

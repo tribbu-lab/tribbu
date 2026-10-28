@@ -1181,7 +1181,7 @@ const styles = StyleSheet.create({
  * Crear un evento notifica al curso, igual que en el Calendario.
  */
 // usuarios: los que el panel ya tiene cargados; solo se piden los autores que falten.
-export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [] }) {
+export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [], abrirNuevo = null }) {
   const [eventos, setEventos] = useState(null);
   const [autores, setAutores] = useState({});
   const [cursoSel, setCursoSel] = useState("");
@@ -1205,6 +1205,9 @@ export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios 
     setEventos(lista);
   }, [ids, usuarios]);
   useEffect(() => { cargar(); }, [cargar]);
+  // "+ Crear → Evento" del panel: un evento es de un curso, así que se abre
+  // Filtros → Curso para elegirlo (después, "+" crea el evento ahí).
+  useEffect(() => { if (abrirNuevo) Promise.resolve().then(() => setFiltrosAbiertos(true)); }, [abrirNuevo]);
 
   const nombreCurso = (id) => cursos.find((c) => c.id === id)?.nombre || "—";
   const autor = (id) => {

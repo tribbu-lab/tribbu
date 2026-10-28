@@ -1009,7 +1009,7 @@ function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
  * desde Cumpleaños.
  */
 // usuarios: los que el panel ya tiene cargados; solo se piden los autores que falten.
-export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [] }) {
+export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios = [], abrirNuevo = null }) {
   const { showToast, Toast } = useToast();
   const [eventos, setEventos] = useState(null);
   const [autores, setAutores] = useState({});
@@ -1022,6 +1022,8 @@ export function EventosColegio({ cursos = [], userId, esSuper = false, usuarios 
   const [multiCurso, setMultiCurso] = useState(false);
   const [borrando, setBorrando] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
+  // "+ Crear → Evento" del panel: abrir el alta al llegar (abrirNuevo = nonce).
+  useEffect(() => { if (abrirNuevo) Promise.resolve().then(() => setMultiCurso(true)); }, [abrirNuevo]);
 
   const ids = cursos.map(c => c.id).join(",");
   const cargar = useCallback(async () => {

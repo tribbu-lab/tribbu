@@ -49,6 +49,8 @@ import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
+import { Button } from "../../components/Button";
+import { Sheet } from "../../components/Sheet";
 import { EmptyState } from "../../components/EmptyState";
 import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
@@ -71,30 +73,41 @@ const SECCIONES = [
     { id: "mensajes_personal", l: "Del personal", soloColegioAdmin: true },
     { id: "salidas", l: "Cambios en la salida" },
   ]},
-  { id: "g_comunidad", l: "Comunidad", icono: "heart-outline", items: [
-    { id: "talleres", l: "Talleres" },
-    { id: "denuncias", l: "Denuncias" },
-    { id: "adopcion", l: "Adopción" },
-  ]},
   { id: "g_personas", l: "Personas", icono: "account-multiple-outline", items: [
     { id: "usuarios", l: "Apoderados" },
     { id: "alumnos", l: "Alumnos" },
+  ]},
+  { id: "g_comunidad", l: "Comunidad", icono: "heart-outline", items: [
+    { id: "talleres", l: "Talleres" },
+    { id: "denuncias", l: "Denuncias" },
+  ]},
+  // Modo simple (mismo criterio que la web): lo que se arma una vez o pocas
+  // veces por año va aparte, al final del inicio del panel.
+  { id: "g_config", l: "Configuración", icono: "cog-outline", config: true, items: [
+    { id: "cursos", l: "Cursos" },
+    { id: "horarios", l: "Horarios" },
+    { id: "materias", l: "Materias" },
     { id: "maestros", l: "Maestros" },
     { id: "directivos", l: "Directivos" },
-  ]},
-  { id: "g_colegio", l: "Colegio", icono: "school-outline", items: [
-    { id: "cursos", l: "Cursos" },
-    { id: "materias", l: "Materias" },
-    { id: "horarios", l: "Horarios" },
-    { id: "uniformes", l: "Uniformes" },
     { id: "menu", l: "Menú" },
+    { id: "uniformes", l: "Uniformes" },
     { id: "colegio", l: "Datos y membrete" },
+    { id: "adopcion", l: "Adopción" },
   ]},
   { id: "g_plataforma", l: "Plataforma", icono: "earth", items: [
     { id: "soporte", l: "Soporte", soloSuper: true },
   ]},
 ];
 const ICONO_PANTALLA = { horarios: "clock-outline", talleres: "palette-outline", adopcion: "chart-bar", soporte: "lifebuoy" };
+// Botón "+ Crear" único (mismas opciones que la web). `abre`: el alta se abre sola al llegar.
+const OPCIONES_CREAR = [
+  { id: "comunicado", l: "Comunicado", d: "A uno o varios cursos, o a todo el colegio", sec: "comunicaciones", icono: "email-outline" },
+  { id: "evento", l: "Evento", d: "En el calendario de un curso", sec: "eventos", icono: "calendar-month-outline", abre: true },
+  { id: "autorizacion", l: "Autorización", d: "Pedir permiso para una salida o actividad", sec: "autorizaciones", icono: "file-sign", abre: true },
+  { id: "alerta", l: "Alerta", d: "Aviso urgente con notificación", sec: "alertas", icono: "alert-outline" },
+  { id: "alumno", l: "Alumno", d: "Sumar un alumno a un curso", sec: "alumnos", icono: "account-school-outline" },
+  { id: "apoderado", l: "Apoderado", d: "Crear la cuenta de una familia", sec: "usuarios", icono: "account-plus-outline" },
+];
 // Pantallas sueltas, fuera de las secciones (abajo del inicio del panel).
 const TITULO_SUELTA = { soporte_colegio: "Ayuda y soporte", cuenta: "Mi cuenta" };
 
@@ -178,6 +191,8 @@ export function SuperAdmin() {
   // remontada en vez de exponer un callback nuevo en un componente que hoy
   // no toma props de recarga externa.
   const [menuRefreshKey, setMenuRefreshKey] = useState(0);
+  const [menuCrear, setMenuCrear] = useState(false); // Sheet del botón "+ Crear"
+  const [crear, setCrear] = useState(null);          // { tipo, n }: alta a abrir al llegar a la sección
   // Menú por niveles (roles-por-nivel): niveles del colegio + para cuáles se carga (vacío = todos).
   const [colegioNiveles, setColegioNiveles] = useState([]);
   const [nombreColegio, setNombreColegio] = useState(""); // el colegio_admin no tiene la lista de colegios
@@ -750,6 +765,22 @@ export function SuperAdmin() {
     .map((g) => (g.items.length === 1 ? { ...g, l: g.items[0].l, icono: ICONO_PANTALLA[g.items[0].id] || g.icono } : g));
   const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "salidas" ? noLeidos.salidas : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
+  const seccionesDiaADia = seccionesVisibles.filter((g) => !g.config);
+  const seccionConfig = seccionesVisibles.find((g) => g.config) || null;
+  // Navegar a mano limpia el pedido de "+ Crear" (si no, al volver a Eventos se reabriría el alta).
+  const irSec = (id) => { setSec(id); setCrear(null); };
+  const puedeCrear = esColegioAdmin || !!activeColegioId;
+  const opcionesCrear = OPCIONES_CREAR.filter((o) => seccionesVisibles.some((g) => g.items.some((i) => i.id === o.sec)));
+  const elegirCrear = (o) => {
+    setMenuCrear(false);
+    // iOS no apila Modals: el alta se abre cuando ya se cerró la Sheet.
+    setTimeout(() => {
+      setSec(o.sec);
+      if (o.id === "alumno") { setForm({ nombre: "", curso_id: cursos[0]?.id, fecha_nacimiento: "", color: "" }); setModal("nuevo_alumno"); }
+      else if (o.id === "apoderado") { setForm({ nombre: "", apellido: "", email: "", pass: "", esSuper: false, cursosAdmin: [], hijos: [], activo: true }); setModal("nuevo_usuario"); }
+      else if (o.abre) setCrear((p) => ({ tipo: o.id, n: (p?.n || 0) + 1 }));
+    }, 350);
+  };
   const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
   const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || nombreColegio;
   const hoyTxt = (() => { const t = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
@@ -760,6 +791,9 @@ export function SuperAdmin() {
           <Text style={styles.fecha}>{hoyTxt}</Text>
           <Text style={styles.h1}>Hola{usuario?.nombre ? `, ${usuario.nombre.split(" ")[0]}` : ""}</Text>
           <Text style={styles.subtitle}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</Text>
+          {puedeCrear && opcionesCrear.length ? (
+            <Button title="+ Crear" onPress={() => setMenuCrear(true)} style={{ marginBottom: 14 }} accessibilityLabel="Crear comunicado, evento, autorización, alerta, alumno o apoderado" />
+          ) : null}
 
           {!esColegioAdmin ? (
             <Pressable
@@ -786,24 +820,36 @@ export function SuperAdmin() {
           </View>
 
           <View style={styles.lista}>
-            {seccionesVisibles.map((g, i) => (
-              <Fila key={g.id} icono={g.icono} label={g.l} primera={i === 0} n={g.items.reduce((t, it) => t + badgeDe(it.id), 0)} onPress={() => setSec(g.items[0].id)} />
+            {seccionesDiaADia.map((g, i) => (
+              <Fila key={g.id} icono={g.icono} label={g.l} primera={i === 0} n={g.items.reduce((t, it) => t + badgeDe(it.id), 0)} onPress={() => irSec(g.items[0].id)} />
             ))}
           </View>
           <View style={styles.lista}>
-            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera n={noLeidos.soporte} onPress={() => setSec("soporte_colegio")} /> : null}
-            <Fila icono="account-circle-outline" label="Mi cuenta" primera={!esColegioAdmin} onPress={() => setSec("cuenta")} />
+            {seccionConfig ? <Fila icono={seccionConfig.icono} label={seccionConfig.l} primera onPress={() => irSec(seccionConfig.items[0].id)} /> : null}
+            {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera={!seccionConfig} n={noLeidos.soporte} onPress={() => irSec("soporte_colegio")} /> : null}
+            <Fila icono="account-circle-outline" label="Mi cuenta" primera={!seccionConfig && !esColegioAdmin} onPress={() => irSec("cuenta")} />
           </View>
+          <Sheet visible={menuCrear} onClose={() => setMenuCrear(false)} title="Crear">
+            {opcionesCrear.map((o, i) => (
+              <Pressable key={o.id} onPress={() => elegirCrear(o)} style={({ pressed }) => [styles.opcionCrear, i > 0 && styles.filaBorde, pressed && { backgroundColor: "#F8FAFC" }]} accessibilityRole="button">
+                <View style={styles.opcionCrearIcono}><MaterialCommunityIcons name={o.icono} size={19} color="#475569" /></View>
+                <View style={styles.flex1}>
+                  <Text style={styles.filaTxt}>{o.l}</Text>
+                  <Text style={styles.itemMeta}>{o.d}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </Sheet>
         </View>
       ) : (
         <View>
-          <Pressable onPress={() => setSec(null)} style={styles.volverBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver al panel">
+          <Pressable onPress={() => irSec(null)} style={styles.volverBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver al panel">
             <MaterialCommunityIcons name="chevron-left" size={22} color={BLUE[600]} />
             <Text style={styles.volverTxt}>Panel</Text>
           </Pressable>
           <Text style={[styles.h1, { marginBottom: 12 }]}>{grupoActivo?.l || TITULO_SUELTA[sec] || ""}</Text>
           {grupoActivo && grupoActivo.items.length > 1 ? (
-            <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l, badge: badgeDe(i.id) }))} activo={sec} onIr={setSec} />
+            <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l, badge: badgeDe(i.id) }))} activo={sec} onIr={irSec} />
           ) : null}
 
       {sec === "cuenta" ? (
@@ -1050,8 +1096,8 @@ export function SuperAdmin() {
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
-      {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} /> : null}
-      {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} /> : null}
+      {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} abrirNuevo={crear?.tipo === "evento" ? crear.n : null} /> : null}
+      {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} abrirNuevo={crear?.tipo === "autorizacion" ? crear.n : null} /> : null}
       {sec === "salidas" ? <CambiosSalidaColegio key={activeColegioId} cursos={cursosVigentes} /> : null}
       {sec === "talleres" ? <TalleresColegio key={activeColegioId} colegioId={activeColegioId} anoActual={anoActual} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
@@ -2603,6 +2649,8 @@ const styles = StyleSheet.create({
   lista: { backgroundColor: "white", borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 14, overflow: "hidden" },
   fila: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
   filaBorde: { borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  opcionCrear: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, minHeight: 56 },
+  opcionCrearIcono: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   filaTxt: { flex: 1, fontSize: 15, fontWeight: "600", color: "#0F172A" },
   globito: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 999, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
   globitoTxt: { color: "white", fontSize: 11, fontWeight: "700" },

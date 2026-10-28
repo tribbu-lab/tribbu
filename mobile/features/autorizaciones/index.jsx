@@ -387,9 +387,11 @@ function NuevaSheet({ cursos, multi = false, userId, onClose, onCreada }) {
 }
 
 /** Sección del Super Admin / Admin de Colegio: publicar en varios cursos y ver respuestas. */
-export function AutorizacionesColegio({ cursos, userId }) {
+export function AutorizacionesColegio({ cursos, userId, abrirNuevo = null }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
+  // "+ Crear → Autorización" del panel: abrir el alta al llegar (abrirNuevo = nonce).
+  useEffect(() => { if (abrirNuevo) Promise.resolve().then(() => setNueva(true)); }, [abrirNuevo]);
   const [detalle, setDetalle] = useState(null); // grupo abierto
   const clave = cursos.map((c) => c.id).join(",");
   const hoyStr = fmtLocalDate();

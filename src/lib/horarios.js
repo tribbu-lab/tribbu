@@ -239,7 +239,7 @@ export function leerImportacion(filas, { cursos = [], materias = [], maestros = 
       : !dia ? `Día no válido: "${v("Día")}"`
       : !hora_inicio || !hora_fin ? "Falta la hora o no es válida (usá 08:40)"
       : aMin(hora_fin) <= aMin(hora_inicio) ? "La hora de fin tiene que ser después de la de inicio"
-      : !materia_id ? `No existe la materia "${v("Materia")}" (creala en Colegio → Materias)`
+      : !materia_id ? `No existe la materia "${v("Materia")}" (creala en Configuración → Materias)`
       : nombreMaestra && !maestro_id ? `No encontramos a la maestra "${nombreMaestra}"`
       : null;
     if (motivo) { errores.push({ fila, motivo }); return; }

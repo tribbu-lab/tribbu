@@ -73,29 +73,42 @@ const SECCIONES = [
     {id:"mensajes_personal",l:"Del personal",soloColegioAdmin:true},
     {id:"salidas",l:"Cambios en la salida"},
   ]},
+  { id:"g_personas", l:"Personas", icono:"usuarios", items: [
+    {id:"usuarios",l:"Apoderados"},
+    {id:"alumnos",l:"Alumnos"},
+  ]},
   { id:"g_comunidad", l:"Comunidad", icono:"corazon", items: [
     {id:"talleres",l:"Talleres"},
     {id:"marketplace",l:"Marketplace"},
     {id:"perdidos",l:"Lost & Found"},
     {id:"denuncias",l:"Denuncias"},
-    {id:"adopcion",l:"Adopción"},
   ]},
-  { id:"g_personas", l:"Personas", icono:"usuarios", items: [
-    {id:"usuarios",l:"Apoderados"},
-    {id:"alumnos",l:"Alumnos"},
+  // Modo simple (2026-10-27): lo que se arma una vez o pocas veces por año
+  // va aparte, abajo de la barra, separado del día a día.
+  { id:"g_config", l:"Configuración", icono:"ajustes", config:true, items: [
+    {id:"cursos",l:"Cursos"},
+    {id:"horarios",l:"Horarios"},
+    {id:"materias",l:"Materias"},
     {id:"maestros",l:"Maestros"},
     {id:"directivos",l:"Directivos"},
-  ]},
-  { id:"g_colegio", l:"Colegio", icono:"escuela", items: [
-    {id:"cursos",l:"Cursos"},
-    {id:"materias",l:"Materias"},
-    {id:"horarios",l:"Horarios"},
-    {id:"uniformes",l:"Uniformes"},
     {id:"menu",l:"Menú"},
+    {id:"uniformes",l:"Uniformes"},
     {id:"colegio",l:"Datos y membrete"},
+    {id:"adopcion",l:"Adopción"},
     // Última: se usa una vez por año, al pasar a los alumnos al año siguiente.
     {id:"promocion",l:"Promoción"},
   ]},
+];
+
+// Botón "+ Crear" único (modo simple): lo que más se crea, sin tener que
+// saber en qué sección está. `abre`: el formulario se abre solo al llegar.
+const OPCIONES_CREAR = [
+  { id:"comunicado", l:"Comunicado", d:"A uno o varios cursos, o a todo el colegio", sec:"comunicaciones", icono:"comunicaciones" },
+  { id:"evento", l:"Evento", d:"En el calendario de uno o varios cursos", sec:"eventos", icono:"agenda", abre:true },
+  { id:"autorizacion", l:"Autorización", d:"Pedir permiso para una salida o actividad", sec:"autorizaciones", icono:"firma", abre:true },
+  { id:"alerta", l:"Alerta", d:"Aviso urgente con notificación", sec:"alertas", icono:"alerta" },
+  { id:"alumno", l:"Alumno", d:"Sumar un alumno a un curso", sec:"alumnos", icono:"usuarios", abre:true },
+  { id:"apoderado", l:"Apoderado", d:"Crear la cuenta de una familia", sec:"usuarios", icono:"usuarios", abre:true },
 ];
 
 // Globito rojo de no leídos (mismo que la barra lateral del apoderado).
@@ -204,6 +217,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   // "Colegios". Necesario para insertar filas con colegio_id NOT NULL (cursos).
   const [sec,setSec]           = useState(esSuper?"colegios":"inicio");
   const [navAbierta,setNavAbierta] = useState(false); // mobile: lista de secciones plegada
+  const [menuCrear,setMenuCrear] = useState(false);   // botón "+ Crear"
+  const [crear,setCrear]         = useState(null);    // { tipo, n }: formulario a abrir al llegar a la sección
   const [colegioId,setColegioId] = useState(null);
   const [colegioNombre,setColegioNombre] = useState("");
   const [colegioNiveles,setColegioNiveles] = useState([]); // niveles que tiene el colegio (roles-por-nivel)
@@ -916,8 +931,37 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       ? filtrarSecciones(SECCIONES, i=>!SOLO_ADMIN_COLEGIO.has(i.id))
       : SECCIONES;
   const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec)) || null;
-  const irAGrupo = (g) => { setSec(g.items[0].id); setNavAbierta(false); };
-  const irA = (id) => { setSec(id); setNavAbierta(false); };
+  // Navegar a mano limpia el pedido de "+ Crear" (si no, al volver a Eventos se reabriría el alta).
+  const irSec = (id) => { setSec(id); setCrear(null); };
+  const irAGrupo = (g) => { irSec(g.items[0].id); setNavAbierta(false); };
+  const irA = (id) => { irSec(id); setNavAbierta(false); };
+  // Día a día arriba; Configuración aparte (abajo en la barra, al final en el celular).
+  const seccionesDiaADia = seccionesVisibles.filter(g=>!g.config);
+  const seccionConfig = seccionesVisibles.find(g=>g.config) || null;
+  const puedeCrear = esStaffColegio || (esSuper && !!colegioId);
+  const opcionesCrear = OPCIONES_CREAR.filter(o=>seccionesVisibles.some(g=>g.items.some(i=>i.id===o.sec)));
+  const elegirCrear = (o) => {
+    setMenuCrear(false); setNavAbierta(false); setSec(o.sec);
+    if(o.id==="alumno"){ setForm({nombre:"",curso_id:cursosAnoActual[0]?.id,fecha_nacimiento:"",color:""}); setModal("nuevo_alumno"); }
+    else if(o.id==="apoderado"){ setForm({nombre:"",apellido:"",email:"",pass:"",cursosAdmin:[],hijos:[],activo:true}); setModal("nuevo_usuario"); }
+    else if(o.abre) setCrear(p=>({ tipo:o.id, n:(p?.n||0)+1 }));
+  };
+  const menuCrearUI = menuCrear ? (
+    <>
+      <div onClick={()=>setMenuCrear(false)} style={{position:"fixed",inset:0,zIndex:250,background:isMobile?"rgba(15,23,42,0.35)":"transparent"}}/>
+      <div role="menu" aria-label="Crear" style={{position:"fixed",zIndex:251,background:"white",border:"1px solid #E2E8F0",borderRadius:14,boxShadow:"0 12px 32px rgba(15,23,42,0.18)",padding:6,...(isMobile?{left:16,right:16,top:64}:{left:248,top:64,width:320})}}>
+        {opcionesCrear.map(o=>(
+          <button key={o.id} role="menuitem" onClick={()=>elegirCrear(o)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"10px 12px",border:"none",borderRadius:10,background:"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+            <span style={{width:34,height:34,borderRadius:10,background:"#F1F5F9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icono nombre={o.icono} size={17} color="#475569"/></span>
+            <span style={{display:"block",minWidth:0}}>
+              <span style={{display:"block",fontSize:14,fontWeight:700,color:"#0F172A"}}>{o.l}</span>
+              <span style={{display:"block",fontSize:12,color:"#64748B",marginTop:1}}>{o.d}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
+  ) : null;
   const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="soporte_colegio" ? noLeidos.soporte : 0;
   const badgeGrupo = (g) => g.items.reduce((n,i)=>n+badgeDe(i.id),0);
   const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.soporte;
@@ -929,6 +973,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       <style>{`#tribbu-sa-nav::-webkit-scrollbar{width:6px}#tribbu-sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:3px}#tribbu-sa-nav::-webkit-scrollbar-track{background:transparent}`}</style>
       <Toast />
       {confirmUI}
+      {menuCrearUI}
       {/* Feedback banner para operaciones de Auth */}
       {authSyncMsg&&(
         <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:400,maxWidth:480,width:"90%",background:authSyncMsg.ok?"#F0FDF4":"#FFFBEB",border:`1.5px solid ${authSyncMsg.ok?"#10B981":"#F59E0B"}`,borderRadius:14,padding:"14px 18px",boxShadow:"0 8px 24px rgba(0,0,0,0.12)",display:"flex",alignItems:"flex-start",gap:10}}>
@@ -1362,9 +1407,16 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <Wordmark size={20} letterSpacing={-0.8} color="#0F172A"/>
               <div style={{fontSize:11.5,color:"#64748B",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</div>
             </div>
-            <button onClick={()=>irA("cuenta")} aria-label="Mi cuenta" style={{width:38,height:38,borderRadius:999,border:"1px solid #E2E8F0",background:sec==="cuenta"?"#F1F5F9":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
-              <span style={{fontSize:12.5,fontWeight:800,color:"#334155"}}>{inicialesUsuario}</span>
-            </button>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              {puedeCrear&&opcionesCrear.length>0&&(
+                <button onClick={()=>setMenuCrear(m=>!m)} aria-expanded={menuCrear} aria-haspopup="menu" style={{height:38,padding:"0 14px",borderRadius:999,border:"none",background:"#2563EB",cursor:"pointer",fontFamily:"inherit"}}>
+                  <span style={{fontSize:13.5,fontWeight:800,color:"white"}}>+ Crear</span>
+                </button>
+              )}
+              <button onClick={()=>irA("cuenta")} aria-label="Mi cuenta" style={{width:38,height:38,borderRadius:999,border:"1px solid #E2E8F0",background:sec==="cuenta"?"#F1F5F9":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+                <span style={{fontSize:12.5,fontWeight:800,color:"#334155"}}>{inicialesUsuario}</span>
+              </button>
+            </div>
           </div>
           <button onClick={()=>setNavAbierta(a=>!a)} aria-expanded={navAbierta} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 14px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",marginBottom:navAbierta?8:16,fontFamily:"inherit"}}>
             <Icono nombre={grupoActivo?.icono||(sec==="cuenta"?"usuarios":"salvavidas")} size={18} color="#475569"/>
@@ -1374,10 +1426,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
           </button>
           {navAbierta&&(
             <nav style={{border:"1px solid #E2E8F0",borderRadius:14,background:"white",marginBottom:16,overflow:"hidden"}}>
-              {seccionesVisibles.map((g,i)=>{
+              {[...seccionesDiaADia, ...(seccionConfig?[seccionConfig]:[])].map((g,i)=>{
                 const on = grupoActivo?.id===g.id;
                 return (
-                  <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:i?"1px solid #F1F5F9":"none",background:on?"#F8FAFC":"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                  <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"12px 14px",border:"none",borderTop:g.config?"6px solid #F1F5F9":i?"1px solid #F1F5F9":"none",background:on?"#F8FAFC":"white",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                     <Icono nombre={g.icono} size={18} color={on?"#1D4ED8":"#475569"}/>
                     <span style={{flex:1,fontSize:14,fontWeight:on?800:600,color:on?"#1D4ED8":"#0F172A"}}>{g.l}</span>
                     <Globito n={badgeGrupo(g)}/>
@@ -1399,12 +1451,19 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         // pocas secciones con íconos de línea; las pantallas de cada una van
         // como pestañas arriba del contenido. Abajo, Ayuda y Mi cuenta.
         <nav style={{width:236,position:"fixed",top:0,left:0,bottom:0,background:"#0F172A",display:"flex",flexDirection:"column",zIndex:100,overflow:"hidden"}}>
-          <div style={{padding:"22px 20px 18px",flexShrink:0}}>
+          <div style={{padding:"22px 20px 14px",flexShrink:0}}>
             <Wordmark size={22} letterSpacing={-0.8}/>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase",letterSpacing:1,marginTop:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{colegioNombre || rolTexto}</div>
           </div>
+          {puedeCrear&&opcionesCrear.length>0&&(
+            <div style={{padding:"0 12px 10px",flexShrink:0}}>
+              <button onClick={()=>setMenuCrear(m=>!m)} aria-expanded={menuCrear} aria-haspopup="menu" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,width:"100%",padding:"10px 12px",borderRadius:12,border:"none",background:"#2563EB",cursor:"pointer",fontFamily:"inherit"}}>
+                <span style={{fontSize:14,fontWeight:800,color:"white"}}>+ Crear</span>
+              </button>
+            </div>
+          )}
           <div id="tribbu-sa-nav" style={{flex:1,minHeight:0,padding:"4px 12px 0",overflowY:"auto",scrollbarWidth:"thin",scrollbarColor:"rgba(255,255,255,0.25) transparent"}}>
-            {seccionesVisibles.map(g=>{
+            {seccionesDiaADia.map(g=>{
               const on = grupoActivo?.id===g.id;
               return (
                 <button key={g.id} onClick={()=>irAGrupo(g)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"11px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:on?"rgba(255,255,255,0.12)":"transparent",marginBottom:2}}>
@@ -1416,6 +1475,12 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             })}
           </div>
           <div style={{padding:"10px 12px 16px",flexShrink:0}}>
+            {seccionConfig&&(
+              <button onClick={()=>irAGrupo(seccionConfig)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:12,border:"none",borderTop:"1px solid rgba(255,255,255,0.08)",cursor:"pointer",fontFamily:"inherit",background:grupoActivo?.id===seccionConfig.id?"rgba(255,255,255,0.12)":"transparent",marginBottom:2}}>
+                <Icono nombre={seccionConfig.icono} size={18} color={grupoActivo?.id===seccionConfig.id?"white":"rgba(255,255,255,0.55)"}/>
+                <span style={{flex:1,fontSize:13,fontWeight:grupoActivo?.id===seccionConfig.id?700:500,color:grupoActivo?.id===seccionConfig.id?"white":"rgba(255,255,255,0.6)"}}>{seccionConfig.l}</span>
+              </button>
+            )}
             {esStaffColegio&&(
               <button onClick={()=>irA("soporte_colegio")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:sec==="soporte_colegio"?"rgba(255,255,255,0.12)":"transparent",marginBottom:6}}>
                 <Icono nombre="salvavidas" size={18} color={sec==="soporte_colegio"?"white":"rgba(255,255,255,0.55)"}/>
@@ -1453,7 +1518,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
             )}
             {/* En el celular el título ya está en el selector de sección de arriba. */}
             {isMobile ? null : <div style={{fontSize:isMobile?24:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginBottom:pestanas?14:6}}>{titulo}</div>}
-            {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l,badge:badgeDe(i.id)}))} activo={sec} onIr={setSec}/>}
+            {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l,badge:badgeDe(i.id)}))} activo={sec} onIr={irSec}/>}
             {info.descripcion&&(
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginTop:pestanas?-4:0}}>
                 <div style={{fontSize:13,color:"#64748B",lineHeight:1.5,maxWidth:640,flex:"1 1 320px"}}>{info.descripcion}</div>
@@ -1842,13 +1907,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <ComunicacionesAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="eventos"&&(
-        <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper} usuarios={usuarios}/>
+        <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper} usuarios={usuarios} abrirNuevo={crear?.tipo==="evento"?crear.n:null}/>
       )}
       {sec==="marketplace"&&(
         <MarketplaceColegio cursos={cursosAnoActual} userId={usuario?.id}/>
       )}
       {sec==="inicio"&&(
-        <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esStaffColegio} ocultas={esSecretaria?SOLO_ADMIN_COLEGIO:null} onIr={setSec}/>
+        <InicioColegio usuario={usuario} colegioNombre={colegioNombre} colegioId={activeColegioId} cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} maestros={maestros} esColegioAdmin={esStaffColegio} ocultas={esSecretaria?SOLO_ADMIN_COLEGIO:null} onIr={irSec} onCrear={(id)=>{ const o = OPCIONES_CREAR.find(x=>x.id===id); if(o) elegirCrear(o); }}/>
       )}
       {sec==="talleres"&&(
         <TalleresColegio colegioId={activeColegioId} cursos={cursosAnoActual} anoActual={anoActual}/>
@@ -1873,7 +1938,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <PerdidosColegio cursos={cursosAnoActual} colegioId={activeColegioId} userId={usuario?.id}/>
       )}
       {sec==="autorizaciones"&&(
-        <AutorizacionesColegio cursos={cursosAnoActual} userId={usuario?.id}/>
+        <AutorizacionesColegio cursos={cursosAnoActual} userId={usuario?.id} abrirNuevo={crear?.tipo==="autorizacion"?crear.n:null}/>
       )}
       {sec==="salidas"&&(
         <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>
