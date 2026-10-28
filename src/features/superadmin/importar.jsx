@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { supabase } from "../../supabase";
 import { authAdminCreate } from "../../lib/authAdmin";
-import { fmtNombre } from "../../lib/helpers";
+import { fmtNombre, uuidLite } from "../../lib/helpers";
 import { COLUMNAS_FAMILIAS, leerFamilias } from "../../lib/importarFamilias";
 import { Icono } from "../../components/Icono";
 import { ImportarHorarioModal } from "./horarios";
@@ -112,12 +112,15 @@ function ImportarFamiliasModal({ cursos, hijos, usuarios, onClose, onHecho }) {
       let auth_id = null;
       try { auth_id = (await authAdminCreate(c.email, claveAlAzar())).auth_id || null; }
       catch (err) { avisos.push(`${c.email}: no se pudo crear la cuenta para entrar (${err.message})`); }
-      const { data, error: e } = await supabase.from("usuarios").insert({
-        nombre: c.nombre, apellido: c.apellido, email: c.email, rol: "padre", activo: true, auth_id,
+      // id generado acá: el colegio no puede leer de vuelta un usuario recién
+      // creado hasta vincularlo con un hijo (RLS), así que no se pide con .select().
+      const id = uuidLite();
+      const { error: e } = await supabase.from("usuarios").insert({
+        id, nombre: c.nombre, apellido: c.apellido, email: c.email, rol: "padre", activo: true, auth_id,
         avatar: `${c.nombre[0] || ""}${c.apellido?.[0] || ""}`.toUpperCase(),
-      }).select("id").single();
+      });
       if (e) { avisos.push(`${c.email}: ${/duplicate|unique/i.test(e.message) ? "ya tiene una cuenta que no es de este colegio" : e.message}`); continue; }
-      usuarioDe.set(c.email, data.id);
+      usuarioDe.set(c.email, id);
     }
     // 4) Vínculos apoderado ↔ alumno
     setTrabajando("Vinculando familias…");
