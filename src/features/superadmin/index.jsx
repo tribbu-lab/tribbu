@@ -22,6 +22,7 @@ import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
 import { ConfiguracionInicio } from "./configuracion";
+import { ImportarDatos } from "./importar";
 import { Ayuda } from "../ayuda";
 import { preguntasPara } from "../../lib/ayuda";
 import { PerdidosColegio } from "../perdidos";
@@ -87,6 +88,7 @@ const SECCIONES = [
   // Modo simple (2026-10-27): lo que se arma una vez o pocas veces por año
   // va aparte, abajo de la barra, separado del día a día.
   { id:"g_config", l:"Configuración", icono:"ajustes", config:true, items: [
+    {id:"importar",l:"Importar datos"},
     {id:"cursos",l:"Cursos"},
     {id:"horarios",l:"Horarios"},
     {id:"materias",l:"Materias"},
@@ -152,6 +154,7 @@ const SECCION_INFO = {
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Cómo hacer lo básico en el panel. Si algo no funciona o no encontrás tu duda, escribile al equipo de tribbu." },
   cuenta:         { titulo:"Mi cuenta", descripcion:"" },
+  importar:       { titulo:"Importar datos", descripcion:"Las cargas masivas desde Excel en un solo lugar: alumnos y familias, horarios y menú." },
   configuracion:  { titulo:"Configuración", descripcion:"Lo que se arma una vez o pocas veces por año. Tocá una tarjeta para entrar." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y los directivos por nivel (Dirección, Secretaría, Coordinación…), que gestionan solo los cursos de sus niveles." },
@@ -1953,6 +1956,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="salidas"&&(
         <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>
+      )}
+      {sec==="importar"&&(
+        <ImportarDatos cursos={cursosAnoActual} hijos={hijos} usuarios={usuarios} colegioId={activeColegioId}
+          puedeMenu={seccionesVisibles.some(g=>g.items.some(i=>i.id==="menu"))} onIr={irSec} onCambio={cargar} showToast={showToast}/>
       )}
       {sec==="configuracion"&&seccionConfig&&(
         <ConfiguracionInicio items={seccionConfig.items} cursos={cursosAnoActual} maestros={maestros}

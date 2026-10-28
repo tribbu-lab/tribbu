@@ -57,9 +57,10 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] **Configuración más simple** (2026-10-28): página con tarjetas
       agrupadas y estado, "‹ Configuración" sin fila de pestañas. Web y app.
       Falta probarla en pantalla.
-- [ ] **Importar datos** unificado: alumnos y familias, horarios y menú con
-      el método de horarios (modelo, vista previa con errores, reemplazar o
-      agregar). Hoy alumnos y apoderados cargan directo sin vista previa.
+- [x] **Importar datos** (2026-10-28, web): Configuración → Importar datos.
+      Alumnos y familias con vista previa, crea cuentas y las vincula; sin
+      borrar. Falta probar la carga real con el Excel del colegio y decidir
+      si se sacan las cargas viejas de Personas → Alumnos / Apoderados.
 - [ ] **Primeros pasos** para un colegio nuevo: lista con progreso (cursos →
       materias → maestras → horarios → alumnos y familias → invitar).
 - [ ] **Ficha por alumno**: familia, curso, chats, autorizaciones y cambios
