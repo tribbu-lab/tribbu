@@ -20,7 +20,7 @@ export const PREGUNTAS_FRECUENTES = [
       {
         id: "secciones",
         pregunta: "¿Qué hay en cada sección?",
-        respuesta: "Hoy: lo que tenés pendiente, novedades, los próximos días y el menú. Agenda: calendario, horario y cumpleaños. Comunicaciones: avisos y mensajes. Curso: autorizaciones, colectas, encuestas, comedor, talleres, Marketplace, Lost & Found, información útil y contacto. Mi cuenta: tu perfil, notificaciones, contraseña y esta ayuda.",
+        respuesta: "Hoy: lo que tenés pendiente, novedades, los próximos días y el menú. Agenda: calendario, horario y cumpleaños. Comunicaciones: avisos, mensajes y cambios en la salida. Curso: autorizaciones, colectas, encuestas, comedor, talleres, Marketplace, Lost & Found, información útil y contacto. Mi cuenta: tu perfil, notificaciones, contraseña y esta ayuda.",
       },
     ],
   },
@@ -44,6 +44,17 @@ export const PREGUNTAS_FRECUENTES = [
         pregunta: "¿Cómo le escribo a otra familia o armo un grupo?",
         respuesta: "En Mensajes → \"+ Nuevo\" → Familias elegís a quién escribirle. Ahí también podés \"Crear un grupo\" o escribirle \"A varias familias\" a la vez. La primera vez te vamos a pedir que aceptes las normas del chat. Si alguien te molesta, desde el chat lo podés bloquear o denunciar un mensaje.",
         ir: { web: "mensajes", mobile: "/(tabs)/mensajes", label: "Ir a Mensajes" },
+      },
+    ],
+  },
+  {
+    tema: "Salida del colegio",
+    items: [
+      {
+        id: "salida",
+        pregunta: "Mi hijo se retira distinto a lo habitual, ¿cómo le aviso al colegio?",
+        respuesta: "En Comunicaciones → Cambios en la salida (en la app, \"Salidas\") tocá \"+ Nuevo\". Elegí el día, el horario, el motivo y con quién se retira (si es otro adulto, con nombre y DNI), y si querés dejá un comentario. Le llega a la Secretaría del nivel de tu hijo. Cuando lo vean, aparece como \"Visto por el colegio\" con un globito rojo. Podés cancelarlo hasta ese mismo día, y ahí queda el historial de todos tus avisos.",
+        ir: { web: "salidas", mobile: "/(tabs)/salidas", label: "Ir a Cambios en la salida" },
       },
     ],
   },
@@ -88,7 +99,7 @@ export const PREGUNTAS_FRECUENTES = [
       {
         id: "horario",
         pregunta: "¿Dónde veo el horario de clases y el menú del comedor?",
-        respuesta: "El horario está en Agenda → Horario. El menú del día está en Hoy, y el de toda la semana o el mes en Curso → Comedor.",
+        respuesta: "El horario está en Agenda → Horario; con \"Descargar Excel\" te lo bajás para guardarlo o imprimirlo. El menú del día está en Hoy, y el de toda la semana o el mes en Curso → Comedor.",
         ir: { web: "horario", mobile: "/(tabs)/horario", label: "Ir a Horario" },
       },
     ],
@@ -227,7 +238,7 @@ export const PREGUNTAS_DOCENTE = [
       {
         id: "doc-salidas",
         pregunta: "¿Cómo sé si un alumno se retira distinto a lo habitual?",
-        respuesta: "En Curso → Cambios en la salida ves los avisos de las familias de tus cursos: día, horario y con quién se retira. Los recibe y los confirma la Secretaría del nivel; vos los ves para estar al tanto.",
+        respuesta: "En Comunicaciones → Cambios en la salida (en la app, \"Salidas\") ves los avisos de las familias de tus cursos: día, horario y con quién se retira. Cuando hay uno nuevo aparece un globito rojo. Los recibe y los confirma la Secretaría del nivel; vos los ves para estar al tanto.",
         ir: { web: "salidas", mobile: "/(tabs)/salidas", label: "Ir a Cambios en la salida" },
       },
       {
@@ -269,7 +280,7 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-secciones",
         pregunta: "¿Qué hay en cada sección del panel?",
-        respuesta: "Inicio: lo que tenés para resolver, los próximos días y el colegio en números. Comunicación: comunicados, alertas, eventos, autorizaciones y cambios en la salida. Mensajes: lo que escriben las familias y los chats con el personal. Comunidad: talleres, Marketplace, Lost & Found, denuncias y adopción de la app. Personas: apoderados, alumnos, maestros y directivos. Colegio: cursos, materias, horarios, uniformes, menú, datos y membrete y promoción.",
+        respuesta: "Inicio: lo que tenés para resolver, los próximos días y el colegio en números. Comunicación: comunicados, alertas, eventos y autorizaciones. Mensajes: lo que escriben las familias, los chats con el personal y los cambios en la salida. Comunidad: talleres, Marketplace, Lost & Found, denuncias y adopción de la app. Personas: apoderados, alumnos, maestros y directivos. Colegio: cursos, materias, horarios, uniformes, menú, datos y membrete y promoción.",
         ir: { panel: "inicio", label: "Ir al Inicio" },
       },
       {
@@ -315,7 +326,7 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-salidas",
         pregunta: "Una familia avisó un cambio en la salida, ¿qué hago?",
-        respuesta: "Le llega una notificación a la Secretaría del nivel del alumno (si el nivel no tiene Secretaría, al administrador). En Comunicación → Cambios en la salida ves el día, el horario, el motivo y con quién se retira. Tocá \"Marcar como visto\": a la familia le llega la confirmación. La maestra del curso también lo ve.",
+        respuesta: "Aparece en Mensajes → Cambios en la salida con un globito rojo (y en el Inicio, en \"Para resolver\"). Lo ve la Secretaría del nivel del alumno y el administrador. Ahí tenés el día, el horario, el motivo y con quién se retira. Tocá \"Marcar como visto\": el globito se apaga y la familia lo ve como \"Visto por el colegio\". La maestra del curso también lo ve.",
         ir: { panel: "salidas", label: "Ir a Cambios en la salida" },
       },
     ],
@@ -387,7 +398,13 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-horarios",
         pregunta: "¿Cómo cargo el horario de cada curso?",
-        respuesta: "En Colegio → Horarios elegís el curso y cargás cada clase con su materia, maestra, día y horario. Es el mismo horario que ven las familias en Agenda → Horario, y de ahí salen los cursos de cada maestra.",
+        respuesta: "En Colegio → Horarios elegís el curso en el desplegable y tocás \"+ Agregar al horario\" (o un espacio libre de la grilla): clase, días y horario. Un bloque se guarda en varios días a la vez. En \"Más\" están los atajos: agregar el sábado, copiar un día a otros o copiar el horario de otro curso. Es el mismo horario que ven las familias en Agenda → Horario.",
+        ir: { panel: "horarios", label: "Ir a Horarios" },
+      },
+      {
+        id: "col-horarios-excel",
+        pregunta: "¿Puedo cargar o exportar el horario de todos los cursos de una vez?",
+        respuesta: "Sí, desde la computadora. En Colegio → Horarios, \"Exportar Excel\" baja todos los cursos: una hoja \"Horarios\" con una fila por bloque (Curso, Día, Desde, Hasta, Materia, Maestra) y una grilla por curso para imprimir. Para cargar, tocá \"Cargar desde Excel\", descargá el modelo, completalo y subilo: antes de cargar te muestra cuántos bloques entran y qué filas tienen algún problema, y elegís si reemplaza el horario de esos cursos o agrega. Las materias tienen que existir en Colegio → Materias; las clases que falten se crean solas.",
         ir: { panel: "horarios", label: "Ir a Horarios" },
       },
       {
