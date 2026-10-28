@@ -52,6 +52,25 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] Cambios en la salida sin push: globito en Mensajes (panel) y en
       Comunicaciones (familias y docentes).
 
+## Panel del colegio más amigable (agendado 2026-10-27, en este orden)
+
+- [ ] **Configuración más simple**: hoy son 10 pestañas en fila ("mucha
+      info, muchas ventanas"). Idea: que Configuración abra una sola página
+      con tarjetas agrupadas (Estructura: cursos, materias, horarios ·
+      Personal: maestros, directivos · Colegio: datos y membrete, menú,
+      uniformes · Una vez por año: promoción · Adopción), cada una con su
+      estado ("3 cursos sin horario") y que al entrar a una se vuelva con
+      "‹ Configuración", sin la fila de pestañas. Web y app.
+- [ ] **Importar datos** unificado: alumnos y familias, horarios y menú con
+      el método de horarios (modelo, vista previa con errores, reemplazar o
+      agregar). Hoy alumnos y apoderados cargan directo sin vista previa.
+- [ ] **Primeros pasos** para un colegio nuevo: lista con progreso (cursos →
+      materias → maestras → horarios → alumnos y familias → invitar).
+- [ ] **Ficha por alumno**: familia, curso, chats, autorizaciones y cambios
+      en la salida en un solo lugar.
+- [ ] Integración con el sistema de gestión escolar (boletines,
+      asistencias): averiguar cuál usa St John's; arrancar por archivos.
+
 ## Horarios (pedido 2026-10-27)
 
 - [x] Pantalla de Horarios más simple (desplegable de curso, clases plegadas,
