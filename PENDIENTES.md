@@ -89,7 +89,10 @@ web y app juntas, mostrar capturas antes de commitear.
       www.tribbu.ar (verificado 2026-10-23).
 - [x] ~~**App 1.14.0**~~: promovida el 2026-10-26 (Play producción vc51;
       Apple la aprobó el 2026-10-27). 1.13.1 se salteó.
-- [ ] **Crash en Android después del login** (visto en vc51 / 1.14.0, en el
+- [ ] **Crash en Android después del login** (2026-10-28: con un APK de
+      prueba del código actual, en el emulador `tribbu_test` de esta máquina,
+      el login del colegio entró bien y no se cerró — 1 de 1; sin la hoja de
+      "Guardar contraseña". Seguir mirando Android vitals.) (visto en vc51 / 1.14.0, en el
       emulador, 2026-10-27): `RetryableMountingLayerException: Unable to find
       viewState for tag 22` en Fabric (`SurfaceMountingManager.addViewAt`), al
       pasar del login a Hoy mientras aparece la hoja "Save password to Google
