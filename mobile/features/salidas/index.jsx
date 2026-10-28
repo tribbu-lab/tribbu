@@ -6,13 +6,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, RefreshControl, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
-import { sendPush } from "../../lib/push";
 import { useRecarga } from "../../lib/useRecarga";
+import { recontarPanel } from "../../lib/useNoLeidosPanel";
 import { sanitize, fmtLocalDate, fmtNombre } from "@shared/helpers";
 import {
   MOTIVOS, opcionesRetiro, formVacio, validarCambioSalida, filaCambioSalida, textoMotivo, textoRetira,
   estadoCambio, sePuedeCancelar, separarCambios, pendientesDeVer, fechaCambio, cargarCambiosSalida,
-  avisarCambioSalida, textoPushCambio, normalizarHora,
+  normalizarHora,
 } from "@shared/cambiosSalida";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -90,17 +90,16 @@ function NuevoSheet({ hijos, hijoInicial, userId, onClose, onEnviado }) {
     if (err) { Alert.alert("Falta un dato", err); return; }
     setGuardando(true);
     const fila = filaCambioSalida(form, { cursoId: hijo.curso_id, userId, sanitize });
-    const { data, error } = await supabase.from("cambios_salida").insert(fila).select("id").single();
-    if (error) { setGuardando(false); Alert.alert("No se pudo enviar", "Revisá los datos y probá de nuevo."); return; }
-    await avisarCambioSalida(supabase, sendPush, { id: data.id, type: "cambio_salida", titulo: textoPushCambio(fila, fmtNombre(hijo), hoy) });
+    const { error } = await supabase.from("cambios_salida").insert(fila);
     setGuardando(false);
+    if (error) { Alert.alert("No se pudo enviar", "Revisá los datos y probá de nuevo."); return; }
     onEnviado(hijo.nombre);
   };
 
   return (
     <Sheet visible onClose={onClose} title="Avisar un cambio en la salida">
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
-        <Text style={styles.hint}>Le llega a la Secretaría del nivel. Vas a ver acá cuando lo hayan visto.</Text>
+        <Text style={styles.hint}>Le llega a la Secretaría del nivel. Cuando lo vean, te aparece acá como "Visto por el colegio".</Text>
         {hijos.length > 1 ? (
           <>
             <Text style={styles.label}>¿Quién se retira?</Text>
@@ -179,7 +178,6 @@ export function CambiosSalida() {
       { text: "Volver", style: "cancel" },
       { text: "Cancelar aviso", style: "destructive", onPress: async () => {
         const { data } = await supabase.rpc("cancelar_cambio_salida", { p_id: c.id });
-        if (data) await avisarCambioSalida(supabase, sendPush, { id: c.id, type: "cambio_salida_cancelado", titulo: textoPushCambio(c, fmtNombre(c.hijos), hoy) });
         setAviso(data ? "Aviso cancelado." : "Ya no se puede cancelar.");
         cargar();
       } },
@@ -246,9 +244,9 @@ export function CambiosSalidaColegio({ cursos = [] }) {
   useEffect(() => { cargar(); }, [cargar]);
 
   const marcarVisto = async (c) => {
-    const { data, error } = await supabase.rpc("marcar_cambio_salida_visto", { p_id: c.id });
-    if (!error && data) await avisarCambioSalida(supabase, sendPush, { id: c.id, type: "cambio_salida_visto", titulo: textoPushCambio(c, c.hijos?.nombre, hoy) });
+    await supabase.rpc("marcar_cambio_salida_visto", { p_id: c.id });
     cargar();
+    recontarPanel();
   };
 
   const grupos = [
@@ -270,7 +268,7 @@ export function CambiosSalidaColegio({ cursos = [] }) {
       </View>
       {sinVer > 0 ? <Text style={styles.sinVer}>{sinVer === 1 ? "1 cambio sin ver" : `${sinVer} cambios sin ver`}</Text> : null}
       {!lista ? <Text style={styles.cargando}>Cargando…</Text> : !visibles.length ? (
-        <EmptyState icon="clock-outline" title={vista === "historial" ? "No hay cambios anteriores" : "No hay cambios en la salida"} note="Cuando una familia avise que su hijo se retira distinto a lo habitual, aparece acá y te llega una notificación." />
+        <EmptyState icon="clock-outline" title={vista === "historial" ? "No hay cambios anteriores" : "No hay cambios en la salida"} note="Cuando una familia avise que su hijo se retira distinto a lo habitual, aparece acá con un globito en Mensajes." />
       ) : visibles.map((c) => (
         <Tarjeta key={c.id} c={c} hoy={hoy} colegio onVisto={!c.visto_en && !c.cancelado_en ? marcarVisto : null} />
       ))}

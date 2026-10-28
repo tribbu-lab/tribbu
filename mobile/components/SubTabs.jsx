@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { THEMES, BLUE, SLATE, RADIUS, SPACE, TYPE } from "@shared/tokens";
 import { useNotificacionesCtx, avisosSinLeer } from "../features/notificaciones";
 import { useMensajesCtx } from "../lib/useMensajesNoLeidos";
+import { useSalidasCtx } from "../lib/useSalidasNovedades";
 import { SelectorHijos } from "./SelectorHijos";
 
 const t = THEMES.light;
@@ -17,9 +18,11 @@ export const SECCION_AGENDA = [
   { route: "horario", label: "Horario" },
   { route: "cumples", label: "Cumpleaños" },
 ];
+// "Salidas" = Cambios en la salida (el nombre largo no entra en una pastilla de tres).
 export const SECCION_COMUNICACIONES = [
   { route: "recordatorios", label: "Avisos" },
   { route: "mensajes", label: "Mensajes" },
+  { route: "salidas", label: "Salidas" },
 ];
 
 export function SubTabs({ items, activo, badges = {} }) {
@@ -71,7 +74,8 @@ const styles = StyleSheet.create({
 export function ComunicacionesTabs({ activo }) {
   const notif = useNotificacionesCtx();
   const { noLeidos } = useMensajesCtx() || {};
-  return <SubTabs items={SECCION_COMUNICACIONES} activo={activo} badges={{ recordatorios: avisosSinLeer(notif), mensajes: noLeidos || 0 }} />;
+  const salidas = useSalidasCtx();
+  return <SubTabs items={SECCION_COMUNICACIONES} activo={activo} badges={{ recordatorios: avisosSinLeer(notif), mensajes: noLeidos || 0, salidas: salidas.n }} />;
 }
 
 // Pestañas del panel del colegio (mobile/features/superadmin): mismas

@@ -120,23 +120,30 @@ export async function cargarCambiosSalida(supabase, { cursoIds = [], desde = nul
   return (data || []).map((c) => (c.hijos ? c : { ...c, hijos: nombres.get(c.hijo_id) || null }));
 }
 
-/** "Juan · Mañana 14:30 · Turno médico · Retira: Juana Pérez (DNI …)". */
-export const textoPushCambio = (c, nombreHijo, hoy) =>
-  [nombreHijo, `${fechaCambio(c.fecha, hoy)} ${(c.hora || "").slice(0, 5)}`, textoMotivo(c), `Retira: ${textoRetira(c)}`].filter(Boolean).join(" · ");
+// Sin push (pedido de Yanina, 2026-10-27): los cambios se avisan con el
+// globito rojo. Colegio = de hoy en adelante sin ver (Mensajes → Cambios en
+// la salida). Familia y docente = novedades desde la última vez que abrieron
+// la pestaña (Comunicaciones → Cambios en la salida); esa fecha la guarda
+// cada plataforma en su almacenamiento local con CLAVE_SALIDAS_VISTAS.
+export const CLAVE_SALIDAS_VISTAS = (userId) => `salidas_vistas_${userId}`;
+
+/** Panel del colegio: cambios de hoy en adelante sin ver (RLS acota a sus cursos). */
+export async function contarSalidasSinVer(supabase, hoy) {
+  const { count } = await supabase.from("cambios_salida").select("id", { count: "exact", head: true })
+    .gte("fecha", hoy).is("visto_en", null).is("cancelado_en", null);
+  return count || 0;
+}
 
 /**
- * Push del cambio (destinatarios por RPC: a la familia le resuelve la
- * Secretaría del nivel; al colegio, las familias del hijo). Nunca tira: el
- * aviso ya quedó guardado.
+ * Familia: avisos suyos que el colegio vio después de `desde` (ISO).
+ * Docente: avisos nuevos de sus cursos, de hoy en adelante, después de `desde`.
  */
-export async function avisarCambioSalida(supabase, sendPush, { id, type, titulo }) {
-  try {
-    const { data } = await supabase.rpc("destinatarios_cambio_salida", { p_id: id });
-    const userIds = [...new Set((data || []).map((r) => (typeof r === "string" ? r : r.destinatarios_cambio_salida)))];
-    if (userIds.length) await sendPush({ type, payload: { titulo, userIds, cambioId: id } });
-  } catch {
-    // sin push: el cambio sigue registrado
-  }
+export async function contarNovedadesSalidas(supabase, { cursoIds = [], hijoIds = [], esDocente = false, desde, hoy }) {
+  if (!cursoIds.length || !desde || (!esDocente && !hijoIds.length)) return 0;
+  let q = supabase.from("cambios_salida").select("id", { count: "exact", head: true }).in("curso_id", cursoIds).is("cancelado_en", null);
+  q = esDocente ? q.gt("creado_en", desde).gte("fecha", hoy) : q.in("hijo_id", hijoIds).gt("visto_en", desde);
+  const { count } = await q;
+  return count || 0;
 }
 
 /** "hoy" / "mañana" / "jueves 30 de octubre". */

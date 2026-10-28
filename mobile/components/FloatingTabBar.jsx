@@ -25,12 +25,12 @@ export const TAB_BAR_SPACE = 112;
 const TABS = [
   { name: "muro", label: "Hoy", icon: "home-outline", rutas: ["muro"] },
   { name: "calendario", label: "Agenda", icon: "calendar-month-outline", rutas: ["calendario", "horario", "cumples"] },
-  { name: "recordatorios", label: "Comunicaciones", icon: "email-outline", rutas: ["recordatorios", "mensajes"] },
+  { name: "recordatorios", label: "Comunicaciones", icon: "email-outline", rutas: ["recordatorios", "mensajes", "salidas"] },
   {
     name: "curso",
     label: "Curso",
     icon: "bag-personal-outline",
-    rutas: ["curso", "finanzas", "autorizaciones", "salidas", "encuestas", "comedor", "talleres", "comunidad", "perdidos", "info", "contacto", "admin", "alumnos"],
+    rutas: ["curso", "finanzas", "autorizaciones", "encuestas", "comedor", "talleres", "comunidad", "perdidos", "info", "contacto", "admin", "alumnos"],
   },
 ];
 

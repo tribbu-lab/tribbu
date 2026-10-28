@@ -65,11 +65,11 @@ const SECCIONES = [
     { id: "alertas", l: "Alertas" },
     { id: "eventos", l: "Eventos" },
     { id: "autorizaciones", l: "Autorizaciones" },
-    { id: "salidas", l: "Cambios en la salida" },
   ]},
   { id: "g_mensajes", l: "Mensajes", icono: "message-text-outline", items: [
     { id: "mensajes_familias", l: "De familias", soloColegioAdmin: true },
     { id: "mensajes_personal", l: "Del personal", soloColegioAdmin: true },
+    { id: "salidas", l: "Cambios en la salida" },
   ]},
   { id: "g_comunidad", l: "Comunidad", icono: "heart-outline", items: [
     { id: "talleres", l: "Talleres" },
@@ -748,7 +748,7 @@ export function SuperAdmin() {
     // Una sección con una sola pantalla (la Secretaría en Colegio solo tiene
     // Horarios) toma el nombre y el ícono de esa pantalla.
     .map((g) => (g.items.length === 1 ? { ...g, l: g.items[0].l, icono: ICONO_PANTALLA[g.items[0].id] || g.icono } : g));
-  const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "soporte_colegio" ? noLeidos.soporte : 0);
+  const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "salidas" ? noLeidos.salidas : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
   const rolTexto = esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : esColegioAdmin ? "Administración del colegio" : "Super Admin";
   const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || nombreColegio;

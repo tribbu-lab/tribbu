@@ -44,10 +44,13 @@ web y app juntas, mostrar capturas antes de commitear.
       "A todo el curso"), web y app. SQL aplicado.
 - [x] Preguntas frecuentes para docentes y para el panel (administrador y
       Secretaría), web y app.
-- [ ] Push de los mensajes de la maestra que no le llegan a Yanina: el
-      servidor los manda y Expo/Apple los aceptan (receipt ok, prueba
-      2026-10-27). Su cuenta tiene un solo token, de iPhone, del 23/10:
-      revisar en qué dispositivo prueba y los permisos de notificaciones.
+- [x] Push que no le llegaban a Yanina en Android: el token del teléfono
+      quedaba a nombre de la primera cuenta que entró (`superadmin`/`demo`).
+      Arreglado en la base (`supabase/push-tokens-cambio-de-cuenta.sql`).
+- [ ] Confirmar con Yanina: abrir la app en el Android con su cuenta y
+      mandarle una prueba.
+- [x] Cambios en la salida sin push: globito en Mensajes (panel) y en
+      Comunicaciones (familias y docentes).
 
 ## Horarios (pedido 2026-10-27)
 

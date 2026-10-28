@@ -52,13 +52,6 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
       return { title: "Nueva encuesta", body: String(payload.titulo || "") };
     case "autorizacion":
       return { title: "✍️ Nueva autorización", body: String(payload.titulo || "") };
-    case "cambio_salida":
-      // Una familia avisó un cambio en la salida: le llega a la Secretaría del nivel.
-      return { title: "🚸 Cambio en la salida", body: String(payload.titulo || "") };
-    case "cambio_salida_cancelado":
-      return { title: "Cambio en la salida cancelado", body: String(payload.titulo || "") };
-    case "cambio_salida_visto":
-      return { title: "La Secretaría vio tu aviso", body: String(payload.titulo || "") };
     case "perdido":
       return { title: "🧦 Lost & Found", body: String(payload.titulo || "") };
     case "marketplace":

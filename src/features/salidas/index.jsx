@@ -11,11 +11,9 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { EmptyState } from "../../components/EmptyState";
 import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { sanitize, fmtLocalDate, fmtNombre } from "../../lib/helpers";
-import { sendPush } from "../../lib/push";
 import {
   MOTIVOS, opcionesRetiro, formVacio, validarCambioSalida, filaCambioSalida, textoMotivo, textoRetira,
   estadoCambio, sePuedeCancelar, separarCambios, pendientesDeVer, fechaCambio, cargarCambiosSalida,
-  avisarCambioSalida, textoPushCambio,
 } from "../../lib/cambiosSalida";
 
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13.5, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box", color: "#0F172A" };
@@ -48,10 +46,9 @@ function NuevoCambio({ hijos, hijoInicial, userId, onClose, onEnviado }) {
     if (err) { setError(err); return; }
     setGuardando(true); setError(null);
     const fila = filaCambioSalida(form, { cursoId: hijo.curso_id, userId, sanitize });
-    const { data, error: e } = await supabase.from("cambios_salida").insert(fila).select("id").single();
-    if (e) { setGuardando(false); setError("No se pudo enviar. Revisá los datos y probá de nuevo."); return; }
-    await avisarCambioSalida(supabase, sendPush, { id: data.id, type: "cambio_salida", titulo: textoPushCambio(fila, fmtNombre(hijo), hoy) });
+    const { error: e } = await supabase.from("cambios_salida").insert(fila);
     setGuardando(false);
+    if (e) { setError("No se pudo enviar. Revisá los datos y probá de nuevo."); return; }
     onEnviado(hijo.nombre);
   };
 
@@ -59,7 +56,7 @@ function NuevoCambio({ hijos, hijoInicial, userId, onClose, onEnviado }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div role="dialog" aria-label="Avisar un cambio en la salida" onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: 16, padding: 22, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box" }}>
         <div style={{ fontSize: 17, fontWeight: 800, color: "#0F172A" }}>Avisar un cambio en la salida</div>
-        <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 4, lineHeight: 1.45 }}>Le llega a la Secretaría del nivel. Vas a ver acá cuando lo hayan visto.</div>
+        <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 4, lineHeight: 1.45 }}>Le llega a la Secretaría del nivel. Cuando lo vean, te aparece acá como "Visto por el colegio".</div>
 
         {hijos.length > 1 && (
           <>
@@ -179,7 +176,6 @@ export function CambiosSalida({ cursoIds = [], items = [], userId, tagDeCurso = 
   const cancelar = async (c) => {
     if (!(await confirmar({ titulo: "Cancelar el aviso", detalle: `El colegio va a ver que ${c.hijos?.nombre || "tu hijo"} se retira como siempre.`, textoConfirmar: "Cancelar aviso" }))) return;
     const { data } = await supabase.rpc("cancelar_cambio_salida", { p_id: c.id });
-    if (data) await avisarCambioSalida(supabase, sendPush, { id: c.id, type: "cambio_salida_cancelado", titulo: textoPushCambio(c, fmtNombre(c.hijos), hoy) });
     setAviso(data ? "Aviso cancelado." : "Ya no se puede cancelar.");
     cargar();
   };
@@ -215,7 +211,7 @@ export function CambiosSalida({ cursoIds = [], items = [], userId, tagDeCurso = 
 }
 
 /** Sección del panel del colegio (administrador, Secretaría, super): RLS acota a sus cursos. */
-export function CambiosSalidaColegio({ cursos = [] }) {
+export function CambiosSalidaColegio({ cursos = [], onCambio }) {
   const [lista, setLista] = useState(null);
   const [filtros, setFiltros] = useState(false);
   const [curso, setCurso] = useState("todos");
@@ -232,9 +228,9 @@ export function CambiosSalidaColegio({ cursos = [] }) {
   useCargar(cargar);
 
   const marcarVisto = async (c) => {
-    const { data, error } = await supabase.rpc("marcar_cambio_salida_visto", { p_id: c.id });
-    if (!error && data) await avisarCambioSalida(supabase, sendPush, { id: c.id, type: "cambio_salida_visto", titulo: textoPushCambio(c, c.hijos?.nombre, hoy) });
+    await supabase.rpc("marcar_cambio_salida_visto", { p_id: c.id });
     cargar();
+    onCambio?.();
   };
 
   const grupos = [
@@ -256,7 +252,7 @@ export function CambiosSalidaColegio({ cursos = [] }) {
       </div>
       {sinVer > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: "#B45309", marginBottom: 10 }}>{sinVer === 1 ? "1 cambio sin ver" : `${sinVer} cambios sin ver`}</div>}
       {!lista ? <div style={{ color: "#94A3B8", fontSize: 13 }}>Cargando…</div> : !visibles.length ? (
-        <EmptyState icono="reloj" titulo={vista === "historial" ? "No hay cambios anteriores" : "No hay cambios en la salida"} nota="Cuando una familia avise que su hijo se retira distinto a lo habitual, aparece acá y te llega una notificación." />
+        <EmptyState icono="reloj" titulo={vista === "historial" ? "No hay cambios anteriores" : "No hay cambios en la salida"} nota="Cuando una familia avise que su hijo se retira distinto a lo habitual, aparece acá con un globito en Mensajes." />
       ) : visibles.map((c) => (
         <Tarjeta key={c.id} c={c} hoy={hoy} colegio onVisto={!c.visto_en && !c.cancelado_en ? marcarVisto : null} />
       ))}

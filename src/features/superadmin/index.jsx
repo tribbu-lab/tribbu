@@ -29,7 +29,7 @@ import { TalleresColegio } from "../talleres/colegio";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
-import { useNoLeidosPanel } from "../../hooks/useNoLeidosPanel";
+import { useNoLeidosPanel, recontarPanel } from "../../hooks/useNoLeidosPanel";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { HorarioCurso, SemanaMaestra } from "./horarios";
 import { InicioColegio } from "./inicio";
@@ -66,11 +66,11 @@ const SECCIONES = [
     {id:"alertas",l:"Alertas"},
     {id:"eventos",l:"Eventos"},
     {id:"autorizaciones",l:"Autorizaciones"},
-    {id:"salidas",l:"Cambios en la salida"},
   ]},
   { id:"g_mensajes", l:"Mensajes", icono:"mensaje", items: [
     {id:"mensajes_familias",l:"De familias",soloColegioAdmin:true},
     {id:"mensajes_personal",l:"Del personal",soloColegioAdmin:true},
+    {id:"salidas",l:"Cambios en la salida"},
   ]},
   { id:"g_comunidad", l:"Comunidad", icono:"corazon", items: [
     {id:"talleres",l:"Talleres"},
@@ -130,7 +130,7 @@ const SECCION_INFO = {
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
-  salidas:        { titulo:"Cambios en la salida", descripcion:"Los avisos de las familias cuando un alumno se retira distinto a lo habitual (otro horario o con otra persona). Le llegan a la Secretaría del nivel: marcalos como vistos y a la familia le llega la confirmación. Las docentes del curso los ven." },
+  salidas:        { titulo:"Cambios en la salida", descripcion:"Los avisos de las familias cuando un alumno se retira distinto a lo habitual (otro horario o con otra persona), con un globito mientras haya alguno sin ver. Marcalos como vistos: la familia lo ve en su pantalla. Las docentes del curso también los ven." },
   mensajes_familias:{ titulo:"Mensajes de familias", descripcion:"Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras." },
   mensajes_personal:{ titulo:"Mensajes del personal", descripcion:"Chats con las maestras, las Secretarías y Dirección del colegio, 1 a 1 o en grupo. Las familias no los ven." },
   denuncias:      { titulo:"Denuncias de Mensajes", descripcion:"Mensajes que una familia denunció en el chat. Ves solo el mensaje denunciado, nunca el resto de la conversación." },
@@ -917,9 +917,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec)) || null;
   const irAGrupo = (g) => { setSec(g.items[0].id); setNavAbierta(false); };
   const irA = (id) => { setSec(id); setNavAbierta(false); };
-  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="soporte_colegio" ? noLeidos.soporte : 0;
+  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="soporte_colegio" ? noLeidos.soporte : 0;
   const badgeGrupo = (g) => g.items.reduce((n,i)=>n+badgeDe(i.id),0);
-  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.soporte;
+  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.soporte;
   const rolTexto = esSuper ? "Super Admin" : esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : "Administración del colegio";
   const inicialesUsuario = `${(usuario?.nombre||"?").slice(0,1)}${(usuario?.apellido||"").slice(0,1)}`.toUpperCase();
 
@@ -1875,7 +1875,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         <AutorizacionesColegio cursos={cursosAnoActual} userId={usuario?.id}/>
       )}
       {sec==="salidas"&&(
-        <CambiosSalidaColegio cursos={cursosAnoActual}/>
+        <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>
       )}
       {sec==="adopcion"&&(
         <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>

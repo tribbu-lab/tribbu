@@ -17,7 +17,6 @@ import { ponerFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfilWeb";
 const GRUPOS_FAMILIA = [
   { titulo: "Del colegio", items: [
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icono: "firma" },
-    { id: "salidas", label: "Cambios en la salida", desc: "Avisá si se retira distinto a lo habitual", icono: "reloj" },
     { id: "comedor", label: "Comedor", desc: "Menú y servicio de comedor", icono: "cubiertos" },
     { id: "talleres", label: "Talleres", desc: "Actividades e inscripciones", icono: "paleta" },
     { id: "info", label: "Info útil", desc: "Útiles, uniformes, libros y alumnos", icono: "info" },
@@ -37,7 +36,6 @@ const GRUPOS_DOCENTE = [
   { titulo: "Mis cursos", items: [
     { id: "alumnos", label: "Alumnos", desc: "Tus alumnos y sus familias", icono: "usuarios" },
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icono: "firma" },
-    { id: "salidas", label: "Cambios en la salida", desc: "Alumnos que se retiran distinto", icono: "reloj" },
     { id: "encuestas", label: "Encuestas", desc: "Consultas a las familias", icono: "grafico" },
     { id: "talleres", label: "Mis talleres", desc: "Inscriptos y avisos", icono: "paleta" },
   ] },

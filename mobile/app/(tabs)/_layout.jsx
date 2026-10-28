@@ -12,18 +12,21 @@ import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
 import { useNotificaciones, NotificacionesProvider, avisosSinLeer } from "../../features/notificaciones";
 import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
+import { useSalidasNovedades, SalidasProvider } from "../../lib/useSalidasNovedades";
 import { columnaCentrada, useInsetsLaterales } from "../../lib/layout";
 
 export default function TabsLayout() {
-  const { usuario, cursoIds } = useSession();
+  const { usuario, cursoIds, misHijos, esDocente } = useSession();
   // Se levanta acá (en vez de adentro de AppHeader) para que el badge de la
   // tab de Recordatorios reuse el mismo fetch de recordatorios+leídos en vez
   // de pedirlo de nuevo por separado en cada cambio de hijo/curso.
   const notif = useNotificaciones({ cursoIds, userId: usuario?.id ?? null, active: true });
   // Badge de Mensajes + la única suscripción Realtime (ver lib/useMensajesNoLeidos).
   const mensajes = useMensajesNoLeidos(usuario?.id ?? null);
-  // Comunicaciones = avisos sin leer + mensajes sin leer.
-  const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0);
+  // Novedades de Cambios en la salida (pestaña Salidas de Comunicaciones).
+  const salidas = useSalidasNovedades({ userId: usuario?.id ?? null, cursoIds, hijoIds: misHijos, esDocente });
+  // Comunicaciones = avisos sin leer + mensajes sin leer + salidas nuevas.
+  const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0) + salidas.n;
   const laterales = useInsetsLaterales();
   useNotificationRouting(true);
 
@@ -35,6 +38,7 @@ export default function TabsLayout() {
   return (
     <NotificacionesProvider value={notif}>
     <MensajesProvider value={mensajes}>
+    <SalidasProvider value={salidas}>
     <View style={styles.root}>
       <AppHeader notif={notif} />
       {/* Tablet/plegable: secciones y barra inferior en una columna centrada
@@ -78,6 +82,7 @@ export default function TabsLayout() {
       </View>
       </View>
     </View>
+    </SalidasProvider>
     </MensajesProvider>
     </NotificacionesProvider>
   );

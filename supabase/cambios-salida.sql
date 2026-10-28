@@ -15,9 +15,9 @@
 --     (RPC cancelar_cambio_salida).
 --   Sin políticas de update/delete: los cambios de estado van solo por RPC.
 --
--- Push: destinatarios_cambio_salida(id) — a la familia le devuelve la
--- Secretaría del nivel (o el administrador, si el curso no tiene nivel o el
--- nivel no tiene Secretaría); al colegio le devuelve las familias del hijo.
+-- Sin push (2026-10-27): se avisa con el globito rojo (contarSalidasSinVer /
+-- contarNovedadesSalidas en src/lib/cambiosSalida.js). El RPC de destinatarios
+-- de la primera versión se borra.
 --
 -- Correr después de rls-hardening.sql, multi-colegio.sql, docentes.sql y
 -- roles-por-nivel.sql. Idempotente.
@@ -114,46 +114,13 @@ begin
   return found;
 end $$;
 
--- A quién avisar por push (sin quien llama):
---   · familia del hijo → Secretaría del nivel del curso; si no hay, los
---     administradores del colegio;
---   · colegio → las familias del hijo.
-create or replace function public.destinatarios_cambio_salida(p_id uuid)
-returns setof uuid
-language plpgsql stable security definer set search_path = public, pg_temp
-as $$
-declare
-  c public.cambios_salida;
-  v_colegio uuid;
-  v_nivel text;
-  v_yo uuid := public.mi_usuario_id();
-begin
-  select * into c from public.cambios_salida where id = p_id;
-  if c.id is null then return; end if;
-  select cu.colegio_id, cu.nivel into v_colegio, v_nivel from public.cursos cu where cu.id = c.curso_id;
-
-  if public.es_padre_de(c.hijo_id) then
-    return query
-      select u.id from public.usuarios u
-       where u.rol = 'nivel_admin' and u.colegio_id = v_colegio and coalesce(u.activo, true)
-         and v_nivel is not null and v_nivel = any(u.niveles) and u.id <> v_yo;
-    if not found then
-      return query
-        select u.id from public.usuarios u
-         where u.rol = 'colegio_admin' and u.colegio_id = v_colegio and coalesce(u.activo, true) and u.id <> v_yo;
-    end if;
-  elsif public.gestiona_salidas_de_curso(c.curso_id) then
-    return query
-      select distinct uh.usuario_id from public.usuario_hijos uh
-       where uh.hijo_id = c.hijo_id and uh.usuario_id <> v_yo;
-  end if;
-end $$;
+drop function if exists public.destinatarios_cambio_salida(uuid);
 
 do $$
 declare f text;
 begin
   foreach f in array array['gestiona_salidas_de_curso(uuid)', 'marcar_cambio_salida_visto(uuid)',
-    'cancelar_cambio_salida(uuid)', 'destinatarios_cambio_salida(uuid)'] loop
+    'cancelar_cambio_salida(uuid)'] loop
     execute format('revoke all on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;

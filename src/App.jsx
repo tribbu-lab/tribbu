@@ -48,6 +48,7 @@ import { PreferenciasAvisosModal } from "./components/PreferenciasAvisos";
 const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGlobal");
 import { useNotificaciones } from "./features/notificaciones";
 import { useMensajesNoLeidos } from "./hooks/useMensajesNoLeidos";
+import { useSalidasNovedades } from "./hooks/useSalidasNovedades";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
 // ── Capacitor nativo: solo carga en la app Android, no en la web ──
@@ -69,7 +70,7 @@ const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanz
 const SECCIONES = [
   { id:"hoy",            label:"Hoy",            icono:"hoy", tabs:["muro"] },
   { id:"agenda",         label:"Agenda",         icono:"agenda", tabs:["clases","horario","cumples"] },
-  { id:"comunicaciones", label:"Comunicaciones", icono:"comunicaciones", tabs:["recordatorios","mensajes"] },
+  { id:"comunicaciones", label:"Comunicaciones", icono:"comunicaciones", tabs:["recordatorios","mensajes","salidas"] },
   { id:"curso",          label:"Curso",          icono:"curso", tabs:["curso"] },
 ];
 const seccionDe = (t) => t==="cuenta"||t==="ayuda" ? null : (SECCIONES.find(x=>x.tabs.includes(t)) || SECCIONES[3]).id;
@@ -92,7 +93,6 @@ const TAB_MAP = {
   festejo:      "cumples",
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
-  cambio_salida_visto: "salidas",
   taller:      "talleres",
   perdido:      "perdidos",
   marketplace:  "marketplace",
@@ -272,6 +272,8 @@ function App() {
   // la usa la bandeja de soporte del super, que acá no cuenta badge).
   const esPanelAdmin = usuario?.rol==="super" || usuario?.rol==="colegio_admin" || usuario?.rol==="nivel_admin";
   const { noLeidos: mensajesSinLeer, recargar: recargarMensajes } = useMensajesNoLeidos(usuario?.id ?? null, { contar: !!usuario && !esPanelAdmin });
+  // Cambios en la salida (Comunicaciones): novedades desde la última vez que se abrió.
+  const salidasNuevas = useSalidasNovedades({ userId: usuario?.id ?? null, cursoIds: _cursoIds, hijoIds: misHijosActivos, esDocente: usuario?.rol==="docente", abierta: tab==="salidas", activo: !!usuario && !esPanelAdmin });
 
   useEffect(()=>{
     if(!usuario||["super","colegio_admin","nivel_admin"].includes(usuario.rol)) return;
@@ -530,11 +532,11 @@ function App() {
     setTab(destino);
     if(destino==="recordatorios") setBadgeVisto(avisosVersion);
   };
-  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) : 0;
+  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) + salidasNuevas : 0;
   // Pestañas internas de Agenda y Comunicaciones (arriba del contenido).
   const renderSubSeccion = () => {
     if(seccionActiva==="agenda") return <SubSeccion activo={tab} onIr={setTab} items={[{id:"clases",label:"Calendario"},{id:"horario",label:"Horario"},{id:"cumples",label:"Cumpleaños"}]}/>;
-    if(seccionActiva==="comunicaciones") return <SubSeccion activo={tab} onIr={(t)=>{ setTab(t); if(t==="recordatorios") setBadgeVisto(avisosVersion); }} items={[{id:"recordatorios",label:"Avisos",badge:badgeCount},{id:"mensajes",label:"Mensajes",badge:mensajesSinLeer||0}]}/>;
+    if(seccionActiva==="comunicaciones") return <SubSeccion activo={tab} onIr={(t)=>{ setTab(t); if(t==="recordatorios") setBadgeVisto(avisosVersion); }} items={[{id:"recordatorios",label:"Avisos",badge:badgeCount},{id:"mensajes",label:"Mensajes",badge:mensajesSinLeer||0},{id:"salidas",label:"Cambios en la salida",badge:salidasNuevas}]}/>;
     return null;
   };
   // Selector "Todos mis hijos ▾" (prototipo): arriba de cada sección; en Hoy lo
