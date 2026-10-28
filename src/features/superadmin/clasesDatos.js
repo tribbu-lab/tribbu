@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { fmtNombre } from "../../lib/helpers";
+import { COLUMNAS_HORARIO, filasHorario, grillaHorario, diasVisibles } from "../../lib/horarios";
 
 export const PALETA_MATERIAS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#0EA5E9", "#14B8A6", "#6366F1", "#64748B"];
 
@@ -28,6 +29,40 @@ export async function cargarClasesCurso(cursoId) {
 
 /** "Inglés · Laura Fernández" */
 export const etiquetaClase = (c) => [c.materias?.nombre, c.maestros ? fmtNombre(c.maestros) : null].filter(Boolean).join(" · ");
+
+const nombreHoja = (s, usados) => {
+  const base = String(s || "Curso").replace(/[\\/?*[\]:]/g, "").slice(0, 28) || "Curso";
+  let n = base, i = 2;
+  while (usados.has(n)) n = `${base.slice(0, 25)} ${i++}`;
+  usados.add(n);
+  return n;
+};
+
+/**
+ * Excel del horario de esos cursos: hoja "Horarios" en formato lista (la misma
+ * que se puede volver a cargar con ImportarHorarioModal) y una grilla por
+ * curso para leer o imprimir.
+ */
+export async function exportarHorarios(cursos, nombreArchivo = "horarios") {
+  const XLSX = await import("xlsx");
+  const ids = cursos.map((c) => c.id);
+  const { data } = ids.length ? await supabase.from("horarios").select("*").in("curso_id", ids) : { data: [] };
+  const hs = data || [];
+  const nombre = new Map(cursos.map((c) => [c.id, c.nombre]));
+  const wb = XLSX.utils.book_new();
+  const lista = XLSX.utils.json_to_sheet(filasHorario(hs, (id) => nombre.get(id)), { header: COLUMNAS_HORARIO });
+  lista["!cols"] = [{ wch: 24 }, { wch: 11 }, { wch: 8 }, { wch: 8 }, { wch: 24 }, { wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, lista, "Horarios");
+  const usados = new Set(["Horarios"]);
+  for (const c of cursos) {
+    const delCurso = hs.filter((h) => h.curso_id === c.id);
+    if (!delCurso.length) continue;
+    const ws = XLSX.utils.json_to_sheet(grillaHorario(delCurso));
+    ws["!cols"] = [{ wch: 13 }, ...diasVisibles(delCurso).map(() => ({ wch: 26 }))];
+    XLSX.utils.book_append_sheet(wb, ws, nombreHoja(c.nombre, usados));
+  }
+  XLSX.writeFile(wb, `${nombreArchivo.replace(/[\\/:*?"<>|]/g, "").slice(0, 60) || "horarios"}.xlsx`);
+}
 
 /** Clases actuales de una maestra (para abrir el editor). */
 export async function cargarClasesMaestro(maestroId) {

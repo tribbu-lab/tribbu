@@ -25,7 +25,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { rangoNecesario, cubre, unirRangos, filtroDesdeEventos } from "../../lib/calendarioRango";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
-import { diasVisibles, normalizarDia } from "../../lib/horarios";
+import { diasVisibles, normalizarDia, grillaHorario } from "../../lib/horarios";
 import { bloquesDeTalleres } from "../../lib/talleres";
 import { textoPlano } from "../../lib/formato";
 
@@ -545,9 +545,33 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
           ? (cursoIds||[]).filter(cid=>horariosVisibles.some(h=>h.curso_id===cid))
           : [];
 
+        // Descargar el horario (Excel con la grilla; una hoja por curso en "Todos").
+        const descargar = async () => {
+          const XLSX = await import("xlsx");
+          const wb = XLSX.utils.book_new();
+          const grupos = esVistaTodos ? cursosConHorario.map(cid=>({ nombre: tagDeCurso(cid)?.nombre || "Horario", hs: horariosVisibles.filter(h=>h.curso_id===cid) })) : [{ nombre: "Horario", hs: horariosVisibles }];
+          const usados = new Set();
+          for(const g of grupos) {
+            const ws = XLSX.utils.json_to_sheet(grillaHorario(g.hs));
+            ws["!cols"] = [{ wch: 13 }, ...diasVisibles(g.hs).map(()=>({ wch: 26 }))];
+            let n = g.nombre.replace(/[\\/?*[\]:]/g,"").slice(0,28) || "Horario", i = 2;
+            while(usados.has(n)) n = `${n.slice(0,25)} ${i++}`;
+            usados.add(n);
+            XLSX.utils.book_append_sheet(wb, ws, n);
+          }
+          XLSX.writeFile(wb, "Horario de clases.xlsx");
+        };
+
         return (
           <div>
             {/* El título lo da la pestaña "Horario" de Agenda. */}
+            {horariosVisibles.length>0&&(
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+                <button onClick={descargar} style={{padding:"8px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontFamily:"inherit"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"#334155"}}>Descargar Excel</span>
+                </button>
+              </div>
+            )}
 
             {horariosVisibles.length===0&&(
               <EmptyState icono="reloj" titulo="Todavía no hay horario"

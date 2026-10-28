@@ -31,7 +31,8 @@ import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
 import { useNoLeidosPanel, recontarPanel } from "../../hooks/useNoLeidosPanel";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
-import { HorarioCurso, SemanaMaestra } from "./horarios";
+import { HorarioCurso, SemanaMaestra, ImportarHorarioModal } from "./horarios";
+import { exportarHorarios } from "./clasesDatos";
 import { InicioColegio } from "./inicio";
 import { EventosColegio } from "../calendario";
 import { useListControls } from "../../hooks/useListControls";
@@ -121,7 +122,7 @@ const SECCION_INFO = {
   cursos:         { titulo:"Cursos", descripcion:"Los cursos del colegio, uno por año lectivo — duplicá acá un curso para armar el año que viene." },
   promocion:      { titulo:"Promoción de curso", descripcion:"Pasá a los alumnos de un curso al año lectivo siguiente, revisando quién no se promueve." },
   materias:       { titulo:"Materias", descripcion:"La lista de materias del colegio. Las clases de cada curso (y su horario) se arman eligiendo de acá." },
-  horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Calendario." },
+  horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Agenda → Horario. Podés exportarlo o cargar muchos cursos de una vez desde Excel." },
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicados", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
@@ -2715,6 +2716,8 @@ export function HorariosAdmin({ cursos, colegioId, showToast }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [maestros, setMaestros] = useState([]);
   const [clasesPorCurso, setClasesPorCurso] = useState({}); // curso_id -> nº bloques, para las stats
+  const [importar, setImportar] = useState(false);
+  const [version, setVersion] = useState(0); // recargar el editor después de una carga masiva
 
   // Header de módulo con 4 stats (handoff Tribbu Admin, Parte 5): antes de
   // elegir un curso, orienta cuántos ya tienen horario cargado. Una sola
@@ -2741,23 +2744,31 @@ export function HorariosAdmin({ cursos, colegioId, showToast }) {
     })();
   },[colegioId]);
 
+  // Una sola línea arriba (rediseño 2026-10-27, "mucha información"): curso
+  // en un desplegable (marca los que no tienen horario) + exportar / cargar
+  // desde Excel para todos los cursos.
+  const sinHorario = cursos.filter(c=>!clasesPorCurso[c.id]).length;
+  const btn = {padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155",whiteSpace:"nowrap",fontFamily:"inherit"};
   return (
     <div>
-      <ModuloStats items={[
-        {n:cursos.length, l:"Cursos"},
-        {n:Object.keys(clasesPorCurso).length, l:"Con horario", c:"#10B981", sub:`de ${cursos.length}`},
-        {n:cursos.length-Object.keys(clasesPorCurso).length, l:"Sin horario", c:"#B45309"},
-        {n:Object.values(clasesPorCurso).reduce((a,b)=>a+b,0), l:"Bloques de horario"},
-      ]}/>
-
-      {/* Selector de curso */}
-      <div style={{marginBottom:20}}>
-        <CursoListSelector cursos={cursos} seleccionados={cursoSel?[cursoSel.id]:[]} onToggle={id=>setCursoSel(cursos.find(c=>c.id===id))} multi={false}/>
+      {importar&&<ImportarHorarioModal cursos={cursos} colegioId={colegioId} cursoActual={cursoSel} onClose={()=>setImportar(false)}
+        onHecho={(m)=>{ setImportar(false); showToast?.(m,"success"); cargarStats(); setVersion(v=>v+1); }}/>}
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+        <select value={cursoSel?.id||""} onChange={e=>setCursoSel(cursos.find(c=>c.id===e.target.value)||null)} aria-label="Curso"
+          style={{flex:"1 1 240px",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:14,fontWeight:600,background:"white",color:"#0F172A",fontFamily:"inherit"}}>
+          <option value="">Elegí un curso…</option>
+          {cursos.map(c=><option key={c.id} value={c.id}>{c.nombre}{clasesPorCurso[c.id]?"":" · sin horario"}</option>)}
+        </select>
+        <button onClick={()=>exportarHorarios(cursos, "horarios")} disabled={!Object.keys(clasesPorCurso).length} style={{...btn,opacity:Object.keys(clasesPorCurso).length?1:0.5}}>Exportar Excel</button>
+        <button onClick={()=>setImportar(true)} style={btn}>Cargar desde Excel</button>
+      </div>
+      <div style={{fontSize:12.5,color:"#64748B",marginBottom:16}}>
+        {cursos.length-sinHorario} de {cursos.length} cursos con horario{sinHorario?` · ${sinHorario} sin cargar`:""}.
       </div>
 
-      {!cursoSel&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Seleccioná un curso para ver y editar su horario</div>}
+      {!cursoSel&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Elegí un curso para ver y editar su horario, o cargá todos de una vez desde Excel.</div>}
 
-      {cursoSel&&<HorarioCurso key={cursoSel.id} curso={cursoSel} colegioId={colegioId} cursos={cursos} maestros={maestros} showToast={showToast} onCambio={cargarStats}/>}
+      {cursoSel&&<HorarioCurso key={`${cursoSel.id}-${version}`} curso={cursoSel} colegioId={colegioId} cursos={cursos} maestros={maestros} showToast={showToast} onCambio={cargarStats}/>}
     </div>
   );
 }

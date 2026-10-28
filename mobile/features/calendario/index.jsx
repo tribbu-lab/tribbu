@@ -26,7 +26,8 @@ import { BotonFiltros, FiltrosSheet, filtrosActivos } from "../../components/Fil
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Buscador } from "../../components/Buscador";
 import { FestejoDetalleModal } from "../cumples";
-import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO } from "@shared/horarios";
+import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO, grillaHorario } from "@shared/horarios";
+import { exportRowsToExcel } from "../../lib/media";
 import { bloquesDeTalleres } from "@shared/talleres";
 import { textoPlano } from "@shared/formato";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
@@ -281,6 +282,19 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
   const horariosVisibles = [...horarios.filter((h) => !h.clases?.optativa || (isAdmin && h.curso_id === cursoId) || cursosDocente.includes(h.curso_id)
     || (h.clases.clase_alumnos || []).some((a) => hijosFiltro.includes(a.hijo_id))), ...bloquesTaller];
 
+  // Descargar el horario: la grilla (en "Todos", con una columna de quién es).
+  const descargarHorario = async () => {
+    const rows = esVistaTodos
+      ? (cursoIds || []).filter((cid) => horariosVisibles.some((h) => h.curso_id === cid))
+        .flatMap((cid) => grillaHorario(horariosVisibles.filter((h) => h.curso_id === cid)).map((f) => ({ De: tagDeCurso(cid)?.nombre || "", ...f })))
+      : grillaHorario(horariosVisibles);
+    try {
+      await exportRowsToExcel({ rows, nombreHoja: "Horario", fileName: "Horario de clases" });
+    } catch (e) {
+      Alert.alert("No se pudo descargar", e?.message || "Probá de nuevo.");
+    }
+  };
+
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refrescando} onRefresh={onRefresh} />}>
       {/* Una sola fila arriba del mes (antes: título + subtítulo + chip de
@@ -479,6 +493,9 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
             note={isAdmin ? "Cargalo desde Curso → Administrar el curso → Horarios." : "Cuando el colegio cargue el horario de clases, aparece acá."} />
         ) : (
           <>
+            <Pressable onPress={descargarHorario} style={styles.descargar} hitSlop={6} accessibilityRole="button">
+              <Text style={styles.descargarTxt}>Descargar Excel</Text>
+            </Pressable>
             <DiasHorario dias={diasVisibles(horariosVisibles)} dia={diaHorarioSel(diasVisibles(horariosVisibles))} onDia={setDiaHorario} />
             {esVistaTodos ? (
               (cursoIds || [])
@@ -1086,6 +1103,8 @@ const styles = StyleSheet.create({
   tagHijoDot: { width: 8, height: 8, borderRadius: RADIUS.full },
   tagHijoTxt: { fontSize: 11, fontWeight: "700", color: t.textMuted, flexShrink: 1 },
   horarioSeccion: { marginBottom: SPACE.lg },
+  descargar: { alignSelf: "flex-end", minHeight: 36, justifyContent: "center", marginBottom: SPACE.sm },
+  descargarTxt: { fontSize: 13, fontWeight: "700", color: t.accent },
   diasTabs: { flexDirection: "row", gap: 6, marginBottom: SPACE.md },
   diaTab: { flex: 1, alignItems: "center", paddingTop: 8, paddingBottom: 6, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface },
   diaTabOn: { backgroundColor: BLUE[50], borderColor: BLUE[600] },

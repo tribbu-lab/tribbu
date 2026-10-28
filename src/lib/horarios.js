@@ -168,6 +168,95 @@ export function carriles(bloques) {
   return res;
 }
 
+// ── Exportar e importar (Excel) ─────────────────────────────────────────────
+// Un solo formato de lista para las dos cosas: lo que se exporta se puede
+// editar y volver a cargar. La grilla (una fila por horario, una columna por
+// día) es solo para leer o imprimir.
+
+export const COLUMNAS_HORARIO = ["Curso", "Día", "Desde", "Hasta", "Materia", "Maestra"];
+
+const ordenBloque = (a, b) => DIAS_HORARIO.indexOf(normalizarDia(a.dia)) - DIAS_HORARIO.indexOf(normalizarDia(b.dia))
+  || (aMin(a.hora_inicio) ?? 0) - (aMin(b.hora_inicio) ?? 0);
+
+/** Filas en formato lista (COLUMNAS_HORARIO). `nombreCurso(curso_id)`. */
+export function filasHorario(horarios, nombreCurso) {
+  return [...horarios].sort((a, b) => (nombreCurso(a.curso_id) || "").localeCompare(nombreCurso(b.curso_id) || "", "es") || ordenBloque(a, b))
+    .map((h) => ({ Curso: nombreCurso(h.curso_id) || "", "Día": normalizarDia(h.dia), Desde: hhmm(h.hora_inicio), Hasta: hhmm(h.hora_fin), Materia: h.materia || "", Maestra: h.docente || "" }));
+}
+
+/** Grilla para leer: [{ Horario: "08:00–08:40", Lunes: "Matemática (Ana Pérez)", … }]. */
+export function grillaHorario(horarios) {
+  const dias = diasVisibles(horarios);
+  const porHora = [...horarios].sort((a, b) => (aMin(a.hora_inicio) ?? 0) - (aMin(b.hora_inicio) ?? 0) || (aMin(a.hora_fin) ?? 0) - (aMin(b.hora_fin) ?? 0));
+  const franjas = [...new Set(porHora.map((h) => `${hhmm(h.hora_inicio)}–${hhmm(h.hora_fin)}`))];
+  return franjas.map((f) => {
+    const fila = { Horario: f };
+    for (const d of dias) {
+      fila[d] = horarios.filter((h) => normalizarDia(h.dia) === d && `${hhmm(h.hora_inicio)}–${hhmm(h.hora_fin)}` === f)
+        .map((h) => (h.docente ? `${h.materia} (${h.docente})` : h.materia || "")).join(" / ");
+    }
+    return fila;
+  });
+}
+
+const clave = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+/** Hora de Excel: "8:40", "08:40:00", 0.3611 (fracción del día) o 840 → "08:40"; null si no es hora. */
+export function horaDeCelda(v) {
+  if (typeof v === "number" && v > 0 && v < 1) return deMin(Math.round(v * 24 * 60));
+  const s = String(v ?? "").trim();
+  const m = /^(\d{1,2})[:.](\d{2})/.exec(s) || /^(\d{1,2})(\d{2})$/.exec(s);
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+  return deMin(Number(m[1]) * 60 + Number(m[2]));
+}
+
+/**
+ * Lee las filas de un Excel (objetos con las COLUMNAS_HORARIO; sin Curso se
+ * usa `cursoPorDefecto`) contra los datos del colegio. Devuelve:
+ *   bloques: [{ curso_id, dia, hora_inicio, hora_fin, materia_id, maestro_id, fila }]
+ *   clasesNuevas: [{ curso_id, materia_id, maestro_id }] que hay que crear
+ *   errores: [{ fila, motivo }] (fila = número de fila en el Excel)
+ * La clase de cada bloque es la del curso con esa materia y esa maestra; sin
+ * maestra en el Excel, cualquier clase de esa materia en el curso (o una nueva
+ * sin maestra).
+ */
+export function leerImportacion(filas, { cursos = [], materias = [], maestros = [], clases = [], cursoPorDefecto = null }) {
+  const cursoDe = new Map(cursos.flatMap((c) => [[clave(c.nombre), c.id], [clave(String(c.nombre).split(" - ")[0]), c.id]]));
+  const materiaDe = new Map(materias.map((m) => [clave(m.nombre), m.id]));
+  const maestroDe = new Map(maestros.flatMap((m) => [[clave(`${m.nombre} ${m.apellido || ""}`), m.id], [clave(`${m.apellido || ""} ${m.nombre}`), m.id], [clave(m.nombre), m.id]]));
+  const bloques = [], errores = [], nuevas = new Map();
+  filas.forEach((r, i) => {
+    const fila = i + 2; // fila 1 = encabezados
+    const v = (k) => r[k] ?? r[k.normalize("NFD").replace(/[̀-ͯ]/g, "")] ?? "";
+    if (!COLUMNAS_HORARIO.some((k) => String(v(k)).trim())) return; // fila vacía
+    const nombreCurso = String(v("Curso")).trim();
+    const curso_id = nombreCurso ? cursoDe.get(clave(nombreCurso)) : cursoPorDefecto;
+    const dia = DIAS_HORARIO.find((d) => clave(d) === clave(v("Día")) || clave(DIA_CORTO[d]) === clave(v("Día")));
+    const hora_inicio = horaDeCelda(v("Desde")), hora_fin = horaDeCelda(v("Hasta"));
+    const materia_id = materiaDe.get(clave(v("Materia")));
+    const nombreMaestra = String(v("Maestra")).trim();
+    const maestro_id = nombreMaestra ? maestroDe.get(clave(nombreMaestra)) : null;
+    const motivo = !curso_id ? (nombreCurso ? `No existe el curso "${nombreCurso}"` : "Falta el curso")
+      : !dia ? `Día no válido: "${v("Día")}"`
+      : !hora_inicio || !hora_fin ? "Falta la hora o no es válida (usá 08:40)"
+      : aMin(hora_fin) <= aMin(hora_inicio) ? "La hora de fin tiene que ser después de la de inicio"
+      : !materia_id ? `No existe la materia "${v("Materia")}" (creala en Colegio → Materias)`
+      : nombreMaestra && !maestro_id ? `No encontramos a la maestra "${nombreMaestra}"`
+      : null;
+    if (motivo) { errores.push({ fila, motivo }); return; }
+    bloques.push({ curso_id, dia, hora_inicio, hora_fin, materia_id, maestro_id, fila });
+    const existe = clases.some((c) => c.curso_id === curso_id && c.materia_id === materia_id && (maestro_id ? c.maestro_id === maestro_id : true));
+    const k = `${curso_id}|${materia_id}|${maestro_id || ""}`;
+    if (!existe && !nuevas.has(k)) nuevas.set(k, { curso_id, materia_id, maestro_id });
+  });
+  return { bloques, clasesNuevas: [...nuevas.values()], errores };
+}
+
+/** clase_id de cada bloque leído, ya con las clases nuevas creadas. */
+export function claseDeBloque(b, clases) {
+  const delCurso = clases.filter((c) => c.curso_id === b.curso_id && c.materia_id === b.materia_id);
+  return (b.maestro_id ? delCurso.find((c) => c.maestro_id === b.maestro_id) : delCurso.find((c) => !c.maestro_id) || delCurso[0])?.id || null;
+}
+
 /**
  * Lo que ve una familia: las clases optativas solo si alguno de `hijos` está
  * anotado. `optativas` = Set de clase_id optativas; `anotados` = filas

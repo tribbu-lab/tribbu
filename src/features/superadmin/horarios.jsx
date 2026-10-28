@@ -19,8 +19,9 @@ import { THEMES, SLATE } from "../../lib/tokens";
 import {
   DIAS_HORARIO, DIAS_HABILES, DIA_CORTO, normalizarDia, aMin, deMin, hhmm, validarBloque, superposiciones,
   serieDe, planGuardarBloque, planCopiarDia, planCopiarCurso, diasVisibles, rangoGrilla, carriles,
+  COLUMNAS_HORARIO, leerImportacion, claseDeBloque,
 } from "../../lib/horarios";
-import { PALETA_MATERIAS, useMaterias, cargarClasesCurso, etiquetaClase } from "./clasesDatos";
+import { PALETA_MATERIAS, useMaterias, cargarClasesCurso, etiquetaClase, exportarHorarios } from "./clasesDatos";
 import { useConfirmar } from "../../hooks/useConfirmar";
 
 const C = THEMES.light;
@@ -478,6 +479,135 @@ function CopiarCursoModal({ curso, cursos, horarios, clases, onClose, onHecho })
   );
 }
 
+// ── Exportar / cargar desde Excel ───────────────────────────────────────────
+
+/** Carga masiva: subir el Excel (formato de exportarHorarios), revisar y cargar. */
+export function ImportarHorarioModal({ cursos, colegioId, cursoActual = null, onClose, onHecho }) {
+  const [leido, setLeido] = useState(null); // { archivo, bloques, clasesNuevas, errores, cursosAfectados }
+  const [reemplazar, setReemplazar] = useState(true);
+  const [trabajando, setTrabajando] = useState("");
+  const [error, setError] = useState("");
+  const nombre = (id) => cursos.find((c) => c.id === id)?.nombre || "";
+
+  const elegir = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setTrabajando("Leyendo el archivo…"); setError(""); setLeido(null);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer());
+      const hoja = wb.Sheets.Horarios || wb.Sheets[wb.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(hoja, { defval: "", raw: true });
+      const ids = cursos.map((c) => c.id);
+      const [mat, mae, cls] = await Promise.all([
+        supabase.from("materias").select("id,nombre").eq("colegio_id", colegioId || ""),
+        supabase.from("maestros").select("id,nombre,apellido").eq("activo", true),
+        ids.length ? supabase.from("clases").select("id,curso_id,materia_id,maestro_id").in("curso_id", ids) : { data: [] },
+      ]);
+      const r = leerImportacion(filas, { cursos, materias: mat.data || [], maestros: mae.data || [], clases: cls.data || [], cursoPorDefecto: cursoActual?.id || null });
+      setLeido({ archivo: file.name, ...r, clases: cls.data || [], cursosAfectados: [...new Set(r.bloques.map((b) => b.curso_id))] });
+    } catch (err) {
+      setError(`No se pudo leer el archivo: ${err.message}`);
+    }
+    setTrabajando("");
+  };
+
+  const cargar = async () => {
+    setTrabajando("Cargando…"); setError("");
+    let clases = leido.clases;
+    if (leido.clasesNuevas.length) {
+      const { data, error: e } = await supabase.from("clases").insert(leido.clasesNuevas).select("id,curso_id,materia_id,maestro_id");
+      if (e) { setTrabajando(""); setError(`No se pudieron crear las clases: ${e.message}`); return; }
+      clases = [...clases, ...data];
+    }
+    const insertar = leido.bloques.map((b) => ({ curso_id: b.curso_id, dia: b.dia, hora_inicio: b.hora_inicio, hora_fin: b.hora_fin, clase_id: claseDeBloque(b, clases) }));
+    if (reemplazar && leido.cursosAfectados.length) {
+      const { error: e } = await supabase.from("horarios").delete().in("curso_id", leido.cursosAfectados);
+      if (e) { setTrabajando(""); setError(`No se pudo borrar el horario anterior: ${e.message}`); return; }
+    }
+    const { error: e } = await supabase.from("horarios").insert(insertar);
+    setTrabajando("");
+    if (e) { setError(`No se pudo cargar: ${e.message}`); return; }
+    onHecho(`✓ ${insertar.length} bloques cargados en ${leido.cursosAfectados.length} ${leido.cursosAfectados.length === 1 ? "curso" : "cursos"}`);
+  };
+
+  const n = leido?.bloques.length || 0;
+  return (
+    <Modal titulo="Cargar horarios desde Excel" subtitulo="Para cargar o corregir muchos cursos de una vez." onClose={onClose} ancho={560}
+      pie={<><span style={{ flex: 1 }} />
+        <button onClick={onClose} style={btnSec}>Cancelar</button>
+        <button onClick={cargar} disabled={!n || !!trabajando} style={{ ...btnPri, opacity: n && !trabajando ? 1 : 0.5 }}>{trabajando === "Cargando…" ? "Cargando…" : n ? `Cargar ${n} bloques` : "Cargar"}</button></>}>
+      <ol style={{ margin: "0 0 14px", paddingLeft: 18, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+        <li style={{ color: C.text }}>Descargá el modelo: es el horario actual, con una fila por bloque (<b>{COLUMNAS_HORARIO.join(", ")}</b>).{" "}
+          <button type="button" onClick={() => exportarHorarios(cursos, "modelo de horarios")} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", color: C.accent, fontWeight: 700, fontSize: 13, fontFamily: "inherit" }}>Descargar modelo</button>
+        </li>
+        <li style={{ color: C.text }}>Completalo o corregilo en Excel. El curso, la materia y la maestra tienen que estar escritos como en tribbu; la maestra puede quedar vacía (Recreo, Almuerzo).</li>
+        <li style={{ color: C.text }}>Subilo acá, revisá y cargá.</li>
+      </ol>
+      <label style={{ ...btnSec, display: "inline-block", cursor: "pointer" }}>
+        {leido ? "Elegir otro archivo" : "Elegir archivo"}
+        <input type="file" accept=".xlsx,.xls,.csv" onChange={elegir} style={{ display: "none" }} />
+      </label>
+      {trabajando && trabajando !== "Cargando…" ? <div style={{ marginTop: 10, fontSize: 12.5, color: C.textMuted }}>{trabajando}</div> : null}
+      {leido ? (
+        <div style={{ marginTop: 14, fontSize: 13, color: C.text, lineHeight: 1.55 }}>
+          <div style={{ fontWeight: 700, color: C.textStrong }}>{leido.archivo}</div>
+          {n ? (
+            <div style={{ color: C.text, marginTop: 4 }}>
+              <b>{n} bloques</b> para {leido.cursosAfectados.map(nombre).join(", ")}.
+              {leido.clasesNuevas.length ? ` Se crean ${leido.clasesNuevas.length} clases nuevas (materia y maestra que todavía no estaban en ese curso).` : ""}
+            </div>
+          ) : <div style={{ color: C.danger, marginTop: 4 }}>No encontramos ningún bloque para cargar.</div>}
+          {leido.errores.length ? (
+            <div style={{ marginTop: 10, background: C.warningSoft, border: `1px solid ${C.warningBorder}`, borderRadius: 10, padding: "8px 12px" }}>
+              <div style={{ fontWeight: 700, color: "#92400E" }}>{leido.errores.length} {leido.errores.length === 1 ? "fila no se va a cargar" : "filas no se van a cargar"}:</div>
+              {leido.errores.slice(0, 12).map((x) => <div key={x.fila} style={{ fontSize: 12.5, color: "#92400E" }}>Fila {x.fila}: {x.motivo}</div>)}
+              {leido.errores.length > 12 ? <div style={{ fontSize: 12.5, color: "#92400E" }}>…y {leido.errores.length - 12} más.</div> : null}
+            </div>
+          ) : null}
+          {n ? (
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: C.text, cursor: "pointer", marginBottom: 6 }}>
+                <input type="radio" checked={reemplazar} onChange={() => setReemplazar(true)} style={{ marginTop: 3 }} />
+                <span style={{ color: C.text }}><b>Reemplazar</b> el horario de esos cursos por el del archivo</span>
+              </label>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: C.text, cursor: "pointer" }}>
+                <input type="radio" checked={!reemplazar} onChange={() => setReemplazar(false)} style={{ marginTop: 3 }} />
+                <span style={{ color: C.text }}><b>Agregar</b> los bloques a lo que ya hay</span>
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {error ? <div role="alert" style={{ marginTop: 10, fontSize: 13, color: C.danger }}>{error}</div> : null}
+    </Modal>
+  );
+}
+
+// Menú "Más" (atajos que se usan poco).
+function MenuMas({ opciones }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!opciones.length) return null;
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setAbierto((v) => !v)} aria-expanded={abierto} aria-haspopup="menu" style={btnSec}>Más ▾</button>
+      {abierto ? (
+        <>
+          <div onClick={() => setAbierto(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+          <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 21, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", padding: 6, minWidth: 220 }}>
+            {opciones.map((o) => (
+              <button key={o.l} role="menuitem" onClick={() => { setAbierto(false); o.fn(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", borderRadius: 8, background: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.textStrong }}>{o.l}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 // ── Grilla ──────────────────────────────────────────────────────────────────
 
 function Grilla({ horarios, dias, optativas, onHueco, onBloque }) {
@@ -548,6 +678,7 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
   const [alcanceDe, setAlcanceDe] = useState(null); // bloque clickeado que se repite: elegir alcance
   const [claseEd, setClaseEd] = useState(null);   // { clase?, texto?, alCrear? }
   const [copia, setCopia] = useState(null);       // "dia" | "curso"
+  const [verClases, setVerClases] = useState(false);
   const toast = (m, t) => (showToast ? showToast(m, t) : window.alert(m));
 
   const cargar = useCallback(async () => {
@@ -578,21 +709,32 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
   };
   const crearClaseDesdeBloque = puedeEditarClases ? (texto, alCrear) => setClaseEd({ texto, alCrear }) : null;
 
+  const sinUsar = clases.filter((c) => !usos[c.id]).length;
+  const atajos = [
+    !dias.includes("Sábado") ? { l: "Agregar el sábado", fn: () => setConSabado(true) } : null,
+    horarios.length ? { l: "Copiar un día a otros…", fn: () => setCopia("dia") } : null,
+    puedeEditarClases && cursos.length > 1 ? { l: "Copiar de otro curso…", fn: () => setCopia("curso") } : null,
+  ].filter(Boolean);
+
   return (
     <div>
-      {/* Clases del curso */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{ ...lbl, margin: 0, flex: 1 }}>Clases de {curso.nombre} · {clases.length}</div>
+      {/* Clases del curso: una línea; la lista, a pedido. */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px", fontSize: 13.5, color: C.text }}>
+            <b style={{ color: C.textStrong }}>{clases.length} {clases.length === 1 ? "clase" : "clases"}</b>
+            {sinUsar ? <span style={{ color: "#B45309" }}> · {sinUsar} todavía no {sinUsar === 1 ? "está" : "están"} en el horario</span> : null}
+          </div>
+          {clases.length ? <button onClick={() => setVerClases((v) => !v)} aria-expanded={verClases} style={btnSec}>{verClases ? "Ocultar clases" : "Ver clases"}</button> : null}
           {puedeEditarClases ? <button onClick={() => setClaseEd({})} style={btnSec}>+ Nueva clase</button> : null}
         </div>
         {!clases.length ? (
-          <div style={{ fontSize: 13, color: C.textMuted }}>
+          <div style={{ fontSize: 13, color: C.textMuted, marginTop: 8 }}>
             {puedeEditarClases ? "Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra)." : "El colegio todavía no cargó las clases de este curso."}
           </div>
-        ) : (
+        ) : !verClases ? null : (
           // Lista en dos columnas, sin pastillas: materia en negrita, maestra y bloques en gris.
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "2px 16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "2px 16px", marginTop: 8 }}>
             {clases.map((c) => (
               <button key={c.id} type="button" onClick={puedeEditarClases ? () => setClaseEd({ clase: c }) : undefined} disabled={!puedeEditarClases}
                 title={puedeEditarClases ? "Editar clase" : undefined}
@@ -608,15 +750,13 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
       </div>
 
       {/* Barra */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: C.textStrong, flex: "1 1 160px" }}>Horario semanal</div>
-        {!dias.includes("Sábado") ? <button onClick={() => setConSabado(true)} style={btnSec}>+ Sábado</button> : null}
-        {horarios.length ? <button onClick={() => setCopia("dia")} style={btnSec}>Copiar un día…</button> : null}
-        {puedeEditarClases && cursos.length > 1 ? <button onClick={() => setCopia("curso")} style={btnSec}>Copiar de otro curso…</button> : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 200px" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.textStrong }}>Horario semanal</div>
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Tocá un espacio libre para agregar, o un bloque para editarlo.{optativas.size ? " ✦ = taller optativo." : ""}</div>
+        </div>
+        <MenuMas opciones={atajos} />
         <button onClick={() => nuevo(null, null)} disabled={!clases.length} title={clases.length ? "" : "Primero creá las clases del curso"} style={{ ...btnPri, opacity: clases.length ? 1 : 0.5 }}>+ Agregar al horario</button>
-      </div>
-      <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>
-        Tocá un espacio libre para agregar ahí, o un bloque para editarlo. Un bloque se puede guardar en varios días a la vez.{optativas.size ? " ✦ = taller optativo (solo lo ven las familias de los anotados)." : ""}
       </div>
 
       <Grilla horarios={horarios} dias={dias} optativas={optativas} onHueco={clases.length ? (d, h) => nuevo(d, h) : () => toast("Primero creá las clases del curso", "error")} onBloque={abrirBloque} />

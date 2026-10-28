@@ -54,8 +54,13 @@ web y app juntas, mostrar capturas antes de commitear.
 
 ## Horarios (pedido 2026-10-27)
 
-- [ ] Carga masiva del horario de clases desde el panel del colegio.
-- [ ] Exportar el horario: familia y colegio.
+- [x] Pantalla de Horarios más simple (desplegable de curso, clases plegadas,
+      atajos en "Más").
+- [x] Carga masiva desde Excel (panel web) con vista previa y errores por fila.
+- [x] Exportar el horario: colegio (todos los cursos) y familias (web y app).
+- [ ] Probar a mano la carga masiva con el Excel real del colegio.
+- [ ] Android 1.14.0 sin push (ningún Android se registra desde el 26/10):
+      confirmar la versión y sacar un build con GOOGLE_SERVICES_JSON.
 
 ## Publicar lo nuevo
 
