@@ -21,6 +21,7 @@ import { NIVELES, nombreNivel, textoSecretaria, ordenarNiveles, CARGOS, CARGO_DE
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
+import { ConfiguracionInicio } from "./configuracion";
 import { Ayuda } from "../ayuda";
 import { preguntasPara } from "../../lib/ayuda";
 import { PerdidosColegio } from "../perdidos";
@@ -151,6 +152,7 @@ const SECCION_INFO = {
   soporte:        { titulo:"Soporte", descripcion:"Las consultas que mandan los usuarios desde “Ayuda y soporte”. Respondés como “Soporte tribbu”." },
   soporte_colegio:{ titulo:"Ayuda y soporte", descripcion:"Cómo hacer lo básico en el panel. Si algo no funciona o no encontrás tu duda, escribile al equipo de tribbu." },
   cuenta:         { titulo:"Mi cuenta", descripcion:"" },
+  configuracion:  { titulo:"Configuración", descripcion:"Lo que se arma una vez o pocas veces por año. Tocá una tarjeta para entrar." },
   adopcion:       { titulo:"Adopción", descripcion:"Cuántas familias de cada curso tienen la app (les llegan las notificaciones), sincronizaron el calendario y entraron en el último mes." },
   directivos:     { titulo:"Directivos", descripcion:"Quién administra el colegio: los administradores (todo el colegio), los niveles que tiene y los directivos por nivel (Dirección, Secretaría, Coordinación…), que gestionan solo los cursos de sus niveles." },
   colegio:        { titulo:"Datos y membrete", descripcion:"Los datos de contacto del colegio, los contactos internos (secretaría, preceptoría, etc.) y el membrete de los comunicados." },
@@ -930,10 +932,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     : esSecretaria
       ? filtrarSecciones(SECCIONES, i=>!SOLO_ADMIN_COLEGIO.has(i.id))
       : SECCIONES;
-  const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec)) || null;
+  const grupoActivo = seccionesVisibles.find(g=>g.items.some(i=>i.id===sec) || (g.config && sec==="configuracion")) || null;
   // Navegar a mano limpia el pedido de "+ Crear" (si no, al volver a Eventos se reabriría el alta).
   const irSec = (id) => { setSec(id); setCrear(null); };
-  const irAGrupo = (g) => { irSec(g.items[0].id); setNavAbierta(false); };
+  // Configuración abre su página de tarjetas (no la primera pestaña).
+  const irAGrupo = (g) => { irSec(g.config ? "configuracion" : g.items[0].id); setNavAbierta(false); };
   const irA = (id) => { irSec(id); setNavAbierta(false); };
   // Día a día arriba; Configuración aparte (abajo en la barra, al final en el celular).
   const seccionesDiaADia = seccionesVisibles.filter(g=>!g.config);
@@ -1505,8 +1508,10 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
         // Encabezado: la sección (sin emoji), sus pestañas y, abajo, qué
         // gestiona la pantalla + la acción de crear (BotonNuevo).
         const info = SECCION_INFO[sec] || { titulo:"Panel del colegio", descripcion:"" };
-        const titulo = grupoActivo?.l || info.titulo;
-        const pestanas = grupoActivo && grupoActivo.items.length>1 ? grupoActivo.items : null;
+        // Pantallas de Configuración: su propio título y "‹ Configuración", sin fila de pestañas.
+        const enConfig = !!grupoActivo?.config && sec!=="configuracion";
+        const titulo = enConfig ? (grupoActivo.items.find(i=>i.id===sec)?.l || info.titulo) : grupoActivo?.l || info.titulo;
+        const pestanas = grupoActivo && !grupoActivo.config && grupoActivo.items.length>1 ? grupoActivo.items : null;
         const btnSec = {display:"inline-flex",alignItems:"center",gap:6,minHeight:36,padding:"0 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155",fontFamily:"inherit",whiteSpace:"nowrap"};
         return (
           <div style={{marginBottom:18}}>
@@ -1516,8 +1521,14 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
                 <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Colegios · {colegioNombre}</span>
               </button>
             )}
-            {/* En el celular el título ya está en el selector de sección de arriba. */}
-            {isMobile ? null : <div style={{fontSize:isMobile?24:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginBottom:pestanas?14:6}}>{titulo}</div>}
+            {enConfig&&(
+              <button onClick={()=>irSec("configuracion")} style={{display:"inline-flex",alignItems:"center",gap:4,border:"none",background:"transparent",cursor:"pointer",padding:0,marginBottom:8,fontFamily:"inherit"}}>
+                <Icono nombre="atras" size={15} color="#2563EB"/>
+                <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>Configuración</span>
+              </button>
+            )}
+            {/* En el celular el título ya está en el selector de sección de arriba (salvo dentro de Configuración). */}
+            {isMobile && !enConfig ? null : <div style={{fontSize:isMobile?24:28,fontWeight:800,color:"#0F172A",letterSpacing:-0.4,marginBottom:pestanas?14:6}}>{titulo}</div>}
             {pestanas&&<SubSeccion desplazable items={pestanas.map(i=>({id:i.id,label:i.l,badge:badgeDe(i.id)}))} activo={sec} onIr={irSec}/>}
             {info.descripcion&&(
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginTop:pestanas?-4:0}}>
@@ -1942,6 +1953,11 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="salidas"&&(
         <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>
+      )}
+      {sec==="configuracion"&&seccionConfig&&(
+        <ConfiguracionInicio items={seccionConfig.items} cursos={cursosAnoActual} maestros={maestros}
+          directivos={usuarios.filter(u=>u.rol==="colegio_admin"||u.rol==="nivel_admin").length}
+          membreteListo={!!(membrete.linea||membrete.firma)} onIr={irSec}/>
       )}
       {sec==="adopcion"&&(
         <Card style={{padding:18}}><AdopcionTabla cursos={cursosAnoActual}/></Card>

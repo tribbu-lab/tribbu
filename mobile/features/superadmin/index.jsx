@@ -47,6 +47,7 @@ import { textoSecretaria, nombreNivel, nivelesParaGuardar, ordenarNiveles } from
 import { textoPlano } from "@shared/formato";
 import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
+import { ConfiguracionInicio } from "./configuracion";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Button } from "../../components/Button";
@@ -764,7 +765,9 @@ export function SuperAdmin() {
     // Horarios) toma el nombre y el ícono de esa pantalla.
     .map((g) => (g.items.length === 1 ? { ...g, l: g.items[0].l, icono: ICONO_PANTALLA[g.items[0].id] || g.icono } : g));
   const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "salidas" ? noLeidos.salidas : id === "soporte_colegio" ? noLeidos.soporte : 0);
-  const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec)) || null;
+  const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec) || (g.config && sec === "configuracion")) || null;
+  // Pantallas de Configuración: vuelven a la página de tarjetas, sin fila de pestañas.
+  const enConfig = !!grupoActivo?.config && sec !== "configuracion";
   const seccionesDiaADia = seccionesVisibles.filter((g) => !g.config);
   const seccionConfig = seccionesVisibles.find((g) => g.config) || null;
   // Navegar a mano limpia el pedido de "+ Crear" (si no, al volver a Eventos se reabriría el alta).
@@ -825,7 +828,7 @@ export function SuperAdmin() {
             ))}
           </View>
           <View style={styles.lista}>
-            {seccionConfig ? <Fila icono={seccionConfig.icono} label={seccionConfig.l} primera onPress={() => irSec(seccionConfig.items[0].id)} /> : null}
+            {seccionConfig ? <Fila icono={seccionConfig.icono} label={seccionConfig.l} primera onPress={() => irSec("configuracion")} /> : null}
             {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" primera={!seccionConfig} n={noLeidos.soporte} onPress={() => irSec("soporte_colegio")} /> : null}
             <Fila icono="account-circle-outline" label="Mi cuenta" primera={!seccionConfig && !esColegioAdmin} onPress={() => irSec("cuenta")} />
           </View>
@@ -843,12 +846,16 @@ export function SuperAdmin() {
         </View>
       ) : (
         <View>
-          <Pressable onPress={() => irSec(null)} style={styles.volverBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver al panel">
+          <Pressable onPress={() => irSec(enConfig ? "configuracion" : null)} style={styles.volverBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={enConfig ? "Volver a Configuración" : "Volver al panel"}>
             <MaterialCommunityIcons name="chevron-left" size={22} color={BLUE[600]} />
-            <Text style={styles.volverTxt}>Panel</Text>
+            <Text style={styles.volverTxt}>{enConfig ? "Configuración" : "Panel"}</Text>
           </Pressable>
-          <Text style={[styles.h1, { marginBottom: 12 }]}>{grupoActivo?.l || TITULO_SUELTA[sec] || ""}</Text>
-          {grupoActivo && grupoActivo.items.length > 1 ? (
+          <Text style={[styles.h1, { marginBottom: 12 }]}>{enConfig ? grupoActivo.items.find((i) => i.id === sec)?.l : grupoActivo?.l || TITULO_SUELTA[sec] || ""}</Text>
+          {sec === "configuracion" && seccionConfig ? (
+            <ConfiguracionInicio items={seccionConfig.items} cursos={cursosVigentes} maestros={maestros}
+              directivos={usuarios.filter((u) => u.rol === "colegio_admin" || u.rol === "nivel_admin").length} onIr={irSec} />
+          ) : null}
+          {grupoActivo && !grupoActivo.config && grupoActivo.items.length > 1 ? (
             <PestanasPanel items={grupoActivo.items.map((i) => ({ id: i.id, label: i.l, badge: badgeDe(i.id) }))} activo={sec} onIr={irSec} />
           ) : null}
 

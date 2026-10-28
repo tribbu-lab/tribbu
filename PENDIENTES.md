@@ -54,13 +54,9 @@ web y app juntas, mostrar capturas antes de commitear.
 
 ## Panel del colegio más amigable (agendado 2026-10-27, en este orden)
 
-- [ ] **Configuración más simple**: hoy son 10 pestañas en fila ("mucha
-      info, muchas ventanas"). Idea: que Configuración abra una sola página
-      con tarjetas agrupadas (Estructura: cursos, materias, horarios ·
-      Personal: maestros, directivos · Colegio: datos y membrete, menú,
-      uniformes · Una vez por año: promoción · Adopción), cada una con su
-      estado ("3 cursos sin horario") y que al entrar a una se vuelva con
-      "‹ Configuración", sin la fila de pestañas. Web y app.
+- [x] **Configuración más simple** (2026-10-28): página con tarjetas
+      agrupadas y estado, "‹ Configuración" sin fila de pestañas. Web y app.
+      Falta probarla en pantalla.
 - [ ] **Importar datos** unificado: alumnos y familias, horarios y menú con
       el método de horarios (modelo, vista previa con errores, reemplazar o
       agregar). Hoy alumnos y apoderados cargan directo sin vista previa.
