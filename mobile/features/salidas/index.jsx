@@ -99,7 +99,7 @@ function NuevoSheet({ hijos, hijoInicial, userId, onClose, onEnviado }) {
   return (
     <Sheet visible onClose={onClose} title="Avisar un cambio en la salida">
       <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
-        <Text style={styles.hint}>Le llega a la Secretaría del nivel. Cuando lo vean, te aparece acá como "Visto por el colegio".</Text>
+        <Text style={styles.hint}>Le llega a la Secretaría del nivel. Cuando lo vean, te aparece acá como “Visto por el colegio”.</Text>
         {hijos.length > 1 ? (
           <>
             <Text style={styles.label}>¿Quién se retira?</Text>

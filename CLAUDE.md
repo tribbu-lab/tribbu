@@ -12,7 +12,7 @@ Guía para Claude Code en este repo. **Resumen**: el detalle de cada funcionalid
 npm run dev      # web
 npm run build    # build web (dist-web/)
 npm run lint     # ESLint — debe quedar en 0 errores (CI bloquea)
-cd mobile && npm run lint && npx expo export -p android   # app: lint + bundle (gate de CI)
+cd mobile && npx eslint . && npx expo export -p android   # app: lint + bundle (gate de CI; usar `npx eslint .` como CI, `expo lint` no marca todo)
 ```
 
 No hay tests. Validar = lint + build (+ bundle de la app) + QA a mano. CI: `.github/workflows/ci.yml`. Los ~45 warnings de `useEffect(()=>{cargar()})` son conocidos.
