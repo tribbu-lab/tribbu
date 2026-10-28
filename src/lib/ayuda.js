@@ -280,7 +280,7 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-secciones",
         pregunta: "¿Qué hay en cada sección del panel?",
-        respuesta: "Arriba está lo del día a día. Inicio: lo que tenés para resolver, los próximos días y el colegio en números. Comunicación: comunicados, alertas, eventos y autorizaciones. Mensajes: lo que escriben las familias, los chats con el personal y los cambios en la salida. Personas: apoderados y alumnos. Comunidad: talleres, Marketplace, Lost & Found y denuncias. Abajo, aparte, Configuración: lo que se arma una vez o pocas veces por año (cursos, horarios, materias, maestros, directivos, menú, uniformes, datos y membrete, adopción de la app y promoción).",
+        respuesta: "Arriba está lo del día a día. Inicio: lo que tenés para resolver, los próximos días y el colegio en números. Comunicación: comunicados, alertas, eventos y autorizaciones. Mensajes: lo que escriben las familias, los chats con el personal y los cambios en la salida. Personas: apoderados y alumnos. Comunidad: talleres, Marketplace, Lost & Found y denuncias. Abajo, aparte, Configuración: lo que se arma una vez o pocas veces por año. Abre una página con tarjetas (importar datos, cursos, horarios, materias, maestros, directivos, menú, uniformes, datos y membrete, adopción de la app y promoción), cada una con su estado, por ejemplo \"3 cursos sin horario\"; adentro de cada una volvés con \"‹ Configuración\".",
         ir: { panel: "inicio", label: "Ir al Inicio" },
       },
       {
@@ -292,6 +292,13 @@ export const PREGUNTAS_COLEGIO = [
         id: "col-secretaria",
         pregunta: "¿Qué puede hacer una Secretaría (directivo por nivel)?",
         respuesta: "Lo mismo que el administrador pero solo en los cursos de sus niveles: comunicados, eventos, autorizaciones, alertas, cambios en la salida, horarios y clases, alumnos y familias (crear cuentas y cambiar contraseñas incluido), Room Parents, mensajes de las familias y talleres. No toca cursos, maestras, menú, uniformes, Marketplace ni los datos del colegio, ni crea otros directivos.",
+      },
+      {
+        id: "col-primeros-pasos",
+        soloAdmin: true,
+        pregunta: "¿Qué es \"Primeros pasos\" del Inicio?",
+        respuesta: "La lista para dejar el colegio andando, en orden: crear los cursos del año, cargar las materias, cargar a las maestras, armar el horario de cada curso, cargar alumnos y familias, y que las familias entren a la app. Cada paso dice cómo está (por ejemplo \"2 alumnos sin apoderado\") y tiene un botón para hacerlo. Se va sola cuando está todo hecho, o la podés ocultar.",
+        ir: { panel: "inicio", label: "Ir al Inicio" },
       },
       {
         id: "col-para-resolver",
@@ -378,8 +385,20 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-alumno",
         pregunta: "¿Cómo cargo o cambio de curso a un alumno?",
-        respuesta: "En Personas → Alumnos agregás alumnos, los editás (nombre, curso y demás datos) y ves sus apoderados. Un alumno sin apoderado vinculado no le llega nada a nadie: aparece en el Inicio para que lo resuelvas.",
+        respuesta: "En Personas → Alumnos agregás alumnos y los editás (nombre, curso y demás datos). Un alumno sin apoderado vinculado no le llega nada a nadie: aparece en el Inicio para que lo resuelvas. Para muchos a la vez, usá Configuración → Importar datos.",
         ir: { panel: "alumnos", label: "Ir a Alumnos" },
+      },
+      {
+        id: "col-ficha",
+        pregunta: "¿Dónde veo todo lo de un alumno?",
+        respuesta: "En Personas → Alumnos tocá su nombre: se abre su ficha con la familia (mails y teléfonos), sus últimos cambios en la salida, las autorizaciones del curso con lo que respondió y sus chats con Secretaría y las maestras.",
+        ir: { panel: "alumnos", label: "Ir a Alumnos" },
+      },
+      {
+        id: "col-importar",
+        pregunta: "¿Cómo cargo muchos alumnos y familias de una vez?",
+        respuesta: "Desde la computadora, en Configuración → Importar datos → Alumnos y familias. Descargá el modelo (trae los alumnos que ya están), completá una fila por alumno con su curso y hasta dos apoderados con su mail, y subilo. Antes de cargar te muestra cuántos alumnos entran, cuántas cuentas se crean y qué filas tienen algún problema. Crea las cuentas que faltan y las vincula con sus hijos; los hermanos van en filas separadas con el mismo mail. No borra nada. Las familias entran con \"¿Olvidaste tu contraseña?\" y su mail.",
+        ir: { panel: "importar", label: "Ir a Importar datos" },
       },
       {
         id: "col-maestra",
