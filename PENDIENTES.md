@@ -61,8 +61,8 @@ web y app juntas, mostrar capturas antes de commitear.
       Alumnos y familias con vista previa, crea cuentas y las vincula; sin
       borrar. Falta probar la carga real con el Excel del colegio y decidir
       si se sacan las cargas viejas de Personas → Alumnos / Apoderados.
-- [ ] **Primeros pasos** para un colegio nuevo: lista con progreso (cursos →
-      materias → maestras → horarios → alumnos y familias → invitar).
+- [x] **Primeros pasos** (2026-10-28, web y app): tarjeta en el Inicio del
+      panel con progreso. Probada en la web (St John's: 3 de 6).
 - [ ] **Ficha por alumno**: familia, curso, chats, autorizaciones y cambios
       en la salida en un solo lugar.
 - [ ] Integración con el sistema de gestión escolar (boletines,

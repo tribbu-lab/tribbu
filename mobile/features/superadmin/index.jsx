@@ -48,6 +48,7 @@ import { textoPlano } from "@shared/formato";
 import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { ConfiguracionInicio } from "./configuracion";
+import { PrimerosPasos } from "./primerosPasos";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Button } from "../../components/Button";
@@ -811,6 +812,11 @@ export function SuperAdmin() {
                 {colegios.length > 1 ? <MaterialCommunityIcons name="chevron-down" size={20} color="#64748B" /> : null}
               </View>
             </Pressable>
+          ) : null}
+
+          {!esSecretaria && activeColegioId ? (
+            <PrimerosPasos userId={usuario?.id} colegioId={activeColegioId} cursos={cursosVigentes} maestros={maestros} hijos={hijos} usuarios={usuarios}
+              puedeIr={(id) => SECS_PANEL.has(id)} onIr={irSec} />
           ) : null}
 
           <View style={styles.statsRow}>

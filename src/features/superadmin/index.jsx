@@ -2803,7 +2803,7 @@ const DIAS_SEMANA = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"]
 export function HorariosAdmin({ cursos, colegioId, showToast }) {
   const [cursoSel, setCursoSel] = useState(null);
   const [maestros, setMaestros] = useState([]);
-  const [clasesPorCurso, setClasesPorCurso] = useState({}); // curso_id -> nº bloques, para las stats
+  const [clasesPorCurso, setClasesPorCurso] = useState(null); // curso_id -> nº bloques (null = cargando)
   const [importar, setImportar] = useState(false);
   const [version, setVersion] = useState(0); // recargar el editor después de una carga masiva
 
@@ -2835,7 +2835,7 @@ export function HorariosAdmin({ cursos, colegioId, showToast }) {
   // Una sola línea arriba (rediseño 2026-10-27, "mucha información"): curso
   // en un desplegable (marca los que no tienen horario) + exportar / cargar
   // desde Excel para todos los cursos.
-  const sinHorario = cursos.filter(c=>!clasesPorCurso[c.id]).length;
+  const sinHorario = clasesPorCurso ? cursos.filter(c=>!clasesPorCurso[c.id]).length : 0;
   const btn = {padding:"9px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#334155",whiteSpace:"nowrap",fontFamily:"inherit"};
   return (
     <div>
@@ -2845,13 +2845,13 @@ export function HorariosAdmin({ cursos, colegioId, showToast }) {
         <select value={cursoSel?.id||""} onChange={e=>setCursoSel(cursos.find(c=>c.id===e.target.value)||null)} aria-label="Curso"
           style={{flex:"1 1 240px",padding:"10px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:14,fontWeight:600,background:"white",color:"#0F172A",fontFamily:"inherit"}}>
           <option value="">Elegí un curso…</option>
-          {cursos.map(c=><option key={c.id} value={c.id}>{c.nombre}{clasesPorCurso[c.id]?"":" · sin horario"}</option>)}
+          {cursos.map(c=><option key={c.id} value={c.id}>{c.nombre}{!clasesPorCurso||clasesPorCurso[c.id]?"":" · sin horario"}</option>)}
         </select>
-        <button onClick={()=>exportarHorarios(cursos, "horarios")} disabled={!Object.keys(clasesPorCurso).length} style={{...btn,opacity:Object.keys(clasesPorCurso).length?1:0.5}}>Exportar Excel</button>
+        <button onClick={()=>exportarHorarios(cursos, "horarios")} disabled={!Object.keys(clasesPorCurso||{}).length} style={{...btn,opacity:Object.keys(clasesPorCurso||{}).length?1:0.5}}>Exportar Excel</button>
         <button onClick={()=>setImportar(true)} style={btn}>Cargar desde Excel</button>
       </div>
       <div style={{fontSize:12.5,color:"#64748B",marginBottom:16}}>
-        {cursos.length-sinHorario} de {cursos.length} cursos con horario{sinHorario?` · ${sinHorario} sin cargar`:""}.
+        {clasesPorCurso ? `${cursos.length-sinHorario} de ${cursos.length} cursos con horario${sinHorario?` · ${sinHorario} sin cargar`:""}.` : " "}
       </div>
 
       {!cursoSel&&<div style={{textAlign:"center",padding:40,color:"#94A3B8",fontSize:13}}>Elegí un curso para ver y editar su horario, o cargá todos de una vez desde Excel.</div>}

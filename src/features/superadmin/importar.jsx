@@ -158,10 +158,10 @@ function ImportarFamiliasModal({ cursos, hijos, usuarios, onClose, onHecho }) {
           <div style={{ fontWeight: 700, color: "#0F172A" }}>{leido.archivo}</div>
           {total ? (
             <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-              {leido.alumnosNuevos.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.alumnosNuevos.length}</b> alumnos nuevos</li> : null}
-              {leido.alumnosActualizar.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.alumnosActualizar.length}</b> alumnos que ya estaban se actualizan (DNI, nacimiento o curso)</li> : null}
-              {leido.cuentasNuevas.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.cuentasNuevas.length}</b> cuentas de apoderados nuevas (entran con “¿Olvidaste tu contraseña?” y su email)</li> : null}
-              {leido.vinculos.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.vinculos.length}</b> apoderados quedan vinculados con sus hijos</li> : null}
+              {leido.alumnosNuevos.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.alumnosNuevos.length}</b> {leido.alumnosNuevos.length === 1 ? "alumno nuevo" : "alumnos nuevos"}</li> : null}
+              {leido.alumnosActualizar.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.alumnosActualizar.length}</b> {leido.alumnosActualizar.length === 1 ? "alumno que ya estaba se actualiza" : "alumnos que ya estaban se actualizan"} (DNI, nacimiento o curso)</li> : null}
+              {leido.cuentasNuevas.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.cuentasNuevas.length}</b> {leido.cuentasNuevas.length === 1 ? "cuenta de apoderado nueva" : "cuentas de apoderados nuevas"} (entran con “¿Olvidaste tu contraseña?” y su email)</li> : null}
+              {leido.vinculos.length ? <li style={{ color: "#334155" }}><b style={{ color: "#334155" }}>{leido.vinculos.length}</b> {leido.vinculos.length === 1 ? "apoderado queda vinculado con su hijo" : "apoderados quedan vinculados con sus hijos"}</li> : null}
             </ul>
           ) : <div style={{ color: "#64748B", marginTop: 4 }}>No hay nada nuevo para cargar: todo lo del archivo ya está en tribbu.</div>}
           {leido.errores.length ? (

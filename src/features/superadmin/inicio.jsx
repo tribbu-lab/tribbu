@@ -11,6 +11,8 @@ import { hoyAR } from "../../lib/talleres";
 import { Icono } from "../../components/Icono";
 import { EmptyState } from "../../components/EmptyState";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { getStorageBackend } from "../../lib/storage";
+import { pasosPrimerosPasos, progresoPasos, CLAVE_PASOS_OCULTOS } from "../../lib/primerosPasos";
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -40,6 +42,7 @@ const Encabezado = ({ titulo, cuenta, derecha }) => (
 
 export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], hijos = [], usuarios = [], maestros = [], esColegioAdmin = false, ocultas = null, onIr, onCrear }) {
   const [d, setD] = useState(null);
+  const [pasosOcultos, setPasosOcultos] = useState(false);
   const isMobile = useIsMobile();
   const hoy = hoyAR();
   const ids = useMemo(() => cursos.map((c) => c.id), [cursos]);
@@ -51,7 +54,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     const vacio = { data: [], count: 0 };
     (async () => {
       const en7 = masDias(hoy, 7);
-      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu, convs, salidas] = await Promise.all([
+      const [adop, bandeja, denuncias, horarios, eventos, talleresPend, auts, menu, convs, salidas, materias] = await Promise.all([
         ids.length ? supabase.rpc("adopcion_por_curso", { p_ids: ids }) : vacio,
         esColegioAdmin ? supabase.rpc("bandeja_colegio") : vacio,
         supabase.from("mensaje_denuncias").select("id", { count: "exact", head: true }).eq("estado", "pendiente").eq("colegio_id", colegioId),
@@ -64,6 +67,8 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
         esColegioAdmin ? supabase.rpc("mis_conversaciones") : vacio,
         // Cambios en la salida de hoy en adelante que nadie vio todavía.
         ids.length ? supabase.from("cambios_salida").select("fecha").in("curso_id", ids).gte("fecha", hoy).is("visto_en", null).is("cancelado_en", null) : vacio,
+        // Primeros pasos: cuántas materias tiene el colegio.
+        supabase.from("materias").select("id", { count: "exact", head: true }).eq("colegio_id", colegioId),
       ]);
       if (!vivo) return;
       const a = (adop.data || []).reduce((s, r) => ({ familias: s.familias + (r.familias || 0), conApp: s.conApp + (r.con_app || 0), activas: s.activas + (r.activas_30d || 0) }), { familias: 0, conApp: 0, activas: 0 });
@@ -95,6 +100,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
         talleresPend: talleresPend.count || 0,
         autorizaciones: autsUnicas,
         sinMenu: habiles.filter((f) => !conMenu.has(f)),
+        materias: materias.count || 0,
         salidasSinVer: (salidas.data || []).length,
         salidasHoy: (salidas.data || []).filter((s) => s.fecha === hoy).length,
       });
@@ -227,6 +233,47 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
     </div>
   );
 
+  // Primeros pasos (administrador y super): hasta que esté todo hecho o se oculte.
+  const pasos = d ? pasosPrimerosPasos({
+    cursos: cursos.length, materias: d.materias, maestros: maestros.filter((m) => m.activo !== false).length,
+    cursosSinHorario: d.cursosSinHorario.length, alumnos: hijosAno.length, alumnosSinApoderado: sinApoderado,
+    familias: d.adopcion.familias, familiasConApp: d.adopcion.conApp,
+  }) : [];
+  const progreso = progresoPasos(pasos);
+  const clavePasos = CLAVE_PASOS_OCULTOS(usuario?.id, colegioId);
+  const verPasos = !!d && !ocultas && !progreso.completo && !pasosOcultos && getStorageBackend()?.getItem(clavePasos) !== "1";
+  const siguiente = pasos.find((p) => !p.hecho);
+  const bloquePasos = verPasos ? (
+    <div style={{ ...card, padding: "16px 18px", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: "#0F172A" }}>Primeros pasos</div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#64748B" }}>{progreso.hechos} de {progreso.total}</span>
+        <button onClick={() => { getStorageBackend()?.setItem(clavePasos, "1"); setPasosOcultos(true); }} style={{ ...enlace, fontSize: 12.5 }}><span style={{ color: "#94A3B8" }}>Ocultar</span></button>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: "#F1F5F9", marginTop: 10, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${(progreso.hechos / progreso.total) * 100}%`, background: "#10B981", borderRadius: 999 }} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {pasos.map((p, i) => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid #F1F5F9" : "none" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: p.hecho ? "#10B981" : "white", border: p.hecho ? "none" : "1.5px solid #CBD5E1" }}>
+              {p.hecho ? <Icono nombre="check" size={13} color="white" /> : <span style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8" }}>{i + 1}</span>}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, display: "block" }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: p.hecho ? "#64748B" : "#0F172A" }}>{p.titulo}</span>
+              {p.detalle ? <span style={{ display: "block", fontSize: 12.5, color: "#64748B", marginTop: 1 }}>{p.detalle}</span> : null}
+            </span>
+            {!p.hecho ? (
+              <button onClick={() => onIr(p.sec)} style={{ padding: "7px 12px", borderRadius: 10, border: p.id === siguiente?.id ? "none" : "1px solid #E2E8F0", background: p.id === siguiente?.id ? "#2563EB" : "white", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: p.id === siguiente?.id ? "white" : "#334155" }}>{p.accion}</span>
+              </button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div>
       <div style={{ marginBottom: 22 }}>
@@ -236,6 +283,7 @@ export function InicioColegio({ usuario, colegioNombre, colegioId, cursos = [], 
       </div>
       <div style={isMobile ? undefined : { display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 28, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
+          {bloquePasos}
           {bloqueResolver}
           {bloqueNumeros}
           {isMobile ? bloqueProximos : null}
