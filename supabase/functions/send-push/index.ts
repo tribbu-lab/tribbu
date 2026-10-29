@@ -52,6 +52,8 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
       return { title: "Nueva encuesta", body: String(payload.titulo || "") };
     case "autorizacion":
       return { title: "✍️ Nueva autorización", body: String(payload.titulo || "") };
+    case "fotos":
+      return { title: "Fotos escolares", body: String(payload.titulo || "") };
     case "perdido":
       return { title: "🧦 Lost & Found", body: String(payload.titulo || "") };
     case "marketplace":

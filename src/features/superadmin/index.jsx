@@ -21,6 +21,7 @@ import { NIVELES, nombreNivel, textoSecretaria, ordenarNiveles, CARGOS, CARGO_DE
 import { AdopcionTabla } from "../../components/Adopcion";
 import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
+import { FotosEscolaresColegio } from "../fotos";
 import { ConfiguracionInicio } from "./configuracion";
 import { ImportarDatos } from "./importar";
 import { FichaAlumno } from "./fichaAlumno";
@@ -70,6 +71,7 @@ const SECCIONES = [
     {id:"alertas",l:"Alertas"},
     {id:"eventos",l:"Eventos"},
     {id:"autorizaciones",l:"Autorizaciones"},
+    {id:"fotos",l:"Fotos escolares"},
   ]},
   { id:"g_mensajes", l:"Mensajes", icono:"mensaje", items: [
     {id:"mensajes_familias",l:"De familias",soloColegioAdmin:true},
@@ -1961,6 +1963,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       )}
       {sec==="autorizaciones"&&(
         <AutorizacionesColegio cursos={cursosAnoActual} userId={usuario?.id} abrirNuevo={crear?.tipo==="autorizacion"?crear.n:null}/>
+      )}
+      {sec==="fotos"&&(
+        <FotosEscolaresColegio cursos={cursosAnoActual} hijos={hijos} colegioNombre={colegioNombre}/>
       )}
       {sec==="salidas"&&(
         <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>

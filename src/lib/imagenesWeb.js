@@ -25,6 +25,69 @@ function aJpeg(bmp, lado, calidad) {
   return new Promise((ok, mal) => canvas.toBlob((b) => (b ? ok(b) : mal(new Error("toBlob"))), "image/jpeg", calidad));
 }
 
+// Dibuja la marca de agua sobre todo el canvas: el texto en diagonal, repetido,
+// blanco con borde oscuro (se ve sobre fondos claros y oscuros).
+function marcaDeAgua(ctx, w, h, texto) {
+  const fuente = Math.max(14, Math.round(Math.min(w, h) / 14));
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-Math.PI / 6);
+  ctx.font = `700 ${fuente}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = Math.max(1, fuente / 14);
+  ctx.strokeStyle = "rgba(15,23,42,0.35)";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  const diag = Math.hypot(w, h);
+  const paso = fuente * 3.2;
+  const ancho = ctx.measureText(texto).width + fuente * 2;
+  for (let y = -diag / 2, fila = 0; y <= diag / 2; y += paso, fila++) {
+    for (let x = -diag / 2 + (fila % 2) * (ancho / 2); x <= diag / 2; x += ancho) {
+      ctx.strokeText(texto, x, y);
+      ctx.fillText(texto, x, y);
+    }
+  }
+  ctx.restore();
+}
+
+function aJpegConMarca(bmp, lado, calidad, texto) {
+  const escala = Math.min(1, lado / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * escala));
+  const h = Math.max(1, Math.round(bmp.height * escala));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  marcaDeAgua(ctx, w, h, texto);
+  return new Promise((ok, mal) => canvas.toBlob((b) => (b ? ok(b) : mal(new Error("toBlob"))), "image/jpeg", calidad));
+}
+
+// Fotos escolares (lib/fotosEscolares): la muestra que ven las familias va
+// chica y con la marca grabada en la imagen; el original queda tal cual.
+const MUESTRA_LADO = 1200;
+
+/**
+ * Fotos escolares: { original, muestra, mini } listos para subir (JPEG).
+ * El original se sube como vino (si es JPEG) para que la descarga digital sea
+ * la foto de la fotógrafa; un PNG se pasa a JPEG de alta calidad.
+ */
+export async function prepararFotoEscolar(file, textoMarca) {
+  const bmp = await createImageBitmap(file);
+  try {
+    const [original, muestra, mini] = await Promise.all([
+      file.type === "image/jpeg" ? file : aJpeg(bmp, Math.max(bmp.width, bmp.height), 0.92),
+      aJpegConMarca(bmp, MUESTRA_LADO, CALIDAD_ORIGINAL, textoMarca),
+      aJpegConMarca(bmp, MINI_LADO * 1.5, CALIDAD_MINI, textoMarca),
+    ]);
+    return { original, muestra, mini };
+  } finally {
+    bmp.close?.();
+  }
+}
+
 /**
  * Prepara una imagen para subir: { blob, ext, contentType, mini }.
  * GIF/SVG (o si el navegador no puede decodificarla) van tal cual, sin miniatura.

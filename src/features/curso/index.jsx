@@ -18,6 +18,7 @@ const GRUPOS_FAMILIA = [
   { titulo: "Del colegio", items: [
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icono: "firma" },
     { id: "comedor", label: "Comedor", desc: "Menú y servicio de comedor", icono: "cubiertos" },
+    { id: "fotos", label: "Fotos escolares", desc: "Elegí y pedí las fotos de tu hijo", icono: "camara" },
     { id: "talleres", label: "Talleres", desc: "Actividades e inscripciones", icono: "paleta" },
     { id: "info", label: "Info útil", desc: "Útiles, uniformes, libros y alumnos", icono: "info" },
     { id: "contacto", label: "Contacto", desc: "Secretaría y equipo del colegio", icono: "telefono" },

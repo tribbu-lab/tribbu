@@ -28,6 +28,21 @@ web y app juntas, mostrar capturas antes de commitear.
       Emma", separar "Abierta" de "Tu respuesta".
 - [x] **Etapa 4 — "‹ Curso"** (hecha 2026-10-14) para volver desde las pantallas de esa sección.
 
+## Fotos escolares (2026-10-28)
+
+- [x] Tablas, RLS, bucket privado `fotos` y RPC aplicados
+      (`supabase/fotos-escolares.sql`, 26 chequeos con rollback), Edge
+      Functions `fotos-retencion` (cron diario) y `send-push` desplegadas; panel
+      web, pantalla de familias web y app hechas (ver notas técnicas).
+- [x] Probado a mano en la web (2026-10-28, Colegio Demo, super + familia
+      demo): crear, subir, asignar, publicar, pedido, "Ya pagué", pagado,
+      descarga del original y Excel.
+- [ ] Probar la pantalla de la app en un teléfono (pedido y descarga) y que
+      llegue el push "Fotos escolares" al publicar.
+- [ ] Capturas de la landing (`public/apoderados.html`) con la cuenta demo.
+- [ ] Sale en la app con la próxima versión.
+- [ ] Si hace falta: la sección en el panel de la app (hoy solo web).
+
 ## Cambios en la salida (2026-10-27)
 
 - [x] Tabla, RLS y RPC aplicados (`supabase/cambios-salida.sql`), send-push
