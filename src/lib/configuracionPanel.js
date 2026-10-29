@@ -41,7 +41,7 @@ export function estadoConfig(id, d = {}) {
     case "maestros":
       return d.maestros == null ? null : d.maestros ? { texto: plural(d.maestros, "docente", "docentes") } : { texto: "Todavía no hay docentes", alerta: true };
     case "directivos":
-      return d.directivos == null ? null : { texto: plural(d.directivos, "persona", "personas") };
+      return d.directivos == null ? null : d.directivos ? { texto: plural(d.directivos, "persona", "personas") } : { texto: "Todavía no hay directivos", alerta: true };
     case "colegio":
       return d.membreteListo == null ? null : d.membreteListo ? { texto: "Membrete listo" } : { texto: "Falta el membrete", alerta: true };
     default:

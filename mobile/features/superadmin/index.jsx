@@ -6,7 +6,7 @@
 // El módulo de Códigos de invitación se sacó (2026-09-11) junto con el registro
 // por código del login — ver CLAUDE.md.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLocalSearchParams } from "expo-router";
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Alert, KeyboardAvoidingView, StyleSheet, BackHandler, Switch } from "react-native";
@@ -172,6 +172,10 @@ export function SuperAdmin() {
   const [elegirColegio, setElegirColegio] = useState(false);
   const activeColegioId = esColegioAdmin ? miColegioId : colegioSel;
   const [sec, setSec] = useState(null);
+  // Al cambiar de sección (o volver al Panel) se arranca arriba: el ScrollView
+  // es uno solo para todo el panel y si no quedaba el scroll de la anterior.
+  const scrollRef = useRef(null);
+  useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: false }); }, [sec]);
   // Sin leer de Mensajes (familias / personal) y Ayuda: solo el staff del colegio.
   const noLeidos = useNoLeidosPanel(esColegioAdmin, sec);
   const [anoActual, setAnoActual] = useState(null); // colegios.año_lectivo_actual del colegio activo
@@ -776,7 +780,7 @@ export function SuperAdmin() {
   const colegioNombre = colegios.find((c) => c.id === activeColegioId)?.nombre || nombreColegio;
   const hoyTxt = (() => { const t = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", ""); return t.charAt(0).toUpperCase() + t.slice(1); })();
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       {sec === null ? (
         <View>
           <Text style={styles.fecha}>{hoyTxt}</Text>
@@ -801,7 +805,7 @@ export function SuperAdmin() {
             </Pressable>
           ) : null}
 
-          {!esSecretaria && activeColegioId ? (
+          {!esSecretaria && activeColegioId && !loading ? (
             <PrimerosPasos userId={usuario?.id} colegioId={activeColegioId} cursos={cursosVigentes} maestros={maestros} hijos={hijos} usuarios={usuarios}
               puedeIr={(id) => SECS_PANEL.has(id)} onIr={irSec} />
           ) : null}
@@ -870,7 +874,7 @@ export function SuperAdmin() {
 
       {sec === "usuarios" ? (
         <View>
-          <NotaImportarWeb que="familias" />
+          <NotaImportarWeb titulo="¿Muchas familias juntas?" />
           <View style={styles.filaNuevo}>
             <BotonNuevo
               accessibilityLabel="Agregar apoderado individual"
@@ -1039,7 +1043,7 @@ export function SuperAdmin() {
 
       {sec === "alumnos" ? (
         <View>
-          <NotaImportarWeb que="alumnos" />
+          <NotaImportarWeb titulo="¿Muchos alumnos juntos?" />
           <View style={styles.filaNuevo}>
             <BotonNuevo
               accessibilityLabel="Agregar alumno individual"
@@ -2472,13 +2476,13 @@ function UniformesAdmin({ cursos, colegioId }) {
 // Las cargas masivas viven en la web (Configuración → Importar datos): modelo
 // para descargar, vista previa con errores y recién ahí cargar. Las viejas de
 // la app subían sin modelo ni vista previa (y con clave por defecto).
-function NotaImportarWeb({ que }) {
+function NotaImportarWeb({ titulo }) {
   return (
     <View style={styles.uploadBtn}>
       <MaterialCommunityIcons name="file-excel-outline" size={22} color="#475569" />
       <View style={styles.flex1}>
-        <Text style={styles.uploadTitle}>¿Muchos {que} juntos?</Text>
-        <Text style={styles.uploadHint}>Cargalos desde la web: Configuración → Importar datos. Ahí descargás el modelo de Excel y ves una vista previa antes de cargar.</Text>
+        <Text style={styles.uploadTitle}>{titulo}</Text>
+        <Text style={styles.uploadHint}>Se cargan desde la web: Configuración → Importar datos. Ahí descargás el modelo de Excel y ves una vista previa antes de cargar.</Text>
       </View>
     </View>
   );
