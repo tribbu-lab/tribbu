@@ -40,9 +40,11 @@ web y app juntas, mostrar capturas antes de commitear.
 - [x] Probado en el emulador Android (2026-10-29, APK de prueba): lista, fotos
       con marca, visor ampliado, pedido ($35.000), "Ya pagué" y descarga del
       original (hoja de compartir) después de marcar pagado desde el panel.
-- [ ] El push "Fotos escolares" no llegó al emulador al publicar (la base sí
-      devuelve a la familia demo como destinataria y el permiso está dado):
-      revisar en un teléfono real si llega; si no, ver logs de send-push.
+- [ ] Ver en un teléfono real que llegue el push "Fotos escolares" al
+      publicar. En el emulador no se puede: la app no registra token en
+      emuladores (`Device.isDevice` en `mobile/push/register.js`). El envío sí
+      está verificado (2026-10-29): Expo aceptó y entregó a FCM los 95 tokens de
+      la cuenta demo sin errores.
 - [ ] Capturas de la landing (`public/apoderados.html`) con la cuenta demo.
 - [ ] Sale en la app con la próxima versión.
 - [ ] Si hace falta: la sección en el panel de la app (hoy solo web).

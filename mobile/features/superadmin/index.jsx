@@ -1127,7 +1127,7 @@ export function SuperAdmin() {
             </View>
           ) : null}
           <UploadMenuExcel colegioId={activeColegioId} niveles={nivelesParaGuardar(menuNiveles, colegioNiveles)} onDone={() => setMenuRefreshKey((k) => k + 1)} />
-          <Comedor key={`${activeColegioId}-${menuRefreshKey}-${menuNiveles.join(",")}`} colegioId={activeColegioId} niveles={nivelesParaGuardar(menuNiveles, colegioNiveles)} puedeEditar mostrarUpload={false} />
+          <Comedor key={`${activeColegioId}-${menuRefreshKey}-${menuNiveles.join(",")}`} colegioId={activeColegioId} niveles={nivelesParaGuardar(menuNiveles, colegioNiveles)} puedeEditar />
         </View>
       ) : null}
         </View>

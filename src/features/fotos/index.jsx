@@ -797,7 +797,7 @@ export function FotosEscolaresColegio({ cursos = [], hijos = [], colegioNombre }
       {confirmUI}
       {form && <FormSesion inicial={form} cursos={cursos} otras={otras} onClose={() => setForm(null)} onGuardado={(n) => { setForm(null); setAviso(n > 1 ? `Listo: ${n} sesiones creadas (una por curso).` : "Sesión creada. Ahora subí las fotos."); cargar(); }} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.5 }}>Las familias ven solo las fotos de su hijo, con marca de agua. Se borran solas al cerrar el año.</div>
+        <div style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.5 }}>Las familias ven solo las fotos de su hijo, con marca de agua.</div>
         <BotonNuevo onClick={() => setForm({})} ariaLabel="Nueva sesión de fotos" />
       </div>
       {aviso && <div role="status" style={{ padding: "10px 12px", borderRadius: 10, background: "#F0FDF4", marginBottom: 12 }}><span style={{ fontSize: 13, fontWeight: 600, color: "#047857" }}>{aviso}</span></div>}

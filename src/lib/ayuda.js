@@ -64,7 +64,7 @@ export const PREGUNTAS_FRECUENTES = [
       {
         id: "fotos",
         pregunta: "¿Cómo elijo y pago las fotos escolares?",
-        respuesta: "Cuando el colegio publica las fotos te llega un aviso. En Curso → Fotos escolares ves las de tu hijo y la grupal, con marca de agua (son muestras: no se pueden guardar). Elegí una opción y con qué foto, sumá copias adicionales si querés, y tocá \"Guardar pedido\": ves el total y cómo pagar. Cuando pagues, tocá \"Ya pagué\". Podés cambiar el pedido hasta la fecha de vencimiento o hasta que la Secretaría confirme el pago. Si elegiste una opción digital, con el pago confirmado aparece \"Descargar\" con la foto sin marca; si no, las fotos impresas se entregan en el colegio. Las fotos se borran al terminar el año.",
+        respuesta: "Cuando el colegio publica las fotos te llega un aviso. En Curso → Fotos escolares ves las de tu hijo y la grupal, con marca de agua (son muestras: no se pueden guardar). Elegí una opción y con qué foto, sumá copias adicionales si querés, y tocá \"Guardar pedido\": ves el total y cómo pagar. Cuando pagues, tocá \"Ya pagué\". Podés cambiar el pedido hasta la fecha de vencimiento o hasta que la Secretaría confirme el pago. Si elegiste una opción digital, con el pago confirmado aparece \"Descargar\" con la foto sin marca; si no, las fotos impresas se entregan en el colegio.",
         ir: { web: "fotos", mobile: "/(tabs)/fotos", label: "Ir a Fotos escolares" },
       },
       {
@@ -320,7 +320,7 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-fotos",
         pregunta: "¿Cómo publico las fotos escolares para que las familias las elijan?",
-        respuesta: "Comunicación → Fotos escolares (desde la web). \"+ Nuevo\": elegí los cursos (se crea una sesión por curso), hasta cuándo se pueden pedir, las opciones con su precio y qué incluyen (marcá \"Digital\" en las que se descargan), las copias adicionales por tamaño y cómo pagar. Podés copiar los precios de otra sesión. Entrá a la sesión, tocá \"Subir fotos\" (muchas a la vez) y asignalas: elegí un alumno o \"Grupal\" y tocá sus fotos. Las familias ven solo una copia con marca de agua y solo las de su hijo. Con \"Publicar y avisar\" les llega un aviso. En Pedidos ves qué eligió cada familia, quién avisó que pagó, marcás \"Pagado\" (con opción digital, ahí la familia puede descargar el original) y \"Entregado\", y descargás el Excel para la fotógrafa. Se borran solas al cerrar el año.",
+        respuesta: "Comunicación → Fotos escolares (desde la web). \"+ Nuevo\": elegí los cursos (se crea una sesión por curso), hasta cuándo se pueden pedir, las opciones con su precio y qué incluyen (marcá \"Digital\" en las que se descargan), las copias adicionales por tamaño y cómo pagar. Podés copiar los precios de otra sesión. Entrá a la sesión, tocá \"Subir fotos\" (muchas a la vez) y asignalas: elegí un alumno o \"Grupal\" y tocá sus fotos. Las familias ven solo una copia con marca de agua y solo las de su hijo. Con \"Publicar y avisar\" les llega un aviso. En Pedidos ves qué eligió cada familia, quién avisó que pagó, marcás \"Pagado\" (con opción digital, ahí la familia puede descargar el original) y \"Entregado\", y descargás el Excel para la fotógrafa.",
         ir: { panel: "fotos", label: "Ir a Fotos escolares" },
       },
       {

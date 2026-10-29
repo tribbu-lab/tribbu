@@ -56,13 +56,14 @@ const snapHabil = (d, dir = 1) => {
   return x;
 };
 
-// puedeEditar/mostrarUpload permiten embeber este mismo componente en el
-// Menú de Super Admin (puedeEditar=true, mostrarUpload=false).
+// puedeEditar permite embeber este mismo componente en el Menú del panel
+// del colegio (que sube el Excel con su propio UploadMenuExcel). Las familias
+// solo lo leen: el menú lo carga el colegio (supabase/menu-solo-colegio.sql).
 // niveles (panel del colegio): para qué niveles se ve/edita el menú (null =
 // el general). Familias: el de su nivel o, si no hay, el general
 // (specs/roles-por-nivel.md).
-export function Comedor({ puedeEditar = false, mostrarUpload = true, colegioId: colegioIdProp = null, niveles = null } = {}) {
-  const { isAdmin, items, cursoIds } = useSession();
+export function Comedor({ puedeEditar = false, colegioId: colegioIdProp = null, niveles = null } = {}) {
+  const { items, cursoIds } = useSession();
   const [filas, setFilas] = useState([]);
   const clave = niveles?.length ? niveles.join(",") : "";
   const nivelFamilia = nivelDeVista(items, cursoIds);
@@ -171,7 +172,6 @@ export function Comedor({ puedeEditar = false, mostrarUpload = true, colegioId: 
         </Pressable>
       </View>
 
-      {mostrarUpload && isAdmin ? <UploadMenuExcel onDone={cargarMenu} colegioId={colegioId} /> : null}
 
       {vista === "dia" ? (
         <View>
