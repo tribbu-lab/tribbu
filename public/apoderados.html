@@ -347,11 +347,31 @@
   .colegiosSection{margin-top:96px;background:var(--navy);position:relative;overflow:hidden;padding:0}
   @media (max-width:900px){.colegiosSection{margin-top:64px}}
   .colegiosGlow{position:absolute;top:-200px;left:50%;width:760px;height:520px;border-radius:999px;background:radial-gradient(circle,rgba(59,130,246,.18),transparent 70%)}
-  .colegiosGrid{padding-top:84px;padding-bottom:84px;position:relative;display:grid;grid-template-columns:1fr 400px;gap:64px;align-items:center}
-  @media (max-width:900px){.colegiosGrid{grid-template-columns:1fr}}
-  .colegiosGrid .eyebrow{color:var(--blue-light)}
-  .colegiosGrid h2{color:#fff}
-  .colegiosGrid .lead{color:rgba(255,255,255,.6);max-width:520px}
+  .colegiosWrap{padding-top:84px;padding-bottom:84px;position:relative}
+  @media (max-width:900px){.colegiosWrap{padding-top:64px;padding-bottom:64px}}
+  .colegiosWrap .eyebrow{color:var(--blue-light)}
+  .colegiosWrap h2{color:#fff}
+  .colegiosWrap .lead{color:rgba(255,255,255,.62);max-width:600px}
+  .colSub{font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin:56px 0 16px}
+  .colBenef{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:900px){.colBenef{grid-template-columns:1fr 1fr}}
+  @media (max-width:600px){.colBenef{grid-template-columns:1fr}}
+  .colBenefCard{padding:22px;border:1px solid rgba(255,255,255,.1);border-radius:18px;background:rgba(255,255,255,.04)}
+  .colBenefCard .ico{font-size:22px;display:block}
+  .colBenefCard b{font-size:16.5px;font-weight:800;letter-spacing:-.3px;color:#fff;display:block;margin-top:12px}
+  .colBenefCard span{font-size:14px;line-height:1.6;color:rgba(255,255,255,.6);display:block;margin-top:6px}
+  .colList{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:760px){.colList{grid-template-columns:1fr}}
+  .colInteg{margin-top:56px;padding:34px;border-radius:24px;background:linear-gradient(135deg,rgba(59,130,246,.22),rgba(59,130,246,.06));border:1px solid rgba(96,165,250,.35);display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:center}
+  @media (max-width:900px){.colInteg{grid-template-columns:1fr;padding:26px 22px;gap:24px}}
+  .colInteg h3{margin:10px 0 0;font-size:28px;line-height:1.15;letter-spacing:-.8px;font-weight:900;color:#fff}
+  @media (max-width:900px){.colInteg h3{font-size:24px}}
+  .colInteg p{margin:12px 0 0;font-size:15px;line-height:1.65;color:rgba(255,255,255,.7)}
+  .colIntegPts{display:flex;flex-direction:column;gap:12px}
+  .colIntegPt{display:flex;gap:12px;align-items:flex-start}
+  .colIntegPt .chk{width:24px;height:24px;border-radius:999px;background:var(--blue);color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+  .colIntegPt b{font-size:14.5px;font-weight:700;color:#fff;display:block}
+  .colIntegPt span{font-size:13.5px;line-height:1.55;color:rgba(255,255,255,.62);display:block;margin-top:2px}
   .colBtns{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap}
   .btnWhite{min-height:52px;padding:0 24px;border:none;border-radius:13px;background:#fff;color:var(--navy);font-size:15px;font-weight:800;cursor:pointer}
   .btnWhite:hover{background:#E2E8F0}
@@ -528,6 +548,7 @@
     <div class="modCard"><div class="modIcon" style="background:#FFF7ED;color:#C2410C">🤝</div><h3>Comunidad</h3><p>Marketplace para pasarse uniformes, libros y disfraces, y un Lost &amp; Found para la campera que nadie encuentra.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F0FDF4;color:#059669">🍽️</div><h3>Comedor</h3><p>El menú del mes, día por día, sin buscar el PDF que mandaron en marzo.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F5F3FF;color:#7C3AED">📊</div><h3>Encuestas</h3><p>Cualquier familia arma una consulta rápida: un voto por familia y resultados en vivo.</p></div>
+    <div class="modCard"><div class="modIcon" style="background:#EFF6FF;color:#2563EB">📸</div><h3>Fotos escolares</h3><p>Ves las fotos de tu hijo (solo las suyas y la grupal), elegís cuáles querés, pagás y, si la opción es digital, las descargás sin marca de agua. Sin sobre de papel.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F5F3FF;color:#7C3AED">🎨</div><h3>Talleres</h3><p>Robótica, coro, ajedrez: ves los talleres del colegio que le corresponden a cada hijo, lo anotás desde la app y sabés si quedó inscripto o en lista de espera.</p></div>
     <div class="modCard"><div class="modIcon" style="background:#F1F5F9;color:#0F172A">📋</div><h3>Info útil y contacto</h3><p>Útiles, uniformes, libros y los teléfonos del colegio, siempre en el mismo lugar y sin listas dando vueltas por el grupo.</p></div>
   </div>
@@ -689,6 +710,7 @@
         <div class="rolesItem"><span class="ico">✍️</span><div><b>Autorizaciones con planilla</b><span>Una salida para varios cursos, respuestas por alumno y exportación a Excel.</span></div></div>
         <div class="rolesItem"><span class="ico">💬</span><div><b>Secretaría por mensaje</b><span>Las familias escriben a la secretaría desde la app, un hilo por alumno.</span></div></div>
         <div class="rolesItem"><span class="ico">🚸</span><div><b>Cambios en la salida</b><span>Llegan a la Secretaría del nivel con un aviso, y quedan con historial y quién los vio.</span></div></div>
+        <div class="rolesItem"><span class="ico">📸</span><div><b>Fotos escolares sin sobre</b><span>Cada familia elige y paga desde la app; la Secretaría marca lo pagado y baja el Excel para la fotógrafa.</span></div></div>
       </div>
     </div>
   </div>
@@ -696,25 +718,55 @@
 
 <section id="colegios" class="colegiosSection">
   <div class="colegiosGlow"></div>
-  <div class="wrap colegiosGrid">
-    <div>
-      <div class="eyebrow">Para colegios</div>
-      <h2 style="font-size:42px;letter-spacing:-1.5px">Un canal oficial que las familias sí leen.</h2>
-      <p class="lead">Publicás una vez y llega a los cursos que elegís, con confirmación de lectura. Sin exponer teléfonos, sin depender de que un padre reenvíe la circular.</p>
-      <div class="colBtns">
-        <button class="btnWhite" onclick="location.href='mailto:colegios@tribbu.ar?subject=Demo%20de%20tribbu%20para%20mi%20colegio'">Pedir una demo</button>
-        <button class="btnOutlineDark" onclick="avisar('Brief institucional enviado por mail')">Descargar el brief</button>
-      </div>
+  <div class="wrap colegiosWrap">
+    <div class="eyebrow">Para colegios</div>
+    <h2 style="font-size:42px;letter-spacing:-1.5px;max-width:760px">Todo el colegio en un solo lugar, y las familias de verdad enteradas.</h2>
+    <p class="lead">Comunicados, autorizaciones, salidas, mensajes con Secretaría, talleres y fotos escolares en una app que las familias ya usan todos los días. Menos llamados, menos papel y ningún teléfono expuesto en un grupo.</p>
+    <div class="colBtns">
+      <button class="btnWhite" onclick="location.href='mailto:colegios@tribbu.ar?subject=Demo%20de%20tribbu%20para%20mi%20colegio'">Pedir una demo</button>
+      <button class="btnOutlineDark" onclick="location.href='#integracion'">Cómo se conecta con su sistema</button>
     </div>
+
+    <div class="colSub">Lo que gana el colegio</div>
+    <div class="colBenef">
+      <div class="colBenefCard"><span class="ico">📞</span><b>Menos llamados y mails a Secretaría</b><span>Cambios en la salida, autorizaciones, consultas y pagos de fotos llegan ordenados por alumno, con historial y quién lo vio.</span></div>
+      <div class="colBenefCard"><span class="ico">📈</span><b>Circulares que se leen</b><span>Confirmación de lectura por familia y por curso: sabés qué llegó y a quién hay que insistirle, sin depender de que un padre reenvíe.</span></div>
+      <div class="colBenefCard"><span class="ico">📄</span><b>Chau papelito en la mochila</b><span>Autorizaciones, sobres de fotos y avisos de retiro desde el celular, con la planilla lista para descargar en Excel.</span></div>
+      <div class="colBenefCard"><span class="ico">🔒</span><b>Los datos de las familias, protegidos</b><span>Todo se habla por la app, sin exponer teléfonos ni mails. Cada uno ve solo lo que le corresponde: familias, docentes, Secretaría y Dirección.</span></div>
+      <div class="colBenefCard"><span class="ico">🏫</span><b>Cada nivel con su Secretaría</b><span>Inicial, Primaria y Secundaria con su propio panel y sus cursos; la administración ve todo el colegio.</span></div>
+      <div class="colBenefCard"><span class="ico">🚀</span><b>En marcha en días</b><span>Alumnos, familias, horarios y menú se cargan desde Excel, con primeros pasos guiados. iOS, Android y web desde el primer día.</span></div>
+    </div>
+
+    <div class="colSub">Todo lo que incluye</div>
     <div class="colList">
-      <div class="colItem"><span class="ico">📢</span><div><b>Comunicaciones y eventos multi-curso</b><span>Un feriado o un acto, cargado una vez para todo el colegio.</span></div></div>
-      <div class="colItem"><span class="ico">✍️</span><div><b>Autorizaciones digitales</b><span>Quién autorizó, quién retira y quién falta, por alumno.</span></div></div>
-      <div class="colItem"><span class="ico">👩‍🏫</span><div><b>Docentes, materias y horarios</b><span>Cada maestra con su cuenta y solo sus cursos.</span></div></div>
-      <div class="colItem"><span class="ico">📥</span><div><b>Arranque guiado y carga desde Excel</b><span>Primeros pasos con progreso, y alumnos, familias, horarios y menú cargados de una vez, con modelo para descargar y vista previa.</span></div></div>
-      <div class="colItem"><span class="ico">🚸</span><div><b>Cambios en la salida</b><span>Las familias avisan quién retira y a qué hora; la Secretaría lo ve y lo confirma.</span></div></div>
-      <div class="colItem"><span class="ico">📈</span><div><b>Adopción por curso</b><span>Cuántas familias tienen la app y cuántas la usan.</span></div></div>
+      <div class="colItem"><span class="ico">📢</span><div><b>Comunicados con membrete</b><span>A un curso, a un nivel o a todo el colegio, con formato, adjuntos y la firma del colegio.</span></div></div>
+      <div class="colItem"><span class="ico">📅</span><div><b>Eventos multi-curso</b><span>Un feriado o un acto, cargado una vez, en el calendario de cada familia.</span></div></div>
+      <div class="colItem"><span class="ico">✍️</span><div><b>Autorizaciones digitales</b><span>Quién autorizó, quién retira y quién falta, por alumno, con exportación a Excel.</span></div></div>
+      <div class="colItem"><span class="ico">🚸</span><div><b>Cambios en la salida</b><span>Las familias avisan quién retira y a qué hora; la Secretaría del nivel lo ve y lo confirma.</span></div></div>
+      <div class="colItem"><span class="ico">💬</span><div><b>Mensajes con Secretaría y docentes</b><span>Un hilo por alumno, difusión a varias familias y chat interno del personal.</span></div></div>
+      <div class="colItem"><span class="ico">📸</span><div><b>Fotos escolares</b><span>Cada familia ve solo las de su hijo, con marca de agua; elige, paga y, si es digital, descarga. Se borran al cerrar el año.</span></div></div>
+      <div class="colItem"><span class="ico">👩‍🏫</span><div><b>Docentes, materias y horarios</b><span>Cada maestra con su cuenta y solo sus cursos; horarios por curso para descargar.</span></div></div>
       <div class="colItem"><span class="ico">🎨</span><div><b>Talleres extraprogramáticos</b><span>Por curso o por edad, con cupo, lista de espera, aprobación o sorteo.</span></div></div>
-      <div class="colItem"><span class="ico">🏫</span><div><b>Con la identidad del colegio</b><span>Tu logo y tu color dentro de la app.</span></div></div>
+      <div class="colItem"><span class="ico">🍽️</span><div><b>Menú del comedor por nivel</b><span>Cargado por Excel, y cada familia ve el de su nivel.</span></div></div>
+      <div class="colItem"><span class="ico">📊</span><div><b>Adopción por curso</b><span>Cuántas familias tienen la app y cuántas la usan, para saber dónde empujar.</span></div></div>
+      <div class="colItem"><span class="ico">🎓</span><div><b>Año lectivo y promoción</b><span>Al cerrar el año pasás a los alumnos de curso, y lo del año anterior se archiva solo.</span></div></div>
+      <div class="colItem"><span class="ico">🖌️</span><div><b>Con la identidad del colegio</b><span>Tu logo y tu color dentro de la app.</span></div></div>
+    </div>
+
+    <div class="colInteg" id="integracion">
+      <div>
+        <div class="eyebrow">Integración</div>
+        <h3>¿Ya usan un sistema de gestión escolar? tribbu se conecta.</h3>
+        <p>No hace falta cambiar lo que ya funciona. Integramos tribbu con el sistema de gestión que use el colegio (académico, administrativo o de cobranzas) para que alumnos, familias y cursos estén siempre al día, sin cargar nada dos veces.</p>
+        <div class="colBtns" style="margin-top:22px">
+          <button class="btnWhite" onclick="location.href='mailto:colegios@tribbu.ar?subject=Integraci%C3%B3n%20de%20tribbu%20con%20nuestro%20sistema'">Contanos qué sistema usan</button>
+        </div>
+      </div>
+      <div class="colIntegPts">
+        <div class="colIntegPt"><span class="chk">✓</span><div><b>Con el sistema que tengan</b><span>Por conexión directa o con exportaciones periódicas: nos adaptamos a lo que su sistema permita.</span></div></div>
+        <div class="colIntegPt"><span class="chk">✓</span><div><b>Altas, bajas y cambios de curso sin doble carga</b><span>Lo que se actualiza en su sistema llega a tribbu, y cada familia ve a sus hijos en el curso correcto.</span></div></div>
+        <div class="colIntegPt"><span class="chk">✓</span><div><b>Arrancan hoy mismo</b><span>Mientras armamos la integración, se importa todo desde Excel en minutos.</span></div></div>
+      </div>
     </div>
   </div>
 </section>
@@ -816,6 +868,8 @@
     ["¿Quién puede publicar en mi curso?", "Las familias del curso, los Room Parents, las maestras y el colegio. Los avisos del colegio y de las docentes llevan su etiqueta, para que no se confundan con los del grupo."],
     ["¿El colegio lee nuestros mensajes?", "No. Los chats entre familias y el grupo del curso son privados: el colegio solo ve un mensaje si alguien lo denuncia. Los hilos con maestras y secretaría sí son institucionales y el colegio puede verlos."],
     ["Mi hijo sale distinto un día, ¿cómo aviso?", "En Comunicaciones → Cambios en la salida elegís el día, el horario, el motivo y con quién se va (si es otro adulto, con nombre y DNI). Le llega a la Secretaría del nivel, y ves en la app cuando lo leyeron. Podés cancelarlo hasta ese mismo día."],
+    ["¿Cómo elijo las fotos escolares?", "Cuando el colegio las publica te llega un aviso. En Curso → Fotos escolares ves las de tu hijo y la grupal, con marca de agua. Elegís la opción, la foto y las copias que quieras, ves el total y tocás “Ya pagué” cuando pagás. Si la opción es digital, cuando la Secretaría confirma el pago las descargás sin marca; si no, te las entregan impresas."],
+    ["Soy del colegio: ¿se integra con el sistema que ya usamos?", "Sí. Conectamos tribbu con el sistema de gestión escolar que use el colegio para que alumnos, familias y cursos se actualicen solos, sin cargar nada dos veces. Mientras tanto, todo se importa desde Excel en minutos. Escribinos a <a href=\"mailto:colegios@tribbu.ar\">colegios@tribbu.ar</a> y contanos qué sistema usan."],
     ["¿Puedo tener el horario de clases a mano?", "Sí. Está en Agenda → Horario, día por día, y con “Descargar Excel” te lo bajás para guardarlo o imprimirlo."],
     ["¿Se sincroniza con mi calendario?", "Sí. Desde Calendario lo conectás con Google Calendar, Apple Calendar o el calendario del celular, y los eventos, cumples y citas aparecen solos."],
     ["¿Qué pasa con los datos de los chicos?", "Se guardan cifrados, no se comparten con terceros y no vendemos publicidad. Los teléfonos y mails de las familias nunca quedan visibles para el resto del curso."],
