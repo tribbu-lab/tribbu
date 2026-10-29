@@ -765,7 +765,7 @@ export function FotosEscolaresColegio({ cursos = [], hijos = [], colegioNombre }
       <div style={{ maxWidth: 900 }}>
         {confirmUI}
         {form && <FormSesion inicial={form} cursos={cursos} otras={[]} onClose={() => setForm(null)} onGuardado={() => { setForm(null); cargar(); }} />}
-        <button onClick={() => { setAbierta(null); setAviso(null); }} style={{ ...linkBtn, display: "flex", alignItems: "center", gap: 4, marginBottom: 10, minHeight: 36 }}>
+        <button onClick={() => { setAbierta(null); setAviso(null); cargar(); }} style={{ ...linkBtn, display: "flex", alignItems: "center", gap: 4, marginBottom: 10, minHeight: 36 }}>
           <Icono nombre="atras" size={18} color="#2563EB" /><span style={{ fontSize: 13.5, fontWeight: 700, color: "#2563EB" }}>Fotos escolares</span>
         </button>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -809,7 +809,7 @@ export function FotosEscolaresColegio({ cursos = [], hijos = [], colegioNombre }
         const informados = pedidos.filter((p) => p.informado_pago_en && !p.pagado_en).length;
         const sinAsignar = fotos.filter((f) => f.tipo === "alumno" && !f.hijo_id).length;
         return (
-          <button key={s.id} onClick={() => { setAbierta(s.id); setVista("fotos"); setAviso(null); }} style={{ ...tarjeta, width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", display: "block" }}>
+          <button key={s.id} onClick={() => { setAbierta(s.id); setVista("fotos"); setAviso(null); cargar(); }} style={{ ...tarjeta, width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", display: "block" }}>
             <span style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: "#0F172A" }}>{nombreCurso(s.curso_id)} · {s.titulo}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: !s.publicada_en ? "#B45309" : sesionVencida(s, hoy) ? "#94A3B8" : "#047857", whiteSpace: "nowrap" }}>{!s.publicada_en ? "Borrador" : sesionVencida(s, hoy) ? "Vencida" : "Publicada"}</span>

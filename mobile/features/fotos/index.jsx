@@ -67,7 +67,7 @@ function Stepper({ valor, onCambio, etiqueta }) {
   );
 }
 
-function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) {
+function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, refrescando, onRefresh }) {
   const hoy = fmtLocalDate();
   const propias = fotos.filter((f) => f.tipo === "alumno");
   const todas = fotosDeAlumno(fotos, hijo.id);
@@ -133,7 +133,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior="padding">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={!!refrescando} onRefresh={onRefresh} />}>
         <Pressable onPress={onVolver} style={styles.volver} accessibilityRole="button">
           <MaterialCommunityIcons name="chevron-left" size={20} color={t.accent} />
           <Text style={styles.volverTxt}>Fotos escolares</Text>
@@ -311,7 +311,7 @@ export function FotosEscolares() {
         key={`${actual.sesion.id}-${actual.hijo.id}`}
         sesion={actual.sesion} hijo={actual.hijo} pedido={actual.pedido} tag={tagDeCurso(actual.sesion.curso_id)}
         fotos={datos.fotos.filter((f) => f.sesion_id === actual.sesion.id)}
-        onVolver={() => setAbierto(null)} onCambio={cargar}
+        onVolver={() => { setAbierto(null); cargar(); }} onCambio={cargar} refrescando={refrescando} onRefresh={onRefresh}
       />
     );
   }
