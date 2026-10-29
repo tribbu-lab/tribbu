@@ -29,7 +29,7 @@ import { useConfirmar } from "../../hooks/useConfirmar";
 import { sendPush } from "../../lib/push";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
-  AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
+  AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
   fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje, pathFotoDifusion, fotosParaBorrar, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
 } from "../../lib/mensajes";
@@ -1046,9 +1046,11 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
 
       {/* Mensajes */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 4px", minHeight: 0 }} onClick={() => setSeleccionado(null)}>
-        <div style={{ fontSize: 11.5, color: C.textFaint, textAlign: "center", margin: "0 auto 10px", maxWidth: 360, lineHeight: 1.4 }}>
-          {esSoporte ? (staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE) : AVISO_RETENCION}
-        </div>
+        {esSoporte ? (
+          <div style={{ fontSize: 11.5, color: C.textFaint, textAlign: "center", margin: "0 auto 10px", maxWidth: 360, lineHeight: 1.4 }}>
+            {staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE}
+          </div>
+        ) : null}
         {hayMas ? <div style={{ textAlign: "center", marginBottom: 10 }}><button onClick={cargarAnteriores} style={{ ...btnSec, padding: "6px 12px", fontSize: 12 }}>Ver mensajes anteriores</button></div> : null}
         {cargando ? <Spinner /> : null}
         {!cargando && !mensajes.length ? (

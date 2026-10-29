@@ -20,10 +20,8 @@ export const NORMAS_CHAT = [
   "No compartas fotos ni datos de chicos que no sean tuyos sin permiso de su familia.",
   "Nada de publicidad, cadenas ni spam.",
   "Si un mensaje te incomoda, podés bloquear a quien lo mandó y denunciarlo: lo revisa el colegio.",
-  "Los mensajes se borran al terminar el año lectivo.",
 ];
 
-export const AVISO_RETENCION = "Los mensajes se borran al terminar el año lectivo.";
 export const AVISO_SOPORTE = "Te respondemos lo antes posible, normalmente en menos de 24 hs hábiles.";
 export const AVISO_DIAGNOSTICO = "Incluimos datos de tu dispositivo para ayudarte.";
 

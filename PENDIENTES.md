@@ -45,7 +45,7 @@ web y app juntas, mostrar capturas antes de commitear.
       emuladores (`Device.isDevice` en `mobile/push/register.js`). El envío sí
       está verificado (2026-10-29): Expo aceptó y entregó a FCM los 95 tokens de
       la cuenta demo sin errores.
-- [ ] Capturas de la landing (`public/apoderados.html`) con la cuenta demo.
+- [x] Capturas de la landing (2026-10-29): bloque "Fotos escolares" con captura de la app (cuenta demo, ilustraciones con marca de agua; la sesión demo queda publicada en 3°A del Colegio Demo, vence el 13/11) y chat sin la frase de borrado.
 - [ ] Sale en la app con la próxima versión.
 - [ ] Si hace falta: la sección en el panel de la app (hoy solo web).
 

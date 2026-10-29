@@ -25,7 +25,7 @@ import { uuidLite, safeUrl } from "@shared/helpers";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE, MIN_TOUCH, withAlpha } from "@shared/tokens";
 import {
   MAX_TEXTO, MAX_FOTOS_MENSAJE, PAGINA_MENSAJES, MOTIVOS_DENUNCIA, motivoDenuncia, NORMAS_CHAT,
-  AVISO_RETENCION, AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
+  AVISO_SOPORTE, AVISO_DIAGNOSTICO, vistaPrevia, horaCorta, horaMensaje,
   fusionarMensajes, planEdicion, colorAutor, agruparPorDia, puedeEditar, firmaMensaje, limpiarTexto, filtrarFamilias, filtrarConversaciones,
   hijosDeFamilia, metaSoporte, pathFotoMensaje, pathFotoDifusion, fotosParaBorrar, esGrupoPersonal, esGrupoPropio, filtrarPersonal,
 } from "@shared/mensajes";
@@ -1068,7 +1068,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
           // Vacío fuera de la FlatList invertida: en Android `inverted` gira en
           // los dos ejes y el texto se veía espejado.
           <View style={s.vacioChat}>
-            <Text style={s.avisoChat}>{esSoporte ? (staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE) : AVISO_RETENCION}</Text>
+            {esSoporte ? <Text style={s.avisoChat}>{staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE}</Text> : null}
             <Text style={s.vacioTxt}>
               {esSoporte && !staff ? "Contanos qué te pasa. Si podés, mandá una captura de pantalla." : "Todavía no hay mensajes. ¡Escribí el primero!"}
             </Text>
@@ -1084,7 +1084,7 @@ export function ChatConversacion({ conv, userId, modo = "familia", rolPropio = n
             contentContainerStyle={s.chatLista}
             keyboardShouldPersistTaps="handled"
             ListFooterComponent={
-              <Text style={s.avisoChat}>{esSoporte ? (staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE) : AVISO_RETENCION}</Text>
+              esSoporte ? <Text style={s.avisoChat}>{staff ? "Respondés como “Soporte tribbu”." : AVISO_SOPORTE}</Text> : null
             }
           />
         )}
