@@ -115,6 +115,22 @@ export function estadoPedido(p) {
   return { clave: "pendiente", texto: "Falta pagar" };
 }
 
+/** Formulario de la familia armado desde su pedido (o vacío). `propias`: fotos del alumno. */
+export const formDePedido = (pedido, propias = []) => ({
+  opcionId: pedido?.opcion_id || null,
+  fotoId: pedido?.foto_id || (propias.length === 1 ? propias[0].id : null),
+  copias: (pedido?.copias || []).map((c) => ({ foto_id: c.foto_id, copia_id: c.copia_id, cantidad: c.cantidad })),
+  comentario: pedido?.comentario || "",
+});
+
+/**
+ * Cambia cuando el pedido cambia (guardado, pago informado o confirmado,
+ * entregado). La pantalla rearma el formulario al recargar si cambió: si no,
+ * quedaba mostrando lo que había al abrirla.
+ */
+export const firmaPedido = (p) =>
+  p ? [p.id, p.actualizado_en, p.informado_pago_en, p.pagado_en, p.entregado_en].join("|") : "";
+
 /** La familia puede cambiar el pedido mientras no venza ni esté pagado. */
 export const puedeEditarPedido = (sesion, pedido, hoy) => !sesionVencida(sesion, hoy) && !pedido?.pagado_en;
 

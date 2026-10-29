@@ -21,7 +21,7 @@ import { prepararFotoEscolar } from "../../lib/imagenesWeb";
 import {
   BUCKET_FOTOS, sesionVacia, opcionVacia, copiaVacia, copiarConfiguracion, validarSesion, filaSesion, sesionVencida,
   totalPedido, validarPedido, copiasParaGuardar, estadoPedido, puedeEditarPedido, fotosDeAlumno, fotoDescargable,
-  pathsFoto, textoCopia, filasExcelPedidos,
+  pathsFoto, textoCopia, filasExcelPedidos, formDePedido, firmaPedido,
 } from "../../lib/fotosEscolares";
 
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13.5, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box", color: "#0F172A" };
@@ -106,13 +106,17 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
   const propias = fotos.filter((f) => f.tipo === "alumno");
   const todas = fotosDeAlumno(fotos, hijo.id);
   const editable = puedeEditarPedido(sesion, pedido, hoy);
-  const [form, setForm] = useState(() => ({
-    opcionId: pedido?.opcion_id || null,
-    fotoId: pedido?.foto_id || (propias.length === 1 ? propias[0].id : null),
-    copias: (pedido?.copias || []).map((c) => ({ foto_id: c.foto_id, copia_id: c.copia_id, cantidad: c.cantidad })),
-    comentario: pedido?.comentario || "",
-  }));
+  const [form, setForm] = useState(() => formDePedido(pedido, propias));
   const [editando, setEditando] = useState(!pedido);
+  // Si al recargar el pedido cambió (otro dispositivo, pago confirmado), se
+  // rearma el formulario con lo nuevo.
+  const firma = firmaPedido(pedido);
+  const [firmaVista, setFirmaVista] = useState(firma);
+  if (firma !== firmaVista) {
+    setFirmaVista(firma);
+    setForm(formDePedido(pedido, propias));
+    setEditando(!pedido);
+  }
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
   const [aviso, setAviso] = useState(null);

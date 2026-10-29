@@ -15,7 +15,7 @@ import { useRecarga } from "../../lib/useRecarga";
 import { sanitize, fmtLocalDate, fmtM, fmtF } from "@shared/helpers";
 import {
   BUCKET_FOTOS, sesionVencida, totalPedido, validarPedido, copiasParaGuardar, estadoPedido, puedeEditarPedido,
-  fotosDeAlumno, fotoDescargable, textoCopia,
+  fotosDeAlumno, fotoDescargable, textoCopia, formDePedido, firmaPedido,
 } from "@shared/fotosEscolares";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -72,13 +72,17 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, re
   const propias = fotos.filter((f) => f.tipo === "alumno");
   const todas = fotosDeAlumno(fotos, hijo.id);
   const editable = puedeEditarPedido(sesion, pedido, hoy);
-  const [form, setForm] = useState(() => ({
-    opcionId: pedido?.opcion_id || null,
-    fotoId: pedido?.foto_id || (propias.length === 1 ? propias[0].id : null),
-    copias: (pedido?.copias || []).map((c) => ({ foto_id: c.foto_id, copia_id: c.copia_id, cantidad: c.cantidad })),
-    comentario: pedido?.comentario || "",
-  }));
+  const [form, setForm] = useState(() => formDePedido(pedido, propias));
   const [editando, setEditando] = useState(!pedido);
+  // Si al recargar el pedido cambió (otro dispositivo, pago confirmado), se
+  // rearma el formulario con lo nuevo.
+  const firma = firmaPedido(pedido);
+  const [firmaVista, setFirmaVista] = useState(firma);
+  if (firma !== firmaVista) {
+    setFirmaVista(firma);
+    setForm(formDePedido(pedido, propias));
+    setEditando(!pedido);
+  }
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [ampliada, setAmpliada] = useState(null);
