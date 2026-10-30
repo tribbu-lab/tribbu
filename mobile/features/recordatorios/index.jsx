@@ -15,8 +15,9 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
   Alert,
+  RefreshControl,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
@@ -222,6 +223,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
   const recargarBadge = notifCtx?.recargar;
 
   const [recordatorios, setRecordatorios] = useState([]);
+  // Hasta la primera carga no se muestra "Sin avisos" (vacío falso).
+  const [cargado, setCargado] = useState(false);
   // Avisos de docentes: etiqueta "👩‍🏫 Laura · Inglés" (specs/docentes-clases-y-grupos.md).
   const docenteDe = useAutoresDocentes(recordatorios.map((r) => r.creado_por));
   // Comunicados del colegio con membrete (specs/comunicados-con-formato.md).
@@ -267,21 +270,17 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
     const { recs, leidos } = separarLeidos(data);
     setRecordatorios(recs);
     setLeidosSet(conPropiosLeidos(recs, leidos, userId));
+    setCargado(true);
   }, [cursoIds, userId]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  // Expo Router mantiene los tabs montados al cambiar de pestaña (a diferencia
-  // del switch de la web, que remonta cada feature) — sin esto, volver a este
-  // tab desde un push (ej. una comunicación del colegio) mostraba la lista
-  // vieja hasta un refresh manual.
-  useFocusEffect(
-    useCallback(() => {
-      cargar();
-    }, [cargar])
-  );
+  // Expo Router mantiene los tabs montados: al volver a esta pestaña recarga
+  // con useRecarga (si pasaron 30 s o se escribió algo), no en cada foco —
+  // antes un useFocusEffect pedía todo cada vez, y dos veces al entrar.
+  const { refrescando, onRefresh } = useRecarga(cargar);
 
   const guardar = async () => {
     if (!form.texto?.trim()) return;
@@ -482,6 +481,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       <FlatList
         ref={listaRef}
         contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={!!refrescando} onRefresh={onRefresh} />}
         data={visible}
         onScrollToIndexFailed={({ index }) => setTimeout(() => listaRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 300)}
         keyExtractor={(r) => String(r.id)}
@@ -543,7 +543,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
             ) : null}
           </View>
         }
-        ListEmptyComponent={atencion.length ? null : (
+        ListEmptyComponent={atencion.length ? null : !cargado ? <Text style={styles.cargando}>Cargando…</Text> : (
           <EmptyState
             icon="bell-outline"
             title="Sin avisos"
@@ -719,6 +719,7 @@ function RecordatorioModal({ visible, form, setForm, saving, editing, cursoId, c
 
 // Estilos A3: sin sombras, borde hairline, radio 16, dot de estado como ancla.
 const styles = StyleSheet.create({
+  cargando: { textAlign: "center", color: SLATE[400], padding: 40 },
   // Avisos (formato tarjetas: Requiere tu atención + Recientes)
   seccionRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: SPACE.md, marginBottom: SPACE.sm },
   seccionTxt: { fontSize: 17, fontWeight: "800", color: t.textStrong },

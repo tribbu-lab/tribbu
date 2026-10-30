@@ -198,6 +198,17 @@ export function SessionProvider({ children }) {
     [esVistaTodos, tagPorCurso]
   );
 
+  // cursoIds y misHijos estables: si se armaban dentro de `value`, cada cambio
+  // de la sesión (por ejemplo, cuando llega el logo del colegio) los volvía
+  // listas nuevas y relanzaba la carga de todas las pantallas que dependen de
+  // ellos (el Inicio cargaba dos veces al abrir la app).
+  const cursoIdActual = esVistaTodos ? null : items[cursoIdx]?.curso_id ?? null;
+  const cursoIds = useMemo(
+    () => (esVistaTodos ? cursosHijos : cursoIdActual ? [cursoIdActual] : []),
+    [esVistaTodos, cursosHijos, cursoIdActual]
+  );
+  const misHijos = useMemo(() => items.filter((i) => i._tipo === "hijo").map((i) => i.id), [items]);
+
   const value = useMemo(() => {
     const itemActual = items[cursoIdx] || null;
     // En "Todos" no hay curso único: sin rol admin (las acciones por curso
@@ -227,7 +238,7 @@ export function SessionProvider({ children }) {
       setCursoIdx,
       itemActual,
       cursoId,
-      cursoIds: esVistaTodos ? cursosHijos : cursoId ? [cursoId] : [],
+      cursoIds,
       esVistaTodos,
       cursoNombre: esVistaTodos ? "Todos mis hijos" : itemActual?.cursos?.nombre ?? null,
       colegioActivo,
@@ -235,7 +246,7 @@ export function SessionProvider({ children }) {
       isAdmin: rolEfectivo === "room",
       esPadre: rolEfectivo === "padre",
       hijoActivoId: itemActual?._tipo === "hijo" ? itemActual.id : null,
-      misHijos: items.filter((i) => i._tipo === "hijo").map((i) => i.id),
+      misHijos,
       cursosHijos,
       tagDeCurso,
       colorDeItem,
@@ -249,7 +260,7 @@ export function SessionProvider({ children }) {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario, fotoLocal]);
+  }, [usuario, authLoading, items, cursoIdx, cursoIds, misHijos, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario, fotoLocal]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

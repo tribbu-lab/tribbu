@@ -94,59 +94,49 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [vistaAdmin, setVistaAdmin] = useState(null);
+  // Hasta la primera carga no se muestra "No hay colectas" (era un vacío falso).
+  const [cargado, setCargado] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) return;
-    const { data: colData } = await supabase
-      .from("colectas")
-      .select("*")
-      .in("curso_id", cursoIds)
-      .order("vencimiento", { ascending: true })
-      .order("id", { ascending: false });
-    const colIds = (colData || []).map((c) => c.id);
-
-    const [alum, pag, part] = await Promise.all([
-      supabase.from("hijos").select("id,nombre,apellido,color,curso_id").in("curso_id", cursoIds).order("nombre"),
-      colIds.length
-        ? supabase.from("colecta_pagos").select("*").in("colecta_id", colIds)
-        : Promise.resolve({ data: [] }),
-      colIds.length
-        ? supabase.from("colecta_participantes").select("colecta_id,alumno_id").in("colecta_id", colIds)
-        : Promise.resolve({ data: [] }),
+    // Un solo viaje (antes eran 4 en cadena: colectas → pagos/alumnos →
+    // familias → nombres): pagos y participantes vienen dentro de cada
+    // colecta, y las familias con sus nombres dentro de cada alumno.
+    const [col, alum, yo] = await Promise.all([
+      supabase
+        .from("colectas")
+        .select("*, colecta_pagos(*), colecta_participantes(colecta_id,alumno_id)")
+        .in("curso_id", cursoIds)
+        .order("vencimiento", { ascending: true })
+        .order("id", { ascending: false }),
+      supabase
+        .from("hijos")
+        .select("id,nombre,apellido,color,curso_id, usuario_hijos(usuario_id,hijo_id, usuarios(id,nombre,apellido,activo))")
+        .in("curso_id", cursoIds)
+        .order("nombre"),
+      userId ? supabase.from("usuarios").select("id,nombre,apellido,activo").eq("id", userId) : Promise.resolve({ data: [] }),
     ]);
+    const colData = (col.data || []).map(({ colecta_pagos, colecta_participantes, ...c }) => ({ ...c, _pagos: colecta_pagos || [], _part: colecta_participantes || [] }));
     const partMap = {};
-    for (const r of part.data || []) {
+    for (const r of colData.flatMap((c) => c._part)) {
       if (!partMap[r.colecta_id]) partMap[r.colecta_id] = new Set();
       partMap[r.colecta_id].add(r.alumno_id);
     }
     setParticipantes(partMap);
 
-    const alumnosIds = (alum.data || []).map((a) => a.id);
-    const uidsSet = new Set();
-    let uhData = [];
-    if (userId) uidsSet.add(userId);
-    if (alumnosIds.length) {
-      const { data } = await supabase
-        .from("usuario_hijos")
-        .select("usuario_id,hijo_id")
-        .in("hijo_id", alumnosIds);
-      uhData = data || [];
-      uhData.forEach((r) => r.usuario_id && uidsSet.add(r.usuario_id));
-    }
-    const uids = [...uidsSet];
-    if (uids.length) {
-      const { data: usData } = await supabase
-        .from("usuarios")
-        .select("id,nombre,apellido,activo")
-        .in("id", uids);
-      // Curso(s) e hijos de cada apoderado: el "Responsable" se elige entre
-      // las familias del curso de la colecta.
-      const familias = familiasPorUsuario(uhData, alum.data || []);
-      setUsuarios((usData || []).map((u) => ({ ...u, ...(familias.get(u.id) || { cursos: [], hijos: [] }) })));
-    }
-    setColectas(ordenarColectas(colData || []));
-    setAlumnos(alum.data || []);
-    setPagos(pag.data || []);
+    const alumnos = (alum.data || []).map(({ usuario_hijos, ...a }) => a);
+    const uhData = (alum.data || []).flatMap((a) => (a.usuario_hijos || []).map(({ usuario_id, hijo_id }) => ({ usuario_id, hijo_id })));
+    const usPorId = new Map();
+    for (const u of yo.data || []) usPorId.set(u.id, u);
+    for (const a of alum.data || []) for (const uh of a.usuario_hijos || []) if (uh.usuarios) usPorId.set(uh.usuarios.id, uh.usuarios);
+    // Curso(s) e hijos de cada apoderado: el "Responsable" se elige entre
+    // las familias del curso de la colecta.
+    const familias = familiasPorUsuario(uhData, alumnos);
+    setUsuarios([...usPorId.values()].map((u) => ({ ...u, ...(familias.get(u.id) || { cursos: [], hijos: [] }) })));
+    setColectas(ordenarColectas(colData.map(({ _pagos, _part, ...c }) => c)));
+    setAlumnos(alumnos);
+    setPagos(colData.flatMap((c) => c._pagos));
+    setCargado(true);
   }, [cursoIds, userId]);
 
   useEffect(() => {
@@ -350,7 +340,7 @@ export function Finanzas({ openColectaId = null, onClearOpen }) {
 
 
       {colectas.length === 0 ? (
-        <Text style={styles.empty}>No hay colectas activas</Text>
+        <Text style={styles.empty}>{cargado ? "No hay colectas activas" : "Cargando…"}</Text>
       ) : null}
 
       {colectas.map((c) => {

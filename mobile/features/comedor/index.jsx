@@ -65,6 +65,8 @@ const snapHabil = (d, dir = 1) => {
 export function Comedor({ puedeEditar = false, colegioId: colegioIdProp = null, niveles = null } = {}) {
   const { items, cursoIds } = useSession();
   const [filas, setFilas] = useState([]);
+  // Hasta la primera carga no se muestra "Sin menú para este día" (vacío falso).
+  const [cargado, setCargado] = useState(false);
   const clave = niveles?.length ? niveles.join(",") : "";
   const nivelFamilia = nivelDeVista(items, cursoIds);
   const menu = useMemo(
@@ -89,8 +91,16 @@ export function Comedor({ puedeEditar = false, colegioId: colegioIdProp = null, 
   const cargarMenu = useCallback(() => {
     let q = supabase.from("menu").select("*").order("fecha");
     if (colegioIdProp) q = q.eq("colegio_id", colegioIdProp);
-    q.then((r) => setFilas(r.data || []));
-  }, [colegioIdProp]);
+    // Familias: de 2 meses atrás a 6 adelante (antes traía todos los menús de
+    // siempre). El panel (puedeEditar) sigue viendo todo para revisar meses
+    // anteriores.
+    if (!puedeEditar) {
+      const desde = hoyLocal(); desde.setDate(desde.getDate() - 60);
+      const hasta = hoyLocal(); hasta.setDate(hasta.getDate() + 180);
+      q = q.gte("fecha", iso(desde)).lte("fecha", iso(hasta));
+    }
+    q.then((r) => { setFilas(r.data || []); setCargado(true); });
+  }, [colegioIdProp, puedeEditar]);
   useEffect(() => { cargarMenu(); }, [cargarMenu]);
   const { refrescando, onRefresh } = useRecarga(cargarMenu);
 
@@ -198,11 +208,11 @@ export function Comedor({ puedeEditar = false, colegioId: colegioIdProp = null, 
             </Pressable>
           ) : null}
 
-          <DiaDetalle
+          {!cargado ? <Text style={styles.cargando}>Cargando…</Text> : <DiaDetalle
             m={menuSel}
             puedeEditar={puedeEditar}
             onEditar={() => abrirEdicion(fechaSel)}
-          />
+          />}
         </View>
       ) : (
         <View>
@@ -621,6 +631,7 @@ export function UploadMenuExcel({ onDone, colegioId: colegioIdProp = null, nivel
 }
 
 const styles = StyleSheet.create({
+  cargando: { textAlign: "center", color: SLATE[400], padding: 40 },
   screen: { flex: 1, backgroundColor: t.bg },
   content: { padding: SPACE.lg, paddingBottom: TAB_BAR_SPACE },
   flex1: { flex: 1 },

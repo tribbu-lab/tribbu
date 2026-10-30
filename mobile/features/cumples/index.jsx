@@ -92,6 +92,8 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
   const [montoRegalo, setMontoRegalo] = useState(null);
   const [monedaRegalo, setMonedaRegalo] = useState("$");
   const [apoderados, setApoderados] = useState([]);
+  // Hasta la primera carga no se muestra "Todavía no hay cumpleaños" (vacío falso).
+  const [cargado, setCargado] = useState(false);
 
   const [festejoModal, setFestejoModal] = useState(null);
   const [festejoDetalle, setFestejoDetalle] = useState(null);
@@ -172,12 +174,16 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       }));
       items.sort((a, b) => nextBday(a.fecha_nacimiento) - nextBday(b.fecha_nacimiento));
       setLista(items);
+      setCargado(true);
       return;
     }
-    const [al, ma, cu, fest, inv] = await Promise.all([
+    // Un solo viaje (antes eran 6 en cadena): las familias de cada alumno
+    // vienen embebidas (apoderados para la colecta del regalo y "responsable
+    // → hijo compañero") y el monto del regalo va en el mismo lote.
+    const [al, ma, cu, fest, inv, cur] = await Promise.all([
       supabase
         .from("hijos")
-        .select("id,nombre,apellido,fecha_nacimiento,color,curso_id")
+        .select("id,nombre,apellido,fecha_nacimiento,color,curso_id, usuario_hijos(usuario_id,hijo_id, usuarios(id,nombre,apellido))")
         .in("curso_id", cursoIds)
         .order("nombre"),
       supabase
@@ -197,14 +203,12 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             )
             .in("alumno_invitado_id", misHijos)
         : Promise.resolve({ data: [] }),
+      supabase.from("cursos").select("monto_regalo,moneda_regalo").in("id", cursoIds),
     ]);
 
     // Monto sugerido por familia: con un solo curso se muestra siempre; en vista
     // Todos solo si todos los cursos coinciden (si difieren, se oculta la pill).
-    const { data: cursosData } = await supabase
-      .from("cursos")
-      .select("monto_regalo,moneda_regalo")
-      .in("id", cursoIds);
+    const cursosData = cur.data;
     const montosUniq = [...new Set((cursosData || []).map((c) => c.monto_regalo || null))];
     const monedasUniq = [...new Set((cursosData || []).map((c) => c.moneda_regalo || "$"))];
     setMontoRegalo(montosUniq.length === 1 ? montosUniq[0] : null);
@@ -261,59 +265,33 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
     unified.sort((a, b) => nextBday(a.fecha_nacimiento) - nextBday(b.fecha_nacimiento));
     setLista(unified);
 
-    // Apoderados del curso (para ColectaRegaloModal) + responsable → hijo compañero
-    const { data: hijosDelCurso } = await supabase
-      .from("hijos")
-      .select("id")
-      .in("curso_id", cursoIds);
-    const hids = (hijosDelCurso || []).map((h) => h.id);
-    let uhData = [];
-    if (hids.length) {
-      const { data } = await supabase.from("usuario_hijos").select("usuario_id").in("hijo_id", hids);
-      uhData = data || [];
-      const uids = [...new Set(uhData.map((x) => x.usuario_id).filter(Boolean))];
-      if (uids.length) {
-        const { data: usData } = await supabase
-          .from("usuarios")
-          .select("id,nombre,apellido")
-          .in("id", uids);
-        setApoderados((usData || []).sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      }
-    }
+    // Apoderados del curso (para ColectaRegaloModal) + responsable → hijo compañero,
+    // de las familias que vinieron embebidas en cada alumno.
+    const uhData = (al.data || []).flatMap((a) => a.usuario_hijos || []);
+    const usPorId = new Map();
+    uhData.forEach((uh) => { if (uh.usuarios) usPorId.set(uh.usuarios.id, uh.usuarios); });
+    setApoderados([...usPorId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre)));
 
     const map = {};
     (cu.data || []).forEach((c) => {
       if (c.alumno_id) map[`a-${c.alumno_id}`] = c;
       if (c.maestro_id_ref) map[`m-${c.maestro_id_ref}`] = c;
     });
-    const responsableUids = [...new Set((cu.data || []).map((c) => c.responsable_id).filter(Boolean))];
-    if (responsableUids.length && hids.length) {
-      try {
-        const { data: uhResp } = await supabase
-          .from("usuario_hijos")
-          .select("usuario_id, hijo_id")
-          .in("usuario_id", responsableUids)
-          .in("hijo_id", hids);
-        if (uhResp?.length) {
-          const alumnoById = {};
-          alumnosUniq.forEach((a) => {
-            alumnoById[a.id] = a;
-          });
-          const uidToHijo = {};
-          uhResp.forEach((r) => {
-            if (alumnoById[r.hijo_id]) uidToHijo[r.usuario_id] = alumnoById[r.hijo_id];
-          });
-          Object.values(map).forEach((c) => {
-            if (c.responsable_id && uidToHijo[c.responsable_id])
-              c._responsable_hijo = uidToHijo[c.responsable_id];
-          });
-        }
-      } catch {
-        /* RLS puede bloquear: caemos al nombre del usuario responsable */
-      }
-    }
+    const responsables = new Set((cu.data || []).map((c) => c.responsable_id).filter(Boolean));
+    const alumnoById = {};
+    alumnosUniq.forEach((a) => { alumnoById[a.id] = a; });
+    const uidToHijo = {};
+    uhData.forEach((r) => {
+      if (responsables.has(r.usuario_id) && alumnoById[r.hijo_id]) uidToHijo[r.usuario_id] = alumnoById[r.hijo_id];
+    });
+    // Sin hijo visible (RLS) se cae al nombre del usuario responsable.
+    Object.values(map).forEach((c) => {
+      if (c.responsable_id && uidToHijo[c.responsable_id]) c._responsable_hijo = uidToHijo[c.responsable_id];
+    });
     setCumpleMap(map);
-    await verificarRecordatoriosRegalo(map, unified);
+    setCargado(true);
+    // El recordatorio del regalo corre de fondo: la pantalla no lo espera.
+    verificarRecordatoriosRegalo(map, unified).catch(() => {});
   }, [cursoIds, userId, misHijos, hijoActivoId, verificarRecordatoriosRegalo, esDocente]);
 
   useEffect(() => {
@@ -637,7 +615,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
             <Paginador pagina={ctrl.pagina} totalPag={ctrl.totalPag} setPagina={ctrl.setPagina} />
           ) : null
         }
-        ListEmptyComponent={<EmptyState icon="cake-variant-outline" title={ctrl.busqueda || filtrosActivos(gruposFiltro) ? "No hay cumpleaños con esa búsqueda" : "Todavía no hay cumpleaños"} note={ctrl.busqueda || filtrosActivos(gruposFiltro) ? null : "Cuando el curso tenga las fechas cargadas, aparecen acá."} />}
+        ListEmptyComponent={!cargado ? <Text style={styles.cargando}>Cargando…</Text> : <EmptyState icon="cake-variant-outline" title={ctrl.busqueda || filtrosActivos(gruposFiltro) ? "No hay cumpleaños con esa búsqueda" : "Todavía no hay cumpleaños"} note={ctrl.busqueda || filtrosActivos(gruposFiltro) ? null : "Cuando el curso tenga las fechas cargadas, aparecen acá."} />}
         contentContainerStyle={styles.content}
       />
 
@@ -1316,6 +1294,7 @@ export function ColectaRegaloModal({ maestroNombre, montoDefault, monedaDefault 
 
 // Estilos A3: sin sombras, borde hairline, radio 16, countdown por urgencia.
 const styles = StyleSheet.create({
+  cargando: { textAlign: "center", color: SLATE[400], padding: 40 },
   edadesWrap: { marginBottom: 10 },
   edadesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   edadInput: { width: 56, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingVertical: 7, textAlign: "center", fontSize: 14, color: "#0F172A", backgroundColor: "white" },

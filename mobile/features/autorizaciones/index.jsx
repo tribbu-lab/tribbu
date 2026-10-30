@@ -6,7 +6,7 @@
 // hace cumplir la RLS.
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, RefreshControl, StyleSheet } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
 import { exportRowsToExcel } from "../../lib/media";
@@ -61,9 +61,11 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
     ]);
     setDatos({ autorizaciones: auts || [], respuestas: resp.data || [], alumnos: alumnos.data || [] });
   }, [cursoIds]);
-  // Expo Router deja la pantalla montada: recargar al volver a ella (como
-  // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
-  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
+  // Expo Router deja la pantalla montada: carga al entrar y, al volver,
+  // useRecarga recarga si pasaron 30 s o se escribió algo (antes recargaba
+  // en cada foco, también al saltar entre pestañas). Pull-to-refresh abajo.
+  useEffect(() => { cargar(); }, [cargar]);
+  useRecarga(cargar);
   const [refrescando, setRefrescando] = useState(false);
   const refrescar = async () => {
     setRefrescando(true);

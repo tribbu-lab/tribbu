@@ -7,7 +7,7 @@
 // el colegio (su caja de objetos perdidos) se carga desde el Super Admin web.
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, ScrollView, Alert, Linking, RefreshControl, StyleSheet } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useRecarga } from "../../lib/useRecarga";
 import { supabase } from "../../lib/supabase";
 import { borrarArchivos } from "../../lib/storageUrl";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
@@ -77,9 +77,11 @@ export function Perdidos({ embebido = false, openObjeto = null, abrirTab = null,
     for (const a of avisos || []) avisosDe[a.objeto_id] = (avisosDe[a.objeto_id] || 0) + 1;
     setDatos({ objetos, misAvisos, avisosDe, reclamados });
   }, [cursoIds, userId, colegioDe]);
-  // Expo Router deja la pantalla montada: recargar al volver a ella (como
-  // Recordatorios) y con pull-to-refresh, si no lo nuevo no aparece nunca.
-  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
+  // Expo Router deja la pantalla montada: carga al entrar y, al volver,
+  // useRecarga recarga si pasaron 30 s o se escribió algo (antes recargaba
+  // en cada foco, también al saltar entre pestañas). Pull-to-refresh abajo.
+  useEffect(() => { cargar(); }, [cargar]);
+  useRecarga(cargar);
   const [refrescando, setRefrescando] = useState(false);
   const refrescar = async () => {
     setRefrescando(true);
