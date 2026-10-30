@@ -36,7 +36,9 @@ create table if not exists public.fotos_sesiones (
   curso_id      uuid not null references public.cursos(id) on delete cascade,
   titulo        text not null default 'Fotos escolares',
   vence         date not null,
-  -- [{id, nombre, incluye: [text], precio, digital}]
+  -- [{id, nombre, incluye: [text], precio, precio_digital}] — precio = en papel;
+  -- null en uno = no se ofrece en ese formato (fotos-papel-o-digital.sql).
+  -- Las primeras sesiones tenían {precio, digital}: digital = solo digital.
   opciones      jsonb not null default '[]'::jsonb check (jsonb_typeof(opciones) = 'array'),
   -- [{id, tamano, precio}]
   copias        jsonb not null default '[]'::jsonb check (jsonb_typeof(copias) = 'array'),
@@ -223,8 +225,10 @@ grant select, delete on public.fotos_pedidos to authenticated;
 -- ── RPCs del pedido ───────────────────────────────────────────────────────
 -- La familia guarda (crea o reemplaza) el pedido de su hijo.
 -- p_copias: [{foto_id, copia_id, cantidad}]
+drop function if exists public.guardar_pedido_fotos(uuid, uuid, text, uuid, jsonb, text);
 create or replace function public.guardar_pedido_fotos(
-  p_sesion uuid, p_hijo uuid, p_opcion text, p_foto uuid, p_copias jsonb, p_comentario text default null
+  p_sesion uuid, p_hijo uuid, p_opcion text, p_foto uuid, p_copias jsonb, p_comentario text default null,
+  p_digital boolean default null
 )
 returns uuid
 language plpgsql security definer set search_path = public, pg_temp
@@ -234,6 +238,7 @@ declare
   v_op jsonb; v_cp jsonb; x jsonb;
   v_total numeric := 0; v_copias jsonb := '[]'::jsonb; v_cant int; v_id uuid;
   v_prev public.fotos_pedidos;
+  v_papel numeric; v_dig numeric; v_es_digital boolean := false;
 begin
   select * into s from public.fotos_sesiones where id = p_sesion;
   if s.id is null or s.publicada_en is null or not public.es_padre_de(p_hijo) or not public.es_familia_de_sesion(s.id) then
@@ -252,7 +257,25 @@ begin
     if p_foto is null or not exists (select 1 from public.fotos f where f.id = p_foto and f.sesion_id = s.id and f.hijo_id = p_hijo) then
       raise exception 'Elegí la foto para la opción';
     end if;
-    v_total := coalesce((v_op->>'precio')::numeric, 0);
+    -- Precio por formato (papel / digital); la familia elige si hay los dos.
+    if (v_op ? 'precio_digital') or not coalesce((v_op->>'digital')::boolean, false) then
+      v_papel := nullif(v_op->>'precio', '')::numeric;
+      v_dig := nullif(v_op->>'precio_digital', '')::numeric;
+    else
+      v_dig := nullif(v_op->>'precio', '')::numeric; -- sesión vieja: opción solo digital
+    end if;
+    if v_papel is not null and v_dig is not null then
+      if p_digital is null then raise exception 'Elegí si la querés en papel o digital'; end if;
+      v_es_digital := p_digital;
+    elsif v_dig is not null then
+      if p_digital is false then raise exception 'Esa opción es solo digital'; end if;
+      v_es_digital := true;
+    elsif v_papel is not null then
+      if p_digital then raise exception 'Esa opción es solo en papel'; end if;
+    else
+      raise exception 'Opción no válida';
+    end if;
+    v_total := case when v_es_digital then v_dig else v_papel end;
   end if;
 
   if jsonb_typeof(coalesce(p_copias, '[]'::jsonb)) <> 'array' or jsonb_array_length(coalesce(p_copias, '[]'::jsonb)) > 30 then
@@ -275,7 +298,7 @@ begin
 
   insert into public.fotos_pedidos as p (sesion_id, curso_id, hijo_id, opcion_id, opcion_nombre, digital, foto_id,
                                          copias, total, comentario, creado_por, actualizado_en)
-  values (s.id, s.curso_id, p_hijo, v_op->>'id', v_op->>'nombre', coalesce((v_op->>'digital')::boolean, false),
+  values (s.id, s.curso_id, p_hijo, v_op->>'id', v_op->>'nombre', v_es_digital,
           case when v_op is null then null else p_foto end, v_copias, v_total,
           nullif(left(btrim(coalesce(p_comentario, '')), 500), ''), public.mi_usuario_id(), now())
   on conflict (sesion_id, hijo_id) do update
@@ -286,6 +309,8 @@ begin
   returning p.id into v_id;
   return v_id;
 end $$;
+revoke all on function public.guardar_pedido_fotos(uuid, uuid, text, uuid, jsonb, text, boolean) from public, anon;
+grant execute on function public.guardar_pedido_fotos(uuid, uuid, text, uuid, jsonb, text, boolean) to authenticated, service_role;
 
 create or replace function public.borrar_pedido_fotos(p_pedido uuid)
 returns boolean

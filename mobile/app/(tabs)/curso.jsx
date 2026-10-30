@@ -14,6 +14,7 @@ import { cargarGestiones } from "@shared/gestiones";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
 import { useRecarga } from "../../lib/useRecarga";
+import { useFotosCtx } from "../../lib/useFotosNovedades";
 import { SelectorHijos } from "../../components/SelectorHijos";
 import { supabase } from "../../lib/supabase";
 
@@ -52,6 +53,8 @@ export default function CursoScreen() {
   const router = useRouter();
   const { isAdmin, esDocente, usuario, items, cursoIds } = useSession();
   const [cuentas, setCuentas] = useState({});
+  // Globitos rojos por fila (novedades), aparte de los contadores azules.
+  const novedades = { fotos: useFotosCtx().n };
   const userId = usuario?.id ?? null;
 
   const cargar = useCallback(async () => {
@@ -85,13 +88,14 @@ export default function CursoScreen() {
           <View style={styles.card}>
             {g.items.map((o, i) => {
               const n = cuentas[o.cuenta || o.id] || 0;
+              const nuevas = novedades[o.id] || 0;
               return (
                 <Pressable
                   key={o.id}
                   onPress={() => router.push(`/(tabs)/${o.id}`)}
                   style={({ pressed }) => [styles.fila, i > 0 && styles.filaBorde, pressed && styles.filaPressed]}
                   accessibilityRole="button"
-                  accessibilityLabel={n ? `${o.label}: ${n} pendiente${n === 1 ? "" : "s"}` : o.label}
+                  accessibilityLabel={nuevas ? `${o.label}: ${nuevas} novedad${nuevas === 1 ? "" : "es"}` : n ? `${o.label}: ${n} pendiente${n === 1 ? "" : "s"}` : o.label}
                 >
                   <View style={styles.icono}>
                     <MaterialCommunityIcons name={o.icon} size={19} color={SLATE[600]} />
@@ -100,7 +104,11 @@ export default function CursoScreen() {
                     <Text style={styles.filaTitulo}>{o.label}</Text>
                     <Text style={styles.filaDesc} numberOfLines={1}>{o.desc}</Text>
                   </View>
-                  {n > 0 ? (
+                  {nuevas > 0 ? (
+                    <View style={styles.nuevas}>
+                      <Text style={styles.nuevasTxt}>{nuevas > 9 ? "9+" : nuevas}</Text>
+                    </View>
+                  ) : n > 0 ? (
                     <View style={styles.cuenta}>
                       <Text style={styles.cuentaTxt}>{n}</Text>
                     </View>
@@ -132,4 +140,6 @@ const styles = StyleSheet.create({
   filaDesc: { fontSize: 12, color: t.textMuted, marginTop: 1 },
   cuenta: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: RADIUS.full, backgroundColor: t.accentSoft, alignItems: "center", justifyContent: "center" },
   cuentaTxt: { fontSize: 12, fontWeight: "800", color: BLUE[700] },
+  nuevas: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: RADIUS.full, backgroundColor: t.danger, alignItems: "center", justifyContent: "center" },
+  nuevasTxt: { fontSize: 11.5, fontWeight: "800", color: t.textInverse },
 });

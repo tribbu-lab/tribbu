@@ -972,9 +972,9 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
       </div>
     </>
   ) : null;
-  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="soporte_colegio" ? noLeidos.soporte : 0;
+  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="fotos" ? noLeidos.fotos : id==="soporte_colegio" ? noLeidos.soporte : 0;
   const badgeGrupo = (g) => g.items.reduce((n,i)=>n+badgeDe(i.id),0);
-  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.soporte;
+  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.fotos + noLeidos.soporte;
   const rolTexto = esSuper ? "Super Admin" : esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : "Administración del colegio";
   const inicialesUsuario = `${(usuario?.nombre||"?").slice(0,1)}${(usuario?.apellido||"").slice(0,1)}`.toUpperCase();
 

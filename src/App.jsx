@@ -50,6 +50,7 @@ const BusquedaGlobal   = aLazy(() => import("./features/buscar"), "BusquedaGloba
 import { useNotificaciones } from "./features/notificaciones";
 import { useMensajesNoLeidos } from "./hooks/useMensajesNoLeidos";
 import { useSalidasNovedades } from "./hooks/useSalidasNovedades";
+import { useFotosNovedades } from "./hooks/useFotosNovedades";
 
 // ── Capacitor / OneSignal (solo Android nativo) ──────────────────────────────
 // ── Capacitor nativo: solo carga en la app Android, no en la web ──
@@ -276,6 +277,7 @@ function App() {
   const { noLeidos: mensajesSinLeer, recargar: recargarMensajes } = useMensajesNoLeidos(usuario?.id ?? null, { contar: !!usuario && !esPanelAdmin });
   // Cambios en la salida (Comunicaciones): novedades desde la última vez que se abrió.
   const salidasNuevas = useSalidasNovedades({ userId: usuario?.id ?? null, cursoIds: _cursoIds, hijoIds: misHijosActivos, esDocente: usuario?.rol==="docente", abierta: tab==="salidas", activo: !!usuario && !esPanelAdmin });
+  const fotosNuevas = useFotosNovedades({ userId: usuario?.id ?? null, cursoIds: _cursoIds, hijoIds: misHijosActivos, abierta: tab==="fotos", activo: !!usuario && !esPanelAdmin && usuario?.rol!=="docente" });
 
   useEffect(()=>{
     if(!usuario||["super","colegio_admin","nivel_admin"].includes(usuario.rol)) return;
@@ -534,7 +536,7 @@ function App() {
     setTab(destino);
     if(destino==="recordatorios") setBadgeVisto(avisosVersion);
   };
-  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) + salidasNuevas : 0;
+  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) + salidasNuevas : id==="curso" ? fotosNuevas : 0;
   // Pestañas internas de Agenda y Comunicaciones (arriba del contenido).
   const renderSubSeccion = () => {
     if(seccionActiva==="agenda") return <SubSeccion activo={tab} onIr={setTab} items={[{id:"clases",label:"Calendario"},{id:"horario",label:"Horario"},{id:"cumples",label:"Cumpleaños"}]}/>;
@@ -601,7 +603,7 @@ function App() {
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
-      case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA}/>;
+      case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA} novedades={{ fotos: fotosNuevas }}/>;
       // Preguntas frecuentes de las familias (src/lib/ayuda.js) + "Escribile al equipo de tribbu".
       case "ayuda":    return <Ayuda lista={preguntasPara(usuario.rol)} onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
       case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;

@@ -17,11 +17,12 @@ import { BotonFiltros, FiltrosModal } from "../../components/Filtros";
 import { Icono } from "../../components/Icono";
 import { sanitize, fmtLocalDate, fmtM, fmtF, fmtNombre, uuidLite } from "../../lib/helpers";
 import { sendPush, getUserIdsByCurso } from "../../lib/push";
+import { recontarPanel } from "../../hooks/useNoLeidosPanel";
 import { prepararFotoEscolar } from "../../lib/imagenesWeb";
 import {
   BUCKET_FOTOS, sesionVacia, opcionVacia, copiaVacia, copiarConfiguracion, validarSesion, filaSesion, sesionVencida,
   totalPedido, validarPedido, copiasParaGuardar, estadoPedido, puedeEditarPedido, fotosDeAlumno, fotoDescargable,
-  pathsFoto, textoCopia, filasExcelPedidos, formDePedido, firmaPedido,
+  pathsFoto, textoCopia, filasExcelPedidos, formDePedido, firmaPedido, preciosOpcion, ofreceDigital, formatoDe, formatosOpcion,
 } from "../../lib/fotosEscolares";
 
 const inp = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 13.5, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box", color: "#0F172A" };
@@ -129,6 +130,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
     copias: [...p.copias.filter((c) => !(c.foto_id === fotoId && c.copia_id === copiaId)), ...(n > 0 ? [{ foto_id: fotoId, copia_id: copiaId, cantidad: n }] : [])],
   }));
   const total = totalPedido(sesion, form);
+  const opcionElegida = (sesion.opciones || []).find((o) => o.id === form.opcionId);
 
   const guardar = async () => {
     const err = validarPedido(sesion, form);
@@ -137,6 +139,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
     const { error: e } = await supabase.rpc("guardar_pedido_fotos", {
       p_sesion: sesion.id, p_hijo: hijo.id, p_opcion: form.opcionId, p_foto: form.opcionId ? form.fotoId : null,
       p_copias: copiasParaGuardar(form.copias), p_comentario: sanitize(form.comentario || ""),
+      p_digital: form.opcionId ? formatoDe(opcionElegida, form.digital) : null,
     });
     setGuardando(false);
     if (e) { setError(e.message?.length < 120 ? e.message : "No se pudo guardar. Probá de nuevo."); return; }
@@ -195,7 +198,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 8 }}>Son muestras con marca de agua. {sesion.opciones?.some((o) => o.digital) ? "Con una opción digital, cuando la Secretaría confirme el pago las podés descargar sin marca." : "Las fotos se entregan impresas en el colegio."}</div>
+      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 8 }}>Son muestras con marca de agua. {ofreceDigital(sesion) ? "Si la pedís digital, cuando la Secretaría confirme el pago las podés descargar sin marca." : "Las fotos se entregan impresas en el colegio."}</div>
 
       {pedido && !editando ? (
         <>
@@ -232,16 +235,33 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
               <div style={tituloLista}>Elegí una opción</div>
               {sesion.opciones.map((o) => {
                 const on = form.opcionId === o.id;
+                const formatos = formatosOpcion(o);
                 return (
-                  <button key={o.id} type="button" onClick={() => setForm((p) => ({ ...p, opcionId: on ? null : o.id }))} style={{ ...tarjeta, width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? "#2563EB" : "#E2E8F0"}`, background: on ? "#EFF6FF" : "white", display: "block" }}>
+                  <button key={o.id} type="button" onClick={() => setForm((p) => ({ ...p, opcionId: on ? null : o.id, digital: on ? null : formatoDe(o, p.digital) }))} style={{ ...tarjeta, width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? "#2563EB" : "#E2E8F0"}`, background: on ? "#EFF6FF" : "white", display: "block" }}>
                     <span style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                      <span style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A" }}>{o.nombre}{o.digital ? <span style={{ fontSize: 11.5, fontWeight: 700, color: "#2563EB" }}>  · DIGITAL</span> : null}</span>
-                      <span style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A" }}>{fmtM(Number(o.precio) || 0)}</span>
+                      <span style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A" }}>{o.nombre}{formatos.length === 1 && formatos[0].digital ? <span style={{ fontSize: 11.5, fontWeight: 700, color: "#2563EB" }}>  · DIGITAL</span> : null}</span>
+                      <span style={{ fontSize: 14.5, fontWeight: 800, color: "#0F172A", textAlign: "right" }}>{formatos.length === 1 ? fmtM(formatos[0].precio) : formatos.map((f) => `${f.digital ? "Digital" : "Papel"} ${fmtM(f.precio)}`).join(" · ")}</span>
                     </span>
                     {o.incluye?.length > 0 && <span style={{ display: "block", fontSize: 12.5, color: "#475569", marginTop: 4, lineHeight: 1.5 }}>{o.incluye.join(" · ")}</span>}
                   </button>
                 );
               })}
+              {formatosOpcion(opcionElegida).length > 1 && (
+                <>
+                  <div style={label}>¿En papel o digital?</div>
+                  <div role="radiogroup" aria-label="Formato" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {formatosOpcion(opcionElegida).map((f) => {
+                      const on = form.digital === f.digital;
+                      return (
+                        <button key={f.label} type="button" role="radio" aria-checked={on} onClick={() => setForm((p) => ({ ...p, digital: f.digital }))} style={{ ...linkBtn, flex: "1 1 150px", textAlign: "left", padding: "10px 12px", borderRadius: 12, border: `1.5px solid ${on ? "#2563EB" : "#E2E8F0"}`, background: on ? "#EFF6FF" : "white" }}>
+                          <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: "#0F172A" }}>{f.label} · {fmtM(f.precio)}</span>
+                          <span style={{ display: "block", fontSize: 12, color: "#64748B", marginTop: 2 }}>{f.digital ? "La descargás sin marca cuando se confirme el pago" : "Se entrega impresa en el colegio"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
               {form.opcionId && propias.length > 0 && (
                 <>
                   <div style={label}>¿Con qué foto?</div>
@@ -377,13 +397,15 @@ export function FotosEscolares({ cursoIds = [], items = [], tagDeCurso = null })
 // Panel del colegio
 // ─────────────────────────────────────────────────────────────────────────
 
-function FormSesion({ inicial, cursos, otras, onClose, onGuardado }) {
+function FormSesion({ inicial, cursos, otras, hijos = [], onClose, onGuardado }) {
   const hoy = fmtLocalDate();
   const nueva = !inicial?.id;
   const [form, setForm] = useState(() => (nueva ? sesionVacia() : copiarConfiguracionMismaIds(inicial)));
   const [cursoIds, setCursoIds] = useState(inicial?.curso_id ? [inicial.curso_id] : []);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
+  // Cursos elegidos sin alumnos cargados: la sesión quedaría sin a quién asignar fotos.
+  const vacios = cursoIds.filter((id) => !hijos.some((h) => h.curso_id === id)).map((id) => cursos.find((c) => c.id === id)?.nombre || "Un curso");
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const setOpcion = (i, k, v) => setForm((p) => ({ ...p, opciones: p.opciones.map((o, j) => (j === i ? { ...o, [k]: v } : o)) }));
   const setCopia = (i, k, v) => setForm((p) => ({ ...p, copias: p.copias.map((c, j) => (j === i ? { ...c, [k]: v } : c)) }));
@@ -422,6 +444,7 @@ function FormSesion({ inicial, cursos, otras, onClose, onGuardado }) {
           <>
             <div style={label}>Cursos (una sesión por curso)</div>
             <CursoListSelector cursos={cursos} seleccionados={cursoIds} onToggle={(id) => setCursoIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))} />
+            {vacios.length > 0 && <div style={{ fontSize: 12.5, color: "#B45309", marginTop: 6, lineHeight: 1.45 }}>{vacios.length === 1 ? `${vacios[0]} no tiene alumnos cargados` : `Sin alumnos cargados: ${vacios.join(", ")}`}: no vas a poder asignarles fotos.</div>}
           </>
         )}
 
@@ -441,14 +464,20 @@ function FormSesion({ inicial, cursos, otras, onClose, onGuardado }) {
           <div key={o.id} style={{ border: "1px solid #E2E8F0", borderRadius: 12, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input value={o.nombre} onChange={(e) => setOpcion(i, "nombre", e.target.value)} placeholder="Opción A" aria-label="Nombre de la opción" maxLength={40} style={{ ...inp, flex: "2 1 160px" }} />
-              <input type="number" min={0} value={o.precio} onChange={(e) => setOpcion(i, "precio", e.target.value)} aria-label="Precio" style={{ ...inp, flex: "1 1 100px" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <label style={{ flex: "1 1 140px" }}>
+                <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 3 }}>Precio en papel</span>
+                <input type="number" min={0} value={o.precio ?? ""} onChange={(e) => setOpcion(i, "precio", e.target.value)} placeholder="No se ofrece" style={inp} />
+              </label>
+              <label style={{ flex: "1 1 140px" }}>
+                <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 3 }}>Precio digital</span>
+                <input type="number" min={0} value={o.precio_digital ?? ""} onChange={(e) => setOpcion(i, "precio_digital", e.target.value)} placeholder="No se ofrece" style={inp} />
+              </label>
             </div>
             <textarea value={(o.incluye || []).join("\n")} onChange={(e) => setOpcion(i, "incluye", e.target.value.split("\n"))} rows={3} placeholder={"Qué incluye, un ítem por línea\n1 carpeta contenedora\n1 foto grupal (15x21 cm)"} aria-label="Qué incluye" style={{ ...inp, marginTop: 8, resize: "vertical" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, flexWrap: "wrap", gap: 8 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", minHeight: 32 }}>
-                <input type="checkbox" checked={!!o.digital} onChange={(e) => setOpcion(i, "digital", e.target.checked)} />
-                <span style={{ fontSize: 13, color: "#334155" }}>Digital: pagada, la familia descarga la foto sin marca</span>
-              </label>
+              <span style={{ fontSize: 12, color: "#64748B", lineHeight: 1.4, flex: "1 1 240px" }}>Con los dos precios, la familia elige. Digital: pagada, descarga la foto sin marca.</span>
               <button onClick={() => setForm((p) => ({ ...p, opciones: p.opciones.filter((_, j) => j !== i) }))} style={linkBtn}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#DC2626" }}>Quitar</span></button>
             </div>
           </div>
@@ -480,7 +509,7 @@ function FormSesion({ inicial, cursos, otras, onClose, onGuardado }) {
 // Editar mantiene los ids de las opciones (los pedidos ya hechos los referencian).
 const copiarConfiguracionMismaIds = (s) => ({
   titulo: s.titulo, vence: s.vence, datos_pago: s.datos_pago || "",
-  opciones: (s.opciones || []).map((o) => ({ ...o, incluye: [...(o.incluye || [])] })),
+  opciones: (s.opciones || []).map((o) => { const p = preciosOpcion(o); return { id: o.id, nombre: o.nombre, incluye: [...(o.incluye || [])], precio: p.papel ?? "", precio_digital: p.digital ?? "" }; }),
   copias: (s.copias || []).map((c) => ({ ...c })),
 });
 
@@ -594,6 +623,7 @@ function FotosSesion({ sesion, alumnos, fotos, colegioNombre, onCambio }) {
         {sinFotos > 0 && <button type="button" onClick={() => setPincel(destinos.find((d) => d.id !== "grupal" && !d.n)?.id || null)} style={linkBtn}><span style={{ fontSize: 12.5, fontWeight: 700, color: "#B45309" }}>{sinFotos === 1 ? "1 alumno sin fotos" : `${sinFotos} alumnos sin fotos`}</span></button>}
       </div>
       {pincel && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563EB", marginBottom: 8 }}>Tocá las fotos de {nombrePincel}</div>}
+      {!alumnos.length && <div role="alert" style={{ fontSize: 13, color: "#B45309", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "10px 12px", marginBottom: 10, lineHeight: 1.45 }}>Este curso no tiene alumnos cargados, así que solo podés marcar fotos como grupales. Cargalos en Personas › Alumnos, o creá la sesión en el curso donde están.</div>}
       {sinAsignar > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: "#B45309", marginBottom: 8 }}>{sinAsignar === 1 ? "1 foto sin asignar" : `${sinAsignar} fotos sin asignar`}</div>}
 
       {!fotos.length ? <EmptyState icono="camara" titulo="Todavía no hay fotos" nota="Subí las fotos que te pasó la fotógrafa (JPG o PNG). Podés elegir muchas a la vez." accion="Subir fotos" onAccion={() => input.current?.click()} /> : (
@@ -641,6 +671,7 @@ function PedidosSesion({ alumnos, fotos, pedidos, cursoNombre, onCambio }) {
   const marcar = async (p, campo, valor) => {
     if (campo === "pagado" && !valor && !(await confirmar({ titulo: "Desmarcar el pago", detalle: p.digital ? "La familia deja de poder descargar las fotos." : "El pedido vuelve a figurar como no pagado.", textoConfirmar: "Desmarcar" }))) return;
     await supabase.rpc("marcar_pedido_fotos", { p_pedido: p.id, p_campo: campo, p_valor: valor });
+    recontarPanel();
     onCambio();
   };
 
@@ -799,7 +830,7 @@ export function FotosEscolaresColegio({ cursos = [], hijos = [], colegioNombre }
   return (
     <div style={{ maxWidth: 760 }}>
       {confirmUI}
-      {form && <FormSesion inicial={form} cursos={cursos} otras={otras} onClose={() => setForm(null)} onGuardado={(n) => { setForm(null); setAviso(n > 1 ? `Listo: ${n} sesiones creadas (una por curso).` : "Sesión creada. Ahora subí las fotos."); cargar(); }} />}
+      {form && <FormSesion inicial={form} cursos={cursos} otras={otras} hijos={hijos} onClose={() => setForm(null)} onGuardado={(n) => { setForm(null); setAviso(n > 1 ? `Listo: ${n} sesiones creadas (una por curso).` : "Sesión creada. Ahora subí las fotos."); cargar(); }} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <div style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.5 }}>Las familias ven solo las fotos de su hijo, con marca de agua.</div>
         <BotonNuevo onClick={() => setForm({})} ariaLabel="Nueva sesión de fotos" />

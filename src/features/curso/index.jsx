@@ -45,7 +45,7 @@ const GRUPOS_DOCENTE = [
 const tituloGrupo = { fontSize: 15, fontWeight: 800, color: "#0F172A", margin: "22px 0 8px" };
 const tarjeta = { border: "1px solid #E2E8F0", borderRadius: 16, background: "white", overflow: "hidden" };
 
-function Fila({ icono, label, desc, n, onClick, peligro, primera, derecha }) {
+function Fila({ icono, label, desc, n, nuevas, onClick, peligro, primera, derecha }) {
   return (
     <button
       onClick={onClick}
@@ -60,7 +60,9 @@ function Fila({ icono, label, desc, n, onClick, peligro, primera, derecha }) {
         <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: peligro ? "#DC2626" : "#0F172A" }}>{label}</span>
         {desc ? <span style={{ display: "block", fontSize: 12.5, color: "#64748B", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{desc}</span> : null}
       </span>
-      {n > 0 ? (
+      {nuevas > 0 ? (
+        <span aria-label={`${nuevas} novedades`} style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: "#DC2626", color: "white", fontSize: 11.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>{nuevas}</span>
+      ) : n > 0 ? (
         <span style={{ minWidth: 22, height: 22, padding: "0 6px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 12, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box" }}>{n}</span>
       ) : null}
       {derecha ?? <span style={{ color: "#94A3B8", fontSize: 18 }}>›</span>}
@@ -68,7 +70,8 @@ function Fila({ icono, label, desc, n, onClick, peligro, primera, derecha }) {
   );
 }
 
-export function Curso({ cursoIds, items, userId, isAdmin, esDocente, onNavigate }) {
+// `novedades`: globitos rojos por fila ({ fotos: n }), los calcula App.
+export function Curso({ cursoIds, items, userId, isAdmin, esDocente, onNavigate, novedades = {} }) {
   const [cuentas, setCuentas] = useState({});
   const cargar = useCallback(async () => {
     if (esDocente || !cursoIds?.length) return;
@@ -91,7 +94,7 @@ export function Curso({ cursoIds, items, userId, isAdmin, esDocente, onNavigate 
           <div style={tituloGrupo}>{g.titulo}</div>
           <div style={tarjeta}>
             {g.items.map((o, i) => (
-              <Fila key={o.id} {...o} n={cuentas[o.cuenta || o.id] || 0} primera={i === 0} onClick={() => onNavigate?.(o.id)} />
+              <Fila key={o.id} {...o} n={cuentas[o.cuenta || o.id] || 0} nuevas={novedades[o.id] || 0} primera={i === 0} onClick={() => onNavigate?.(o.id)} />
             ))}
           </div>
         </div>

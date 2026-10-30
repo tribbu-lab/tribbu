@@ -1,5 +1,6 @@
 // Globitos de no leídos del panel del colegio (Mensajes de familias, del
-// personal, Cambios en la salida sin ver y Ayuda y soporte). Se recalcula con cada mensaje que llega por
+// personal, Cambios en la salida sin ver, pagos de fotos informados y Ayuda y
+// soporte). Se recalcula con cada mensaje que llega por
 // Realtime (el canal lo abre useMensajesNoLeidos en App), al volver a la
 // pestaña, cada minuto y cuando cambia `clave` (la pantalla del panel):
 // leer un chat no dispara ningún evento de `mensajes`.
@@ -7,10 +8,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { noLeidosPanel } from "../lib/mensajes";
 import { contarSalidasSinVer } from "../lib/cambiosSalida";
+import { contarPagosFotosInformados } from "../lib/fotosEscolares";
 import { fmtLocalDate } from "../lib/helpers";
 import { EVENTO_MENSAJE, EVENTO_RESYNC } from "./useMensajesNoLeidos";
 
-const CERO = { familias: 0, personal: 0, soporte: 0, salidas: 0 };
+const CERO = { familias: 0, personal: 0, soporte: 0, salidas: 0, fotos: 0 };
 // Recontar ya (p. ej. al marcar un cambio en la salida como visto).
 export const EVENTO_RECONTAR_PANEL = "tribbu:panel-recontar";
 export const recontarPanel = () => window.dispatchEvent(new CustomEvent(EVENTO_RECONTAR_PANEL));
@@ -21,10 +23,11 @@ export function useNoLeidosPanel(activo, clave) {
 
   const cargar = useCallback(async () => {
     if (!activo) return;
-    const [b, c, salidas] = await Promise.all([
+    const [b, c, salidas, fotos] = await Promise.all([
       supabase.rpc("bandeja_colegio"), supabase.rpc("mis_conversaciones"), contarSalidasSinVer(supabase, fmtLocalDate()).catch(() => 0),
+      contarPagosFotosInformados(supabase).catch(() => 0),
     ]);
-    if (!b.error && !c.error) setN({ ...noLeidosPanel(b.data, c.data), salidas });
+    if (!b.error && !c.error) setN({ ...noLeidosPanel(b.data, c.data), salidas, fotos });
   }, [activo]);
 
   useEffect(() => {

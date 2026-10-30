@@ -34,7 +34,7 @@ const TABS = [
   },
 ];
 
-export function FloatingTabBar({ state, navigation, badge = 0 }) {
+export function FloatingTabBar({ state, navigation, badge = 0, badgeCurso = 0 }) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -70,13 +70,16 @@ export function FloatingTabBar({ state, navigation, badge = 0 }) {
                   size={21}
                   color={focused ? ACTIVE : t.textFaint}
                 />
-                {tab.name === "recordatorios" && badge > 0 ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeTxt} maxFontSizeMultiplier={1.1}>
-                      {badge > 9 ? "9+" : badge}
-                    </Text>
-                  </View>
-                ) : null}
+                {(() => {
+                  const n = tab.name === "recordatorios" ? badge : tab.name === "curso" ? badgeCurso : 0;
+                  return n > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeTxt} maxFontSizeMultiplier={1.1}>
+                        {n > 9 ? "9+" : n}
+                      </Text>
+                    </View>
+                  ) : null;
+                })()}
               </View>
               {/* El escalado de accesibilidad se limita a ×1.1: con más, las
                   etiquetas desbordan su slot y se truncan. */}

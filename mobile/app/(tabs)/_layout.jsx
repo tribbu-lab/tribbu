@@ -13,6 +13,7 @@ import { useNotificationRouting } from "../../push/useNotificationRouting";
 import { useNotificaciones, NotificacionesProvider, avisosSinLeer } from "../../features/notificaciones";
 import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
 import { useSalidasNovedades, SalidasProvider } from "../../lib/useSalidasNovedades";
+import { useFotosNovedades, FotosNovedadesProvider } from "../../lib/useFotosNovedades";
 import { columnaCentrada, useInsetsLaterales } from "../../lib/layout";
 
 export default function TabsLayout() {
@@ -27,6 +28,8 @@ export default function TabsLayout() {
   const salidas = useSalidasNovedades({ userId: usuario?.id ?? null, cursoIds, hijoIds: misHijos, esDocente });
   // Comunicaciones = avisos sin leer + mensajes sin leer + salidas nuevas.
   const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0) + salidas.n;
+  // Curso = fotos escolares nuevas (sesión publicada, pago confirmado, entrega).
+  const fotos = useFotosNovedades({ userId: usuario?.id ?? null, cursoIds, hijoIds: misHijos, activo: !esDocente });
   const laterales = useInsetsLaterales();
   useNotificationRouting(true);
 
@@ -39,6 +42,7 @@ export default function TabsLayout() {
     <NotificacionesProvider value={notif}>
     <MensajesProvider value={mensajes}>
     <SalidasProvider value={salidas}>
+    <FotosNovedadesProvider value={fotos}>
     <View style={styles.root}>
       <AppHeader notif={notif} />
       {/* Tablet/plegable: secciones y barra inferior en una columna centrada
@@ -50,7 +54,7 @@ export default function TabsLayout() {
         // cambio de sesión/notificaciones re-renderizaba TODAS las montadas);
         // al volver a una se pone al día de una sola vez.
         screenOptions={{ headerShown: false, freezeOnBlur: true }}
-        tabBar={(props) => <FloatingTabBar {...props} badge={badge} />}
+        tabBar={(props) => <FloatingTabBar {...props} badge={badge} badgeCurso={fotos.n} />}
       >
         {/* Hoy · Agenda (Calendario + Cumpleaños) · Comunicaciones (Avisos +
             Mensajes) · Curso. El resto son pantallas de esas secciones,
@@ -83,6 +87,7 @@ export default function TabsLayout() {
       </View>
       </View>
     </View>
+    </FotosNovedadesProvider>
     </SalidasProvider>
     </MensajesProvider>
     </NotificacionesProvider>

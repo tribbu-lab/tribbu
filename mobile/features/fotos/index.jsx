@@ -15,7 +15,7 @@ import { useRecarga } from "../../lib/useRecarga";
 import { sanitize, fmtLocalDate, fmtM, fmtF } from "@shared/helpers";
 import {
   BUCKET_FOTOS, sesionVencida, totalPedido, validarPedido, copiasParaGuardar, estadoPedido, puedeEditarPedido,
-  fotosDeAlumno, fotoDescargable, textoCopia, formDePedido, firmaPedido,
+  fotosDeAlumno, fotoDescargable, textoCopia, formDePedido, firmaPedido, ofreceDigital, formatoDe, formatosOpcion,
 } from "@shared/fotosEscolares";
 import { THEMES, TYPE, SPACE, RADIUS, SLATE, BLUE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -94,6 +94,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, re
     copias: [...p.copias.filter((c) => !(c.foto_id === fotoId && c.copia_id === copiaId)), ...(n > 0 ? [{ foto_id: fotoId, copia_id: copiaId, cantidad: n }] : [])],
   }));
   const total = totalPedido(sesion, form);
+  const opcionElegida = (sesion.opciones || []).find((o) => o.id === form.opcionId);
 
   const guardar = async () => {
     const err = validarPedido(sesion, form);
@@ -102,6 +103,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, re
     const { error } = await supabase.rpc("guardar_pedido_fotos", {
       p_sesion: sesion.id, p_hijo: hijo.id, p_opcion: form.opcionId, p_foto: form.opcionId ? form.fotoId : null,
       p_copias: copiasParaGuardar(form.copias), p_comentario: sanitize(form.comentario || ""),
+      p_digital: form.opcionId ? formatoDe(opcionElegida, form.digital) : null,
     });
     setGuardando(false);
     if (error) { Alert.alert("No se pudo guardar", error.message?.length < 120 ? error.message : "Probá de nuevo."); return; }
@@ -166,7 +168,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, re
             </View>
           ))}
         </View>
-        <Text style={styles.nota}>Son muestras con marca de agua. {sesion.opciones?.some((o) => o.digital) ? "Con una opción digital, cuando la Secretaría confirme el pago las podés descargar sin marca." : "Las fotos se entregan impresas en el colegio."}</Text>
+        <Text style={styles.nota}>Son muestras con marca de agua. {ofreceDigital(sesion) ? "Si la pedís digital, cuando la Secretaría confirme el pago las podés descargar sin marca." : "Las fotos se entregan impresas en el colegio."}</Text>
 
         {pedido && !editando ? (
           <>
@@ -203,16 +205,33 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio, re
                 <Text style={styles.tituloLista}>Elegí una opción</Text>
                 {sesion.opciones.map((o) => {
                   const on = form.opcionId === o.id;
+                  const formatos = formatosOpcion(o);
                   return (
-                    <Pressable key={o.id} onPress={() => setForm((p) => ({ ...p, opcionId: on ? null : o.id }))} style={[styles.opcion, on && styles.opcionOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+                    <Pressable key={o.id} onPress={() => setForm((p) => ({ ...p, opcionId: on ? null : o.id, digital: on ? null : formatoDe(o, p.digital) }))} style={[styles.opcion, on && styles.opcionOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
                       <View style={styles.cardHead}>
-                        <Text style={styles.opcionNombre}>{o.nombre}{o.digital ? <Text style={styles.digital}>  · DIGITAL</Text> : null}</Text>
-                        <Text style={styles.opcionNombre}>{fmtM(Number(o.precio) || 0)}</Text>
+                        <Text style={styles.opcionNombre}>{o.nombre}{formatos.length === 1 && formatos[0].digital ? <Text style={styles.digital}>  · DIGITAL</Text> : null}</Text>
+                        <Text style={[styles.opcionNombre, styles.precioDer]}>{formatos.length === 1 ? fmtM(formatos[0].precio) : formatos.map((f) => `${f.digital ? "Digital" : "Papel"} ${fmtM(f.precio)}`).join(" · ")}</Text>
                       </View>
                       {o.incluye?.length ? <Text style={styles.incluye}>{o.incluye.join(" · ")}</Text> : null}
                     </Pressable>
                   );
                 })}
+                {formatosOpcion(opcionElegida).length > 1 ? (
+                  <>
+                    <Text style={styles.label}>¿En papel o digital?</Text>
+                    <View style={styles.formatos} accessibilityRole="radiogroup">
+                      {formatosOpcion(opcionElegida).map((f) => {
+                        const on = form.digital === f.digital;
+                        return (
+                          <Pressable key={f.label} onPress={() => setForm((p) => ({ ...p, digital: f.digital }))} style={[styles.opcion, styles.formato, on && styles.opcionOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+                            <Text style={styles.opcionNombre}>{f.label} · {fmtM(f.precio)}</Text>
+                            <Text style={styles.incluye}>{f.digital ? "La descargás sin marca cuando se confirme el pago" : "Se entrega impresa en el colegio"}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </>
+                ) : null}
                 {form.opcionId && propias.length ? (
                   <>
                     <Text style={styles.label}>¿Con qué foto?</Text>
@@ -402,6 +421,9 @@ const styles = StyleSheet.create({
   opcion: { borderWidth: 1.5, borderColor: t.borderStrong, borderRadius: RADIUS.lg, padding: SPACE.md, marginBottom: SPACE.sm, backgroundColor: t.surface },
   opcionOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
   opcionNombre: { fontSize: 14.5, fontWeight: "800", color: t.textStrong },
+  precioDer: { textAlign: "right" },
+  formatos: { flexDirection: "row", gap: SPACE.sm },
+  formato: { flex: 1, marginBottom: 0 },
   digital: { fontSize: 11.5, fontWeight: "700", color: t.accent },
   incluye: { fontSize: 12.5, color: SLATE[600], marginTop: 4, lineHeight: 18 },
   label: { fontSize: 12, fontWeight: "700", color: t.textMuted, marginBottom: 6, marginTop: SPACE.md },
