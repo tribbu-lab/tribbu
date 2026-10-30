@@ -4,7 +4,7 @@
 // alumno. La familia ve solo las de su hijo (y las grupales) con la marca de
 // agua grabada, elige y hace el pedido; si está pagado y la opción es digital,
 // descarga el original. FotosEscolaresColegio es la sección del panel.
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../../supabase";
 import { useCargar } from "../../hooks/useCargar";
 import { useConfirmar } from "../../hooks/useConfirmar";
@@ -73,17 +73,29 @@ function Ampliada({ foto, onClose }) {
   );
 }
 
-async function descargarOriginal(foto) {
-  const nombre = foto.archivo?.toLowerCase().endsWith(".jpg") ? foto.archivo : `${foto.archivo || "foto"}.jpg`;
-  const { data, error } = await supabase.storage.from(BUCKET_FOTOS).createSignedUrl(foto.path, 120, { download: nombre });
-  if (error || !data?.signedUrl) return false;
-  const a = document.createElement("a");
-  a.href = data.signedUrl;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  return true;
+const nombreDescarga = (foto) => (foto.archivo?.toLowerCase().endsWith(".jpg") ? foto.archivo : `${foto.archivo || "foto"}.jpg`);
+
+/**
+ * Links firmados (6 h) de los originales que la familia puede bajar, armados
+ * al abrir la pantalla. "Descargar" es un <a> que se toca directo: si el link
+ * se pedía al tocar y la descarga salía después del await, el navegador la
+ * tomaba como automática y bloqueaba la segunda (solo bajaba una foto).
+ */
+function useLinksDescarga(fotos, pedido) {
+  const [links, setLinks] = useState({});
+  const descargables = fotos.filter((f) => fotoDescargable(f, pedido));
+  const clave = descargables.map((f) => f.id).join(",");
+  useEffect(() => {
+    if (!clave) return undefined;
+    let vivo = true;
+    Promise.all(descargables.map(async (f) => {
+      const { data } = await supabase.storage.from(BUCKET_FOTOS).createSignedUrl(f.path, 21600, { download: nombreDescarga(f) });
+      return [f.id, data?.signedUrl || null];
+    })).then((pares) => { if (vivo) setLinks(Object.fromEntries(pares)); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `clave` resume las fotos descargables
+  }, [clave]);
+  return links;
 }
 
 function Stepper({ valor, onCambio, max = 20, etiqueta }) {
@@ -161,9 +173,7 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
     onVolver();
   };
 
-  const descargar = async (f) => {
-    if (!(await descargarOriginal(f))) setAviso("No se pudo descargar. Probá de nuevo en un rato.");
-  };
+  const links = useLinksDescarga(fotos, pedido);
 
   const est = estadoPedido(pedido);
   const fotoElegida = fotos.find((f) => f.id === pedido?.foto_id);
@@ -189,11 +199,11 @@ function PedidoAlumno({ sesion, hijo, fotos, pedido, tag, onVolver, onCambio }) 
             <FotoProtegida path={f.path_muestra} miniatura alt={f.archivo} onClick={() => setAmpliada(f)} style={{ aspectRatio: "3 / 4", borderRadius: 12 }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, gap: 6 }}>
               <span style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.tipo === "grupal" ? "Grupal" : f.archivo}</span>
-              {fotoDescargable(f, pedido) && (
-                <button onClick={() => descargar(f)} aria-label={`Descargar ${f.archivo}`} style={{ ...linkBtn, display: "flex", alignItems: "center", gap: 3, minHeight: 32 }}>
+              {fotoDescargable(f, pedido) && (links[f.id] ? (
+                <a href={links[f.id]} download={nombreDescarga(f)} aria-label={`Descargar ${f.tipo === "grupal" ? "la foto grupal" : f.archivo}`} style={{ display: "flex", alignItems: "center", gap: 3, minHeight: 32, textDecoration: "none" }}>
                   <Icono nombre="descargar" size={16} color="#2563EB" /><span style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB" }}>Descargar</span>
-                </button>
-              )}
+                </a>
+              ) : <span style={{ fontSize: 12, color: "#94A3B8" }}>Preparando…</span>)}
             </div>
           </div>
         ))}
