@@ -27,11 +27,14 @@ appId: com.tribbu.app
 - inputText: ${DEMO_PASS}
 - hideKeyboard
 - tapOn: "Ingresar"
-- extendedWaitUntil:
-    visible: "Hola.*"
-    timeout: 60000
 # iOS (Contraseñas) y Android (Google Password Manager) ofrecen guardar la
-# contraseña con una hoja que tapa la app.
+# contraseña con una hoja que tapa la app, a veces antes de que se vea el Inicio.
+- extendedWaitUntil:
+    visible: "Hola.*|(?i)not now|ahora no"
+    timeout: 60000
 - tapOn:
     text: "(?i)not now|ahora no"
     optional: true
+- extendedWaitUntil:
+    visible: "Hola.*"
+    timeout: 60000
