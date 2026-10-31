@@ -39,6 +39,7 @@ import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontrado
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
 import { menusParaNivel, nivelDeVista } from "@shared/niveles";
+import { invitacionesDelHijo, festejosDelHijo } from "@shared/festejos";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -72,7 +73,7 @@ const diasHasta = (fechaStr) => {
 
 export function Muro() {
   const router = useRouter();
-  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso, esDocente } = useSession();
+  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso, esDocente, hijoActivoId = null } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab de Avisos + el punto de la campana (hook
   // levantado en (tabs)/_layout.jsx) cuando desde acá se marca un aviso leído
@@ -143,9 +144,13 @@ export function Muro() {
       userId && misHijosIds.length
         ? supabase
             .from("evento_asistencia")
-            .select("id, asiste, alumno_invitado_id, evento:evento_id(id,titulo,fecha,hora,lugar,tipo,curso_id)")
+            // Todas las de mis hijos a festejos de hoy en adelante: las pendientes
+            // van a Pendientes y con todas se sabe de qué hijo es cada festejo
+            // de "Próximos días" (@shared/festejos).
+            .select("id, asiste, alumno_invitado_id, evento:evento_id!inner(id,titulo,fecha,hora,lugar,tipo,alumno_id,curso_id)")
             .in("alumno_invitado_id", misHijosIds)
-            .in("asiste", ["pendiente", "no"])
+            .eq("evento.tipo", "festejo")
+            .gte("evento.fecha", fechaHoy)
         : Promise.resolve({ data: [] }),
       supabase.from("encuestas").select("*").in("curso_id", cursosScope),
       // Perdidos y encontrados: objetos encontrados esta semana en mis cursos / colegio.
@@ -228,11 +233,15 @@ export function Muro() {
     const colectasPend =
       misHijosIds.length && activas.length ? colectasPendientes(activas, pagosData.data || [], misHijosPorCurso) : [];
 
-    // Invitaciones a festejos futuros sin responder (una card por festejo).
-    const invitaciones = festejosPendientes((invitacionesData.data || []).filter((i) => i.asiste === "pendiente"), fechaHoy);
+    // Invitaciones a festejos futuros sin responder (una card por festejo), de
+    // los cursos en vista y, con un hijo elegido, solo las suyas — antes salían
+    // las de todos los hijos (Federico en la vista de Santiago).
+    const asistencias = (invitacionesData.data || []).filter((i) => i.evento && cursosScope.includes(i.evento.curso_id));
+    const filasInv = invitacionesDelHijo(asistencias, hijoActivoId);
+    const invitaciones = festejosPendientes(filasInv.filter((i) => i.asiste === "pendiente"), fechaHoy);
     // Festejos en "Próximos días" (la RLS ya trae solo los que me tocan), menos
-    // los que rechazamos.
-    const rechazados = festejosRechazados(invitacionesData.data || []);
+    // los que rechazamos y los de un hermano del hijo en vista.
+    const rechazados = festejosRechazados(filasInv);
 
     // Encuestas abiertas (ni cerradas ni eliminadas) donde el usuario todavía no votó.
     const votadas = new Set((votosData.data || []).map((v) => v.encuesta_id));
@@ -263,14 +272,14 @@ export function Muro() {
       talleresAbiertos,
       talleresVistos: talleresVistosTxt,
       encontradosSemana,
-      eventos: (eventosData.data || []).filter((e) => e.tipo !== "cumple" && !(e.tipo === "festejo" && rechazados.has(e.id))),
+      eventos: festejosDelHijo((eventosData.data || []).filter((e) => e.tipo !== "cumple" && !(e.tipo === "festejo" && rechazados.has(e.id))), { hijoActivo: hijoActivoId, misHijos: misHijosIds, asistencias }),
     });
     setError(false);
     } catch (e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
       setError(true);
     }
-  }, [cursoIds, userId, misHijos, items, esDocente]);
+  }, [cursoIds, userId, misHijos, items, esDocente, hijoActivoId]);
 
   useEffect(() => {
     setDatos(null);

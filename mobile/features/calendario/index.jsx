@@ -30,6 +30,7 @@ import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO, grillaHorario } f
 import { exportRowsToExcel } from "../../lib/media";
 import { bloquesDeTalleres } from "@shared/talleres";
 import { textoPlano } from "@shared/formato";
+import { festejosDelHijo } from "@shared/festejos";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
 import { etiquetaDocente, separarCumplesDocente } from "@shared/docentes";
 
@@ -65,7 +66,10 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
   const [diaHorario, setDiaHorario] = useState(null);
   const diaHorarioSel = (dias) => (dias.includes(diaHorario) ? diaHorario : dias.includes(diaDeHoy()) ? diaDeHoy() : dias[0]);
   const [mes, setMes] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
-  const [eventos, setEventos] = useState([]);
+  const [eventosCargados, setEventos] = useState([]);
+  // Con un hijo elegido, los festejos de sus hermanos no van (@shared/festejos).
+  const [asistenciasHijos, setAsistenciasHijos] = useState([]);
+  const eventos = festejosDelHijo(eventosCargados, { hijoActivo: esVistaTodos ? null : hijoActivoId, misHijos, asistencias: asistenciasHijos });
   // Quién de los autores es docente: "Laura Fernández · Inglés" (como en la web).
   const docenteDe = useAutoresDocentes(eventos.map((e) => e.creado_por));
   const [cumples, setCumples] = useState([]);
@@ -106,7 +110,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
     const hoyStr = fmtLocalDate(new Date());
     // Docente: la RLS no le deja leer hijos/maestros → cumpleaños por RPC (una sola llamada para las dos listas).
     const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente", { p_cursos: cursoIds }).then((r) => separarCumplesDocente(r.data)) : null;
-    const [ev, al, ma, hor, recs, tal] = await Promise.all([
+    const [ev, al, ma, hor, recs, tal, asis] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase
         .from("eventos")
@@ -137,8 +141,13 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
       misHijos.length
         ? supabase.from("taller_inscripciones").select("taller_id, hijo_id, estado, talleres(id, nombre, estado, fecha_inicio, fecha_fin, profe_texto, taller_horarios(id, taller_id, dia, hora_inicio, hora_fin))").in("hijo_id", misHijos).eq("estado", "inscripto")
         : { data: [] },
+      // De qué hijo es cada festejo (invitado): para no mostrar los de un hermano.
+      misHijos.length && !esDocente
+        ? supabase.from("evento_asistencia").select("evento_id, alumno_invitado_id").in("alumno_invitado_id", misHijos)
+        : { data: [] },
     ]);
     setEventos(ev.data || []);
+    setAsistenciasHijos(asis.data || []);
     setHorarios(hor.data || []);
     setTalleresInsc(tal.data || []);
     setCursoDeHijo(Object.fromEntries((al.data || []).filter((a) => misHijos.includes(a.id)).map((a) => [a.id, a.curso_id])));

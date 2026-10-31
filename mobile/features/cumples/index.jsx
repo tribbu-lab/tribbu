@@ -199,7 +199,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
         ? supabase
             .from("evento_asistencia")
             .select(
-              "*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion,alumno_id)"
+              "*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion,alumno_id,curso_id)"
             )
             .in("alumno_invitado_id", misHijos)
         : Promise.resolve({ data: [] }),
@@ -472,6 +472,12 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
                     {ev.hora ? ` · ${ev.hora}${ev.hora_fin ? ` – ${ev.hora_fin}` : ""}` : ""}
                     {ev.lugar ? ` · ${ev.lugar}` : ""}
                   </Text>
+                  {tagDeCurso(ev.curso_id) ? (
+                    <View style={styles.tagHijo}>
+                      <View style={[styles.tagDot, { backgroundColor: tagDeCurso(ev.curso_id).color }]} />
+                      <Text style={styles.tagTxt} numberOfLines={1}>{tagDeCurso(ev.curso_id).nombre}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View style={[styles.estadoPill, { backgroundColor: estado.bg }]}>
                   <Text style={[styles.estadoTxt, { color: estado.c }]}>{estado.l}</Text>

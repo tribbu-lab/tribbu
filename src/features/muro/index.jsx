@@ -29,6 +29,7 @@ import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontrado
 import { getStorageBackend } from "../../lib/storage";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "../../lib/muro";
 import { menuParaNivel, nivelDeVista } from "../../lib/niveles";
+import { invitacionesDelHijo, festejosDelHijo } from "../../lib/festejos";
 import { Icono } from "../../components/Icono";
 import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
@@ -92,7 +93,7 @@ const Encabezado = ({titulo,cuenta,derecha}) => (
 );
 
 
-export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], esDocente=false, userName, userId, misHijos: misHijosProp=[], onNavigate, isMobile=true }) {
+export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], esDocente=false, userName, userId, misHijos: misHijosProp=[], hijoActivo=null, onNavigate, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -106,7 +107,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
   const cursosKey = cursoIds.join(",");
   const tabActiva = useTabActiva(); // oculta: no carga; al volver, recarga en segundo plano
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{ if(tabActiva) cargar(); },[cursosKey, tabActiva]);
+  useEffect(()=>{ if(tabActiva) cargar(); },[cursosKey, hijoActivo, tabActiva]);
 
   async function cargar() {
     if(!cursoIds.length) return;
@@ -137,7 +138,10 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       cumplesDoc ? cumplesDoc.then(x=>({data:x.hijos})) : supabase.from("hijos").select("id,nombre,apellido,fecha_nacimiento,color,curso_id").in("curso_id",cursoIds),
       cumplesDoc ? cumplesDoc.then(x=>({data:x.maestros})) : supabase.from("maestros").select("id,nombre,apellido,fecha_nacimiento, maestro_cursos!inner(curso_id)").in("maestro_cursos.curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).gte("fecha",fechaHoy).lte("fecha",fecha15).order("fecha"),
-      (userId && misHijos.length) ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).in("asiste",["pendiente","no"]) : Promise.resolve({data:[]}),
+      (userId && misHijos.length) ? // Todas las invitaciones de mis hijos a festejos de hoy en adelante: las
+      // pendientes van a Pendientes y con todas se sabe de qué hijo es cada
+      // festejo de "Próximos días" (@shared/festejos).
+      supabase.from("evento_asistencia").select("*, evento:evento_id!inner(id,titulo,fecha,hora,hora_fin,lugar,tipo,alumno_id,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos).eq("evento.tipo","festejo").gte("evento.fecha",fechaHoy) : Promise.resolve({data:[]}),
       supabase.from("encuestas").select("*").in("curso_id",cursoIds),
       // Perdidos y encontrados: objetos encontrados esta semana en mis cursos / colegio.
       supabase.from("objetos_perdidos").select("id,tipo,estado,vence_en,creado_en,publicado_por")
@@ -202,13 +206,15 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     const colectasPend = (misHijosIds.length && activas.length) ? colectasPendientes(activas, pagosData.data||[], misHijosPorCurso) : [];
     // Una alerta activa por curso (la más reciente), hasta 3
     const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
-    // Un festejo por card (aunque haya varios hijos invitados) y solo los que no pasaron.
-    const filasInv = (invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id));
+    // Un festejo por card (aunque haya varios hijos invitados), solo los que no
+    // pasaron y, con un hijo elegido, solo los suyos (no los de sus hermanos).
+    const asistencias = (invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id));
+    const filasInv = invitacionesDelHijo(asistencias, hijoActivo);
     const invitaciones = festejosPendientes(filasInv.filter(i=>i.asiste==="pendiente"), fechaHoy);
     // Festejos en "Próximos días" (la RLS ya trae solo los que me tocan), menos
     // los que rechazamos.
     const rechazados = festejosRechazados(filasInv);
-    setDatos({ alertas:alertasPorCurso, menu:menuParaNivel(menu.data, nivelDeVista(items, cursoIds)), recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:(eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), invitaciones, hijosData:hijosData.data||[] });
+    setDatos({ alertas:alertasPorCurso, menu:menuParaNivel(menu.data, nivelDeVista(items, cursoIds)), recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:festejosDelHijo((eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), { hijoActivo, misHijos, asistencias }), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);

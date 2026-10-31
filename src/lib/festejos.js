@@ -42,6 +42,43 @@ export const fmtEdadesHermanos = (edades) => {
  * (`hijoActivo` null = todos), ordenadas por fecha.
  */
 export const invitacionesVigentes = (filas = [], hoyStr, hijoActivo = null) =>
-  filas
-    .filter((i) => i.evento && i.evento.tipo === "festejo" && i.evento.fecha && i.evento.fecha >= hoyStr && (hijoActivo === null || i.alumno_invitado_id === hijoActivo))
+  invitacionesDelHijo(filas, hijoActivo)
+    .filter((i) => i.evento && i.evento.tipo === "festejo" && i.evento.fecha && i.evento.fecha >= hoyStr)
     .sort((a, b) => (a.evento.fecha + (a.evento.hora || "")).localeCompare(b.evento.fecha + (b.evento.hora || "")));
+
+// ── Festejos por hijo ("Mi acceso") ─────────────────────────────────────────
+// La RLS deja ver un festejo a toda la familia de un invitado (o del
+// cumpleañero) y las pantallas leen por curso: con un hijo elegido eso no
+// alcanza — los festejos de un hermano se colaban (Hoy en la app no filtraba
+// ni por curso; con hermanos en el mismo curso ningún filtro por curso sirve).
+// Regla: con un hijo elegido, un festejo va si ese hijo es el cumpleañero o
+// está invitado. Si ninguno de mis hijos lo es (lo organicé yo para otro, me
+// invitaron directo), va en cualquier vista de su curso. En "Todos"
+// (`hijoActivo` null) va todo lo que trae la RLS.
+
+/** Filas de evento_asistencia del hijo en vista (`hijoActivo` null = todas). */
+export function invitacionesDelHijo(filas = [], hijoActivo = null) {
+  return hijoActivo ? filas.filter((f) => f.alumno_invitado_id === hijoActivo) : filas;
+}
+
+/**
+ * Saca de `eventos` los festejos que en la vista de `hijoActivo` son de un
+ * hermano. `asistencias` = filas de evento_asistencia de mis hijos (con
+ * `evento_id` o el join `evento`); los demás tipos de evento pasan igual.
+ */
+export const festejosDelHijo = (eventos = [], { hijoActivo = null, misHijos = [], asistencias = [] } = {}) => {
+  if (!hijoActivo) return eventos;
+  const invitados = new Map(); // evento_id → Set(hijos míos invitados o cumpleañeros)
+  const sumar = (id, hijo) => {
+    if (!id || !hijo || !misHijos.includes(hijo)) return;
+    if (!invitados.has(id)) invitados.set(id, new Set());
+    invitados.get(id).add(hijo);
+  };
+  for (const f of asistencias) sumar(f.evento_id || f.evento?.id, f.alumno_invitado_id);
+  return eventos.filter((e) => {
+    if (e.tipo !== "festejo") return true;
+    sumar(e.id, e.alumno_id);
+    const mios = invitados.get(e.id);
+    return !mios || mios.has(hijoActivo);
+  });
+};

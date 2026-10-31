@@ -118,7 +118,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
       supabase.from("cumples").select("*, responsable:responsable_id(id,nombre,apellido)").in("curso_id",cursoIds),
       supabase.from("eventos").select("*").in("curso_id",cursoIds).eq("tipo","festejo"),
       // Traer invitaciones de los hijos del usuario en estos cursos (RLS filtra por apoderado del hijo)
-      userId && misHijos?.length ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion)").in("alumno_invitado_id", misHijos) : Promise.resolve({data:[]}),
+      userId && misHijos?.length ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos) : Promise.resolve({data:[]}),
     ]);
     // Monto sugerido por familia: en vista Todos solo se muestra si todos los cursos coinciden.
     const { data: cursosData } = await supabase.from("cursos").select("monto_regalo,moneda_regalo").in("id",cursoIds);
@@ -334,6 +334,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                     <div>
                       <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
                       <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}${ev.hora_fin?` – ${ev.hora_fin}`:""}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
+                      {tagDeCurso(ev.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:4,marginRight:6}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(ev.curso_id).color,flexShrink:0}}/><span style={{fontSize:10,fontWeight:700,color:"#64748B"}}>{tagDeCurso(ev.curso_id).nombre}</span></span>}
                       {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
                       {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
                       {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}
@@ -421,6 +422,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
                     <div>
                       <div style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>{ev.titulo}</div>
                       <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{fmtF(ev.fecha)}{ev.hora?` · ${ev.hora}${ev.hora_fin?` – ${ev.hora_fin}`:""}`:""}{ev.lugar?` · ${ev.lugar}`:""}</div>
+                      {tagDeCurso(ev.curso_id)&&<span style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:4,marginRight:6}}><span style={{width:8,height:8,borderRadius:"50%",background:tagDeCurso(ev.curso_id).color,flexShrink:0}}/><span style={{fontSize:10,fontWeight:700,color:"#64748B"}}>{tagDeCurso(ev.curso_id).nombre}</span></span>}
                       {inv.asiste==="si"&&<span style={{fontSize:10,fontWeight:700,color:"#10B981",background:"#F0FDF4",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Confirmado</span>}
                       {inv.asiste==="no"&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEF2F2",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>No va</span>}
                       {(!inv.asiste||inv.asiste==="pendiente")&&<span style={{fontSize:10,fontWeight:700,color:"#F59E0B",background:"#FFFBEB",padding:"2px 7px",borderRadius:8,marginTop:4,display:"inline-block"}}>Pendiente</span>}

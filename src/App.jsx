@@ -582,7 +582,7 @@ function App() {
     // Si es padre, solo pasar el hijo activo (no todos los hijos)
     const hijoActivoId = itemActual?._tipo==="hijo" ? itemActual?.id : null;
     switch(t) {
-      case "muro":     return <Muro selector={selectorHijos} cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} esDocente={esDocente} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
+      case "muro":     return <Muro selector={selectorHijos} cursoId={cursoId} cursoIds={cursoIds} items={items} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursoNombre={cursoNombre} isAdmin={isAdmin} cursosAdmin={cursosAdmin} esDocente={esDocente} userName={usuario.nombre?.split(" ")[0]||""} userId={usuario.id} misHijos={misHijosActivos} hijoActivo={hijoActivoId} onNavigate={navegarA} onBadgeChange={()=>recargarNotifs()} isMobile={isMobile}/>;
       case "clases":   return <Calendario cursosDocente={cursosDocente} cursosAdmin={cursosAdmin} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId} openFecha={openFecha} onClearOpenFecha={()=>setOpenFecha(null)}/>;
       // Horario de clases: pestaña propia de Agenda (antes era una vista del Calendario).
       case "horario":  return <Calendario soloHorario cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} hijoActivo={hijoActivoId}/>;

@@ -28,6 +28,7 @@ import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
 import { diasVisibles, normalizarDia, grillaHorario } from "../../lib/horarios";
 import { bloquesDeTalleres } from "../../lib/talleres";
 import { textoPlano } from "../../lib/formato";
+import { festejosDelHijo } from "../../lib/festejos";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -72,7 +73,10 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   // soloHorario: la pestaña "Horario" de Agenda (App.jsx, tab "horario").
   const [vista,   setVista]   = useState(soloHorario ? "horario" : "mes");
   const [mes,     setMes]     = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
-  const [eventos, setEventos] = useState([]);
+  const [eventosCargados, setEventos] = useState([]);
+  // Con un hijo elegido, los festejos de sus hermanos no van (@shared/festejos).
+  const [asistenciasHijos, setAsistenciasHijos] = useState([]);
+  const eventos = festejosDelHijo(eventosCargados, { hijoActivo: esVistaTodos ? null : hijoActivo, misHijos, asistencias: asistenciasHijos });
   // Eventos publicados por docentes: etiqueta "👩‍🏫 Laura · Inglés".
   const docenteDe = useAutoresDocentes(eventos.map(e=>e.creado_por));
   const [cumples, setCumples] = useState([]);
@@ -112,7 +116,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   const cargar = useCallback(async () => {
     if(!cursoIds?.length || !rangoEventos) return;
     const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente", { p_cursos: cursoIds }).then(r=>separarCumplesDocente(r.data)) : null;
-    const [ev, al, ma, hor, col, tal] = await Promise.all([
+    const [ev, al, ma, hor, col, tal, asis] = await Promise.all([
       // Solo los que se solapan con el rango cargado (ver rangoEventos arriba).
       supabase.from("eventos").select("*").in("curso_id", cursoIds)
         .lte("fecha", rangoEventos.hasta).or(filtroDesdeEventos(rangoEventos.desde)).order("fecha"),
@@ -131,8 +135,13 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
       misHijos.length
         ? supabase.from("taller_inscripciones").select("taller_id, hijo_id, estado, talleres(id, nombre, estado, fecha_inicio, fecha_fin, profe_texto, taller_horarios(id, taller_id, dia, hora_inicio, hora_fin))").in("hijo_id", misHijos).eq("estado", "inscripto")
         : { data: [] },
+      // De qué hijo es cada festejo (invitado): para no mostrar los de un hermano.
+      misHijos.length && !esDocente
+        ? supabase.from("evento_asistencia").select("evento_id, alumno_invitado_id").in("alumno_invitado_id", misHijos)
+        : { data: [] },
     ]);
     setEventos(ev.data||[]);
+    setAsistenciasHijos(asis.data||[]);
     setHorarios(hor.data||[]);
     setTalleresInsc(tal.data||[]);
     setCursoDeHijo(Object.fromEntries((al.data||[]).filter(a=>misHijos.includes(a.id)).map(a=>[a.id,a.curso_id])));
