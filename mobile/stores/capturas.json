@@ -1,6 +1,6 @@
 {
   "_doc": "Capturas de las fichas de App Store y Google Play. Lo usan scripts/capturas-tienda.mjs (detectar / capturar) y scripts/promover-release.mjs (subir). Spec: specs/capturas-de-tienda-al-dia.md. 'desde' = commit del código del que salió el set actual (lo escribe 'capturar'). Cada captura: 'ruta' (deep link tribbu://<ruta>), 'pasos' opcionales (comandos de Maestro después de abrirla), 'debeVer'/'noDebeVer' (regex de Maestro; usar textos que aparecen recién con los datos de supabase/demo-al-dia.sql, no títulos fijos, o la captura sale antes de que carguen) y 'fuentes'. Un cambio en 'comunes' o en las 'fuentes' de una captura desde ese commit deja viejo el set entero.",
-  "desde": "4aa06c5",
+  "desde": "2d65283",
   "comunes": [
     "mobile/app/(tabs)/_layout.jsx",
     "mobile/components/",
