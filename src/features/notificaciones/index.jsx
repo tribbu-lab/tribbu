@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { fmtLocalDate } from "../../lib/helpers";
 import { useCargar } from "../../hooks/useCargar";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios } from "../../lib/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios, SELECT_ALERTA_CON_CERRADA, conCerradaDe, sinCerradas } from "../../lib/leidos";
 import { useAutoresDocentes } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente } from "../../lib/docentes";
 import { textoPlano } from "../../lib/formato";
@@ -33,7 +33,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .or(`fecha.is.null,fecha.gte.${hoy}`)
         .or(filtroNoPropios(userId))
         .order("fecha", { ascending: true, nullsFirst: false }),
-      supabase.from("alertas").select("*").in("curso_id", cursoIds).eq("activa", true)
+      conCerradaDe(supabase.from("alertas").select(SELECT_ALERTA_CON_CERRADA), userId).in("curso_id", cursoIds).eq("activa", true)
         .order("creado_en", { ascending: false }).limit(3),
     ]);
 
@@ -41,7 +41,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     setLeidos(leidosSet);
 
     // Combinar alertas + recordatorios en una sola lista
-    const alertasNotifs = (alertas.data||[]).map(a => ({
+    const alertasNotifs = sinCerradas(alertas.data).map(a => ({
       id: `alerta-${a.id}`,
       _tipo: "alerta",
       texto: a.mensaje,

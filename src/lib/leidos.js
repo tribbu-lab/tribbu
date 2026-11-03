@@ -38,3 +38,18 @@ export const conPropiosLeidos = (recs, leidos, userId) =>
 
 /** Filtro .or() de PostgREST: avisos que NO publiqué yo (los sin autor también). */
 export const filtroNoPropios = (userId) => `creado_por.is.null,creado_por.neq.${userId}`;
+
+// Alertas del curso cerradas "para mí" (alerta_cerradas): mismo embebido que
+// los leídos de avisos. Cerrarla no la apaga para el resto del curso.
+export const SELECT_ALERTA_CON_CERRADA = "*, alerta_cerradas(alerta_id)";
+
+/** Aplica el filtro "cerradas por mí" a una consulta de alertas. */
+export const conCerradaDe = (query, userId) =>
+  userId ? query.eq("alerta_cerradas.usuario_id", userId) : query;
+
+/** Saca las alertas que cerré y el embebido de las demás. */
+export const sinCerradas = (rows) => {
+  const abiertas = [];
+  for (const { alerta_cerradas: c, ...a } of rows || []) if (!c?.length) abiertas.push(a);
+  return abiertas;
+};

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { T } from "@shared/theme";
 import { fmtLocalDate } from "@shared/helpers";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios } from "@shared/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, filtroNoPropios, SELECT_ALERTA_CON_CERRADA, conCerradaDe, sinCerradas } from "@shared/leidos";
 
 // Contexto para compartir el resultado de useNotificaciones (levantado una sola
 // vez en app/(tabs)/_layout.jsx) con las pantallas de tabs. Sin esto, la tab
@@ -43,9 +43,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
         .or(filtroNoPropios(userId))
         .order("fecha", { ascending: true, nullsFirst: false })
         .limit(30),
-      supabase
-        .from("alertas")
-        .select("*")
+      conCerradaDe(supabase.from("alertas").select(SELECT_ALERTA_CON_CERRADA), userId)
         .in("curso_id", cursoIds)
         .eq("activa", true)
         .order("creado_en", { ascending: false })
@@ -55,7 +53,7 @@ export function useNotificaciones({ cursoIds, userId, active }) {
     const { recs: recsLimpios, leidos: leidosSet } = separarLeidos(recs.data);
     setLeidos(leidosSet);
 
-    const alertasNotifs = (alertas.data || []).map((a) => ({
+    const alertasNotifs = sinCerradas(alertas.data).map((a) => ({
       id: `alerta-${a.id}`,
       _tipo: "alerta",
       texto: a.mensaje,

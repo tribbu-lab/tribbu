@@ -33,7 +33,7 @@ import { invitacionesDelHijo, festejosDelHijo } from "../../lib/festejos";
 import { Icono } from "../../components/Icono";
 import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "../../lib/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, SELECT_ALERTA_CON_CERRADA, conCerradaDe, sinCerradas } from "../../lib/leidos";
 import { useAutoresDocentes as useAutoresDocentesHook } from "../../hooks/useAutoresDocentes";
 import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
 import { textoPlano } from "../../lib/formato";
@@ -121,7 +121,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     const colegios = [...new Set(cursoIds.map(cid=>(items||[]).find(i=>i.curso_id===cid)?.cursos?.colegio_id).filter(Boolean))];
     const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente",{p_cursos:cursoIds}).then(r=>separarCumplesDocente(r.data)) : null;
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,encuestasData,objsData,autsData,talleresData,tallerInscData] = await Promise.all([
-      supabase.from("alertas").select("*").in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
+      conCerradaDe(supabase.from("alertas").select(SELECT_ALERTA_CON_CERRADA), userId).in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
       // Puede haber un menú general y otros por nivel (roles-por-nivel): se elige abajo.
       supabase.from("menu").select("*").eq("fecha",fechaHoy),
       // Solo los que pueden ser "pendientes" (recordatoriosPendientes): sin
@@ -204,8 +204,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // Colectas que gestiono y llevan 15+ días vencidas → "¿la cerrás?"
     const porCerrar = colectasPorCerrar(cuotas.data||[], userId, cursosAdmin, fechaHoy);
     const colectasPend = (misHijosIds.length && activas.length) ? colectasPendientes(activas, pagosData.data||[], misHijosPorCurso) : [];
-    // Una alerta activa por curso (la más reciente), hasta 3
-    const alertasPorCurso = alertasUnaPorCurso(alertasRes.data||[]);
+    // Una alerta activa por curso (la más reciente), hasta 3, sin las que cerré
+    const alertasPorCurso = sinCerradas(alertasUnaPorCurso(alertasRes.data||[]));
     // Un festejo por card (aunque haya varios hijos invitados), solo los que no
     // pasaron y, con un hijo elegido, solo los suyos (no los de sus hermanos).
     const asistencias = (invitacionesData.data||[]).filter(i=>i.evento && cursoIds.includes(i.evento.curso_id));
@@ -230,6 +230,12 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
 
   const dismissAlerta = async (alerta) => {
     if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
+  };
+  // Apoderado (o vista Todos): la cierra solo para sí; sigue activa para el curso.
+  const cerrarAlerta = async (alerta) => {
+    if(!alerta || !userId) return;
+    setDatos((d) => ({ ...d, alertas:(d.alertas||[]).filter((a)=>a.id!==alerta.id) }));
+    await supabase.from("alerta_cerradas").upsert({alerta_id:alerta.id, usuario_id:userId}, {onConflict:"alerta_id,usuario_id", ignoreDuplicates:true});
   };
 
   // Sin datos todavía: si ya falló el primer intento, mostrar el error con
@@ -475,7 +481,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
           </div>
           <div style={{fontSize:14,fontWeight:600,color:"#0F172A",marginTop:3,lineHeight:1.45}}>{al.mensaje}</div>
         </div>
-        {isAdmin&&<button onClick={()=>dismissAlerta(al)} aria-label="Quitar alerta" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#94A3B8",padding:2}}>✕</button>}
+        <button onClick={()=>isAdmin?dismissAlerta(al):cerrarAlerta(al)} aria-label={isAdmin?"Quitar alerta para todo el curso":"Cerrar alerta"} title={isAdmin?"Quitar alerta para todo el curso":"Cerrar alerta"} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#94A3B8",padding:2}}>✕</button>
       </div>
     );
   });
