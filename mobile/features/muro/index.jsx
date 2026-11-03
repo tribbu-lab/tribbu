@@ -40,7 +40,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
 import { menusParaNivel, nivelDeVista } from "@shared/niveles";
 import { invitacionesDelHijo, festejosDelHijo } from "@shared/festejos";
-import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe } from "@shared/leidos";
+import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, SELECT_ALERTA_CON_CERRADA, conCerradaDe, sinCerradas } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -124,7 +124,7 @@ export function Muro() {
       talleresData,
       tallerInscData,
     ] = await Promise.all([
-      supabase.from("alertas").select("*").in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
+      conCerradaDe(supabase.from("alertas").select(SELECT_ALERTA_CON_CERRADA), userId).in("curso_id", cursosScope).eq("activa", true).order("creado_en", { ascending: false }).limit(3),
       // Puede haber un menú general y otros por nivel (roles-por-nivel): se elige abajo.
       supabase.from("menu").select("*").eq("fecha", fechaHoy),
       supabase.from("menu").select("*").gt("fecha", fechaHoy).order("fecha").limit(8),
@@ -259,7 +259,7 @@ export function Muro() {
     });
 
     setDatos({
-      alertas: alertasUnaPorCurso(alerta.data || []),
+      alertas: sinCerradas(alertasUnaPorCurso(alerta.data || [])),
       menu: menusParaNivel(menu.data, nivelDeVista(items, cursosScope))[0] || null,
       menuProx: menusParaNivel(menuProx.data, nivelDeVista(items, cursosScope))[0] || null,
       recordatorios: recsNoLeidos,
@@ -308,6 +308,14 @@ export function Muro() {
     if (!alertaId) return;
     await supabase.from("alertas").update({ activa: false }).eq("id", alertaId);
     cargar();
+    recargarBadge?.();
+  };
+
+  // Apoderado (o vista Todos): la cierra solo para sí; sigue activa para el curso.
+  const cerrarAlerta = async (alertaId) => {
+    if (!alertaId || !userId) return;
+    setDatos((d) => ({ ...d, alertas: (d.alertas || []).filter((a) => a.id !== alertaId) }));
+    await supabase.from("alerta_cerradas").upsert({ alerta_id: alertaId, usuario_id: userId }, { onConflict: "alerta_id,usuario_id", ignoreDuplicates: true });
     recargarBadge?.();
   };
 
@@ -462,11 +470,15 @@ export function Muro() {
             </View>
             <Text style={styles.alertaMsg}>{a.mensaje}</Text>
           </View>
-          {isAdmin ? (
-            <Pressable onPress={() => dismissAlerta(a.id)} hitSlop={8} style={styles.alertaClose} accessibilityLabel="Quitar alerta">
-              <MaterialCommunityIcons name="close" size={18} color={SLATE[400]} />
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={() => (isAdmin ? dismissAlerta(a.id) : cerrarAlerta(a.id))}
+            hitSlop={12}
+            style={styles.alertaClose}
+            accessibilityRole="button"
+            accessibilityLabel={isAdmin ? "Quitar alerta para todo el curso" : "Cerrar alerta"}
+          >
+            <MaterialCommunityIcons name="close" size={18} color={SLATE[400]} />
+          </Pressable>
         </View>
       ))}
 
