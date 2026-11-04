@@ -57,7 +57,7 @@ export function AppHeader() {
   return (
     // Fondo de borde a borde; el contenido se alinea con la columna centrada
     // de las secciones en pantallas anchas (lib/layout).
-    <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + 6, paddingLeft: SPACE.lg + insets.left, paddingRight: SPACE.lg + insets.right }]}>
+    <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top + SPACE.sm, paddingLeft: SPACE.lg + insets.left, paddingRight: SPACE.lg + insets.right }]}>
       <View style={styles.topRow}>
         <View style={styles.brandRow}>
           {/* Punto del wordmark en el color de marca del colegio (si tiene uno válido). */}
@@ -69,17 +69,17 @@ export function AppHeader() {
           ) : null}
         </View>
         <View style={styles.actions}>
-          <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Buscar">
-            <MaterialCommunityIcons name="magnify" size={18} color="rgba(255,255,255,0.85)" />
+          <Pressable onPress={() => router.push("/(tabs)/buscar")} style={styles.iconBtn} hitSlop={4} accessibilityRole="button" accessibilityLabel="Buscar">
+            <MaterialCommunityIcons name="magnify" size={20} color="rgba(255,255,255,0.85)" />
           </Pressable>
           <Pressable
             onPress={() => router.navigate("/(tabs)/mensajes")}
             style={styles.iconBtn}
-            hitSlop={8}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel={noLeidos ? `Mensajes, ${noLeidos} sin leer` : "Mensajes"}
           >
-            <MaterialCommunityIcons name="message-text-outline" size={18} color="rgba(255,255,255,0.85)" />
+            <MaterialCommunityIcons name="message-text-outline" size={20} color="rgba(255,255,255,0.85)" />
             {noLeidos > 0 ? (
               <View style={styles.msjBadge}>
                 <Text style={styles.msjBadgeTxt}>{noLeidos > 9 ? "9+" : noLeidos}</Text>
@@ -91,19 +91,19 @@ export function AppHeader() {
               <Pressable
                 onPress={() => setColorPickerItem(unicoHijo)}
                 style={styles.kidChip}
-                hitSlop={6}
+                hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel={`Color de ${unicoHijo.nombre}`}
               >
                 <View style={[styles.kidDot, { backgroundColor: colorDeItem(unicoHijo) }]} />
-                <Text style={styles.kidName}>{unicoHijo.nombre?.split(" ")[0]}</Text>
+                <Text style={styles.kidName} numberOfLines={1}>{unicoHijo.nombre?.split(" ")[0]}</Text>
                 <MaterialCommunityIcons name="palette-outline" size={13} color="rgba(255,255,255,0.55)" />
               </Pressable>
             </>
           ) : null}
           {/* Mi cuenta (antes al final de "Más"). */}
-          <Pressable onPress={() => router.push("/(tabs)/cuenta")} hitSlop={6} accessibilityRole="button" accessibilityLabel="Mi cuenta">
-            <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={34} oscuro />
+          <Pressable onPress={() => router.push("/(tabs)/cuenta")} hitSlop={4} accessibilityRole="button" accessibilityLabel="Mi cuenta">
+            <AvatarPerfil usuario={usuario} foto={fotoPerfil} size={36} oscuro />
           </Pressable>
         </View>
       </View>
@@ -158,16 +158,19 @@ function ColorPicker({ item, currentColor, onPick, onClose }) {
 // El header es la superficie de marca: siempre dark, estilado con THEMES.dark
 // (el mismo set de tokens del login).
 const styles = StyleSheet.create({
-  header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: 10 },
+  // 8 + fila de 44 (objetivo táctil) + 8 = 60 pt debajo del safe area, con los
+  // controles de 36 centrados: el mismo aire arriba y abajo.
+  header: { backgroundColor: dk.bg, paddingHorizontal: SPACE.lg, paddingBottom: SPACE.sm },
   // Ancho de la columna menos su padding (SPACE.lg por lado), para que el logo
   // y Mi cuenta queden alineados con el contenido de abajo.
-  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", maxWidth: ANCHO_MAX_CONTENIDO - 2 * SPACE.lg, alignSelf: "center" },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: SPACE.sm, width: "100%", maxWidth: ANCHO_MAX_CONTENIDO - 2 * SPACE.lg, alignSelf: "center", minHeight: MIN_TOUCH },
   brandRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   colegioLogo: { width: TYPE.h1.fontSize, height: TYPE.h1.fontSize, borderRadius: RADIUS.sm, backgroundColor: "rgba(255,255,255,0.9)" },
-  actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
+  // En un teléfono angosto lo que cede es el nombre del hijo ("Luc…"), no el avatar.
+  actions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, flexShrink: 1 },
   iconBtn: {
-    minWidth: 34,
-    minHeight: 34,
+    minWidth: 36,
+    minHeight: 36,
     borderRadius: RADIUS.md,
     backgroundColor: dk.surface2,
     alignItems: "center",
@@ -214,13 +217,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    minHeight: 34,
+    minHeight: 36,
+    flexShrink: 1,
     paddingHorizontal: SPACE.md,
     borderRadius: RADIUS.full,
     backgroundColor: dk.surface2,
   },
   kidDot: { width: 10, height: 10, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.45)" },
-  kidName: { ...TYPE.chip, fontWeight: "700", color: dk.textStrong },
+  kidName: { ...TYPE.chip, fontWeight: "700", color: dk.textStrong, flexShrink: 1 },
   selector: { gap: 6, paddingTop: 10, alignItems: "center" },
   selItemWrap: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, marginRight: 6 },
   chip: {
