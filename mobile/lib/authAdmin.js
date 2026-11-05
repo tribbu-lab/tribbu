@@ -65,3 +65,7 @@ export const authAdminUpdate = (auth_id, { email, password, current_email } = {}
   callManageAuthUser("update", { auth_id, email, password, current_email });
 
 export const authAdminFind = (email) => callManageAuthUser("find", { email });
+
+// Borra del todo a otro usuario (datos, fila de usuarios y Auth), desde el panel
+// del colegio. La Edge Function chequea el alcance. Tira error si no se pudo.
+export const authAdminDelete = (usuario_id) => callManageAuthUser("delete", { usuario_id });
