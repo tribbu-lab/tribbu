@@ -54,7 +54,7 @@ import { Sheet } from "../../components/Sheet";
 import { CuentasEnCelular } from "../../components/CuentasEnCelular";
 import { PagosColegio } from "../pagosColegio";
 import { EmptyState } from "../../components/EmptyState";
-import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
+import { useNoLeidosPanel, recontarPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
 import { CambiarPasswordModal } from "../auth";
 import { BLUE } from "@shared/tokens";

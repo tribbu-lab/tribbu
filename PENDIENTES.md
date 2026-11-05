@@ -205,7 +205,6 @@ web y app juntas, mostrar capturas antes de commitear.
 
 - [ ] Probar en un celular real los push de pagos, recordatorio y reenvío de comunicado, y el aviso automático dos días antes.
 - [ ] Ver con la Secretaría de Primaria en la app el globito de pagos por confirmar (en la web ya se probó).
-- [ ] Definir si la familia recibe un aviso cuando el colegio confirma el pago.
 
 ## Más adelante
 
