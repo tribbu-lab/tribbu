@@ -5,8 +5,8 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 ## Eliminar apoderado (2026-11-05)
 
-- [ ] **Desplegar `manage-auth-user`** con la acción `delete` (antes de que salga
-      la web) y probarlo a mano con una cuenta de prueba: no queda fila en
+- [ ] **Aplicar `supabase/borrado-de-usuarios.sql`** y después **desplegar
+      `manage-auth-user`** con la acción `delete` (antes de que salga la web) y probarlo a mano con una cuenta de prueba: no queda fila en
       `usuarios` ni en Auth, y el mail se puede volver a usar.
 - [ ] **Apoderado sin hijos ni cursos** que quedó en producción (1 de 74, causa
       no confirmada): revisarlo y, si corresponde, borrarlo como `super`.
