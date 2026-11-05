@@ -10,6 +10,7 @@ import { ESTADO_PAGO, celularesAvisados, cuentasActivasDeAlumno, textoAvisoPago,
 import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { useRecarga } from "../../lib/useRecarga";
+import { usePagosPendientesCtx } from "../../lib/usePagosPendientes";
 import { useSession } from "../../context/Session";
 import { Sheet } from "../../components/Sheet";
 import { BotonNuevo } from "../../components/BotonNuevo";
@@ -35,6 +36,8 @@ const idsDe = (data) => (data || []).map((x) => x?.familias_pendientes_pago_cole
 // ── Familias ─────────────────────────────────────────────────────────────────
 export function PagosFamilia() {
   const { cursoIds, items, misHijos, tagDeCurso } = useSession();
+  // Globito de Curso (app/(tabs)/_layout): baja apenas se avisa "Ya pagué".
+  const recargarGlobito = usePagosPendientesCtx().recargar;
   const [filas, setFilas] = useState(null);
   const [guardando, setGuardando] = useState(null);
   const nombreDe = useMemo(() => new Map((items || []).filter((i) => i._tipo === "hijo").map((i) => [i.id, i.nombre?.split(" ")[0]])), [items]);
@@ -64,6 +67,7 @@ export function PagosFamilia() {
     setGuardando(null);
     if (error) { Alert.alert("No se pudo guardar", error.message); return; }
     cargar();
+    recargarGlobito();
   };
 
   return (
