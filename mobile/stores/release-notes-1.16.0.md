@@ -4,7 +4,7 @@ Commits `2d65283..` (desde 1.15.0, la última publicada). Compilada en los servi
 
 Las capturas de las fichas quedaron viejas según `capturas-tienda.mjs detectar` (cambió el header): regenerarlas en la Mac antes de `/store-promote`.
 
-Login y onboarding no cambian para la cuenta demo, que sigue valiendo. Las Review Notes suman una oración sobre varias cuentas en "HOW USERS GET AN ACCOUNT".
+Login y onboarding no cambian para la cuenta demo, que sigue valiendo. Las Review Notes quedan igual que en 1.15.0: ya están al borde del límite de 4000 caracteres de ASC y la función es opcional.
 
 ## Google Play — "Novedades" (máx. 500 caracteres)
 
@@ -31,7 +31,7 @@ Para los colegios
 
 ## App Review — "Notas" (App Store Connect → Información de la revisión de la app)
 
-Igual que 1.15.0 con una oración nueva sobre "Agregar otra cuenta". Ruta verificada contra el código: Mi cuenta → Agregar otra cuenta (`(tabs)/cuenta`).
+Igual que 1.15.0.
 
 ```
 tribbu is a school-community app for parents and guardians of school-age children. Any school can adopt it; it is not built for or restricted to a single organization.
@@ -48,7 +48,7 @@ USER-GENERATED CONTENT (Mensajes)
 Families of the same classroom can message each other, the classroom group, their children's teachers and the school office. Before writing to other families, users must accept the chat rules. Any message from another family can be reported (tap the message → Denunciar) and any user can be blocked (chat menu, or tap their message → Bloquear). Reports are reviewed by the school; blocked users are in Mi cuenta → Usuarios bloqueados. Families' phone numbers and emails are never shown to other users. To try it: Comunicaciones → Mensajes → + Nuevo (the demo classroom has another family).
 
 HOW USERS GET AN ACCOUNT
-Accounts are created by the school from its admin panel (one by one or from a spreadsheet). There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. Each school manages its own accounts, so a parent with children in two schools has one account per school; Mi cuenta → "Agregar otra cuenta" keeps both on the same phone and switches between them (optional, the demo account does not need it). A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
+Accounts are created by the school from its admin panel (one by one or from a spreadsheet). There is no public sign-up screen in the app. Schools join tribbu through www.tribbu.ar or info@tribbu.ar. A user who forgets their password can reset it from the login screen ("¿Olvidaste tu contraseña?"), which emails a reset link.
 
 PAYMENTS
 The app is free: no in-app purchases, subscriptions or ads, and no money is processed through the app. "Colectas" only keeps track of a class collection (for example, a gift for the teacher): families pay outside the app (for example, by bank transfer), can tap "Ya transferí" to let the organizer know, and the organizer confirms it. In "Marketplace", families of the same school can list used items (uniforms, books); tapping "Me interesa" opens an in-app chat with the seller, and they arrange the exchange there (no payment goes through the app). "Fotos escolares" replaces the paper envelope with the yearly class photos: the school shows watermarked previews of each family's own child, the family orders and pays the school directly (transfer or cash, never in the app), and the school marks it paid. The family picks print or digital: prints are handed out at school, and a digital copy of its own child's photo can then be saved. tribbu does not sell photos or take any fee. Demo: Curso → Fotos escolares (illustrations, not real photos).
