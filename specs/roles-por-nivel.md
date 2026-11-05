@@ -87,7 +87,7 @@ Dos cosas que dependen del nivel:
   cuentas y cambiar contraseñas incluido), Room Parents, Mensajes →
   Secretaría, talleres de sus cursos, Adopción e "Inicio / Para resolver" de su
   nivel.
-- **No puede**: crear o borrar cursos, Promoción, año lectivo, ficha del
+- **No puede**: eliminar cuentas de familias (solo el administrador del colegio o super), crear o borrar cursos, Promoción, año lectivo, ficha del
   colegio y niveles, materias y maestras, uniformes, menú, Marketplace, crear
   administradores ni otras Secretarías.
 

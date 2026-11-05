@@ -12,7 +12,8 @@
 //   action: "update"  → actualiza email y/o password de un usuario existente
 //   action: "find"    → busca un usuario por email y devuelve su auth_id
 //   action: "delete"  → borra del todo a un usuario (datos + fila + Auth): el
-//                       colegio y la Secretaría solo a familias de su alcance
+//                       administrador solo a familias de su colegio; la
+//                       Secretaría no puede
 //
 // Deploy: supabase functions deploy manage-auth-user
 
@@ -156,9 +157,9 @@ serve(async (req) => {
     // Para la Secretaría: el usuario objetivo tiene que ser una familia (sin
     // colegio_id: nunca personal del colegio) con algún curso de sus niveles
     // en su colegio. Mismo criterio que es_secretaria_de_usuario().
-    async function targetEnNivel(colegioId: string, niveles: string[], filtro: { id?: string; authId?: string; email?: string }) {
+    async function targetEnNivel(colegioId: string, niveles: string[], filtro: { authId?: string; email?: string }) {
       let query = adminClient.from("usuarios").select("id, colegio_id, rol");
-      query = filtro.id ? query.eq("id", filtro.id) : filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
+      query = filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
       const { data: fila } = await query.maybeSingle();
       if (!fila) return true; // alta nueva: el alcance lo pone RLS al vincular hijos
       if (fila.colegio_id || !["padre", "room", "admin"].includes(fila.rol)) return false;
@@ -284,13 +285,12 @@ serve(async (req) => {
       }
 
       // Alcance: nunca un Super ni la propia cuenta (esa va por delete-account).
-      // El colegio y la Secretaría, solo familias: el personal lo gestiona super.
+      // El administrador de cada colegio es el responsable de sus usuarios: solo él
+      // (familias de su colegio) y super. La Secretaría no elimina cuentas.
       const esFamilia = !fila.colegio_id && ["padre", "room", "admin"].includes(fila.rol);
       let permitido = fila.rol !== "super" && fila.auth_id !== user.id;
       if (permitido && !esSuper) {
-        permitido = esFamilia && (esColegioAdmin
-          ? await targetEnColegio(userData!.colegio_id, { id: fila.id })
-          : await targetEnNivel(userData!.colegio_id, userData!.niveles || [], { id: fila.id }));
+        permitido = esColegioAdmin && esFamilia && await targetEnColegio(userData!.colegio_id, { id: fila.id });
       }
       if (!permitido) {
         return new Response(JSON.stringify({ error: "Sin permisos sobre ese usuario" }), {

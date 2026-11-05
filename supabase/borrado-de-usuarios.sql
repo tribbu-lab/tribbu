@@ -53,3 +53,8 @@ begin
 end $function$;
 
 alter table public.encuestas alter column creado_por drop not null;
+
+-- 3. Eliminar una cuenta es del administrador del colegio (responsable de sus
+--    usuarios) o de super. La Secretaría no: se le quita el permiso.
+alter policy usuarios_delete on public.usuarios
+  using (public.es_super() or public.es_colegio_admin_de_usuario(id));
