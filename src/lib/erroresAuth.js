@@ -7,7 +7,7 @@
  */
 export const mensajeErrorAuth = (e) => {
   const m = String(e?.message || e || "");
-  if (/already (been )?registered|already exists|email_exists/i.test(m)) return "Ya existe una cuenta con ese mail. Usá otro mail o, si es la misma persona, editala desde la lista.";
+  if (/already (been )?registered|already exists|email_exists/i.test(m)) return "Ya existe una cuenta con ese mail. Si es de este colegio, editala desde la lista. Si esa familia ya usa tribbu en otro colegio, necesita una cuenta aparte: usá otro mail.";
   if (/password/i.test(m) && /(least|short|weak|characters)/i.test(m)) return "La contraseña es muy corta o muy simple: probá con una más larga, con letras y números.";
   if (/invalid.*email|email.*invalid|unable to validate email/i.test(m)) return "El mail no es válido.";
   if (/sin permisos/i.test(m)) return "No tenés permiso para crear esta cuenta.";

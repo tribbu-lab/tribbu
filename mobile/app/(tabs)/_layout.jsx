@@ -49,7 +49,9 @@ export default function TabsLayout() {
           (lib/layout). En el celular ocupa todo el ancho, como siempre. */}
       <View style={[styles.flex1, laterales]}>
       <View style={styles.columna}>
+      {/* key: al cambiar de cuenta no queda ninguna pantalla con datos de la otra. */}
       <Tabs
+        key={usuario?.id}
         // freezeOnBlur: las pestañas que no se ven no se re-renderizan (cada
         // cambio de sesión/notificaciones re-renderizaba TODAS las montadas);
         // al volver a una se pone al día de una sola vez.

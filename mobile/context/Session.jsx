@@ -6,12 +6,14 @@
 // `cursoIdx` activo con su `rolEfectivo` ("padre" | "room"). El Super Admin
 // (usuario.rol === "super") se maneja como flujo aparte en la navegación.
 
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
-import { supabase } from "../lib/supabase";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { supabase, crearClienteTemporal } from "../lib/supabase";
 import { getHijoColor, setHijoColor } from "@shared/helpers";
 import { HIJO_COLOR_DEFAULT } from "@shared/theme";
 import { SELECT_USUARIO_SESION, armarUsuario, itemsDeDocente } from "@shared/sesion";
-import { registerForPush, savePushToken } from "../push/register";
+import { etiquetaDeCuenta, otrasCuentas, rolAdmiteMulticuenta } from "@shared/cuentas";
+import { registerForPush, savePushToken, borrarPushToken } from "../push/register";
+import { leerCuentas, guardarCuenta, quitarCuenta } from "../lib/cuentasGuardadas";
 
 const SessionContext = createContext(null);
 
@@ -26,6 +28,13 @@ export function SessionProvider({ children }) {
   // Foto de perfil cambiada en esta sesión (undefined = la del usuario cargado).
   // Aparte de `usuario`: actualizarlo recargaría "Mi acceso" y volvería al primer hijo.
   const [fotoLocal, setFotoLocal] = useState(undefined);
+  // Perfil multicuenta (specs/perfil-multicuenta.md).
+  const [cuentas, setCuentas] = useState([]);
+  const [authId, setAuthId] = useState(null);
+  const [cambiandoCuenta, setCambiandoCuenta] = useState(false);
+  const pushTokenRef = useRef(null);
+  // Mientras se cambia de cuenta, la carga la hace pasarASesion (no el evento).
+  const cambiandoRef = useRef(false);
 
   const cargarUsuario = useCallback(async (authUser) => {
     const { data } = await supabase
@@ -44,9 +53,18 @@ export function SessionProvider({ children }) {
     let mounted = true;
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) await cargarUsuario(session.user);
-      if (mounted) setAuthLoading(false);
+      if (mounted) {
+        setAuthId(session?.user?.id ?? null);
+        setAuthLoading(false);
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      setAuthId(session?.user?.id ?? null);
+      // Los tokens rotan: la cuenta guardada siempre tiene que tener los últimos.
+      if (session?.user && session.refresh_token) {
+        guardarCuenta({ auth_id: session.user.id, access_token: session.access_token, refresh_token: session.refresh_token }).then(setCuentas);
+      }
+      if (cambiandoRef.current) return;
       // INITIAL_SESSION ya lo resolvió getSession() de arriba, y TOKEN_REFRESHED
       // (cada hora) no cambia quién es el usuario: recargarlo en esos dos
       // casos repetía el usuario y "Mi acceso" enteros en cada arranque.
@@ -118,20 +136,164 @@ export function SessionProvider({ children }) {
     let cancel = false;
     (async () => {
       const token = await registerForPush();
-      if (!cancel && token) await savePushToken(usuario.id, token);
+      if (cancel || !token) return;
+      pushTokenRef.current = token;
+      const guardadas = await leerCuentas();
+      const mantener = guardadas.map((c) => c.usuario_id).filter((id) => id && id !== usuario.id);
+      if (!cancel) await savePushToken(token, mantener);
     })();
     return () => {
       cancel = true;
     };
   }, [usuario?.id]);
 
+  // Mantiene al día los datos de la cuenta abierta en la lista del celular. Las
+  // cuentas del panel del colegio no entran en el selector.
+  useEffect(() => {
+    if (!usuario?.id || !authId) return undefined;
+    if (!rolAdmiteMulticuenta(usuario.rol)) {
+      quitarCuenta(authId).then(setCuentas);
+      return undefined;
+    }
+    let cancel = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancel || session?.user?.id !== authId) return;
+      const hijos = (items || []).filter((i) => i._tipo === "hijo").map((i) => i.nombre);
+      guardarCuenta({
+        auth_id: authId,
+        usuario_id: usuario.id,
+        email: usuario.email,
+        nombre: [usuario.nombre, usuario.apellido].filter(Boolean).join(" "),
+        etiqueta: etiquetaDeCuenta(Object.values(colegiosPorId).map((c) => c.nombre), hijos),
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      }).then(setCuentas);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [usuario, authId, items, colegiosPorId]);
+
+  // Valida los tokens guardados sin tocar la sesión abierta. Devuelve
+  // { session } o { error, vencida }.
+  const validarCuenta = useCallback(async (cuenta) => {
+    const temporal = crearClienteTemporal();
+    const { data, error } = await temporal.auth.setSession({ access_token: cuenta.access_token, refresh_token: cuenta.refresh_token });
+    if (error || !data?.session) return { error: error?.message || "sin sesión", vencida: true };
+    const { data: fila } = await temporal.from("usuarios").select("id,activo").eq("auth_id", data.session.user.id).maybeSingle();
+    if (!fila?.activo) return { error: "Esa cuenta ya no está activa." };
+    return { session: data.session };
+  }, []);
+
+  // Deja abierta la sesión ya validada y carga su usuario.
+  const pasarASesion = useCallback(async (session) => {
+    cambiandoRef.current = true;
+    setCambiandoCuenta(true);
+    try {
+      const { data, error } = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+      if (error || !data?.user) throw error || new Error("No se pudo abrir la cuenta");
+      setFotoLocal(undefined);
+      setAuthId(data.user.id);
+      await cargarUsuario(data.user);
+    } finally {
+      cambiandoRef.current = false;
+      setCambiandoCuenta(false);
+    }
+  }, [cargarUsuario]);
+
+  /** Pasa a otra cuenta guardada. { ok } o { error, vencida } (vencida = hay que poner la contraseña). */
+  const cambiarCuenta = useCallback(async (destinoAuthId) => {
+    const cuenta = (await leerCuentas()).find((c) => c.auth_id === destinoAuthId);
+    if (!cuenta) return { error: "Esa cuenta ya no está en este celular." };
+    const res = await validarCuenta(cuenta);
+    if (res.error) return res;
+    try {
+      await guardarCuenta({ auth_id: destinoAuthId, access_token: res.session.access_token, refresh_token: res.session.refresh_token });
+      await pasarASesion(res.session);
+      return { ok: true };
+    } catch (e) {
+      return { error: e?.message || "No se pudo abrir la cuenta" };
+    }
+  }, [validarCuenta, pasarASesion]);
+
+  /** Agrega una cuenta con mail y contraseña (la contraseña no se guarda) y pasa a ella. */
+  const agregarCuenta = useCallback(async (email, password) => {
+    const temporal = crearClienteTemporal();
+    const { data, error } = await temporal.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    if (error) return { error: /invalid login/i.test(error.message) ? "Correo o contraseña incorrectos" : `No se pudo conectar: ${error.message}` };
+    if (data.user.id === authId) return { error: "Ya estás usando esa cuenta." };
+    const { data: fila } = await temporal.from("usuarios").select("id,nombre,apellido,email,rol,activo").eq("auth_id", data.user.id).maybeSingle();
+    if (!fila?.activo) return { error: "Esa cuenta no está activa. Consultá con el colegio." };
+    if (!rolAdmiteMulticuenta(fila.rol)) return { error: "Esa cuenta es del panel del colegio: entrá con ella cerrando esta sesión." };
+    try {
+      await guardarCuenta({
+        auth_id: data.user.id,
+        usuario_id: fila.id,
+        email: fila.email,
+        nombre: [fila.nombre, fila.apellido].filter(Boolean).join(" "),
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      await pasarASesion(data.session);
+      return { ok: true };
+    } catch (e) {
+      return { error: e?.message || "No se pudo abrir la cuenta" };
+    }
+  }, [authId, pasarASesion]);
+
+  // Corta en el servidor la sesión guardada de una cuenta. Si ya venció no hay
+  // nada que cortar.
+  const revocarCuenta = useCallback(async (cuenta) => {
+    try {
+      const temporal = crearClienteTemporal();
+      const { error } = await temporal.auth.setSession({ access_token: cuenta.access_token, refresh_token: cuenta.refresh_token });
+      if (!error) await temporal.auth.signOut({ scope: "local" });
+    } catch {
+      // sin conexión o sesión vencida: igual se saca del celular
+    }
+  }, []);
+
+  /** Saca del celular una cuenta que no es la abierta: deja de recibir sus avisos acá. */
+  const quitarOtraCuenta = useCallback(async (destinoAuthId) => {
+    const cuenta = (await leerCuentas()).find((c) => c.auth_id === destinoAuthId);
+    const lista = await quitarCuenta(destinoAuthId);
+    setCuentas(lista);
+    if (pushTokenRef.current) {
+      await savePushToken(pushTokenRef.current, otrasCuentas(lista, authId).map((c) => c.usuario_id).filter(Boolean));
+    }
+    if (cuenta) await revocarCuenta(cuenta);
+  }, [authId, revocarCuenta]);
+
   const logout = useCallback(async () => {
+    // Con la sesión todavía abierta: después la RLS ya no lo deja borrar.
+    try {
+      await borrarPushToken(pushTokenRef.current);
+    } catch {
+      // sin conexión: registrar_push_token lo limpia en el próximo inicio de sesión
+    }
+    pushTokenRef.current = null;
+    const { data: { session } } = await supabase.auth.getSession();
+    const actual = session?.user?.id;
+    const lista = actual ? await quitarCuenta(actual) : await leerCuentas();
+    setCuentas(lista);
+    // Si quedan otras cuentas, pasa a la siguiente que siga válida.
+    for (const cuenta of lista) {
+      const res = await validarCuenta(cuenta);
+      if (res.error) continue;
+      if (session) await revocarCuenta({ access_token: session.access_token, refresh_token: session.refresh_token });
+      try {
+        await pasarASesion(res.session);
+        return;
+      } catch {
+        break;
+      }
+    }
     await supabase.auth.signOut();
     setUsuario(null);
     setFotoLocal(undefined);
     setItems([]);
     setCursoIdx(0);
-  }, []);
+  }, [validarCuenta, revocarCuenta, pasarASesion]);
 
   const setColorHijo = useCallback(
     (item, color) => {
@@ -253,6 +415,12 @@ export function SessionProvider({ children }) {
       colorCustomDeItem,
       setColorHijo,
       logout,
+      authId,
+      cuentas,
+      cambiandoCuenta,
+      cambiarCuenta,
+      agregarCuenta,
+      quitarOtraCuenta,
       fotoPerfil: fotoLocal !== undefined ? fotoLocal : usuario?.foto_url || null,
       setFotoPerfil: setFotoLocal,
       reloadUsuario: () =>
@@ -260,7 +428,7 @@ export function SessionProvider({ children }) {
           if (session?.user) cargarUsuario(session.user);
         }),
     };
-  }, [usuario, authLoading, items, cursoIdx, cursoIds, misHijos, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario, fotoLocal]);
+  }, [usuario, authLoading, items, cursoIdx, cursoIds, misHijos, cursosHijos, esVistaTodos, colegiosPorId, tagDeCurso, colorDeItem, colorCustomDeItem, setColorHijo, logout, cargarUsuario, fotoLocal, authId, cuentas, cambiandoCuenta, cambiarCuenta, agregarCuenta, quitarOtraCuenta]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

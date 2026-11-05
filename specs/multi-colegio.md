@@ -22,6 +22,10 @@ priority: high
 > ningún lado todavía), y extender `tagDeCurso`/"Mi acceso" para colegios
 > múltiples (sin efecto observable hoy porque solo existe un colegio real).
 
+> **Cambio de criterio (2026-11-05):** un apoderado con hijos en dos colegios
+> usa **una cuenta por colegio**, no un solo login con "Todos": lo que dice este
+> spec sobre eso queda reemplazado por `specs/perfil-multicuenta.md`.
+
 ## Summary
 
 Hoy tribbu es mono-tenant de raíz: `colegio` es una tabla singleton (una
