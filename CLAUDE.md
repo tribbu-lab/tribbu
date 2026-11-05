@@ -9,9 +9,6 @@ Guía para Claude Code en este repo. **Resumen**: el detalle de cada funcionalid
 ## Comandos
 
 ```bash
-npm run dev      # web
-npm run build    # build web (dist-web/)
-npm run lint     # ESLint — debe quedar en 0 errores (CI bloquea)
 cd mobile && npx eslint . && npx expo export -p android   # app: lint + bundle (gate de CI; usar `npx eslint .` como CI, `expo lint` no marca todo)
 ```
 
@@ -20,8 +17,6 @@ No hay tests. Validar = lint + build (+ bundle de la app) + QA a mano. CI: `.git
 **Publicar**: la web la despliega Vercel sola con cada push a `main`. La app sale por las tiendas con las skills `/store-release` + `/store-promote` (runbook `mobile/STORE_RELEASE.md`).
 
 **Base de datos**: el proyecto está linkeado (`gctymjhblvocvaenmdhr`). `npx supabase db query --linked -f archivo.sql` corre SQL contra prod. Cambios de RLS/RPC: escribir `supabase/<tema>.sql` idempotente, **probarlo antes en una transacción con `rollback`** (impersonando usuarios con `set local role authenticated` + `request.jwt.claims`), aplicarlo y anotar "aplicado" en las notas. Edge Functions: `npx supabase functions deploy <fn> --no-verify-jwt` (todas van así; chequean al llamador en código o con `x-cron-secret`).
-
-**Emulador Android (esta máquina, Windows)**: AVD `tribbu_test` (`%LOCALAPPDATA%\Android\Sdk\emulator`). APK de prueba con el JS adentro: `mobile/android` + `./gradlew assembleDebug` con `JAVA_HOME` = Temurin 21 (no el JBR de Android Studio). Ver memoria `apk-build-java21`.
 
 ## Arquitectura (lo que hay que saber siempre)
 
@@ -53,12 +48,9 @@ Buckets `adjuntos` y `eventos` son **privados**: mostrar con `<SignedImg>` (web)
 ## Convenciones de UI
 
 - **Web**: estilos inline `style={{}}` (sin CSS modules/Tailwind), colores de `src/lib/tokens.js`/`theme.js`. `src/index.css` pone `*{color:…}`: el color **no se hereda**, hay que ponerlo en cada span anidado. Íconos de línea propios (`src/components/Icono.jsx`); no agregar librerías de íconos.
-- **App**: RN + `StyleSheet`, tokens de `@shared/tokens`, íconos MaterialCommunityIcons `-outline` (emoji solo en contenido). Ver `mobile/DESIGN_SYSTEM.md`.
 - **Sobrio**: pocos colores, sin emojis en navegación ni títulos, sin dependencias nuevas.
 - Componentes únicos: `BotonNuevo` (crear), `Filtros`/`BotonFiltros` (filtros como chips en modal/Sheet), `EmptyState`, `ListToolbar` + `useListControls` (listas), `SubSeccion`/`SubTabs` (pestañas internas), `EditorFormato`/`TextoConFormato` (avisos con formato; en vistas previas usar `textoPlano`).
 - **No usar `window.confirm`/`window.prompt`** (en navegadores embebidos devuelven al instante): `useConfirmar()` (`src/hooks/useConfirmar.jsx`).
-- App: en JSX nunca `cond && <X/>` si `cond` puede ser `0`/`""`; usar ternario. Todo `Modal` con `TextInput` lleva la receta anti-teclado (`KeyboardAvoidingView behavior="padding"` en iOS **y** Android + `ScrollView keyboardShouldPersistTaps="handled"` + `maxHeight`); un form dentro de `Sheet` va con `flexShrink:1`. iOS no apila Modals: cerrar uno antes de abrir otro (~350 ms).
-- Pantallas de lista en la app: `useRecarga(cargar)` para recargar al volver.
 
 ## Seguridad (no negociable)
 
@@ -95,10 +87,6 @@ Sección homónima en `docs/notas-tecnicas.md` + spec/SQL principal:
 | Avisos automáticos (push diario/semanal) | `supabase/avisos-automaticos*.sql` |
 | Auth: recuperación de contraseña, cuentas, borrar cuenta | `specs/recuperacion-de-contrasena-por-email.md` |
 | App: build, tiendas, capturas de las fichas, R8, pantallas grandes, huella | `mobile/STORE_RELEASE.md`, `specs/capturas-de-tienda-al-dia.md`, `specs/calidad-tecnica-para-google-play.md`, `specs/desbloqueo-con-huella-digital.md` |
-
-## Skills (`.claude/skills/`)
-
-`spec` (escribir spec), `implement` (feature de punta a punta), `fix-bug` (bug con causa raíz y validación), `store-release` / `store-promote` (publicar la app), `agent-browser` (manejar un navegador para QA), `vercel-react-best-practices`, `vercel-react-native-skills`, `frontend-design`, `web-design-guidelines`.
 
 ## Higiene del repo
 
