@@ -204,9 +204,11 @@ web y app juntas, mostrar capturas antes de commitear.
 ## Perfil multicuenta (2026-11-05)
 
 - [x] Aplicar `supabase/multi-cuenta.sql` y desplegar `send-push`, `avisos-automaticos` y `mensajes-push` (hecho 2026-11-05).
-- [ ] Probar en un celular real con dos cuentas: agregar, cambiar, cerrar sesión, push de las dos y tocar un aviso de la otra cuenta.
+- [x] Probado en web y emulador con dos cuentas (2026-11-05): agregar, cambiar, quitar y cerrar sesión.
+- [ ] Probar en un celular real: push de las dos cuentas, colegio en el título y tocar un aviso de la otra cuenta.
+- [ ] Probar el selector con una cuenta de personal (administrador o Secretaría).
 - [ ] Publicar la app.
-- [ ] Corregir "Eliminar apoderado" del panel: la cuenta no se borra y no avisa (al sacar los vínculos, la RLS ya no deja borrar la fila).
+- [x] "Eliminar apoderado": probado como super en la web publicada (2026-11-05), borra la fila y Auth. Falta probarlo como administrador de colegio.
 
 ## Funcionalidades nuevas (acordadas, sin hacer)
 
