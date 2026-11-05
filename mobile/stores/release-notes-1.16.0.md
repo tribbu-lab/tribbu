@@ -10,6 +10,7 @@ Login y onboarding no cambian para la cuenta demo, que sigue valiendo. Las Revie
 
 ```
 • Nuevo: ¿tenés hijos en dos colegios? Agregá la otra cuenta en Mi cuenta, cambiá con un toque y recibí los avisos de las dos.
+• Nuevo: Pagos al colegio. Avisá "Ya pagué" y el colegio lo confirma.
 • Al cerrar sesión, ese celular deja de recibir los avisos de esa cuenta.
 • Podés cerrar la alerta del curso para vos.
 • Encabezado más cómodo.
@@ -21,11 +22,14 @@ Login y onboarding no cambian para la cuenta demo, que sigue valiendo. Las Revie
 ```
 Novedades para las familias
 • Nuevo: varias cuentas en el mismo celular. Si tenés hijos en dos colegios, cada colegio te da una cuenta. En Mi cuenta → Agregar otra cuenta entrás con la segunda una sola vez; después cambiás con un toque y recibís los avisos de las dos, con el nombre del colegio. Si tocás un aviso de la otra cuenta, la app pasa sola a esa cuenta.
+• Nuevo: Pagos al colegio, para excursiones y visitas. En Curso ves el monto y los datos para pagar, avisás "Ya pagué" y el colegio lo confirma cuando recibe el dinero.
 • Al cerrar sesión, ese celular deja de recibir los avisos de esa cuenta.
 • Podés cerrar la alerta del curso para vos.
 • El encabezado de la app es más alto y más cómodo de tocar.
 
 Para los colegios
+• Pagos: cargá un pago por curso, mirá quién avisó, confirmá y enviá recordatorios a quienes siguen pendientes.
+• Un comunicado ya enviado se puede reenviar como recordatorio.
 • Eliminar un apoderado ahora borra su cuenta de verdad, libera su mail y avisa si algo falla. Lo hace el administrador del colegio.
 ```
 
@@ -58,6 +62,7 @@ Account deletion is available in-app under Mi cuenta (circle at the top right) �
 
 ## Qué entró realmente (interno, no publicar)
 
+- Pagos al colegio y reenviar comunicados (`specs/pagos-colegio.md`, `supabase/pagos-colegio.sql`, aplicado el 2026-11-05 con `send-push` y `avisos-automaticos`). Causa raíz del historial: como super, listaba comunicados de todos los colegios porque la RLS no lo acota; ahora filtra por colegio.
 - `8c70ce8` Perfil multicuenta (`specs/perfil-multicuenta.md`): cuentas guardadas, `push_token_cuentas`, `registrar_push_token`, un colegio por cuenta. SQL y funciones aplicados el 2026-11-05. **Requiere ese SQL: esta versión no registra push sin él.** Causa raíz del push tras cerrar sesión: `logout` no borraba el token.
 - `3d487fc` + `ef62059` Eliminar apoderado por `manage-auth-user`, con Auth y error visible; solo administrador del colegio o super. Causa raíz: al borrar primero los vínculos, la RLS ya no dejaba borrar la fila y no había error.
 - `1d33112` Header más alto: 8 + fila de 44 + 8.

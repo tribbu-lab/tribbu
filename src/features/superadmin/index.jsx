@@ -33,6 +33,7 @@ import { TalleresColegio } from "../talleres/colegio";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
+import { PagosColegio } from "../pagosColegio";
 import { CuentasGuardadas } from "../../components/CuentasGuardadas";
 import { useNoLeidosPanel, recontarPanel } from "../../hooks/useNoLeidosPanel";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
@@ -72,6 +73,7 @@ const SECCIONES = [
     {id:"alertas",l:"Alertas"},
     {id:"eventos",l:"Eventos"},
     {id:"autorizaciones",l:"Autorizaciones"},
+    {id:"pagos_colegio",l:"Pagos"},
     {id:"fotos",l:"Fotos escolares"},
   ]},
   { id:"g_mensajes", l:"Mensajes", icono:"mensaje", items: [
@@ -113,6 +115,7 @@ const OPCIONES_CREAR = [
   { id:"comunicado", l:"Comunicado", d:"A uno o varios cursos, o a todo el colegio", sec:"comunicaciones", icono:"comunicaciones" },
   { id:"evento", l:"Evento", d:"En el calendario de uno o varios cursos", sec:"eventos", icono:"agenda", abre:true },
   { id:"autorizacion", l:"Autorización", d:"Pedir permiso para una salida o actividad", sec:"autorizaciones", icono:"firma", abre:true },
+  { id:"pago", l:"Pago", d:"Cobrar una excursión o una visita, por curso", sec:"pagos_colegio", icono:"moneda", abre:true },
   { id:"alerta", l:"Alerta", d:"Aviso urgente con notificación", sec:"alertas", icono:"alerta" },
   { id:"alumno", l:"Alumno", d:"Sumar un alumno a un curso", sec:"alumnos", icono:"usuarios", abre:true },
   { id:"apoderado", l:"Apoderado", d:"Crear la cuenta de una familia", sec:"usuarios", icono:"usuarios", abre:true },
@@ -151,6 +154,7 @@ const SECCION_INFO = {
   marketplace:    { titulo:"Marketplace", descripcion:"Lo que las familias venden o regalan (uniformes, libros, disfraces…). El colegio lo ve para controlar lo que se ofrece y puede quitar lo que no corresponda; no publica ni se interesa. Las familias se escriben por Mensajes, sin compartir teléfono ni mail." },
   perdidos:       { titulo:"Lost & Found", descripcion:"Publicá lo que tiene el colegio en su caja de objetos perdidos y moderá lo que publican las familias (se ve por curso o en todo el colegio, y vence a los 30 días)." },
   autorizaciones: { titulo:"Autorizaciones", descripcion:"Pedí permiso para salidas y actividades a uno o varios cursos: cada familia responde por hijo si autoriza, quién lo retira y un comentario." },
+  pagos_colegio:  { titulo:"Pagos", descripcion:"Excursiones, visitas y otros cobros por curso: la familia avisa que pagó y vos confirmás cuando recibís el dinero. Es aparte de las colectas entre familias." },
   salidas:        { titulo:"Cambios en la salida", descripcion:"Los avisos de las familias cuando un alumno se retira distinto a lo habitual (otro horario o con otra persona), con un globito mientras haya alguno sin ver. Marcalos como vistos: la familia lo ve en su pantalla. Las docentes del curso también los ven." },
   mensajes_familias:{ titulo:"Mensajes de familias", descripcion:"Lo que las familias le escriben a Secretaría (respondés como “Secretaría”) y, en solo lectura, sus chats con las maestras." },
   mensajes_personal:{ titulo:"Mensajes del personal", descripcion:"Chats con las maestras, las Secretarías y Dirección del colegio, 1 a 1 o en grupo. Las familias no los ven." },
@@ -956,9 +960,9 @@ export function SuperAdmin({ usuario, cuentasGuardadas, onCerrarSesion }) {
       </div>
     </>
   ) : null;
-  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="fotos" ? noLeidos.fotos : id==="soporte_colegio" ? noLeidos.soporte : 0;
+  const badgeDe = (id) => id==="mensajes_familias" ? noLeidos.familias : id==="mensajes_personal" ? noLeidos.personal : id==="salidas" ? noLeidos.salidas : id==="fotos" ? noLeidos.fotos : id==="pagos_colegio" ? noLeidos.pagos : id==="soporte_colegio" ? noLeidos.soporte : 0;
   const badgeGrupo = (g) => g.items.reduce((n,i)=>n+badgeDe(i.id),0);
-  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.fotos + noLeidos.soporte;
+  const totalNoLeidos = noLeidos.familias + noLeidos.personal + noLeidos.salidas + noLeidos.fotos + noLeidos.pagos + noLeidos.soporte;
   const rolTexto = esSuper ? "Super Admin" : esSecretaria ? textoSecretaria(usuario?.niveles, usuario?.cargo) : "Administración del colegio";
   const inicialesUsuario = `${(usuario?.nombre||"?").slice(0,1)}${(usuario?.apellido||"").slice(0,1)}`.toUpperCase();
 
@@ -1913,7 +1917,7 @@ export function SuperAdmin({ usuario, cuentasGuardadas, onCerrarSesion }) {
         <AlertasAdmin cursos={cursosAnoActual}/>
       )}
       {sec==="comunicaciones"&&(
-        <ComunicacionesAdmin cursos={cursosAnoActual}/>
+        <ComunicacionesAdmin cursos={cursosAnoActual} colegioId={activeColegioId}/>
       )}
       {sec==="eventos"&&(
         <EventosColegio cursos={cursosAnoActual} userId={usuario?.id} esSuper={esSuper} usuarios={usuarios} abrirNuevo={crear?.tipo==="evento"?crear.n:null}/>
@@ -1951,6 +1955,9 @@ export function SuperAdmin({ usuario, cuentasGuardadas, onCerrarSesion }) {
       )}
       {sec==="fotos"&&(
         <FotosEscolaresColegio cursos={cursosAnoActual} hijos={hijos} colegioNombre={colegioNombre}/>
+      )}
+      {sec==="pagos_colegio"&&(
+        <PagosColegio cursos={cursosAnoActual} userId={usuario?.id} abrirNuevo={crear?.tipo==="pago"?crear.n:null} onCambio={recontarPanel}/>
       )}
       {sec==="salidas"&&(
         <CambiosSalidaColegio cursos={cursosAnoActual} onCambio={recontarPanel}/>
@@ -2477,7 +2484,7 @@ function MembreteColegio({ colegioId, colegioNombre, niveles, valor, onGuardado,
   );
 }
 
-export function ComunicacionesAdmin({ cursos }) {
+export function ComunicacionesAdmin({ cursos, colegioId }) {
   const [userId, setUserId] = useState(null);
   const [cursosSel, setCursosSel] = useState([]);
   const [form, setForm] = useState({ titulo:"", texto:"", fecha:fmtLocalDate(), hora_inicio:"", hora_fin:"", prioridad:"media", urgente:false, adjuntos:[], enviarPush:true, conMembrete:true });
@@ -2614,12 +2621,12 @@ export function ComunicacionesAdmin({ cursos }) {
         </div>
       )}
 
-      <HistorialComunicaciones cursos={cursos} recargarVer={ok}/>
+      <HistorialComunicaciones cursos={cursos} colegioId={colegioId} recargarVer={ok}/>
     </div>
   );
 }
 
-function HistorialComunicaciones({ cursos, recargarVer }) {
+function HistorialComunicaciones({ cursos, colegioId, recargarVer }) {
   const [comunicaciones, setComunicaciones] = useState([]);
   const [abierto,        setAbierto]        = useState(false);
   const [cargando,       setCargando]       = useState(false);
@@ -2628,14 +2635,35 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [guardandoEdit,  setGuardandoEdit]  = useState(false);
   const [editError,      setEditError]      = useState(null);
   const [verLecturas,    setVerLecturas]    = useState(null); // comunicación con "¿quién la leyó?" abierto
+  const [confirmarReenvio, confirmReenvioUI] = useConfirmar();
+  const [reenviando,     setReenviando]     = useState(null);
+  const [avisoReenvio,   setAvisoReenvio]   = useState(null);
+
+  // Vuelve a mandar el push a todas las familias de los cursos, como recordatorio.
+  const reenviar = async (c) => {
+    if(reenviando) return;
+    setAvisoReenvio(null);
+    const titulo = c.titulo || textoPlano(c.texto).slice(0,80);
+    if(!(await confirmarReenvio({ titulo:"¿Reenviar como recordatorio?", detalle:`"${titulo}" les llega de nuevo a todas las familias de ${c.cursoIds.length===1?"ese curso":`esos ${c.cursoIds.length} cursos`}.`, textoConfirmar:"Reenviar", colorAccion:"#2563EB" }))) return;
+    setReenviando(c.grupo_id);
+    const userIds = [...new Set((await Promise.all(c.cursoIds.map(getUserIdsByCurso))).flat())];
+    const res = userIds.length ? await sendPush({ type:"recordatorio", payload:{ titulo, grupo:c.grupo_id, reenviado:true, userIds } }) : null;
+    if(res) await supabase.from("recordatorios").update({ ultimo_reenvio:new Date().toISOString() }).eq("grupo_id",c.grupo_id);
+    setReenviando(null);
+    setAvisoReenvio(res ? { grupo:c.grupo_id, ok:true, msg:"Recordatorio enviado." } : { grupo:c.grupo_id, ok:false, msg:userIds.length?"No se pudo reenviar. Probá de nuevo.":"Esos cursos no tienen familias con cuenta." });
+    if(res) cargar();
+  };
 
   const cursoPorId = new Map(cursos.map(c=>[c.id,c]));
 
   const cargar = async () => {
     setCargando(true);
+    // Solo los de este colegio: la RLS no acota a super, y Reenviar le llega a las familias.
+    if(!colegioId) { setComunicaciones([]); setCargando(false); return; }
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en,ultimo_reenvio,cursos!inner(colegio_id)")
+      .eq("cursos.colegio_id",colegioId)
       .not("grupo_id","is",null)
       .order("creado_en",{ascending:false})
       .limit(300);
@@ -2716,6 +2744,7 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
 
   return (
     <div style={{marginTop:24}}>
+      {confirmReenvioUI}
       {verLecturas&&<LecturasModal titulo={verLecturas.titulo||textoPlano(verLecturas.texto)} filas={verLecturas.lecturas} onClose={()=>setVerLecturas(null)}/>}
       <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderRadius:12,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:700,color:"#0F172A"}}>
         <span>Historial de comunicaciones</span>
@@ -2755,10 +2784,15 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
               ) : (
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:c.titulo?2:6}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#0F172A",lineHeight:1.4}}>{c.titulo||textoPlano(c.texto)}</div>
-                  <button onClick={()=>empezarEdicion(c)} style={{flexShrink:0,padding:"3px 9px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Editar</button>
+                  <span style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={()=>reenviar(c)} disabled={reenviando===c.grupo_id} style={{flexShrink:0,padding:"3px 9px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#1D4ED8",fontFamily:"inherit"}}>{reenviando===c.grupo_id?"Enviando…":"Reenviar"}</button>
+                    <button onClick={()=>empezarEdicion(c)} style={{flexShrink:0,padding:"3px 9px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,fontWeight:700,color:"#64748B"}}>Editar</button>
+                  </span>
                 </div>
               )}
               {editando!==c.grupo_id&&c.titulo&&<div style={{fontSize:12,color:"#64748B",lineHeight:1.4,marginBottom:6}}>{textoPlano(c.texto)}</div>}
+              {avisoReenvio?.grupo===c.grupo_id&&<div role="status" style={{fontSize:12,fontWeight:700,color:avisoReenvio.ok?"#047857":"#DC2626",marginBottom:6}}>{avisoReenvio.msg}</div>}
+              {c.ultimo_reenvio&&<div style={{fontSize:11.5,color:"#64748B",marginBottom:6}}>Último reenvío: {new Date(c.ultimo_reenvio).toLocaleDateString("es-AR")}</div>}
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:12,color:"#64748B"}}>Publicado {fmtFecha(c.creado_en)}</span>
                 <span style={{fontSize:12,color:"#64748B"}}>· {c.cursoIds.length} curso{c.cursoIds.length!==1?"s":""}</span>

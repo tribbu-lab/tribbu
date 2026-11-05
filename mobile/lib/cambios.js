@@ -13,7 +13,9 @@ let ultimoCambio = 0;
 export const ultimoCambioEn = () => ultimoCambio;
 
 const esEscritura = (url, metodo) =>
-  metodo !== "GET" && metodo !== "HEAD" && url.includes("/rest/v1/") && !url.includes("/rest/v1/rpc/");
+  metodo !== "GET" && metodo !== "HEAD" && url.includes("/rest/v1/") &&
+  // avisar_pago_colegio sí escribe: Hoy y Curso tienen que recargar al volver.
+  (!url.includes("/rest/v1/rpc/") || url.includes("/rest/v1/rpc/avisar_pago_colegio"));
 
 /** fetch para createClient({ global: { fetch } }): igual que fetch, y anota las escrituras. */
 export const fetchQueAnotaCambios = (input, init) => {

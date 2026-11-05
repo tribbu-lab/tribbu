@@ -4,12 +4,13 @@
 // Curso. El deep-link de push se engancha acá.
 
 import { View, StyleSheet } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import { T } from "@shared/theme";
 import { useSession } from "../../context/Session";
 import { AppHeader } from "../../components/AppHeader";
 import { FloatingTabBar } from "../../components/FloatingTabBar";
 import { useNotificationRouting } from "../../push/useNotificationRouting";
+import { usePagosPendientes } from "../../lib/usePagosPendientes";
 import { useNotificaciones, NotificacionesProvider, avisosSinLeer } from "../../features/notificaciones";
 import { useMensajesNoLeidos, MensajesProvider } from "../../lib/useMensajesNoLeidos";
 import { useSalidasNovedades, SalidasProvider } from "../../lib/useSalidasNovedades";
@@ -30,6 +31,9 @@ export default function TabsLayout() {
   const badge = avisosSinLeer(notif) + (mensajes.noLeidos || 0) + salidas.n;
   // Curso = fotos escolares nuevas (sesión publicada, pago confirmado, entrega).
   const fotos = useFotosNovedades({ userId: usuario?.id ?? null, cursoIds, hijoIds: misHijos, activo: !esDocente });
+  // Curso también avisa los pagos al colegio pendientes.
+  const pathname = usePathname();
+  const pagos = usePagosPendientes({ hijoIds: misHijos, cursoIds, activo: !esDocente, clave: pathname });
   const laterales = useInsetsLaterales();
   useNotificationRouting(true);
 
@@ -56,7 +60,7 @@ export default function TabsLayout() {
         // cambio de sesión/notificaciones re-renderizaba TODAS las montadas);
         // al volver a una se pone al día de una sola vez.
         screenOptions={{ headerShown: false, freezeOnBlur: true }}
-        tabBar={(props) => <FloatingTabBar {...props} badge={badge} badgeCurso={fotos.n} />}
+        tabBar={(props) => <FloatingTabBar {...props} badge={badge} badgeCurso={fotos.n + pagos} />}
       >
         {/* Hoy · Agenda (Calendario + Cumpleaños) · Comunicaciones (Avisos +
             Mensajes) · Curso. El resto son pantallas de esas secciones,
@@ -74,6 +78,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="comedor" options={hidden} />
         <Tabs.Screen name="encuestas" options={hidden} />
         <Tabs.Screen name="autorizaciones" options={hidden} />
+        <Tabs.Screen name="pagos" options={hidden} />
         <Tabs.Screen name="salidas" options={hidden} />
         <Tabs.Screen name="fotos" options={hidden} />
         <Tabs.Screen name="talleres" options={hidden} />

@@ -18,6 +18,7 @@ import { ponerFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfilWeb";
 const GRUPOS_FAMILIA = [
   { titulo: "Del colegio", items: [
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icono: "firma" },
+    { id: "pagos", label: "Pagos al colegio", desc: "Excursiones, visitas y otros pagos", icono: "moneda" },
     { id: "comedor", label: "Comedor", desc: "Menú y servicio de comedor", icono: "cubiertos" },
     { id: "fotos", label: "Fotos escolares", desc: "Elegí y pedí las fotos de tu hijo", icono: "camara" },
     { id: "talleres", label: "Talleres", desc: "Actividades e inscripciones", icono: "paleta" },

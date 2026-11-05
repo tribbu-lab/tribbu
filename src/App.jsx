@@ -7,6 +7,7 @@ import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from 
 import { getHijoColor, setHijoColor, colorColegio } from "./lib/helpers";
 import { nivelDeVista } from "./lib/niveles";
 import { useCuentas } from "./hooks/useCuentas";
+import { usePagosPendientes } from "./hooks/usePagosPendientes";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -31,6 +32,7 @@ const AdminPanel       = aLazy(() => import("./features/admin"), "AdminPanel");
 const SuperAdmin       = aLazy(() => import("./features/superadmin"), "SuperAdmin");
 const Encuestas        = aLazy(() => import("./features/encuestas"), "Encuestas");
 const Autorizaciones   = aLazy(() => import("./features/autorizaciones"), "Autorizaciones");
+const PagosFamilia     = aLazy(() => import("./features/pagosColegio"), "PagosFamilia");
 const CambiosSalida    = aLazy(() => import("./features/salidas"), "CambiosSalida");
 const FotosEscolares   = aLazy(() => import("./features/fotos"), "FotosEscolares");
 const Talleres         = aLazy(() => import("./features/talleres"), "Talleres");
@@ -66,7 +68,7 @@ window._tribbuUserId = null;
 // vuelve a la pestaña anterior en vez de sacarte de la app. Query y no hash:
 // el hash lo usa el link de recuperación de contraseña (#…&type=recovery).
 // "muro" es la home y no lleva parámetro.
-const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","salidas","fotos","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta","ayuda"]);
+const TABS_VALIDOS = new Set(["muro","clases","horario","comedor","info","finanzas","recordatorios","cumples","encuestas","autorizaciones","pagos","salidas","fotos","talleres","perdidos","comunidad","marketplace","servicios","contacto","admin","mensajes","alumnos","curso","cuenta","ayuda"]);
 // Navegación en 4 secciones (Hoy · Agenda · Comunicaciones · Curso), igual
 // que mobile. Cada una agrupa tabs: queda marcada en cualquiera de ellas y
 // tocarla va a la primera. Lo que no está en las tres primeras es de Curso.
@@ -96,6 +98,7 @@ const TAB_MAP = {
   festejo:      "cumples",
   encuesta:     "encuestas",
   autorizacion: "autorizaciones",
+  pago_colegio: "pagos",
   fotos:        "fotos",
   taller:      "talleres",
   perdido:      "perdidos",
@@ -279,6 +282,7 @@ function App() {
   // Cambios en la salida (Comunicaciones): novedades desde la última vez que se abrió.
   const salidasNuevas = useSalidasNovedades({ userId: usuario?.id ?? null, cursoIds: _cursoIds, hijoIds: misHijosActivos, esDocente: usuario?.rol==="docente", abierta: tab==="salidas", activo: !!usuario && !esPanelAdmin });
   const fotosNuevas = useFotosNovedades({ userId: usuario?.id ?? null, cursoIds: _cursoIds, hijoIds: misHijosActivos, abierta: tab==="fotos", activo: !!usuario && !esPanelAdmin && usuario?.rol!=="docente" });
+  const pagosPendientes = usePagosPendientes({ hijoIds: misHijosActivos, cursoIds: _cursoIds, activo: !!usuario && !esPanelAdmin && usuario?.rol!=="docente", clave: tab });
 
   useEffect(()=>{
     if(!usuario||["super","colegio_admin","nivel_admin"].includes(usuario.rol)) return;
@@ -539,7 +543,7 @@ function App() {
     setTab(destino);
     if(destino==="recordatorios") setBadgeVisto(avisosVersion);
   };
-  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) + salidasNuevas : id==="curso" ? fotosNuevas : 0;
+  const badgeSeccion = (id) => id==="comunicaciones" ? badgeCount + (mensajesSinLeer||0) + salidasNuevas : id==="curso" ? fotosNuevas + pagosPendientes : 0;
   // Pestañas internas de Agenda y Comunicaciones (arriba del contenido).
   const renderSubSeccion = () => {
     if(seccionActiva==="agenda") return <SubSeccion activo={tab} onIr={setTab} items={[{id:"clases",label:"Calendario"},{id:"horario",label:"Horario"},{id:"cumples",label:"Cumpleaños"}]}/>;
@@ -598,6 +602,7 @@ function App() {
         return <Comunidad sub={t==="comunidad"?"marketplace":t} onSub={setTab} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items} onEscribir={(articulo)=>navegarA("mensajes",{articulo})}/>;
       case "perdidos": return <Perdidos abrirTab={abrirTabPerdidos} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} items={items}/>;
       case "autorizaciones": return <Autorizaciones cursosDocente={cursosDocente} cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} cursosAdmin={cursosAdmin} userId={usuario.id} isAdmin={isAdmin} misHijos={misHijosActivos} abrir={openAutorizacion}/>;
+      case "pagos":     return <PagosFamilia cursoIds={cursoIds} items={items} misHijos={misHijosActivos} tagDeCurso={tagDeCurso}/>;
       case "salidas":   return <CambiosSalida cursoIds={cursoIds} items={items} userId={usuario.id} tagDeCurso={tagDeCurso} esDocente={esDocente} hijoActivo={hijoActivoId}/>;
       case "fotos":     return <FotosEscolares cursoIds={cursoIds} items={items} tagDeCurso={tagDeCurso}/>;
       case "talleres":  return <Talleres items={items} esVistaTodos={esVistaTodos} hijoActivo={hijoActivoId} tagDeCurso={tagDeCurso} esDocente={esDocente} openTaller={openTaller}/>;
@@ -606,7 +611,7 @@ function App() {
       case "admin":    return <AdminPanel cursoId={cursoId} cursoNombre={cursoNombre}/>;
       case "mensajes": return <Mensajes userId={usuario.id} items={items} tagDeCurso={tagDeCurso} isMobile={isMobile} abrir={abrirMensajes} onCambio={recargarMensajes} esDocente={esDocente} hijoActivoId={hijoActivoId} cursoIds={cursoIds}/>;
       case "alumnos":  return <AlumnosDocente cursoIds={cursoIds} tagDeCurso={tagDeCurso} esVistaTodos={esVistaTodos} maestroId={usuario.maestros?.[0]?.id} onEscribir={(a)=>navegarA("mensajes",{alumnoDocente:a})}/>;
-      case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA} novedades={{ fotos: fotosNuevas }}/>;
+      case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA} novedades={{ fotos: fotosNuevas, pagos: pagosPendientes }}/>;
       // Preguntas frecuentes de las familias (src/lib/ayuda.js) + "Escribile al equipo de tribbu".
       case "ayuda":    return <Ayuda lista={preguntasPara(usuario.rol)} onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
       case "cuenta":   return <MiCuenta cuentasGuardadas={cuentasGuardadas} usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;

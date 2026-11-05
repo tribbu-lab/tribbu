@@ -9,10 +9,11 @@ import { DeviceEventEmitter } from "react-native";
 import { supabase } from "./supabase";
 import { noLeidosPanel } from "@shared/mensajes";
 import { contarSalidasSinVer } from "@shared/cambiosSalida";
+import { contarPagosPorConfirmar } from "@shared/pagosColegio";
 import { fmtLocalDate } from "@shared/helpers";
 import { EVENTO_MENSAJE, EVENTO_RESYNC } from "./useMensajesNoLeidos";
 
-const CERO = { familias: 0, personal: 0, soporte: 0, salidas: 0 };
+const CERO = { familias: 0, personal: 0, soporte: 0, salidas: 0, pagos: 0 };
 // Recontar ya (p. ej. al marcar un cambio en la salida como visto).
 const EVENTO_RECONTAR_PANEL = "tribbu:panel-recontar";
 export const recontarPanel = () => DeviceEventEmitter.emit(EVENTO_RECONTAR_PANEL);
@@ -23,10 +24,11 @@ export function useNoLeidosPanel(activo, clave) {
 
   const cargar = useCallback(async () => {
     if (!activo) return;
-    const [b, c, salidas] = await Promise.all([
+    const [b, c, salidas, pagos] = await Promise.all([
       supabase.rpc("bandeja_colegio"), supabase.rpc("mis_conversaciones"), contarSalidasSinVer(supabase, fmtLocalDate()).catch(() => 0),
+      contarPagosPorConfirmar(supabase).catch(() => 0),
     ]);
-    if (!b.error && !c.error) setN({ ...noLeidosPanel(b.data, c.data), salidas });
+    if (!b.error && !c.error) setN({ ...noLeidosPanel(b.data, c.data), salidas, pagos });
   }, [activo]);
 
   useEffect(() => {

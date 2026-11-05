@@ -24,6 +24,7 @@ const t = THEMES.light;
 const GRUPOS_FAMILIA = [
   { titulo: "Del colegio", items: [
     { id: "autorizaciones", label: "Autorizaciones", desc: "Salidas y permisos", icon: "file-sign" },
+    { id: "pagos", label: "Pagos al colegio", desc: "Excursiones, visitas y otros pagos", icon: "cash-multiple" },
     { id: "comedor", label: "Comedor", desc: "Menú y servicio de comedor", icon: "silverware-fork-knife" },
     { id: "fotos", label: "Fotos escolares", desc: "Elegí y pedí las fotos de tu hijo", icon: "camera-outline" },
     { id: "talleres", label: "Talleres", desc: "Actividades e inscripciones", icon: "palette-outline" },
@@ -88,7 +89,8 @@ export default function CursoScreen() {
           <View style={styles.card}>
             {g.items.map((o, i) => {
               const n = cuentas[o.cuenta || o.id] || 0;
-              const nuevas = novedades[o.id] || 0;
+              // Un pago pendiente va en rojo, como las novedades de Fotos.
+              const nuevas = o.id === "pagos" ? n : novedades[o.id] || 0;
               return (
                 <Pressable
                   key={o.id}

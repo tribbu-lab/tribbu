@@ -24,6 +24,7 @@ const TIPO_CONFIG = {
 
 
 import { autorizacionesPendientes } from "../../lib/autorizaciones";
+import { montoPago, pagosPendientesFamilia } from "../../lib/pagosColegio";
 import { talleresParaAnotarse, claveTalleresVistos, leerTalleresVistos, marcarTallerVisto } from "../../lib/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "../../lib/perdidos";
 import { getStorageBackend } from "../../lib/storage";
@@ -119,6 +120,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // depende de los cursos/usuario. Lote 2: lo que necesita ids del lote 1.
     // colegio_id por curso sale de "Mi acceso" (items), sin ir a "cursos".
     const colegios = [...new Set(cursoIds.map(cid=>(items||[]).find(i=>i.curso_id===cid)?.cursos?.colegio_id).filter(Boolean))];
+    // Va en paralelo al lote de abajo; se espera antes de armar los datos.
+    const pagosColegioP = misHijos.length ? supabase.from("pago_colegio_alumnos").select("hijo_id,estado,pagos_colegio(*)").in("hijo_id",misHijos).eq("estado","pendiente") : Promise.resolve({ data:[] });
     const cumplesDoc = esDocente ? supabase.rpc("cumples_para_docente",{p_cursos:cursoIds}).then(r=>separarCumplesDocente(r.data)) : null;
     const [alertasRes,menu,recordatorios,cumples,cuotas,hijosData,maestrosData,eventosData,invitacionesData,encuestasData,objsData,autsData,talleresData,tallerInscData] = await Promise.all([
       conCerradaDe(supabase.from("alertas").select(SELECT_ALERTA_CON_CERRADA), userId).in("curso_id",cursoIds).eq("activa",true).order("creado_en",{ascending:false}).limit(3),
@@ -214,7 +217,8 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     // Festejos en "Próximos días" (la RLS ya trae solo los que me tocan), menos
     // los que rechazamos.
     const rechazados = festejosRechazados(filasInv);
-    setDatos({ alertas:alertasPorCurso, menu:menuParaNivel(menu.data, nivelDeVista(items, cursoIds)), recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:festejosDelHijo((eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), { hijoActivo, misHijos, asistencias }), invitaciones, hijosData:hijosData.data||[] });
+    const pagosColegioPend = pagosPendientesFamilia((await pagosColegioP).data, cursoIds);
+    setDatos({ pagosColegioPend, alertas:alertasPorCurso, menu:menuParaNivel(menu.data, nivelDeVista(items, cursoIds)), recordatorios:recsNoLeidos, cumples:cumples.data||[], cuotas:cuotas.data||[], bdayList, colectasPend, porCerrar, encuestasPend, autorizacionesPend, talleresAbiertos, encontradosSemana, eventos:festejosDelHijo((eventosData.data||[]).filter(e=>e.tipo!=="cumple"&&!(e.tipo==="festejo"&&rechazados.has(e.id))), { hijoActivo, misHijos, asistencias }), invitaciones, hijosData:hijosData.data||[] });
     setError(false);
     } catch(e) {
       console.warn("No se pudo actualizar el muro:", e?.message);
@@ -263,6 +267,12 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
       dato:unir(a.fecha_evento?`Salida: ${fechaCorta(a.fecha_evento)}`:null, avisoVencimiento("x", a.fecha_limite, fechaHoy)?null:a.fecha_limite?`Responder hasta el ${fechaCorta(a.fecha_limite)}`:"Falta tu respuesta"),
       detalle:a.descripcion||null, vence:a.fecha_limite||null, urgencia:avisoVencimiento("Respondé hasta", a.fecha_limite, fechaHoy),
       accion:"Responder autorización", ir:()=>onNavigate?.("autorizaciones",{openAutorizacion:a.id}),
+    })),
+    ...(datos.pagosColegioPend||[]).map(p=>({
+      key:`pc-col-${p.id}`, tipo:"Pago al colegio", tag:tagDe(p.curso_id), titulo:p.titulo,
+      dato:unir(montoPago(p), avisoVencimiento("Pagá hasta", p.fecha_limite, fechaHoy)?null:p.fecha_limite?`Hasta el ${fechaCorta(p.fecha_limite)}`:null),
+      detalle:null, vence:p.fecha_limite||null, urgencia:avisoVencimiento("Pagá hasta", p.fecha_limite, fechaHoy),
+      accion:"Ver datos para pagar", ir:()=>onNavigate?.("pagos"),
     })),
     ...(datos.colectasPend||[]).map(c=>({
       key:`c-${c.id}`, tipo:"Colecta", tag:tagDe(c.curso_id), titulo:c.titulo,

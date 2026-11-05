@@ -52,6 +52,7 @@ import { BotonNuevo } from "../../components/BotonNuevo";
 import { Button } from "../../components/Button";
 import { Sheet } from "../../components/Sheet";
 import { CuentasEnCelular } from "../../components/CuentasEnCelular";
+import { PagosColegio } from "../pagosColegio";
 import { EmptyState } from "../../components/EmptyState";
 import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
@@ -68,6 +69,7 @@ const SECCIONES = [
     { id: "alertas", l: "Alertas" },
     { id: "eventos", l: "Eventos" },
     { id: "autorizaciones", l: "Autorizaciones" },
+    { id: "pagos_colegio", l: "Pagos" },
   ]},
   { id: "g_mensajes", l: "Mensajes", icono: "message-text-outline", items: [
     { id: "mensajes_familias", l: "De familias", soloColegioAdmin: true },
@@ -105,6 +107,7 @@ const OPCIONES_CREAR = [
   { id: "comunicado", l: "Comunicado", d: "A uno o varios cursos, o a todo el colegio", sec: "comunicaciones", icono: "email-outline" },
   { id: "evento", l: "Evento", d: "En el calendario de un curso", sec: "eventos", icono: "calendar-month-outline", abre: true },
   { id: "autorizacion", l: "Autorización", d: "Pedir permiso para una salida o actividad", sec: "autorizaciones", icono: "file-sign", abre: true },
+  { id: "pago", l: "Pago", d: "Cobrar una excursión o una visita, por curso", sec: "pagos_colegio", icono: "cash-multiple", abre: true },
   { id: "alerta", l: "Alerta", d: "Aviso urgente con notificación", sec: "alertas", icono: "alert-outline" },
   { id: "alumno", l: "Alumno", d: "Sumar un alumno a un curso", sec: "alumnos", icono: "account-school-outline" },
   { id: "apoderado", l: "Apoderado", d: "Crear la cuenta de una familia", sec: "usuarios", icono: "account-plus-outline" },
@@ -742,7 +745,7 @@ export function SuperAdmin() {
     // Una sección con una sola pantalla (la Secretaría en Colegio solo tiene
     // Horarios) toma el nombre y el ícono de esa pantalla.
     .map((g) => (g.items.length === 1 ? { ...g, l: g.items[0].l, icono: ICONO_PANTALLA[g.items[0].id] || g.icono } : g));
-  const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "salidas" ? noLeidos.salidas : id === "soporte_colegio" ? noLeidos.soporte : 0);
+  const badgeDe = (id) => (id === "mensajes_familias" ? noLeidos.familias : id === "mensajes_personal" ? noLeidos.personal : id === "salidas" ? noLeidos.salidas : id === "pagos_colegio" ? noLeidos.pagos : id === "soporte_colegio" ? noLeidos.soporte : 0);
   const grupoActivo = seccionesVisibles.find((g) => g.items.some((i) => i.id === sec) || (g.config && sec === "configuracion")) || null;
   // Pantallas de Configuración: vuelven a la página de tarjetas, sin fila de pestañas.
   const enConfig = !!grupoActivo?.config && sec !== "configuracion";
@@ -1086,9 +1089,10 @@ export function SuperAdmin() {
       {sec === "horarios" ? <HorariosAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
-      {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} /> : null}
+      {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} abrirNuevo={crear?.tipo === "evento" ? crear.n : null} /> : null}
       {sec === "autorizaciones" ? <AutorizacionesColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} abrirNuevo={crear?.tipo === "autorizacion" ? crear.n : null} /> : null}
+      {sec === "pagos_colegio" ? <PagosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} abrirNuevo={crear?.tipo === "pago" ? crear.n : null} onCambio={recontarPanel} /> : null}
       {sec === "salidas" ? <CambiosSalidaColegio key={activeColegioId} cursos={cursosVigentes} /> : null}
       {sec === "talleres" ? <TalleresColegio key={activeColegioId} colegioId={activeColegioId} anoActual={anoActual} /> : null}
       {sec === "adopcion" ? <AdopcionLista cursos={cursosVigentes} /> : null}
@@ -1875,7 +1879,7 @@ const PRIO = {
   media: { l: "Media", c: "#F59E0B", bg: "#FFFBEB" },
   baja: { l: "Baja", c: "#10B981", bg: "#F0FDF4" },
 };
-function ComunicacionesAdmin({ cursos }) {
+function ComunicacionesAdmin({ cursos, colegioId }) {
   const { usuario } = useSession();
   const [cursosSel, setCursosSel] = useState([]);
   const [form, setForm] = useState({ titulo: "", texto: "", fecha: fmtLocalDate(), hora_inicio: "", hora_fin: "", prioridad: "media", urgente: false, adjuntos: [], conMembrete: true });
@@ -2045,12 +2049,12 @@ function ComunicacionesAdmin({ cursos }) {
         </View>
       )}
 
-      <HistorialComunicaciones cursos={cursos} recargarVer={ok} />
+      <HistorialComunicaciones cursos={cursos} colegioId={colegioId} recargarVer={ok} />
     </View>
   );
 }
 
-function HistorialComunicaciones({ cursos, recargarVer }) {
+function HistorialComunicaciones({ cursos, colegioId, recargarVer }) {
   const [comunicaciones, setComunicaciones] = useState([]);
   const [abierto, setAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -2059,14 +2063,36 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
   const [guardandoEdit, setGuardandoEdit] = useState(false);
   const [editError, setEditError] = useState(null);
   const [verLecturas, setVerLecturas] = useState(null); // comunicación con "¿quién la leyó?" abierto
+  const [reenviando, setReenviando] = useState(null);
+
+  // Vuelve a mandar el push a todas las familias de los cursos, como recordatorio.
+  const reenviar = (c) => {
+    if (reenviando) return;
+    const titulo = c.titulo || textoPlano(c.texto).slice(0, 80);
+    Alert.alert("¿Reenviar como recordatorio?", `"${titulo}" les llega de nuevo a todas las familias de ${c.cursoIds.length === 1 ? "ese curso" : `esos ${c.cursoIds.length} cursos`}.`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Reenviar", onPress: async () => {
+        setReenviando(c.grupo_id);
+        const userIds = [...new Set((await Promise.all(c.cursoIds.map(getUserIdsByCurso))).flat())];
+        const res = userIds.length ? await sendPush({ type: "recordatorio", payload: { titulo, grupo: c.grupo_id, reenviado: true, userIds } }) : null;
+        if (res) await supabase.from("recordatorios").update({ ultimo_reenvio: new Date().toISOString() }).eq("grupo_id", c.grupo_id);
+        setReenviando(null);
+        if (res) { Alert.alert("Recordatorio enviado"); cargar(); }
+        else Alert.alert("No se pudo reenviar", userIds.length ? "Probá de nuevo." : "Esos cursos no tienen familias con cuenta.");
+      } },
+    ]);
+  };
 
   const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
 
   const cargar = async () => {
     setCargando(true);
+    // Solo los de este colegio: la RLS no acota a super, y Reenviar le llega a las familias.
+    if (!colegioId) { setComunicaciones([]); setCargando(false); return; }
     const { data } = await supabase
       .from("recordatorios")
-      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en")
+      .select("id,titulo,texto,fecha,hora_inicio,hora_fin,prioridad,urgente,curso_id,grupo_id,creado_en,ultimo_reenvio,cursos!inner(colegio_id)")
+      .eq("cursos.colegio_id", colegioId)
       .not("grupo_id", "is", null)
       .order("creado_en", { ascending: false })
       .limit(300);
@@ -2202,12 +2228,16 @@ function HistorialComunicaciones({ cursos, recargarVer }) {
                 ) : (
                   <View style={comStyles.historialHeaderRow}>
                     <Text style={[comStyles.historialTexto, !c.titulo && { marginBottom: 6 }, { flex: 1 }]}>{c.titulo || textoPlano(c.texto)}</Text>
+                    <Pressable onPress={() => reenviar(c)} disabled={reenviando === c.grupo_id} accessibilityRole="button" style={comStyles.editBtn}>
+                      <Text style={comStyles.editBtnTxt}>{reenviando === c.grupo_id ? "Enviando…" : "Reenviar"}</Text>
+                    </Pressable>
                     <Pressable onPress={() => empezarEdicion(c)} style={comStyles.editBtn}>
                       <Text style={comStyles.editBtnTxt}>Editar</Text>
                     </Pressable>
                   </View>
                 )}
                 {editando !== c.grupo_id && c.titulo ? <Text style={comStyles.historialDescripcion}>{textoPlano(c.texto)}</Text> : null}
+                {c.ultimo_reenvio ? <Text style={comStyles.historialMeta}>Último reenvío: {new Date(c.ultimo_reenvio).toLocaleDateString("es-AR")}</Text> : null}
                 <ChipLecturas filas={c.lecturas} onPress={() => setVerLecturas(c)} />
                 <View style={comStyles.historialMetaRow}>
                   <Text style={comStyles.historialMeta}>Publicado {fmtFecha(c.creado_en)}</Text>

@@ -168,7 +168,7 @@ async function enviar(sb: SupabaseClient, mensajes: Mensaje[]) {
 }
 
 // ── Preferencias ─────────────────────────────────────────────────────────────
-type TipoAviso = "evento_manana" | "colecta_por_vencer" | "autorizacion_pendiente" | "resumen_semanal" | "taller_cierre";
+type TipoAviso = "evento_manana" | "colecta_por_vencer" | "autorizacion_pendiente" | "resumen_semanal" | "taller_cierre" | "pago_por_vencer";
 type Prefs = Map<string, Record<TipoAviso, boolean>>;
 
 async function cargarPreferencias(sb: SupabaseClient): Promise<Prefs> {
@@ -233,6 +233,25 @@ async function diario(sb: SupabaseClient) {
         body: `"${c.titulo?.trim()}" vence el ${diaSemana(pasado)}. Todavía figura sin pagar.`,
         data: { type: "colecta", colectaId: c.id },
       });
+    }
+  }
+
+  // Pagos al colegio que vencen pasado mañana, a familias con algún hijo pendiente.
+  const { data: pagosCol } = await sb.from("pagos_colegio").select("id,titulo").eq("activo", true).eq("fecha_limite", pasado);
+  if ((pagosCol || []).length) {
+    const { data: filasPago } = await sb.from("pago_colegio_alumnos").select("pago_id,hijo_id").in("pago_id", pagosCol!.map((p) => p.id)).eq("estado", "pendiente");
+    for (const p of pagosCol!) {
+      const hijosPend = new Set((filasPago || []).filter((f) => f.pago_id === p.id).map((f) => f.hijo_id));
+      for (const [u, hijos] of ctx.hijosDeUsuario) {
+        if (!hijos.some((h) => hijosPend.has(h)) || !quiere(prefs, u, "pago_por_vencer")) continue;
+        if (!(await primeraVez(sb, `pago_colegio:${p.id}:${u}`))) continue;
+        mensajes.push({
+          usuario: u,
+          title: "🔔 Pago al colegio por vencer",
+          body: `"${p.titulo?.trim()}" vence el ${diaSemana(pasado)}. Todavía figura pendiente.`,
+          data: { type: "pago_colegio" },
+        });
+      }
     }
   }
 

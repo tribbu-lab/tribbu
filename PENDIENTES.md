@@ -201,6 +201,16 @@ web y app juntas, mostrar capturas antes de commitear.
       lo usa (difusión) o quien gestiona la denuncia. El resto del bucket
       `adjuntos` sigue igual.
 
+## Pagos al colegio (2026-11-05)
+
+- [ ] Probar en un celular real los push de pagos, recordatorio y reenvío de comunicado, y el aviso automático dos días antes.
+- [ ] Ver con la Secretaría de Primaria en la app el globito de pagos por confirmar (en la web ya se probó).
+- [ ] Definir si la familia recibe un aviso cuando el colegio confirma el pago.
+
+## Más adelante
+
+- [ ] Actualizar la web tribbu.ar con el enfoque y las funcionalidades actuales: hoy tiene mucha información y confunde.
+
 ## Perfil multicuenta (2026-11-05)
 
 - [x] Aplicar `supabase/multi-cuenta.sql` y desplegar `send-push`, `avisos-automaticos` y `mensajes-push` (hecho 2026-11-05).

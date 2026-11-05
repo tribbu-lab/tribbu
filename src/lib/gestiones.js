@@ -2,6 +2,7 @@
 // cuántas autorizaciones, colectas y encuestas esperan algo de esta familia.
 // Puro: cada pantalla hace sus consultas (dos lotes) y pasa las filas.
 import { colectasActivas, colectasPendientes, encuestasAbiertas } from "./muro";
+import { pagosPendientesFamilia } from "./pagosColegio";
 import { autorizacionesPendientes } from "./autorizaciones";
 
 /**
@@ -9,12 +10,13 @@ import { autorizacionesPendientes } from "./autorizaciones";
  * cargarReclamados en @shared/perdidos). misHijos = [{ id, curso_id }].
  */
 export async function cargarGestiones(supabase, { cursoIds = [], misHijos = [], userId, hoy }) {
-  if (!cursoIds.length || !misHijos.length) return { autorizaciones: 0, colectas: 0, encuestas: 0 };
+  if (!cursoIds.length || !misHijos.length) return { autorizaciones: 0, colectas: 0, encuestas: 0, pagos: 0 };
   const hijosIds = misHijos.map((h) => h.id);
-  const [auts, cols, encs] = await Promise.all([
+  const [auts, cols, encs, pagosCol] = await Promise.all([
     supabase.from("autorizaciones").select("id,curso_id,fecha_limite").in("curso_id", cursoIds),
     supabase.from("colectas").select("id,curso_id,activa,vencimiento").in("curso_id", cursoIds).eq("activa", true),
     supabase.from("encuestas").select("*").in("curso_id", cursoIds),
+    supabase.from("pago_colegio_alumnos").select("hijo_id,estado,pagos_colegio(*)").in("hijo_id", hijosIds).eq("estado", "pendiente"),
   ]);
   const autorizaciones = auts.data || [], colectas = cols.data || [], encuestas = encs.data || [];
   const vacio = Promise.resolve({ data: [] });
@@ -23,7 +25,8 @@ export async function cargarGestiones(supabase, { cursoIds = [], misHijos = [], 
     colectas.length ? supabase.from("colecta_pagos").select("colecta_id,alumno_id,estado").in("colecta_id", colectas.map((c) => c.id)).in("alumno_id", hijosIds) : vacio,
     userId && encuestas.length ? supabase.from("encuesta_votos").select("encuesta_id").eq("usuario_id", userId).in("encuesta_id", encuestas.map((e) => e.id)) : vacio,
   ]);
-  return contarGestiones({ autorizaciones, respuestas: resp.data || [], colectas, pagos: pags.data || [], encuestas, votos: vots.data || [], misHijos, hoy });
+  const pagosPendientes = pagosPendientesFamilia(pagosCol.data, cursoIds).length;
+  return { ...contarGestiones({ autorizaciones, respuestas: resp.data || [], colectas, pagos: pags.data || [], encuestas, votos: vots.data || [], misHijos, hoy }), pagos: pagosPendientes };
 }
 
 /**

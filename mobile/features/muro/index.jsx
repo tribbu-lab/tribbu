@@ -34,6 +34,7 @@ import { supabase } from "../../lib/supabase";
 import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
+import { montoPago, pagosPendientesFamilia } from "@shared/pagosColegio";
 import { talleresParaAnotarse, claveTalleresVistos, leerTalleresVistos, marcarTallerVisto } from "@shared/talleres";
 import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontradosVistos } from "@shared/perdidos";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -103,6 +104,8 @@ export function Muro() {
     // Dos lotes en paralelo (antes eran ~7 consultas en fila después del
     // primero, cada una un viaje a us-east-1). Lote 1: lo que solo depende de
     // los cursos/usuario. Lote 2: lo que necesita ids del lote 1.
+    // Va en paralelo al lote de abajo; se espera antes de armar los datos.
+    const pagosColegioP = misHijosIds.length ? supabase.from("pago_colegio_alumnos").select("hijo_id,estado,pagos_colegio(*)").in("hijo_id", misHijosIds).eq("estado", "pendiente") : Promise.resolve({ data: [] });
     // colegio_id por curso sale de la sesión (items), sin ir a "cursos".
     const colegios = [...new Set(cursosScope.map((cid) => (items || []).find((i) => i.curso_id === cid)?.cursos?.colegio_id).filter(Boolean))];
 
@@ -252,6 +255,7 @@ export function Muro() {
 
     // Autorizaciones abiertas con algún hijo mío sin responder.
     const misHijosObj = (hijosData.data || []).filter((h) => misHijosIds.includes(h.id));
+    const pagosColegioPend = pagosPendientesFamilia((await pagosColegioP).data, cursosScope);
     const autorizacionesPend = auts.length ? autorizacionesPendientes(auts, misHijosObj, respData.data || [], fechaHoy) : [];
     const talleresAbiertos = talleresParaAnotarse(talleresData.data || [], misHijosObj, {
       cursosPorTaller: Object.fromEntries((talleresData.data || []).map((x) => [x.id, (x.taller_cursos || []).map((c) => c.curso_id)])),
@@ -269,6 +273,7 @@ export function Muro() {
       invitaciones,
       encuestasPend,
       autorizacionesPend,
+      pagosColegioPend,
       talleresAbiertos,
       talleresVistos: talleresVistosTxt,
       encontradosSemana,
@@ -362,6 +367,15 @@ export function Muro() {
         dato: unir(a.fecha_evento ? `Salida: ${fechaCorta(a.fecha_evento)}` : null, urgencia ? null : a.fecha_limite ? `Responder hasta el ${fechaCorta(a.fecha_limite)}` : "Falta tu respuesta"),
         detalle: a.descripcion || null, vence: a.fecha_limite || null, urgencia,
         accion: "Responder autorización", ir: () => router.push({ pathname: "/(tabs)/autorizaciones", params: { openAutorizacion: String(a.id), t: String(Date.now()) } }),
+      };
+    }),
+    ...(datos.pagosColegioPend || []).map((p) => {
+      const urgencia = avisoVencimiento("Pagá hasta", p.fecha_limite, fechaHoy);
+      return {
+        key: `pc-col-${p.id}`, tipo: "Pago al colegio", tag: tagDeCurso(p.curso_id), titulo: p.titulo,
+        dato: unir(montoPago(p), urgencia ? null : p.fecha_limite ? `Hasta el ${fechaCorta(p.fecha_limite)}` : null),
+        detalle: null, vence: p.fecha_limite || null, urgencia,
+        accion: "Ver datos para pagar", ir: () => router.push("/(tabs)/pagos"),
       };
     }),
     ...datos.colectasPend.map((c) => ({

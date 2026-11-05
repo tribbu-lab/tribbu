@@ -36,7 +36,7 @@ const json = (body: unknown, status = 200) =>
 function buildMessage(type: string, payload: Record<string, unknown>) {
   switch (type) {
     case "recordatorio":
-      return { title: "Nuevo recordatorio", body: String(payload.titulo || "") };
+      return { title: payload.reenviado ? "🔔 Recordatorio" : "Nuevo recordatorio", body: String(payload.titulo || "") };
     case "alerta":
       return { title: "🚨 Alerta del curso", body: String(payload.mensaje || "") };
     case "evento":
@@ -48,6 +48,8 @@ function buildMessage(type: string, payload: Record<string, unknown>) {
       return { title: "💳 Avisaron un pago", body: String(payload.titulo || "") };
     case "festejo":
       return { title: "Festejo de cumpleaños", body: String(payload.titulo || "") };
+    case "pago_colegio":
+      return { title: payload.recordatorio ? "🔔 Pago al colegio pendiente" : "Nuevo pago del colegio", body: String(payload.titulo || "") };
     case "encuesta":
       return { title: "Nueva encuesta", body: String(payload.titulo || "") };
     case "autorizacion":
