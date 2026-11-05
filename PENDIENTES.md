@@ -191,6 +191,13 @@ web y app juntas, mostrar capturas antes de commitear.
       lo usa (difusión) o quien gestiona la denuncia. El resto del bucket
       `adjuntos` sigue igual.
 
+## Perfil multicuenta (2026-11-05)
+
+- [x] Aplicar `supabase/multi-cuenta.sql` y desplegar `send-push`, `avisos-automaticos` y `mensajes-push` (hecho 2026-11-05).
+- [ ] Probar en un celular real con dos cuentas: agregar, cambiar, cerrar sesión, push de las dos y tocar un aviso de la otra cuenta.
+- [ ] Publicar la app. Después, el selector en la web.
+- [ ] Corregir "Eliminar apoderado" del panel: la cuenta no se borra y no avisa (al sacar los vínculos, la RLS ya no deja borrar la fila).
+
 ## Funcionalidades nuevas (acordadas, sin hacer)
 
 - [x] **Panel del colegio: pantallas del super** (hecho 2026-10-22) (pedido 2026-10-22, al retomar):

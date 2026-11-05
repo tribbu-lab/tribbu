@@ -32,6 +32,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: { fetch: fetchQueAnotaCambios },
 });
 
+// Cliente que no guarda nada ni toca la sesión abierta: valida otra cuenta antes
+// de pasarse a ella. En el cliente principal, un setSession con un refresh token
+// inválido borra la sesión actual y saca al usuario al login.
+export const crearClienteTemporal = () =>
+  createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "tribbu-cuenta-temporal" },
+  });
+
 // Refrescar el token solo cuando la app está en foreground.
 AppState.addEventListener("change", (state) => {
   if (state === "active") supabase.auth.startAutoRefresh();

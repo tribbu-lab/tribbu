@@ -32,7 +32,7 @@ Sin router: `tab` (espejada en `?tab=`, ver `TABS_VALIDOS`) elige la pantalla; c
 Familias: **Hoy · Agenda · Comunicaciones · Curso** + **Mi cuenta** (web y app). Las secciones solo agrupan pantallas; las rutas no cambian. Panel del colegio (`src/features/superadmin`, `mobile/features/superadmin`), "modo simple": día a día arriba (Inicio · Comunicación · Mensajes · Personas · Comunidad), **Configuración** aparte abajo (grupo con `config:true`: cursos, horarios, materias, maestros, directivos, menú, uniformes, membrete, adopción, promoción) y un botón **"+ Crear"** único (`OPCIONES_CREAR`; Eventos y Autorizaciones reciben `abrirNuevo` = nonce para abrir el alta). Plataforma solo para super. Si cambiás navegación, actualizá web (escritorio y celular) y app.
 
 ### "Mi acceso" — contrato de todas las pantallas
-`items` = hijos (+ cursos de Room Parent / docente). Con hijos en más de un curso hay un ítem **"Todos"** (vista unificada, por defecto). Props que reciben las pantallas (web desde `App.jsx`, app desde `useSession()`):
+`items` = hijos (+ cursos de Room Parent / docente). Con hijos en más de un curso hay un ítem **"Todos"** (vista unificada, por defecto). Una cuenta pertenece a **un solo colegio**: hijos en otro colegio = otra cuenta, y la app cambia entre cuentas (`specs/perfil-multicuenta.md`). Props que reciben las pantallas (web desde `App.jsx`, app desde `useSession()`):
 - leer siempre con `.in("curso_id", cursoIds)`;
 - `cursoId` es **null** en Todos e `isAdmin` es false en Todos;
 - `tagDeCurso(curso_id)` → `{nombre, color}` solo en Todos, para marcar filas;
@@ -90,6 +90,7 @@ Sección homónima en `docs/notas-tecnicas.md` + spec/SQL principal:
 | Talleres extraprogramáticos | `specs/talleres-extraprogramaticos.md` |
 | Marketplace, Lost & Found | `specs/marketplace.md`, `specs/perdidos-y-encontrados.md` |
 | Multi-colegio, año lectivo y promoción | `specs/multi-colegio.md`, `specs/ano-lectivo-y-promocion-de-curso.md` |
+| Perfil multicuenta (una cuenta por colegio, varias en un celular) | `specs/perfil-multicuenta.md`, `supabase/multi-cuenta.sql` |
 | Avisos automáticos (push diario/semanal) | `supabase/avisos-automaticos*.sql` |
 | Auth: recuperación de contraseña, cuentas, borrar cuenta | `specs/recuperacion-de-contrasena-por-email.md` |
 | App: build, tiendas, capturas de las fichas, R8, pantallas grandes, huella | `mobile/STORE_RELEASE.md`, `specs/capturas-de-tienda-al-dia.md`, `specs/calidad-tecnica-para-google-play.md`, `specs/desbloqueo-con-huella-digital.md` |

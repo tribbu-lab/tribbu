@@ -68,17 +68,26 @@ export async function registerForPush() {
   }
 }
 
-/** Guarda/actualiza el token del dispositivo para el usuario en `push_tokens`. */
-export async function savePushToken(usuarioId, token) {
-  if (!usuarioId || !token) return;
-  const { error } = await supabase.from("push_tokens").upsert(
-    {
-      usuario_id: usuarioId,
-      token,
-      platform: Platform.OS,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "token" }
-  );
+/**
+ * Anota este celular para la cuenta abierta. `mantener`: las otras cuentas
+ * guardadas acá, que siguen recibiendo sus avisos; cualquier otra cuenta que
+ * haya quedado en este celular deja de recibirlos (specs/perfil-multicuenta.md).
+ */
+export async function savePushToken(token, mantener = []) {
+  if (!token) return;
+  const { error } = await supabase.rpc("registrar_push_token", {
+    p_token: token,
+    p_platform: Platform.OS,
+    p_mantener: mantener,
+  });
   if (error) console.error("savePushToken error:", error);
+}
+
+/** Al cerrar sesión: este celular deja de recibir los avisos de esa cuenta. */
+export async function borrarPushToken(token) {
+  if (!token) return;
+  await Promise.all([
+    supabase.from("push_token_cuentas").delete().eq("token", token),
+    supabase.from("push_tokens").delete().eq("token", token),
+  ]);
 }

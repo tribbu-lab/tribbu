@@ -8,6 +8,11 @@
 // los que vienen en el ticket al toque, y los que aparecen en el receipt (con
 // FCM casi siempre llegan ahí) en background vía EdgeRuntime.waitUntil.
 //
+// Un celular puede tener varias cuentas (specs/perfil-multicuenta.md): los
+// tokens salen de push_token_cuentas y de push_tokens (versiones viejas de la
+// app). En un celular con más de una cuenta el título lleva el colegio, y cada
+// push lleva usuario_id para que la app sepa a qué cuenta pasar al tocarlo.
+//
 // `sb` tiene que ser un cliente con service role (lee/borra tokens de todos).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,6 +30,34 @@ export type MensajePush = {
 };
 
 type Ticket = { id?: string; status?: string; message?: string; details?: { error?: string } };
+
+async function borrarTokens(sb: SupabaseClient, muertos: string[]) {
+  const [viejos, nuevos] = await Promise.all([
+    sb.from("push_tokens").delete({ count: "exact" }).in("token", muertos),
+    sb.from("push_token_cuentas").delete({ count: "exact" }).in("token", muertos),
+  ]);
+  return { error: viejos.error || nuevos.error, count: (viejos.count ?? 0) + (nuevos.count ?? 0) };
+}
+
+// Colegio de cada cuenta que comparte celular con otra (para el título).
+async function colegiosDeCuentas(sb: SupabaseClient, usuarios: string[]) {
+  const nombres = new Map<string, string>();
+  if (!usuarios.length) return nombres;
+  const { data } = await sb
+    .from("usuarios")
+    .select("id, colegios(nombre), usuario_hijos(hijos(cursos(colegios(nombre)))), usuario_cursos(cursos(colegios(nombre)))")
+    .in("id", usuarios);
+  // deno-lint-ignore no-explicit-any
+  for (const u of (data || []) as any[]) {
+    const nombre = u.colegios?.nombre
+      // deno-lint-ignore no-explicit-any
+      || (u.usuario_hijos || []).map((r: any) => r.hijos?.cursos?.colegios?.nombre).find(Boolean)
+      // deno-lint-ignore no-explicit-any
+      || (u.usuario_cursos || []).map((r: any) => r.cursos?.colegios?.nombre).find(Boolean);
+    if (nombre) nombres.set(u.id, nombre);
+  }
+  return nombres;
+}
 
 async function podarPorReceipts(sb: SupabaseClient, ticketToToken: Map<string, string>) {
   if (!ticketToToken.size) return;
@@ -53,7 +86,7 @@ async function podarPorReceipts(sb: SupabaseClient, ticketToToken: Map<string, s
     }
   }
   if (muertos.length) {
-    const { error } = await sb.from("push_tokens").delete().in("token", muertos);
+    const { error } = await borrarTokens(sb, muertos);
     if (!error) console.log(`expoPush: ${muertos.length} tokens muertos podados via receipts`);
   }
 }
@@ -62,24 +95,45 @@ async function podarPorReceipts(sb: SupabaseClient, ticketToToken: Map<string, s
 export async function enviarPush(sb: SupabaseClient, mensajes: MensajePush[]) {
   if (!mensajes.length) return { sent: 0, pruned: 0, results: [] as unknown[] };
 
-  const { data: tokens } = await sb
-    .from("push_tokens")
-    .select("usuario_id,token")
-    .in("usuario_id", [...new Set(mensajes.map((m) => m.usuario))]);
-  const tokensDe = new Map<string, string[]>();
-  for (const t of tokens || []) {
+  const destinatarios = [...new Set(mensajes.map((m) => m.usuario))];
+  const [viejos, nuevos] = await Promise.all([
+    sb.from("push_tokens").select("usuario_id,token").in("usuario_id", destinatarios),
+    sb.from("push_token_cuentas").select("usuario_id,token").in("usuario_id", destinatarios),
+  ]);
+  const tokensDe = new Map<string, Set<string>>();
+  for (const t of [...(viejos.data || []), ...(nuevos.data || [])]) {
     if (!t.token?.startsWith("ExponentPushToken")) continue;
-    if (!tokensDe.has(t.usuario_id)) tokensDe.set(t.usuario_id, []);
-    tokensDe.get(t.usuario_id)!.push(t.token);
+    if (!tokensDe.has(t.usuario_id)) tokensDe.set(t.usuario_id, new Set());
+    tokensDe.get(t.usuario_id)!.add(t.token);
   }
 
+  // Celulares con más de una cuenta (aunque la otra no reciba este aviso).
+  const misTokens = [...new Set((nuevos.data || []).map((t) => t.token))];
+  const cuentasDelToken = new Map<string, Set<string>>();
+  for (let i = 0; i < misTokens.length; i += 200) {
+    const { data } = await sb.from("push_token_cuentas").select("usuario_id,token").in("token", misTokens.slice(i, i + 200));
+    for (const t of data || []) {
+      if (!cuentasDelToken.has(t.token)) cuentasDelToken.set(t.token, new Set());
+      cuentasDelToken.get(t.token)!.add(t.usuario_id);
+    }
+  }
+  const compartido = (token: string) => (cuentasDelToken.get(token)?.size ?? 0) > 1;
+  const colegios = await colegiosDeCuentas(
+    sb,
+    destinatarios.filter((u) => [...(tokensDe.get(u) || [])].some(compartido)),
+  );
+  const conColegio = (titulo: string, usuario: string, token: string) => {
+    const colegio = compartido(token) ? colegios.get(usuario) : null;
+    return !colegio || titulo.includes(colegio) ? titulo : `${colegio} · ${titulo}`;
+  };
+
   const salida = mensajes.flatMap((m) =>
-    (tokensDe.get(m.usuario) || []).map((to) => ({
+    [...(tokensDe.get(m.usuario) || [])].map((to) => ({
       to,
       sound: "default",
-      title: m.title,
+      title: conColegio(m.title, m.usuario, to),
       body: m.body,
-      data: m.data || {},
+      data: { ...(m.data || {}), usuario_id: m.usuario },
       channelId: "default",
     })),
   );
@@ -114,8 +168,8 @@ export async function enviarPush(sb: SupabaseClient, mensajes: MensajePush[]) {
 
   let pruned = 0;
   if (muertos.length) {
-    const { error, count } = await sb.from("push_tokens").delete({ count: "exact" }).in("token", muertos);
-    if (!error) pruned = count ?? muertos.length;
+    const { error, count } = await borrarTokens(sb, muertos);
+    if (!error) pruned = count || muertos.length;
   }
 
   // Receipts en background: quien llama responde ya, la poda corre después.
