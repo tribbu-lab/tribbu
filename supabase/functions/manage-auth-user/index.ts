@@ -12,8 +12,9 @@
 //   action: "update"  → actualiza email y/o password de un usuario existente
 //   action: "find"    → busca un usuario por email y devuelve su auth_id
 //   action: "delete"  → borra del todo a un usuario (datos + fila + Auth): el
-//                       administrador solo a familias de su colegio; la
-//                       Secretaría no puede
+//                       administrador solo a familias de su colegio (si también
+//                       están en otro, solo les quita los vínculos con el suyo);
+//                       la Secretaría no puede
 //
 // Deploy: supabase functions deploy manage-auth-user
 
@@ -296,6 +297,32 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: "Sin permisos sobre ese usuario" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // Una familia que también está en otro colegio: el administrador solo responde
+      // por lo suyo. Se le quitan los vínculos con su colegio y la cuenta sigue.
+      if (!esSuper) {
+        const [{ data: viaCursos, error: e1 }, { data: viaHijos, error: e2 }] = await Promise.all([
+          adminClient.from("usuario_cursos").select("curso_id, cursos!inner(colegio_id)").eq("usuario_id", fila.id),
+          adminClient.from("usuario_hijos").select("hijo_id, hijos!inner(cursos!inner(colegio_id))").eq("usuario_id", fila.id),
+        ]);
+        if (e1 || e2) throw e1 || e2;
+        const miColegio = userData!.colegio_id;
+        const cursos = (viaCursos || []) as any[];
+        const hijos = (viaHijos || []) as any[];
+        const enOtroColegio = cursos.some((r) => r.cursos?.colegio_id !== miColegio)
+          || hijos.some((r) => r.hijos?.cursos?.colegio_id !== miColegio);
+        if (enOtroColegio) {
+          const cursoIds = cursos.filter((r) => r.cursos?.colegio_id === miColegio).map((r) => r.curso_id);
+          const hijoIds = hijos.filter((r) => r.hijos?.cursos?.colegio_id === miColegio).map((r) => r.hijo_id);
+          const { error: errCursos } = await adminClient.from("usuario_cursos").delete().eq("usuario_id", fila.id).in("curso_id", cursoIds);
+          if (errCursos) throw new Error(`usuario_cursos: ${errCursos.message}`);
+          const { error: errHijos } = await adminClient.from("usuario_hijos").delete().eq("usuario_id", fila.id).in("hijo_id", hijoIds);
+          if (errHijos) throw new Error(`usuario_hijos: ${errHijos.message}`);
+          return new Response(JSON.stringify({ ok: true, solo_vinculos: true }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       // Primero Auth: si falla no se tocó nada y se puede reintentar. usuarios.auth_id
