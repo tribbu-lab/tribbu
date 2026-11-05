@@ -43,7 +43,7 @@ import { useListControls } from "../../hooks/useListControls";
 import { ListToolbar, AdminFormModal, ConfirmDestructivoModal, CursoListSelector } from "../../components";
 import { EmojiPicker } from "../shared";
 import { useToast } from "../../hooks/useToast";
-import { authAdminCreate, authAdminUpdate, authAdminFind, mensajeErrorAuth } from "../../lib/authAdmin";
+import { authAdminCreate, authAdminUpdate, authAdminFind, authAdminDelete, mensajeErrorAuth } from "../../lib/authAdmin";
 import { apoderadoEnCurso, opcionesCursoApoderados } from "../../lib/apoderados";
 
 import { sendPush, getUserIdsByCurso, getUserIdsParaAlerta } from "../../lib/push";
@@ -695,31 +695,13 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
   };
 
   const eliminarUsuario = async (id) => {
-    // Las FKs a usuarios no tienen ON DELETE CASCADE — hay que limpiar a mano
-    // todo lo que apunta al usuario (mismo set que la Edge Function
-    // delete-account, + encuestas). Lo que es "historial del curso" se anula
-    // en vez de borrarse. Nota: la fila de Supabase Auth NO se borra desde acá
-    // (requiere service key) — queda como huérfana; para eso haría falta una
-    // acción "delete" en manage-auth-user.
-    for(const [tabla,col] of [
-      ["push_tokens","usuario_id"], ["recordatorio_leidos","usuario_id"],
-      ["evento_asistencia","usuario_id"], ["libro_adquirido","usuario_id"],
-      ["util_adquirido","usuario_id"], ["uniforme_adquirido","usuario_id"],
-      ["encuesta_votos","usuario_id"], ["recordatorios","para_usuario_id"],
-      ["usuario_cursos","usuario_id"], ["usuario_hijos","usuario_id"],
-    ]) {
-      await supabase.from(tabla).delete().eq(col,id);
-    }
-    for(const [tabla,col] of [
-      ["colecta_pagos","pagado_por"], ["colectas","responsable_id"],
-      ["cumples","responsable_id"], ["encuestas","creado_por"],
-    ]) {
-      await supabase.from(tabla).update({[col]:null}).eq(col,id);
-    }
-    const { error } = await supabase.from("usuarios").delete().eq("id",id);
-    if(error) {
-      console.error("eliminarUsuario:", error);
-      showToast(`No se pudo eliminar: ${error.details || error.message}`, "error");
+    // Por la Edge Function: desde el cliente el borrado fallaba en silencio (ver
+    // la acción "delete" en manage-auth-user) y Auth nunca se borraba.
+    try {
+      await authAdminDelete(id);
+    } catch(e) {
+      console.error("eliminarUsuario:", e);
+      showToast(`No se pudo eliminar: ${e.message}`, "error");
       setConfirm(null); return;
     }
     setConfirm(null); cargar();

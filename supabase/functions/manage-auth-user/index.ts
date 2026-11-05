@@ -11,6 +11,8 @@
 //   action: "create"  → crea un usuario en Supabase Auth
 //   action: "update"  → actualiza email y/o password de un usuario existente
 //   action: "find"    → busca un usuario por email y devuelve su auth_id
+//   action: "delete"  → borra del todo a un usuario (datos + fila + Auth): el
+//                       colegio y la Secretaría solo a familias de su alcance
 //
 // Deploy: supabase functions deploy manage-auth-user
 
@@ -134,9 +136,9 @@ serve(async (req) => {
     // usuario_hijos, ya cubierto por RLS). Mismo criterio que
     // es_colegio_admin_de_usuario() en supabase/multi-colegio.sql, pero acá
     // resuelto a mano porque corre con el service client (sin auth.uid()).
-    async function targetEnColegio(colegioId: string, filtro: { authId?: string; email?: string }) {
+    async function targetEnColegio(colegioId: string, filtro: { id?: string; authId?: string; email?: string }) {
       let query = adminClient.from("usuarios").select("id, colegio_id");
-      query = filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
+      query = filtro.id ? query.eq("id", filtro.id) : filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
       const { data: fila } = await query.maybeSingle();
       if (!fila) return true; // sin fila usuarios todavía → alta nueva
       if (fila.colegio_id) return fila.colegio_id === colegioId; // es colegio_admin/super de otro lado
@@ -154,9 +156,9 @@ serve(async (req) => {
     // Para la Secretaría: el usuario objetivo tiene que ser una familia (sin
     // colegio_id: nunca personal del colegio) con algún curso de sus niveles
     // en su colegio. Mismo criterio que es_secretaria_de_usuario().
-    async function targetEnNivel(colegioId: string, niveles: string[], filtro: { authId?: string; email?: string }) {
+    async function targetEnNivel(colegioId: string, niveles: string[], filtro: { id?: string; authId?: string; email?: string }) {
       let query = adminClient.from("usuarios").select("id, colegio_id, rol");
-      query = filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
+      query = filtro.id ? query.eq("id", filtro.id) : filtro.authId ? query.eq("auth_id", filtro.authId) : query.ilike("email", filtro.email!);
       const { data: fila } = await query.maybeSingle();
       if (!fila) return true; // alta nueva: el alcance lo pone RLS al vincular hijos
       if (fila.colegio_id || !["padre", "room", "admin"].includes(fila.rol)) return false;
@@ -261,6 +263,84 @@ serve(async (req) => {
       const { email } = payload;
       if (!email) throw new Error("email es requerido");
       result = { auth_id: await findAuthIdByEmail(email) };
+
+    } else if (action === "delete") {
+      // Antes el panel borraba desde el cliente: al sacar usuario_hijos/
+      // usuario_cursos, es_colegio_admin_de_usuario() daba falso y el delete de
+      // usuarios afectaba 0 filas SIN error (cuenta sin hijos, mail ocupado, y
+      // la fila de Auth nunca se borraba). Acá corre con el service client.
+      const { usuario_id } = payload;
+      if (!usuario_id) throw new Error("usuario_id es requerido");
+      const { data: fila, error: filaErr } = await adminClient
+        .from("usuarios")
+        .select("id, auth_id, email, rol, colegio_id")
+        .eq("id", usuario_id)
+        .maybeSingle();
+      if (filaErr) throw filaErr;
+      if (!fila) {
+        return new Response(JSON.stringify({ error: "Ese usuario ya no existe" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Alcance: nunca un Super ni la propia cuenta (esa va por delete-account).
+      // El colegio y la Secretaría, solo familias: el personal lo gestiona super.
+      const esFamilia = !fila.colegio_id && ["padre", "room", "admin"].includes(fila.rol);
+      let permitido = fila.rol !== "super" && fila.auth_id !== user.id;
+      if (permitido && !esSuper) {
+        permitido = esFamilia && (esColegioAdmin
+          ? await targetEnColegio(userData!.colegio_id, { id: fila.id })
+          : await targetEnNivel(userData!.colegio_id, userData!.niveles || [], { id: fila.id }));
+      }
+      if (!permitido) {
+        return new Response(JSON.stringify({ error: "Sin permisos sobre ese usuario" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Primero Auth: si falla no se tocó nada y se puede reintentar. usuarios.auth_id
+      // tiene FK a auth.users sin cascade, así que hay que soltarlo antes de borrar.
+      // Sin auth_id (filas viejas) se busca por email para liberar el mail, salvo
+      // que esa cuenta de Auth sea de otra fila.
+      let authId: string | null = fila.auth_id;
+      if (!authId && fila.email) {
+        const porEmail = await findAuthIdByEmail(fila.email);
+        if (porEmail) {
+          const { data: otra } = await adminClient.from("usuarios").select("id").eq("auth_id", porEmail).maybeSingle();
+          if (!otra) authId = porEmail;
+        }
+      }
+      if (fila.auth_id) {
+        const { error } = await adminClient.from("usuarios").update({ auth_id: null }).eq("id", fila.id);
+        if (error) throw new Error(`usuarios: ${error.message}`);
+      }
+      if (authId) {
+        const { error } = await withRetry(() => adminClient.auth.admin.deleteUser(authId!));
+        if (error && error.status !== 404) {
+          if (fila.auth_id) await adminClient.from("usuarios").update({ auth_id: fila.auth_id }).eq("id", fila.id);
+          throw error;
+        }
+      }
+
+      // Las FKs a usuarios sin cascade: lo personal se borra, lo que es historial
+      // del curso se anula (mismo criterio que delete-account). El resto de las
+      // FKs ya son CASCADE / SET NULL. Los hijos no se tocan. Los vínculos van al
+      // final: sin ellos el colegio pierde el alcance para reintentar.
+      const { error: cumplesErr } = await adminClient.from("cumples").update({ responsable_id: null }).eq("responsable_id", fila.id);
+      if (cumplesErr) throw new Error(`cumples: ${cumplesErr.message}`);
+      for (const [tabla, col] of [
+        ["recordatorio_leidos", "usuario_id"], ["evento_asistencia", "usuario_id"],
+        ["libro_adquirido", "usuario_id"], ["util_adquirido", "usuario_id"],
+        ["uniforme_adquirido", "usuario_id"], ["recordatorios", "para_usuario_id"],
+        ["usuario_cursos", "usuario_id"], ["usuario_hijos", "usuario_id"],
+      ]) {
+        const { error } = await adminClient.from(tabla).delete().eq(col, fila.id);
+        if (error) throw new Error(`${tabla}: ${error.message}`);
+      }
+      const { data: borrados, error: delErr } = await adminClient.from("usuarios").delete().eq("id", fila.id).select("id");
+      if (delErr) throw new Error(`usuarios: ${delErr.message}`);
+      if (!borrados?.length) throw new Error("No se pudo borrar el usuario");
+      result = { ok: true };
 
     } else {
       throw new Error(`Acción desconocida: ${action}`);

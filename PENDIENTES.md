@@ -3,6 +3,16 @@
 Lista viva de lo que queda por hacer (última actualización: 2026-10-27).
 Tachá o borrá cada ítem cuando se resuelva.
 
+## Eliminar apoderado (2026-11-05)
+
+- [ ] **Desplegar `manage-auth-user`** con la acción `delete` (antes de que salga
+      la web) y probarlo a mano con una cuenta de prueba: no queda fila en
+      `usuarios` ni en Auth, y el mail se puede volver a usar.
+- [ ] **Apoderado sin hijos ni cursos** que quedó en producción (1 de 74, causa
+      no confirmada): revisarlo y, si corresponde, borrarlo como `super`.
+- [ ] Decidir si la Secretaría puede eliminar a una familia que también tiene
+      hijos en otro nivel (hoy sí, como la política `usuarios_delete`; hay 2).
+
 ## Hecho 2026-10-16
 
 - ~~**Claves viejas de Supabase**~~: Vercel pasó a la publishable (y se borró

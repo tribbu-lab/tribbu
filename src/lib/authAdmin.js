@@ -53,6 +53,13 @@ export const authAdminFind = (email) =>
   callManageAuthUser("find", { email });
 
 /**
+ * Borra del todo a otro usuario (datos, fila de usuarios y Auth), desde el panel
+ * del colegio. La Edge Function chequea el alcance. Tira error si no se pudo.
+ */
+export const authAdminDelete = (usuario_id) =>
+  callManageAuthUser("delete", { usuario_id });
+
+/**
  * Elimina la cuenta del usuario logueado (Edge Function delete-account: sin
  * rol requerido, el JWT del caller es el único que puede borrar — nunca
  * super). Mismo contrato que mobile/lib/authAdmin.js.
