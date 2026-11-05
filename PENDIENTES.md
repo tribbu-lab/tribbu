@@ -7,7 +7,7 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 - [x] `supabase/borrado-de-usuarios.sql` aplicado y `manage-auth-user` con la
       acción `delete` desplegada (2026-11-05).
-- [ ] **Mergear a `main`** para publicar la web y sacar la app en la próxima versión.
+- [x] Unido a `main` y web publicada (2026-11-05). La app lo toma con la versión de tiendas que incluya este cambio; hasta entonces sigue con el borrado viejo.
 - [ ] **Probarlo a mano** con una cuenta de prueba: no queda fila en `usuarios`
       ni en Auth, y el mail se puede volver a usar.
 - [ ] **Apoderado sin hijos ni cursos** que quedó en producción (1 de 74, causa
