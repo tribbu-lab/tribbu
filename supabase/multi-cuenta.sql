@@ -66,6 +66,13 @@ begin
   else
     select cu.colegio_id into v_colegio from public.cursos cu where cu.id = new.curso_id;
   end if;
+  -- El personal del colegio que además es familia usa otra cuenta, aunque sea
+  -- en el mismo colegio: la de personal no lleva hijos ni cursos de Room Parent.
+  if exists (select 1 from public.usuarios u where u.id = new.usuario_id and u.rol in ('colegio_admin', 'nivel_admin', 'docente')) then
+    raise exception 'Esta cuenta es de personal del colegio. Para sus hijos necesita una cuenta aparte: cargá a esta familia con otro mail.'
+      using errcode = 'P0001';
+  end if;
+
   if v_colegio is null then return new; end if;
 
   -- Dos altas simultáneas de la misma cuenta no se pueden saltear el chequeo.

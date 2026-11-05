@@ -26,7 +26,7 @@ import { Wordmark } from "../../components/Wordmark";
 // Input de contraseña con botón ver/ocultar superpuesto a la derecha. El
 // margen inferior del `style` pasa al contenedor para que el ícono quede
 // centrado sobre el input.
-function PasswordInput({ style, iconColor, ...props }) {
+export function PasswordInput({ style, iconColor, ...props }) {
   const [ver, setVer] = useState(false);
   const { marginBottom, ...inputStyle } = StyleSheet.flatten(style) || {};
   return (

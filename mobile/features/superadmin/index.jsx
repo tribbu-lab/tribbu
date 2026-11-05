@@ -51,6 +51,7 @@ import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoLi
 import { BotonNuevo } from "../../components/BotonNuevo";
 import { Button } from "../../components/Button";
 import { Sheet } from "../../components/Sheet";
+import { CuentasEnCelular } from "../../components/CuentasEnCelular";
 import { EmptyState } from "../../components/EmptyState";
 import { useNoLeidosPanel } from "../../lib/useNoLeidosPanel";
 import { PestanasPanel } from "../../components/SubTabs";
@@ -848,6 +849,7 @@ export function SuperAdmin() {
             {usuario?.email ? <Text style={styles.itemMeta}>{usuario.email}</Text> : null}
             <Text style={styles.itemMeta}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</Text>
           </View>
+          {usuario?.rol !== "super" ? <CuentasEnCelular /> : null}
           <View style={styles.lista}>
             <Fila icono="key-outline" label="Cambiar contraseña" primera onPress={() => setCambiarPass(true)} />
             {esColegioAdmin ? <Fila icono="lifebuoy" label="Ayuda y soporte" n={noLeidos.soporte} onPress={() => setSec("soporte_colegio")} /> : null}

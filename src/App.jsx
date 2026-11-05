@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { T, ROL_LABEL, ROL_COLOR, HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "./lib/theme";
 import { getHijoColor, setHijoColor, colorColegio } from "./lib/helpers";
 import { nivelDeVista } from "./lib/niveles";
+import { useCuentas } from "./hooks/useCuentas";
 import { Spinner } from "./components/Spinner";
 import { Wordmark } from "./components/Wordmark";
 import { SignedImg } from "./components/SignedImg";
@@ -335,6 +336,8 @@ function App() {
   // vez por su cuenta (al arrancar, al cambiar los leídos y cada 30 s).
   // Tocar la pestaña Avisos lo oculta hasta el próximo refresco del hook.
 
+  const cuentasGuardadas = useCuentas(usuario, colegiosPorId, items);
+
   // Restaurar sesión al recargar la página
   useEffect(()=>{
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -443,7 +446,7 @@ function App() {
   // signOut solo limpia la sesión local (puede fallar si Supabase ya la
   // invalidó, no importa) y vuelve al login.
   const cerrarSesionTrasEliminar = async () => {
-    try { await supabase.auth.signOut(); } catch { /* sesión ya invalidada */ }
+    if(!(await cuentasGuardadas.cerrarSesion())) return; // pasó a otra cuenta guardada
     setUsuario(null);
     setFotoLocal(undefined);
   };
@@ -501,7 +504,7 @@ function App() {
   // colegio_admin (multi-colegio): mismo panel que super, acotado a su
   // colegio_id vía RLS — sin "Mi acceso" propio, igual que super.
   if(esPanelAdmin) return (
-    <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} onCerrarSesion={async ()=>{ await supabase.auth.signOut(); setUsuario(null); }}/></Suspense>
+    <Suspense fallback={<Spinner/>}><SuperAdmin usuario={usuario} cuentasGuardadas={cuentasGuardadas} onCerrarSesion={async ()=>{ if(await cuentasGuardadas.cerrarSesion()) setUsuario(null); }}/></Suspense>
   );
 
   const hijoColor = itemActual?._tipo==="hijo" ? getHijoColorCustom(itemActual) : null;
@@ -558,7 +561,7 @@ function App() {
     </button>
   );
   const renderSelectorSeccion = () => (tab==="muro"||tab==="cuenta"||tab==="ayuda"||items.length<2) ? null : <div style={{marginBottom:14}}>{selectorHijos}</div>;
-  const cerrarSesion = async () => { await supabase.auth.signOut(); setUsuario(null); };
+  const cerrarSesion = async () => { if(await cuentasGuardadas.cerrarSesion()) setUsuario(null); };
 
   // Compartida entre Muro y la búsqueda global (header desktop): navegar a
   // otro tab, opcionalmente abriendo una colecta/fecha puntual.
@@ -606,7 +609,7 @@ function App() {
       case "curso":    return <Curso cursoIds={cursoIds} items={items} userId={usuario.id} isAdmin={isAdmin} esDocente={esDocente} onNavigate={navegarA} novedades={{ fotos: fotosNuevas }}/>;
       // Preguntas frecuentes de las familias (src/lib/ayuda.js) + "Escribile al equipo de tribbu".
       case "ayuda":    return <Ayuda lista={preguntasPara(usuario.rol)} onIr={(t)=>navegarA(t)} onSoporte={()=>navegarA("mensajes",{soporte:true})} onVolver={()=>setTab("cuenta")}/>;
-      case "cuenta":   return <MiCuenta usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
+      case "cuenta":   return <MiCuenta cuentasGuardadas={cuentasGuardadas} usuario={usuario} foto={fotoPerfil} onFoto={setFotoLocal} cursosRoom={[...new Set(items.filter(i=>i.rolEfectivo==="room").map(i=>i.cursos?.nombre).filter(Boolean))]} esDocente={esDocente} onNotificaciones={()=>setPrefsAvisos(true)} onSoporte={()=>navegarA("ayuda")} onCambiarPass={()=>setCambiarPass(true)} onCerrarSesion={cerrarSesion} onEliminar={()=>setEliminarCuenta(true)}/>;
       default: return null;
     }
   };

@@ -11,7 +11,7 @@ import { supabase, crearClienteTemporal } from "../lib/supabase";
 import { getHijoColor, setHijoColor } from "@shared/helpers";
 import { HIJO_COLOR_DEFAULT } from "@shared/theme";
 import { SELECT_USUARIO_SESION, armarUsuario, itemsDeDocente } from "@shared/sesion";
-import { etiquetaDeCuenta, otrasCuentas, rolAdmiteMulticuenta } from "@shared/cuentas";
+import { etiquetaDeCuenta, otrasCuentas, rolAdmiteMulticuenta, validarCuenta, iniciarCuenta } from "@shared/cuentas";
 import { registerForPush, savePushToken, borrarPushToken } from "../push/register";
 import { leerCuentas, guardarCuenta, quitarCuenta } from "../lib/cuentasGuardadas";
 
@@ -81,11 +81,21 @@ export function SessionProvider({ children }) {
   // Cargar "items" (hijos + cursos admin) cuando hay usuario no-super.
   // super y colegio_admin no tienen "Mi acceso" — van directo a su panel.
   useEffect(() => {
+    let cancel = false;
     if (!usuario || ["super", "colegio_admin", "nivel_admin"].includes(usuario.rol)) {
       setItems([]);
-      return;
+      // Sin "Mi acceso": el colegio del panel (para la lista de cuentas) se pide acá.
+      if (usuario?.colegio_id) {
+        supabase.from("colegios").select("id,nombre,logo_url,color_primario").eq("id", usuario.colegio_id).then(({ data: cols }) => {
+          if (!cancel) setColegiosPorId(Object.fromEntries((cols || []).map((c) => [c.id, c])));
+        });
+      } else {
+        setColegiosPorId({});
+      }
+      return () => {
+        cancel = true;
+      };
     }
-    let cancel = false;
     (async () => {
       // Docente: "Mi acceso" = sus cursos (de sus clases, ya en la sesión).
       if (usuario.rol === "docente") {
@@ -148,7 +158,7 @@ export function SessionProvider({ children }) {
   }, [usuario?.id]);
 
   // Mantiene al día los datos de la cuenta abierta en la lista del celular. Las
-  // cuentas del panel del colegio no entran en el selector.
+  // de plataforma (super) no entran en el selector.
   useEffect(() => {
     if (!usuario?.id || !authId) return undefined;
     if (!rolAdmiteMulticuenta(usuario.rol)) {
@@ -162,9 +172,10 @@ export function SessionProvider({ children }) {
       guardarCuenta({
         auth_id: authId,
         usuario_id: usuario.id,
+        rol: usuario.rol,
         email: usuario.email,
         nombre: [usuario.nombre, usuario.apellido].filter(Boolean).join(" "),
-        etiqueta: etiquetaDeCuenta(Object.values(colegiosPorId).map((c) => c.nombre), hijos),
+        etiqueta: etiquetaDeCuenta(Object.values(colegiosPorId).map((c) => c.nombre), hijos, usuario.rol),
         access_token: session.access_token,
         refresh_token: session.refresh_token,
       }).then(setCuentas);
@@ -173,17 +184,6 @@ export function SessionProvider({ children }) {
       cancel = true;
     };
   }, [usuario, authId, items, colegiosPorId]);
-
-  // Valida los tokens guardados sin tocar la sesión abierta. Devuelve
-  // { session } o { error, vencida }.
-  const validarCuenta = useCallback(async (cuenta) => {
-    const temporal = crearClienteTemporal();
-    const { data, error } = await temporal.auth.setSession({ access_token: cuenta.access_token, refresh_token: cuenta.refresh_token });
-    if (error || !data?.session) return { error: error?.message || "sin sesión", vencida: true };
-    const { data: fila } = await temporal.from("usuarios").select("id,activo").eq("auth_id", data.session.user.id).maybeSingle();
-    if (!fila?.activo) return { error: "Esa cuenta ya no está activa." };
-    return { session: data.session };
-  }, []);
 
   // Deja abierta la sesión ya validada y carga su usuario.
   const pasarASesion = useCallback(async (session) => {
@@ -205,37 +205,34 @@ export function SessionProvider({ children }) {
   const cambiarCuenta = useCallback(async (destinoAuthId) => {
     const cuenta = (await leerCuentas()).find((c) => c.auth_id === destinoAuthId);
     if (!cuenta) return { error: "Esa cuenta ya no está en este celular." };
-    const res = await validarCuenta(cuenta);
+    const res = await validarCuenta(crearClienteTemporal(), cuenta);
     if (res.error) return res;
     try {
       await guardarCuenta({ auth_id: destinoAuthId, access_token: res.session.access_token, refresh_token: res.session.refresh_token });
       await pasarASesion(res.session);
-      return { ok: true };
+      return { ok: true, rol: cuenta.rol };
     } catch (e) {
       return { error: e?.message || "No se pudo abrir la cuenta" };
     }
-  }, [validarCuenta, pasarASesion]);
+  }, [pasarASesion]);
 
   /** Agrega una cuenta con mail y contraseña (la contraseña no se guarda) y pasa a ella. */
   const agregarCuenta = useCallback(async (email, password) => {
-    const temporal = crearClienteTemporal();
-    const { data, error } = await temporal.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) return { error: /invalid login/i.test(error.message) ? "Correo o contraseña incorrectos" : `No se pudo conectar: ${error.message}` };
-    if (data.user.id === authId) return { error: "Ya estás usando esa cuenta." };
-    const { data: fila } = await temporal.from("usuarios").select("id,nombre,apellido,email,rol,activo").eq("auth_id", data.user.id).maybeSingle();
-    if (!fila?.activo) return { error: "Esa cuenta no está activa. Consultá con el colegio." };
-    if (!rolAdmiteMulticuenta(fila.rol)) return { error: "Esa cuenta es del panel del colegio: entrá con ella cerrando esta sesión." };
+    const res = await iniciarCuenta(crearClienteTemporal(), email, password, authId);
+    if (res.error) return res;
+    const { session: data, fila } = res;
     try {
       await guardarCuenta({
         auth_id: data.user.id,
         usuario_id: fila.id,
+        rol: fila.rol,
         email: fila.email,
         nombre: [fila.nombre, fila.apellido].filter(Boolean).join(" "),
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
       });
-      await pasarASesion(data.session);
-      return { ok: true };
+      await pasarASesion(data);
+      return { ok: true, rol: fila.rol };
     } catch (e) {
       return { error: e?.message || "No se pudo abrir la cuenta" };
     }
@@ -278,7 +275,7 @@ export function SessionProvider({ children }) {
     setCuentas(lista);
     // Si quedan otras cuentas, pasa a la siguiente que siga válida.
     for (const cuenta of lista) {
-      const res = await validarCuenta(cuenta);
+      const res = await validarCuenta(crearClienteTemporal(), cuenta);
       if (res.error) continue;
       if (session) await revocarCuenta({ access_token: session.access_token, refresh_token: session.refresh_token });
       try {
@@ -293,7 +290,7 @@ export function SessionProvider({ children }) {
     setFotoLocal(undefined);
     setItems([]);
     setCursoIdx(0);
-  }, [validarCuenta, revocarCuenta, pasarASesion]);
+  }, [revocarCuenta, pasarASesion]);
 
   const setColorHijo = useCallback(
     (item, color) => {

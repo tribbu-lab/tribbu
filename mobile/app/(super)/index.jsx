@@ -34,7 +34,8 @@ export default function SuperHome() {
       </View>
       <View style={[styles.flex1, { paddingLeft: insets.left, paddingRight: insets.right }]}>
         <View style={styles.columna}>
-          <SuperAdmin />
+          {/* key: al cambiar de cuenta no queda nada de la otra en pantalla. */}
+          <SuperAdmin key={usuario?.id} />
         </View>
       </View>
     </View>

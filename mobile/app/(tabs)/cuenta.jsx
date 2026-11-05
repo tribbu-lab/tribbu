@@ -2,7 +2,7 @@
 // era el final de "Más"; las funciones del colegio pasaron a la pestaña
 // Curso. Los avisos automáticos tienen su propia hoja (Notificaciones).
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
 import { useRouter } from "expo-router";
 import { Sheet } from "../../components/Sheet";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -17,96 +17,15 @@ import { deleteMyAccount } from "../../lib/authAdmin";
 import { getBiometricPref, setBiometricPref } from "../../lib/biometricPref";
 import { supabase } from "../../lib/supabase";
 import { TIPOS_AVISO, preferenciasEfectivas, filaPreferencias } from "@shared/avisos";
-import { otrasCuentas } from "@shared/cuentas";
+import { CuentasEnCelular } from "../../components/CuentasEnCelular";
 import { AvatarPerfil } from "../../components/AvatarPerfil";
 import { elegirFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfil";
 
 const t = THEMES.light;
 
-// "Agregar otra cuenta" (specs/perfil-multicuenta.md). La contraseña no se guarda.
-function AgregarCuentaSheet({ visible, emailInicial, onClose, onAgregar }) {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [error, setError] = useState("");
-  const [enviando, setEnviando] = useState(false);
-  useEffect(() => {
-    if (visible) {
-      setEmail(emailInicial || "");
-      setPass("");
-      setError("");
-    }
-  }, [visible, emailInicial]);
-  const enviar = async () => {
-    if (!email.trim() || !pass || enviando) return;
-    setEnviando(true);
-    setError("");
-    const res = await onAgregar(email, pass);
-    setEnviando(false);
-    if (res?.error) setError(res.error);
-    else onClose();
-  };
-  return (
-    <Sheet visible={visible} onClose={onClose} title={emailInicial ? "Volvé a entrar" : "Agregar otra cuenta"}>
-      <ScrollView style={styles.formCuenta} keyboardShouldPersistTaps="handled">
-        <Text style={styles.nota}>
-          {emailInicial ? "La sesión de esta cuenta venció. Poné su contraseña una vez más." : "Si tenés hijos en otro colegio, entrá con esa cuenta una sola vez. Después cambiás con un toque y recibís los avisos de las dos."}
-        </Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Correo"
-          placeholderTextColor={t.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="username"
-          style={styles.inputCuenta}
-        />
-        <TextInput
-          value={pass}
-          onChangeText={setPass}
-          placeholder="Contraseña"
-          placeholderTextColor={t.textMuted}
-          secureTextEntry
-          textContentType="password"
-          style={styles.inputCuenta}
-        />
-        {error ? <Text style={styles.errorCuenta}>{error}</Text> : null}
-        <Pressable onPress={enviar} disabled={enviando} accessibilityRole="button" style={[styles.btnCuenta, enviando && styles.btnCuentaOff]}>
-          {enviando ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.btnCuentaTxt}>Entrar</Text>}
-        </Pressable>
-      </ScrollView>
-    </Sheet>
-  );
-}
-
 export default function CuentaScreen() {
   const router = useRouter();
-  const { esDocente, usuario, logout, items, fotoPerfil, setFotoPerfil, authId, cuentas, cambiandoCuenta, cambiarCuenta, agregarCuenta, quitarOtraCuenta } = useSession();
-  const otras = otrasCuentas(cuentas, authId);
-  // null = cerrado; "" = cuenta nueva; un mail = volver a entrar a una vencida.
-  const [agregar, setAgregar] = useState(null);
-  const [abriendo, setAbriendo] = useState(null);
-  const abrirCuenta = async (c) => {
-    if (abriendo || cambiandoCuenta) return;
-    setAbriendo(c.auth_id);
-    const res = await cambiarCuenta(c.auth_id);
-    setAbriendo(null);
-    if (res?.vencida) setAgregar(c.email || "");
-    else if (res?.error) Alert.alert("No se pudo abrir la cuenta", res.error);
-    else router.replace("/(tabs)/muro");
-  };
-  const confirmarQuitar = (c) => {
-    Alert.alert("¿Quitar esta cuenta del celular?", `Vas a dejar de recibir acá los avisos de ${c.nombre || c.email}. La cuenta no se borra.`, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Quitar", style: "destructive", onPress: () => quitarOtraCuenta(c.auth_id) },
-    ]);
-  };
-  const entrarConOtra = async (email, pass) => {
-    const res = await agregarCuenta(email, pass);
-    if (res?.ok) router.replace("/(tabs)/muro");
-    return res;
-  };
+  const { esDocente, usuario, logout, items, fotoPerfil, setFotoPerfil } = useSession();
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   // Room Parent: dato del perfil (antes era un cartel en el header).
   const cursosRoom = [...new Set((items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.cursos?.nombre).filter(Boolean))];
@@ -254,32 +173,7 @@ export default function CuentaScreen() {
         </View>
       </View>
 
-      <Text style={styles.label}>Cuentas en este celular</Text>
-      <View style={styles.card}>
-        {otras.map((c, i) => (
-          <View key={c.auth_id} style={[styles.crow, i > 0 && styles.crowBorde]}>
-            <Pressable onPress={() => abrirCuenta(c)} disabled={!!abriendo} accessibilityRole="button" accessibilityLabel={`Cambiar a la cuenta de ${c.nombre || c.email}`} style={styles.filaCuenta}>
-              <MaterialCommunityIcons name="account-switch-outline" size={19} color={t.textMuted} />
-              <View style={styles.flex1}>
-                <Text style={styles.crowTitulo} numberOfLines={1}>{c.nombre || c.email}</Text>
-                <Text style={styles.crowMeta} numberOfLines={1}>{c.etiqueta || c.email}</Text>
-              </View>
-              {abriendo === c.auth_id ? <ActivityIndicator size="small" color={t.accent} /> : null}
-            </Pressable>
-            <Pressable onPress={() => confirmarQuitar(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Quitar la cuenta de ${c.nombre || c.email} de este celular`} style={styles.quitarCuenta}>
-              <MaterialCommunityIcons name="close" size={18} color={t.textMuted} />
-            </Pressable>
-          </View>
-        ))}
-        <Pressable onPress={() => setAgregar("")} accessibilityRole="button" style={[styles.crow, otras.length > 0 && styles.crowBorde]}>
-          <MaterialCommunityIcons name="account-plus-outline" size={19} color={t.textMuted} />
-          <View style={styles.flex1}>
-            <Text style={styles.crowTitulo}>Agregar otra cuenta</Text>
-            <Text style={styles.crowMeta}>Para tus hijos en otro colegio</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={18} color={SLATE[300]} />
-        </Pressable>
-      </View>
+      <CuentasEnCelular />
 
       {/* Los avisos automáticos son para familias (eventos, colectas, cumples):
           a una docente no le llega ninguno, así que no hay nada que configurar. */}
@@ -348,8 +242,6 @@ export default function CuentaScreen() {
         </Pressable>
       </View>
 
-      <AgregarCuentaSheet visible={agregar !== null} emailInicial={agregar} onClose={() => setAgregar(null)} onAgregar={entrarConOtra} />
-
       <Sheet visible={notifAbierto} onClose={() => setNotifAbierto(false)} title="Notificaciones">
         <ScrollView style={styles.sheetScroll}>
           <View style={styles.card}>
@@ -398,14 +290,6 @@ const styles = StyleSheet.create({
   },
   crow: { flexDirection: "row", alignItems: "center", gap: SPACE.md, padding: 13, minHeight: 52 },
   crowBorde: { borderTopWidth: 1, borderTopColor: t.border },
-  filaCuenta: { flex: 1, flexDirection: "row", alignItems: "center", gap: SPACE.md, minHeight: 44 },
-  quitarCuenta: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginRight: -SPACE.sm },
-  formCuenta: { flexShrink: 1 },
-  inputCuenta: { borderWidth: 1, borderColor: t.border, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, minHeight: 46, fontSize: 15, color: t.textStrong, backgroundColor: t.surfaceRaised, marginTop: SPACE.sm },
-  errorCuenta: { fontSize: 13, color: t.danger, marginTop: SPACE.sm },
-  btnCuenta: { backgroundColor: t.accent, borderRadius: RADIUS.md, minHeight: 46, alignItems: "center", justifyContent: "center", marginTop: SPACE.md, marginBottom: SPACE.sm },
-  btnCuentaOff: { opacity: 0.6 },
-  btnCuentaTxt: { fontSize: 15, fontWeight: "700", color: "#fff" },
   crowTitulo: { fontSize: 14, fontWeight: "700", color: t.textStrong },
   crowMeta: { fontSize: 12, color: t.textMuted, marginTop: 1 },
   nota: { fontSize: 11.5, color: t.textFaint, marginTop: SPACE.sm, lineHeight: 16 },

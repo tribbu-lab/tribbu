@@ -19,6 +19,9 @@ mismo login y un mismo Todos" para hijos en distintos colegios.
 - [x] Una cuenta no se puede vincular a hijos ni cursos de dos colegios
       (trigger en `usuario_hijos` y `usuario_cursos`, también contra
       `usuarios.colegio_id`). El mensaje no nombra al otro colegio.
+- [x] Una cuenta de personal (`colegio_admin`, `nivel_admin`, `docente`) no lleva
+      hijos ni cursos de Room Parent, aunque sea en su mismo colegio: quien es
+      personal y familia tiene dos cuentas y cambia con el selector.
 - [x] El mensaje de "mail ya existente" del alta explica que hace falta otro mail.
 
 **App: cuentas**
@@ -29,12 +32,17 @@ mismo login y un mismo Todos" para hijos en distintos colegios.
 - [x] Una contraseña incorrecta o una sesión vencida al cambiar no sacan de la
       cuenta actual (se valida con un cliente temporal). Si la sesión guardada
       venció, se pide la contraseña de esa cuenta.
-- [x] Solo cuentas de familia o docente: las del panel del colegio siguen con
-      su sesión propia.
+- [x] Entran todas las cuentas de colegio (familia, docente, administración y
+      Secretaría). Solo quedan afuera las de plataforma (`super`).
 - [x] Cerrar sesión con más cuentas guardadas pasa a la siguiente; sin más
       cuentas, vuelve al login como siempre.
 - [x] Quitar una cuenta del celular corta sus avisos en ese celular.
 - [x] El candado de huella/Face ID sigue siendo por cuenta.
+
+**Web**
+- [x] En Mi cuenta (familia y panel): "Cuentas en este navegador", con los mismos
+      pasos. Guarda los tokens en localStorage, donde ya vive la sesión, y al
+      cambiar de cuenta recarga la página. No hay push en la web.
 
 **Avisos**
 - [x] Un celular recibe los push de todas sus cuentas guardadas (tabla
@@ -68,6 +76,4 @@ mismo login y un mismo Todos" para hijos en distintos colegios.
 
 ## Out of Scope
 
-- Web (queda para después).
 - Contadores de no leídos de la otra cuenta en el selector.
-- Cuentas del panel del colegio en el selector.

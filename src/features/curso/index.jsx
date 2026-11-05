@@ -8,6 +8,7 @@ import { useCargar } from "../../hooks/useCargar";
 import { fmtLocalDate } from "../../lib/helpers";
 import { cargarGestiones } from "../../lib/gestiones";
 import { Icono } from "../../components/Icono";
+import { CuentasGuardadas } from "../../components/CuentasGuardadas";
 import { AvatarPerfil } from "../../components/AvatarPerfil";
 import { ponerFotoPerfil, quitarFotoPerfil } from "../../lib/fotoPerfilWeb";
 
@@ -145,11 +146,12 @@ function PerfilFoto({ usuario, foto, onFoto, cursosRoom }) {
   );
 }
 
-export function MiCuenta({ usuario, foto, onFoto, cursosRoom = [], esDocente, onNotificaciones, onSoporte, onCambiarPass, onCerrarSesion, onEliminar }) {
+export function MiCuenta({ cuentasGuardadas, usuario, foto, onFoto, cursosRoom = [], esDocente, onNotificaciones, onSoporte, onCambiarPass, onCerrarSesion, onEliminar }) {
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: -0.3, color: "#0F172A" }}>Mi cuenta</div>
       <PerfilFoto usuario={usuario} foto={foto} onFoto={onFoto} cursosRoom={cursosRoom} />
+      <CuentasGuardadas cuentas={cuentasGuardadas} />
       {/* Los avisos automáticos son para familias: a una docente no le llega ninguno. */}
       {esDocente ? null : (
         <>

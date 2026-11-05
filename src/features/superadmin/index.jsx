@@ -33,6 +33,7 @@ import { TalleresColegio } from "../talleres/colegio";
 import { BandejaSoporte, BandejaColegio, DenunciasColegio, SoporteColegioAdmin, Mensajes } from "../mensajes";
 import { MateriasAdmin, ClasesCurso, ClasesMaestroEditor } from "./clases";
 import { useConfirmar } from "../../hooks/useConfirmar";
+import { CuentasGuardadas } from "../../components/CuentasGuardadas";
 import { useNoLeidosPanel, recontarPanel } from "../../hooks/useNoLeidosPanel";
 import { cargarClasesMaestro, guardarClasesMaestro } from "./clasesDatos";
 import { HorarioCurso, SemanaMaestra, ImportarHorarioModal } from "./horarios";
@@ -209,7 +210,7 @@ function AyudaColegio({ rol, conChat, onIr, chat }) {
 const COLORES_AVATAR = ["#3B82F6","#8B5CF6","#10B981","#F59E0B","#EF4444","#EC4899"];
 const colorAvatarAlAzar = () => COLORES_AVATAR[Math.floor(Math.random()*COLORES_AVATAR.length)];
 
-export function SuperAdmin({ usuario, onCerrarSesion }) {
+export function SuperAdmin({ usuario, cuentasGuardadas, onCerrarSesion }) {
   // Multi-colegio: super es plataforma (sin colegio_id, ve/gestiona todos);
   // colegio_admin queda acotado al suyo por RLS en cada query de abajo —
   // ninguna de ellas necesita agregar un filtro de colegio_id a mano.
@@ -1569,6 +1570,7 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
               <span style={{display:"block",fontSize:13,color:"#64748B",marginTop:2}}>{[rolTexto, colegioNombre].filter(Boolean).join(" · ")}</span>
             </span>
           </div>
+          {usuario?.rol!=="super"&&<div style={{marginBottom:14}}><CuentasGuardadas cuentas={cuentasGuardadas}/></div>}
           <div style={{border:"1px solid #E2E8F0",borderRadius:16,background:"white",overflow:"hidden"}}>
             {[
               {icono:"llave", l:"Cambiar contraseña", fn:()=>setCambiarPass(true)},

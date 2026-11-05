@@ -69,6 +69,11 @@ const panelRouteForData = (data) => {
   return sec ? { pathname: "/(super)", params: { sec, t } } : null;
 };
 
+// Aviso de otra cuenta, a abrir cuando ya se pasó a ella. Afuera del hook: si la
+// otra cuenta es de panel y esta de familia (o al revés) cambia el layout y este
+// hook se vuelve a montar.
+let avisoPendiente = null;
+
 /** Engancha los listeners de respuesta a notificaciones y navega al tab destino. */
 export function useNotificationRouting(ready, { panel = false } = {}) {
   const router = useRouter();
@@ -80,13 +85,10 @@ export function useNotificationRouting(ready, { panel = false } = {}) {
   useEffect(() => {
     sesionRef.current = { usuarioId: usuario?.id ?? null, cuentas, cambiarCuenta };
   }, [usuario?.id, cuentas, cambiarCuenta]);
-  // Destino de un aviso de otra cuenta: se navega cuando ya se pasó a ella.
-  const pendiente = useRef(null);
-
   const abrir = useCallback((data) => {
     const target = destino(data);
     const usuarioId = sesionRef.current.usuarioId ?? usuario?.id;
-    const deOtraCuenta = !panel && data?.usuario_id && data.usuario_id !== usuarioId;
+    const deOtraCuenta = data?.usuario_id && data.usuario_id !== usuarioId;
     if (!deOtraCuenta) {
       if (target && panel) router.navigate(target);
       else if (target) router.push(target);
@@ -97,21 +99,21 @@ export function useNotificationRouting(ready, { panel = false } = {}) {
       const guardadas = sesionRef.current.cuentas.length ? sesionRef.current.cuentas : await leerCuentas();
       const cuenta = guardadas.find((c) => c.usuario_id === data.usuario_id);
       if (!cuenta) return;
-      pendiente.current = target;
+      avisoPendiente = data;
       const res = await sesionRef.current.cambiarCuenta(cuenta.auth_id);
       if (res?.error) {
-        pendiente.current = null;
+        avisoPendiente = null;
         Alert.alert("No se pudo abrir la otra cuenta", res.vencida ? "Su sesión venció: volvé a entrar desde Mi cuenta." : res.error);
       }
     })();
   }, [destino, router, panel, usuario?.id]);
 
   useEffect(() => {
-    const target = pendiente.current;
-    if (!target || !usuario?.id) return;
-    pendiente.current = null;
-    router.push(target);
-  }, [usuario?.id, router]);
+    if (!avisoPendiente || avisoPendiente.usuario_id !== usuario?.id) return;
+    const data = avisoPendiente;
+    avisoPendiente = null;
+    abrir(data);
+  }, [usuario?.id, abrir]);
 
   useEffect(() => {
     if (!ready) return undefined;
