@@ -64,3 +64,22 @@ export const errorFormularioPago = (form, cursosElegidos) => {
 };
 
 export const montoDeFormulario = (valor) => Number(String(valor ?? "").replace(/\./g, "").replace(",", "."));
+
+/** Cuentas activas de un alumno, de filas usuario_hijos con usuarios(activo). */
+export const cuentasActivasDeAlumno = (filas) =>
+  [...new Set((filas || []).filter((f) => f.usuarios?.activo !== false).map((f) => f.usuario_id))];
+
+/** Confirmar del recordatorio: un alumno puede tener varias cuentas en su familia. */
+export const textoDestinatariosPago = (alumnos, personas) =>
+  `${alumnos} ${alumnos === 1 ? "alumno pendiente" : "alumnos pendientes"}. Le llega a ${personas} ${personas === 1 ? "persona" : "personas"} de ${alumnos === 1 ? "su familia" : "sus familias"}.`;
+
+/** Celulares a los que salió el aviso según send-push; null si el envío falló. */
+export const celularesAvisados = (res) => (res?.ok && Number.isFinite(res.sent) ? res.sent : null);
+
+/** Qué pasó con el aviso, para no dar por avisada a una familia sin saberlo. */
+export const textoAvisoPago = (res, hecho) => {
+  const n = celularesAvisados(res);
+  if (n === null) return { tipo: "error", texto: `${hecho}, pero no se pudo mandar el aviso. Probá con Enviar recordatorio.` };
+  if (n === 0) return { tipo: "info", texto: `${hecho}, pero ninguna cuenta tiene un celular con notificaciones activadas.` };
+  return { tipo: "ok", texto: `${hecho}. Aviso enviado a ${n} ${n === 1 ? "celular" : "celulares"}.` };
+};

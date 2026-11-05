@@ -11,7 +11,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Icono } from "../../components/Icono";
 import { fmtF, sanitize, uuidLite } from "../../lib/helpers";
 import { sendPush } from "../../lib/push";
-import { ESTADO_PAGO, textoResumenPago, errorFormularioPago, filasAlumnosDePago, montoDeFormulario, montoPago, resumenPago } from "../../lib/pagosColegio";
+import { ESTADO_PAGO, celularesAvisados, cuentasActivasDeAlumno, textoAvisoPago, textoDestinatariosPago, textoResumenPago, errorFormularioPago, filasAlumnosDePago, montoDeFormulario, montoPago, resumenPago } from "../../lib/pagosColegio";
 
 const tarjeta = { border: "1px solid #E2E8F0", borderRadius: 16, background: "white", padding: 16, marginBottom: 12 };
 const inp = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontSize: 14, outline: "none", fontFamily: "inherit", background: "#F8FAFC", boxSizing: "border-box", color: "#0F172A" };
@@ -148,8 +148,10 @@ function NuevoPago({ cursos, userId, onClose, onCreado }) {
       }
       const destinos = await Promise.all(creados.map((id) => supabase.rpc("familias_pendientes_pago_colegio", { p_pago: id })));
       const userIds = [...new Set(destinos.flatMap((r) => (r.data || []).map((x) => x?.familias_pendientes_pago_colegio ?? x)))];
-      if (userIds.length) await sendPush({ type: "pago_colegio", payload: { titulo: form.titulo.trim(), userIds } });
-      onCreado();
+      const res = destinos.some((r) => r.error) ? null
+        : userIds.length ? await sendPush({ type: "pago_colegio", payload: { titulo: form.titulo.trim(), userIds } })
+        : { ok: true, sent: 0 };
+      onCreado(textoAvisoPago(res, "Pago creado"));
     } catch (e) {
       setError(e?.message || "No se pudo crear el pago.");
       setGuardando(false);
@@ -237,15 +239,25 @@ function DetallePago({ pago, curso, userId, onVolver, onCambio }) {
     const { error } = await supabase.from("pago_colegio_alumnos").insert({ pago_id: pago.id, hijo_id: h.id });
     if (error) { showToast(error.message, "error"); return; }
     cargar(); onCambio();
+    if (!pago.activo) return;
+    const { data, error: e2 } = await supabase.from("usuario_hijos").select("usuario_id,usuarios(activo)").eq("hijo_id", h.id);
+    const userIds = cuentasActivasDeAlumno(data);
+    const res = e2 ? null
+      : userIds.length ? await sendPush({ type: "pago_colegio", payload: { titulo: pago.titulo, userIds } })
+      : { ok: true, sent: 0 };
+    const aviso = textoAvisoPago(res, "Alumno sumado");
+    showToast(aviso.texto, aviso.tipo);
   };
   const recordar = async () => {
     const { data, error } = await supabase.rpc("familias_pendientes_pago_colegio", { p_pago: pago.id });
     if (error) { showToast(error.message, "error"); return; }
     const userIds = (data || []).map((x) => x?.familias_pendientes_pago_colegio ?? x);
     if (!userIds.length) { showToast("No hay familias pendientes con cuenta.", "info"); return; }
-    if (!(await confirmar({ titulo: "¿Enviar recordatorio?", detalle: `Le llega a ${userIds.length} ${userIds.length === 1 ? "familia pendiente" : "familias pendientes"}.`, textoConfirmar: "Enviar", colorAccion: "#2563EB" }))) return;
+    if (!(await confirmar({ titulo: "¿Enviar recordatorio?", detalle: textoDestinatariosPago(r.pendiente, userIds.length), textoConfirmar: "Enviar", colorAccion: "#2563EB" }))) return;
     const res = await sendPush({ type: "pago_colegio", payload: { titulo: pago.titulo, recordatorio: true, userIds } });
-    if (!res) { showToast("No se pudo enviar. Probá de nuevo.", "error"); return; }
+    const celulares = celularesAvisados(res);
+    if (celulares === null) { showToast("No se pudo enviar. Probá de nuevo.", "error"); return; }
+    if (!celulares) { showToast("Ninguna familia pendiente tiene un celular con notificaciones activadas.", "info"); return; }
     const ahora = new Date().toISOString();
     await supabase.from("pagos_colegio").update({ ultimo_recordatorio: ahora }).eq("id", pago.id);
     setUltimo(ahora);
@@ -306,6 +318,7 @@ export function PagosColegio({ cursos = [], userId, abrirNuevo = null, onCambio 
   const [detalle, setDetalle] = useState(null);
   const cursoIds = useMemo(() => cursos.map((c) => c.id), [cursos]);
   const cursoDe = useMemo(() => new Map(cursos.map((c) => [c.id, c])), [cursos]);
+  const { showToast, Toast } = useToast();
 
   const cargar = useCallback(async () => {
     if (!cursoIds.length) { setPagos([]); return; }
@@ -325,6 +338,7 @@ export function PagosColegio({ cursos = [], userId, abrirNuevo = null, onCambio 
 
   return (
     <div style={{ maxWidth: 720 }}>
+      <Toast />
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
         <BotonNuevo ariaLabel="Nuevo pago" onClick={() => setNuevo(true)} />
       </div>
@@ -343,7 +357,7 @@ export function PagosColegio({ cursos = [], userId, abrirNuevo = null, onCambio 
           </button>
         );
       })}
-      {nuevo ? <NuevoPago cursos={cursos} userId={userId} onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} /> : null}
+      {nuevo ? <NuevoPago cursos={cursos} userId={userId} onClose={() => setNuevo(false)} onCreado={(aviso) => { setNuevo(false); cargar(); showToast(aviso.texto, aviso.tipo); }} /> : null}
     </div>
   );
 }

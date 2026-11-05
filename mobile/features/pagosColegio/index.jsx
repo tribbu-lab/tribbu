@@ -6,7 +6,7 @@ import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert, Activi
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { THEMES, TYPE, SPACE, RADIUS } from "@shared/tokens";
 import { fmtF, sanitize, uuidLite } from "@shared/helpers";
-import { ESTADO_PAGO, textoResumenPago, errorFormularioPago, filasAlumnosDePago, montoDeFormulario, montoPago, resumenPago } from "@shared/pagosColegio";
+import { ESTADO_PAGO, celularesAvisados, cuentasActivasDeAlumno, textoAvisoPago, textoDestinatariosPago, textoResumenPago, errorFormularioPago, filasAlumnosDePago, montoDeFormulario, montoPago, resumenPago } from "@shared/pagosColegio";
 import { supabase } from "../../lib/supabase";
 import { sendPush } from "../../lib/push";
 import { useRecarga } from "../../lib/useRecarga";
@@ -145,12 +145,14 @@ function NuevoPago({ visible, cursos, userId, onClose, onCreado }) {
       }
       const destinos = await Promise.all(creados.map((id) => supabase.rpc("familias_pendientes_pago_colegio", { p_pago: id })));
       const userIds = [...new Set(destinos.flatMap((r) => idsDe(r.data)))];
-      if (userIds.length) await sendPush({ type: "pago_colegio", payload: { titulo: form.titulo.trim(), userIds } });
+      const res = destinos.some((r) => r.error) ? null
+        : userIds.length ? await sendPush({ type: "pago_colegio", payload: { titulo: form.titulo.trim(), userIds } })
+        : { ok: true, sent: 0 };
       setForm({ titulo: "", monto: "", fecha_limite: "", datos_pago: "", descripcion: "" });
       setCursosSel([]);
       setExcluidos([]);
       setGuardando(false);
-      onCreado();
+      onCreado(textoAvisoPago(res, "Pago creado"));
     } catch (e) {
       setError(e?.message || "No se pudo crear el pago.");
       setGuardando(false);
@@ -241,17 +243,26 @@ function DetallePago({ pago, curso, userId, onVolver, onCambio }) {
     const { error } = await supabase.from("pago_colegio_alumnos").insert({ pago_id: pago.id, hijo_id: h.id });
     if (error) { Alert.alert("No se pudo sumar", error.message); return; }
     cargar(); onCambio();
+    if (!pago.activo) return;
+    const { data, error: e2 } = await supabase.from("usuario_hijos").select("usuario_id,usuarios(activo)").eq("hijo_id", h.id);
+    const userIds = cuentasActivasDeAlumno(data);
+    const res = e2 ? null
+      : userIds.length ? await sendPush({ type: "pago_colegio", payload: { titulo: pago.titulo, userIds } })
+      : { ok: true, sent: 0 };
+    if (!celularesAvisados(res)) Alert.alert("Aviso", textoAvisoPago(res, "Alumno sumado").texto);
   };
   const recordar = async () => {
     const { data, error } = await supabase.rpc("familias_pendientes_pago_colegio", { p_pago: pago.id });
     if (error) { Alert.alert("No se pudo enviar", error.message); return; }
     const userIds = idsDe(data);
     if (!userIds.length) { Alert.alert("No hay familias pendientes con cuenta"); return; }
-    Alert.alert("¿Enviar recordatorio?", `Le llega a ${userIds.length} ${userIds.length === 1 ? "familia pendiente" : "familias pendientes"}.`, [
+    Alert.alert("¿Enviar recordatorio?", textoDestinatariosPago(r.pendiente, userIds.length), [
       { text: "Cancelar", style: "cancel" },
       { text: "Enviar", onPress: async () => {
         const res = await sendPush({ type: "pago_colegio", payload: { titulo: pago.titulo, recordatorio: true, userIds } });
-        if (!res) { Alert.alert("No se pudo enviar", "Probá de nuevo."); return; }
+        const celulares = celularesAvisados(res);
+        if (celulares === null) { Alert.alert("No se pudo enviar", "Probá de nuevo."); return; }
+        if (!celulares) { Alert.alert("Sin celulares para avisar", "Ninguna familia pendiente tiene un celular con notificaciones activadas."); return; }
         const ahora = new Date().toISOString();
         await supabase.from("pagos_colegio").update({ ultimo_recordatorio: ahora }).eq("id", pago.id);
         setUltimo(ahora);
@@ -344,7 +355,7 @@ export function PagosColegio({ cursos = [], userId, abrirNuevo = null, onCambio 
           </Pressable>
         );
       })}
-      <NuevoPago visible={nuevo} cursos={cursos} userId={userId} onClose={() => setNuevo(false)} onCreado={() => { setNuevo(false); cargar(); }} />
+      <NuevoPago visible={nuevo} cursos={cursos} userId={userId} onClose={() => setNuevo(false)} onCreado={(aviso) => { setNuevo(false); cargar(); setTimeout(() => Alert.alert("Pago creado", aviso.texto), 350); }} />
     </View>
   );
 }
