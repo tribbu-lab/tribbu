@@ -12,8 +12,6 @@ Tachá o borrá cada ítem cuando se resuelva.
       ni en Auth, y el mail se puede volver a usar.
 - [ ] **Apoderado sin hijos ni cursos** que quedó en producción (1 de 74, causa
       no confirmada): revisarlo y, si corresponde, borrarlo como `super`.
-- [ ] Decidir si la Secretaría puede eliminar a una familia que también tiene
-      hijos en otro nivel (hoy sí, como la política `usuarios_delete`; hay 2).
 
 ## Hecho 2026-10-16
 

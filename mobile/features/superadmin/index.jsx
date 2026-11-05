@@ -903,7 +903,7 @@ export function SuperAdmin() {
                 <Pressable onPress={() => toggleActivo(u)} style={styles.iconBtn}>
                   <MaterialCommunityIcons name={u.activo ? "account-cancel-outline" : "account-check-outline"} size={19} color="#64748B" />
                 </Pressable>
-                {u.rol !== "super" ? (
+                {!esSecretaria && u.rol !== "super" ? (
                   <Pressable
                     onPress={() => setConfirm({ nombre: `${u.nombre}${u.apellido ? " " + u.apellido : ""}`, msg: "Esta acción no se puede deshacer.", action: () => eliminarUsuario(u.id) })}
                     style={styles.iconBtn}
