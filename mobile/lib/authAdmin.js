@@ -68,4 +68,6 @@ export const authAdminFind = (email) => callManageAuthUser("find", { email });
 
 // Borra del todo a otro usuario (datos, fila de usuarios y Auth), desde el panel
 // del colegio. La Edge Function chequea el alcance. Tira error si no se pudo.
+// Si la familia también está en otro colegio, el administrador solo le quita los
+// vínculos con el suyo: la cuenta sigue y vuelve { solo_vinculos: true }.
 export const authAdminDelete = (usuario_id) => callManageAuthUser("delete", { usuario_id });

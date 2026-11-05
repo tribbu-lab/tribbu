@@ -698,7 +698,8 @@ export function SuperAdmin({ usuario, onCerrarSesion }) {
     // Por la Edge Function: desde el cliente el borrado fallaba en silencio (ver
     // la acción "delete" en manage-auth-user) y Auth nunca se borraba.
     try {
-      await authAdminDelete(id);
+      const { solo_vinculos } = await authAdminDelete(id);
+      if(solo_vinculos) showToast("Se quitó de este colegio. La cuenta sigue porque también está en otro colegio.");
     } catch(e) {
       console.error("eliminarUsuario:", e);
       showToast(`No se pudo eliminar: ${e.message}`, "error");

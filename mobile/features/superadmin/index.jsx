@@ -592,7 +592,8 @@ export function SuperAdmin() {
     // la acción "delete" en manage-auth-user) y Auth nunca se borraba.
     setConfirm(null);
     try {
-      await authAdminDelete(id);
+      const { solo_vinculos } = await authAdminDelete(id);
+      if (solo_vinculos) Alert.alert("Se quitó de este colegio", "La cuenta sigue porque también está en otro colegio.");
     } catch (e) {
       console.warn("eliminarUsuario:", e);
       Alert.alert("No se pudo eliminar", e.message || "Error al eliminar el apoderado");
