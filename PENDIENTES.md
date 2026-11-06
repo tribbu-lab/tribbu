@@ -5,7 +5,8 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 ## Útiles y libros los carga el colegio (2026-11-06)
 
-- [ ] **Aplicar `supabase/listas-solo-colegio.sql`** (probado antes con rollback) y anotarlo acá. Hasta entonces, el Room Parent todavía puede escribir por RLS y un ítem marcado por otra familia no se puede borrar.
+- [x] `supabase/listas-solo-colegio.sql` probado con usuarios impersonados y aplicado (2026-11-06).
+- [ ] Unir a `main` para publicar la web y sacar la versión de la app: mientras tanto el Room Parent ve los botones viejos y sus cambios fallan sin aviso, y el colegio todavía no tiene la sección.
 - [ ] Probar a mano: administrador y Secretaría cargan, editan, borran y copian (web y app); la familia descarga y marca, sin botones de edición.
 - [ ] Decidir si la lista del año próximo se les muestra a las familias antes de la promoción (hoy solo ven la del curso donde está el hijo).
 - [ ] Si los colegios lo piden: carga por Excel con "Descargar modelo". Tapa de libro desde la app.
