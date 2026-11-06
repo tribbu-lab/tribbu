@@ -8,12 +8,12 @@ Tachá o borrá cada ítem cuando se resuelva.
 - [x] Web publicada y `supabase/room-parent-alcance.sql` aplicado (2026-11-06).
 - [ ] Probar a mano con una cuenta real de Room Parent (web y app).
 - [ ] Capturas: regenerar el set de tiendas con la versión nueva (01-hoy muestra "Publicar alerta al curso"), y rehacer `public/apoderados-media/app-hoy.jpg` de la landing, que muestra lo mismo.
-- [ ] Probar `supabase/room-parent-avisos-autorizaciones.sql` con rollback y aplicarlo **después** de publicar la web con avisos y autorizaciones nuevos.
+- [x] `supabase/room-parent-avisos-autorizaciones.sql` probado con rollback y aplicado, con la web ya publicada (2026-11-06).
 - [ ] La app vieja sigue mostrando Horarios, Familias, alerta y carga de libros
       y útiles hasta que salga la versión de tiendas con este cambio. Con el SQL
       aplicado, su botón de alerta no crea la alerta pero igual manda el push,
-      porque `send-push` no chequea el rol. Crear eventos también le va a fallar
-      a esa versión, porque sigue mandando tipos del colegio.
+      porque `send-push` no chequea el rol. Crear eventos y autorizaciones también le va a
+      fallar a esa versión.
 
 ## Útiles y libros los carga el colegio (2026-11-06)
 
