@@ -6,8 +6,8 @@
 // cliente (mobile/push/useNotificationRouting → TAB_MAP).
 //
 // La invocan tanto la web como la app móvil con la anon key como Bearer (mismo
-// contrato que `src/lib/push.js` / `mobile/lib/push.js`); no requiere JWT de
-// super/admin — solo dispara la notificación a los `userIds` recibidos.
+// contrato que `src/lib/push.js` / `mobile/lib/push.js`). Manda solo a los `userIds`
+// que la base le permite a quien llama (destinatarios_push).
 //
 // Requiere la tabla `push_tokens` (ver mobile/supabase/push_tokens.sql).
 // Deploy: supabase functions deploy send-push
@@ -74,9 +74,7 @@ serve(async (req) => {
   try {
     // Exige una sesión real (no solo la anon key, que es pública en todo
     // bundle/APK) — sin esto, cualquiera podía mandar push con texto libre a
-    // cualquier usuario_id sin siquiera tener una cuenta. No se exige rol
-    // super/admin (a propósito: cualquier apoderado dispara push hoy al crear
-    // un recordatorio/festejo/encuesta), solo estar logueado.
+    // cualquier usuario_id sin siquiera tener una cuenta.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return json({ error: "No autorizado" }, 401);
@@ -99,6 +97,21 @@ serve(async (req) => {
       return json({ ok: true, sent: 0, reason: "sin destinatarios" });
     }
 
+    // Quién puede mandar qué y a quién lo decide la base, con la sesión de quien
+    // llama (destinatarios_push, supabase/permisos-push-y-tipo-evento.sql).
+    const { data: permitidos, error: permisosErr } = await userClient.rpc("destinatarios_push", {
+      p_tipo: String(type),
+      p_usuarios: userIds,
+    });
+    if (permisosErr) {
+      console.error("destinatarios_push:", permisosErr.message);
+      return json({ ok: false, error: "No se pudieron revisar los permisos" }, 500);
+    }
+    const destinatarios = ((permitidos || []) as { usuario_id: string }[]).map((f) => f.usuario_id);
+    if (!destinatarios.length) {
+      return json({ ok: true, sent: 0, reason: "sin destinatarios permitidos" });
+    }
+
     // Cliente con service-role (bypassea RLS) para leer todos los tokens.
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
@@ -106,7 +119,7 @@ serve(async (req) => {
     // Envío + poda de tokens muertos: módulo compartido con avisos-automaticos.
     const { sent, pruned, results } = await enviarPush(
       supabase,
-      userIds.map((usuario) => ({ usuario, title, body, data: { type, ...dataRest } })),
+      destinatarios.map((usuario) => ({ usuario, title, body, data: { type, ...dataRest } })),
     );
     if (!sent) return json({ ok: true, sent: 0, reason: "sin tokens" });
 
