@@ -23,6 +23,7 @@ import { AutorizacionesColegio } from "../autorizaciones";
 import { CambiosSalidaColegio } from "../salidas";
 import { FotosEscolaresColegio } from "../fotos";
 import { ConfiguracionInicio } from "./configuracion";
+import { ListasAdmin } from "./listas";
 import { ImportarDatos } from "./importar";
 import { FichaAlumno } from "./fichaAlumno";
 import { Ayuda } from "../ayuda";
@@ -102,6 +103,7 @@ const SECCIONES = [
     {id:"directivos",l:"Directivos"},
     {id:"menu",l:"Menú"},
     {id:"uniformes",l:"Uniformes"},
+    {id:"listas",l:"Útiles y libros"},
     {id:"colegio",l:"Datos y membrete"},
     {id:"adopcion",l:"Adopción"},
     // Última: se usa una vez por año, al pasar a los alumnos al año siguiente.
@@ -147,6 +149,7 @@ const SECCION_INFO = {
   materias:       { titulo:"Materias", descripcion:"La lista de materias del colegio. Las clases de cada curso (y su horario) se arman eligiendo de acá." },
   horarios:       { titulo:"Horarios", descripcion:"El horario de clases de cada curso, el mismo que ven las familias en Agenda → Horario. Podés exportarlo o cargar muchos cursos de una vez desde Excel." },
   uniformes:      { titulo:"Uniformes", descripcion:"Las prendas del uniforme por categoría, vinculadas a los cursos que las usan." },
+  listas:         { titulo:"Útiles y libros", descripcion:"La lista de cada curso, por ciclo lectivo. Las familias la ven en Info Útil, la descargan y marcan lo que ya tienen." },
   alertas:        { titulo:"Alertas", descripcion:"Avisos urgentes por curso, con notificación push a todas las familias alcanzadas." },
   comunicaciones: { titulo:"Comunicados", descripcion:"Un mismo mensaje publicado en varios cursos a la vez, con push opcional." },
   eventos:        { titulo:"Eventos", descripcion:"Los eventos del calendario de cada curso (actos, paseos, salidas…) con quién los creó: corregí o borrá lo que haga falta, o creá uno nuevo para uno o varios cursos." },
@@ -1982,6 +1985,9 @@ export function SuperAdmin({ usuario, cuentasGuardadas, onCerrarSesion }) {
       )}
       {sec==="uniformes"&&(
         <UniformesAdmin cursos={cursosAnoActual}/>
+      )}
+      {sec==="listas"&&(
+        <ListasAdmin key={activeColegioId} cursos={cursos} anoActual={anoActual} showToast={showToast}/>
       )}
       {sec==="colegios"&&esSuper&&(
         <div>

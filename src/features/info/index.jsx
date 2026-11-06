@@ -11,6 +11,10 @@ import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { Alumnos } from "../contacto";
 import { useCargar } from "../../hooks/useCargar";
+import { useConfirmar } from "../../hooks/useConfirmar";
+import { useToast } from "../../hooks/useToast";
+import { Icono } from "../../components/Icono";
+import { armarUtil, armarLibro } from "../../lib/listasCurso";
 
 // Escapa texto para interpolarlo en el HTML del PDF: los ítems/materias los
 // cargan usuarios, y la ventana de impresión comparte origen con la app.
@@ -100,15 +104,17 @@ export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin,
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
-      {sec==="utiles"    &&<Utiles    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="utiles"    &&<Utiles    cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} cursoNombre={cursoNombre}/>}
       {sec==="uniformes" &&<Uniformes cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="libros"    &&<Libros    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="libros"    &&<Libros    cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} cursoNombre={cursoNombre}/>}
       {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={userId} onEscribir={onEscribir}/>}
     </div>
   );
 }
 
-export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
+// Las familias ven, descargan y marcan. `gestion` (panel del colegio): alta,
+// edición y borrado en el curso `cursoId`, sin marcas ni avance (no son suyas).
+export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, gestion=false, cursoNombre="" }) {
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
@@ -118,6 +124,9 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [filtroMat, setFiltroMat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
   const [imgPreview,setImgPreview]= useState(null); // {url, nombre}
+  const [guardando, setGuardando] = useState(false);
+  const [confirmar, confirmUI] = useConfirmar();
+  const { showToast, Toast } = useToast();
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setLibros([]); setAdquiridos(new Set()); return; }
@@ -145,8 +154,9 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   };
 
   const guardar = async () => {
-    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
-    if(!form.nombre?.trim()) return;
+    if(!gestion||!cursoId||guardando) return;
+    if(!form.nombre?.trim()) { showToast("Poné el nombre del libro.","error"); return; }
+    setGuardando(true);
     let imagen_url = form.imagen_url||null;
     if(form._file) {
       const ext = form._file.name.split(".").pop().toLowerCase();
@@ -159,18 +169,19 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
         imagen_url = pub?.publicUrl || null;
       }
     }
-    const payload = {nombre:form.nombre.trim(), editorial:form.editorial||null, materia:form.materia||null, curso_id:cursoId, imagen_url, url_descarga:form.url_descarga||null};
-    if(modal?.id) {
-      await supabase.from("libros").update(payload).eq("id",modal.id);
-    } else {
-      await supabase.from("libros").insert(payload);
-    }
+    const payload = armarLibro(form, cursoId, imagen_url);
+    const { error } = modal?.id
+      ? await supabase.from("libros").update(payload).eq("id",modal.id)
+      : await supabase.from("libros").insert(payload);
+    setGuardando(false);
+    if(error) { showToast("No se pudo guardar el libro: "+error.message,"error"); return; }
     setModal(null); setForm({}); cargar();
   };
 
-  const eliminar = async (id) => {
-    await supabase.from("libro_adquirido").delete().eq("libro_id",id);
-    await supabase.from("libros").delete().eq("id",id);
+  const eliminar = async (l) => {
+    if(!(await confirmar({ titulo:"¿Borrar este libro?", detalle:`“${l.nombre}” deja de aparecer en la lista de las familias del curso.`, textoConfirmar:"Borrar" }))) return;
+    const { error } = await supabase.from("libros").delete().eq("id",l.id);
+    if(error) { showToast("No se pudo borrar el libro: "+error.message,"error"); return; }
     cargar();
   };
 
@@ -202,9 +213,11 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
           const adq = adquiridos.has(l.id);
           return (
             <Card key={l.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
-              <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
-                {adq?"✓":""}
-              </button>
+              {!gestion&&(
+                <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                  {adq?"✓":""}
+                </button>
+              )}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
                 {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
@@ -213,10 +226,10 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
               {l.imagen_url&&(
                 <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
               )}
-              {isAdmin&&(
+              {gestion&&(
                 <div style={{display:"flex",gap:5,flexShrink:0}}>
-                  <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-                  <button onClick={()=>eliminar(l.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
+                  <button onClick={()=>{setModal(l);setForm({...l});}} aria-label={"Editar "+l.nombre} style={{padding:"5px 7px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="lapiz" size={14} color="#64748B"/></button>
+                  <button onClick={()=>eliminar(l)} aria-label={"Borrar "+l.nombre} style={{padding:"5px 7px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer"}}><Icono nombre="papelera" size={14} color="#EF4444"/></button>
                 </div>
               )}
             </Card>
@@ -228,6 +241,8 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
+      {confirmUI}
+      <Toast/>
       {/* Modal edicion */}
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -264,7 +279,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
             </div>
             <div style={{display:"flex",gap:10,marginTop:6}}>
               <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar libro"}</button>
+              <button onClick={guardar} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,opacity:guardando?0.6:1}}>{modal?.id?"Guardar cambios":"Agregar libro"}</button>
             </div>
           </Card>
         </div>
@@ -281,13 +296,15 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
 
       {/* Header + stats */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div>
-          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
-          {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
-        </div>
+        {gestion
+          ? <div style={{fontSize:13,color:"#94A3B8"}}>{libros.length} libro{libros.length!==1?"s":""} en la lista</div>
+          : <div>
+              <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
+              {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+            </div>}
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
-          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
+          <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Descargar</button>
+          {gestion&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
         </div>
       </div>
 
@@ -317,7 +334,8 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   );
 }
 
-export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
+// Igual que Libros: las familias ven, descargan y marcan; `gestion` es el panel del colegio.
+export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, gestion=false, cursoNombre="" }) {
   const [utiles,    setUtiles]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
   const [modal,     setModal]     = useState(null);
@@ -325,6 +343,9 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroCat, setFiltroCat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const [confirmar, confirmUI] = useConfirmar();
+  const { showToast, Toast } = useToast();
   const isMobile = useIsMobile();
 
   const cargar = useCallback(async () => {
@@ -352,17 +373,22 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   };
 
   const guardar = async () => {
-    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
-    if(!form.item?.trim()) return;
-    const payload = {item:form.item.trim(), categoria:form.categoria||null, cantidad:form.cantidad||null, comentario:form.comentario||null, curso_id:cursoId};
-    if(modal?.id) await supabase.from("utiles").update(payload).eq("id",modal.id);
-    else          await supabase.from("utiles").insert(payload);
+    if(!gestion||!cursoId||guardando) return;
+    if(!form.item?.trim()) { showToast("Poné el nombre del útil.","error"); return; }
+    setGuardando(true);
+    const payload = armarUtil(form, cursoId);
+    const { error } = modal?.id
+      ? await supabase.from("utiles").update(payload).eq("id",modal.id)
+      : await supabase.from("utiles").insert(payload);
+    setGuardando(false);
+    if(error) { showToast("No se pudo guardar el útil: "+error.message,"error"); return; }
     setModal(null); setForm({}); cargar();
   };
 
-  const eliminar = async (id) => {
-    await supabase.from("util_adquirido").delete().eq("util_id",id);
-    await supabase.from("utiles").delete().eq("id",id);
+  const eliminar = async (u) => {
+    if(!(await confirmar({ titulo:"¿Borrar este útil?", detalle:`“${u.item}” deja de aparecer en la lista de las familias del curso.`, textoConfirmar:"Borrar" }))) return;
+    const { error } = await supabase.from("utiles").delete().eq("id",u.id);
+    if(error) { showToast("No se pudo borrar el útil: "+error.message,"error"); return; }
     cargar();
   };
 
@@ -395,7 +421,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
         {/* Categoría header */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:8,marginBottom:0}}>
           <span style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.8,flex:1}}>{cat}</span>
-          <span style={{fontSize:10,color:"#94A3B8"}}>{items.filter(u=>adquiridos.has(u.id)).length}/{items.length}</span>
+          <span style={{fontSize:10,color:"#94A3B8"}}>{gestion?items.length:`${items.filter(u=>adquiridos.has(u.id)).length}/${items.length}`}</span>
         </div>
         {/* Table rows */}
         <div style={{border:"1px solid #E2E8F0",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
@@ -405,11 +431,13 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
             return (
               <div key={u.id} style={{display:"flex",alignItems:"center",gap:0,background:adq?"#F0FDF4":ri%2===0?"white":"#FAFAFA",borderBottom:isLast?"none":"1px solid #F1F5F9",minHeight:36}}>
                 {/* check */}
-                <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
-                  <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
-                    {adq?"✓":""}
-                  </button>
-                </div>
+                {!gestion&&(
+                  <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
+                    <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
+                      {adq?"✓":""}
+                    </button>
+                  </div>
+                )}
                 {/* nombre */}
                 <div style={{flex:1,padding:"7px 10px",minWidth:0}}>
                   <span style={{fontSize:13,fontWeight:500,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
@@ -422,10 +450,10 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
                   </div>
                 )}
                 {/* admin actions */}
-                {isAdmin&&(
+                {gestion&&(
                   <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
-                    <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"3px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#64748B"}}>✏️</button>
-                    <button onClick={()=>eliminar(u.id)} style={{padding:"3px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#EF4444"}}>🗑</button>
+                    <button onClick={()=>{setModal(u);setForm({...u});}} aria-label={"Editar "+u.item} style={{padding:"4px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="lapiz" size={14} color="#64748B"/></button>
+                    <button onClick={()=>eliminar(u)} aria-label={"Borrar "+u.item} style={{padding:"4px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer"}}><Icono nombre="papelera" size={14} color="#EF4444"/></button>
                   </div>
                 )}
               </div>
@@ -443,6 +471,8 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
+      {confirmUI}
+      <Toast/>
       {modal!==null&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <Card style={{padding:24,width:"100%",maxWidth:400}}>
@@ -458,20 +488,22 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
             ))}
             <div style={{display:"flex",gap:10,marginTop:6}}>
               <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar útil"}</button>
+              <button onClick={guardar} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,opacity:guardando?0.6:1}}>{modal?.id?"Guardar cambios":"Agregar útil"}</button>
             </div>
           </Card>
         </div>
       )}
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div>
-          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
-          {utiles.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/utiles.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
-        </div>
+        {gestion
+          ? <div style={{fontSize:13,color:"#94A3B8"}}>{utiles.length} útil{utiles.length!==1?"es":""} en la lista</div>
+          : <div>
+              <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
+              {utiles.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/utiles.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+            </div>}
         <div style={{display:"flex",gap:8}}>
-          <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
-          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
+          <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Descargar</button>
+          {gestion&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
         </div>
       </div>
 
