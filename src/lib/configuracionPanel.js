@@ -6,12 +6,12 @@
 export const GRUPOS_CONFIG = [
   { titulo: "Estructura del año", items: ["importar", "cursos", "horarios", "materias"] },
   { titulo: "Personal", items: ["maestros", "directivos"] },
-  { titulo: "Colegio", items: ["colegio", "menu", "uniformes"] },
+  { titulo: "Colegio", items: ["colegio", "menu", "uniformes", "listas"] },
   { titulo: "Otros", items: ["adopcion", "promocion"] },
 ];
 
 export const DESC_CONFIG = {
-  importar: "Cargar alumnos y familias, horarios o menú desde Excel",
+  importar: "Cargar alumnos y familias, horarios, menú, útiles y libros desde Excel",
   cursos: "Los cursos de cada año lectivo",
   horarios: "El horario semanal de cada curso",
   materias: "Las materias que se dan en el colegio",
@@ -20,6 +20,7 @@ export const DESC_CONFIG = {
   colegio: "Contacto del colegio y membrete de los comunicados",
   menu: "El menú del comedor, desde un Excel mensual",
   uniformes: "Las prendas del uniforme por curso",
+  listas: "La lista de útiles y de libros de cada curso, por ciclo lectivo",
   adopcion: "Cuántas familias usan la app",
   promocion: "Pasar a los alumnos al año siguiente (una vez por año)",
 };

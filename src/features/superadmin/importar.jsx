@@ -47,7 +47,7 @@ async function descargarModelo(cursos, hijos, usuarios) {
   XLSX.writeFile(wb, "alumnos y familias.xlsx");
 }
 
-function Modal({ titulo, subtitulo, onClose, children, pie }) {
+export function Modal({ titulo, subtitulo, onClose, children, pie }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div role="dialog" aria-label={titulo} onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 580, maxHeight: "90vh", display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
@@ -189,6 +189,7 @@ export function ImportarDatos({ cursos = [], hijos = [], usuarios = [], colegioI
     { id: "familias", titulo: "Alumnos y familias", desc: "Alumnos por curso con sus apoderados: crea las cuentas que faltan y las vincula.", icono: "usuarios" },
     { id: "horarios", titulo: "Horarios", desc: "El horario semanal de todos los cursos: Curso, Día, Desde, Hasta, Materia y Maestra.", icono: "reloj" },
     puedeMenu ? { id: "menu", titulo: "Menú del comedor", desc: "El menú del mes desde el Excel del comedor.", icono: "cubiertos" } : null,
+    { id: "listas", titulo: "Útiles y libros", desc: "Las listas de cada curso, por ciclo lectivo: una fila por útil o por libro.", icono: "bolsa" },
   ].filter(Boolean);
   return (
     <div style={{ maxWidth: 760 }}>
@@ -201,7 +202,7 @@ export function ImportarDatos({ cursos = [], hijos = [], usuarios = [], colegioI
       ) : null}
       <div style={{ display: "grid", gap: 10 }}>
         {opciones.map((o) => (
-          <button key={o.id} onClick={() => (o.id === "menu" ? onIr("menu") : setAbierto(o.id))} style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", padding: "14px 16px", borderRadius: 14, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontFamily: "inherit" }}>
+          <button key={o.id} onClick={() => (o.id === "menu" || o.id === "listas" ? onIr(o.id) : setAbierto(o.id))} style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", padding: "14px 16px", borderRadius: 14, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontFamily: "inherit" }}>
             <span style={{ width: 40, height: 40, borderRadius: 12, background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icono nombre={o.icono} size={19} color="#475569" /></span>
             <span style={{ flex: 1, minWidth: 0, display: "block" }}>
               <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: "#0F172A" }}>{o.titulo}</span>

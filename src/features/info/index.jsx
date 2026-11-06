@@ -11,6 +11,10 @@ import { Paginador } from "../../components/Paginador";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { Alumnos } from "../contacto";
 import { useCargar } from "../../hooks/useCargar";
+import { useConfirmar } from "../../hooks/useConfirmar";
+import { useToast } from "../../hooks/useToast";
+import { Icono } from "../../components/Icono";
+import { armarUtil, armarLibro } from "../../lib/listasCurso";
 
 // Escapa texto para interpolarlo en el HTML del PDF: los ítems/materias los
 // cargan usuarios, y la ventana de impresión comparte origen con la app.
@@ -108,14 +112,21 @@ export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin,
   );
 }
 
-export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre="" }) {
+// Las familias ven, descargan y marcan. `gestion` (panel del colegio): alta,
+// edición y borrado en el curso `cursoId`, sin marcas ni avance (no son suyas).
+export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, gestion=false, cursoNombre="" }) {
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
+  const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
   const isMobile = useIsMobile();
+  const [form,      setForm]      = useState({});
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroMat, setFiltroMat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
   const [imgPreview,setImgPreview]= useState(null); // {url, nombre}
+  const [guardando, setGuardando] = useState(false);
+  const [confirmar, confirmUI] = useConfirmar();
+  const { showToast, Toast } = useToast();
 
   const cargar = useCallback(async () => {
     if(!cursoIds?.length) { setLibros([]); setAdquiridos(new Set()); return; }
@@ -142,7 +153,40 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
     setTogglingId(null);
   };
 
+  const guardar = async () => {
+    if(!gestion||!cursoId||guardando) return;
+    if(!form.nombre?.trim()) { showToast("Poné el nombre del libro.","error"); return; }
+    setGuardando(true);
+    let imagen_url = form.imagen_url||null;
+    if(form._file) {
+      const ext = form._file.name.split(".").pop().toLowerCase();
+      const path = `${cursoId}/${Date.now()}.${ext}`;
+      const { error: upError } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true, contentType: form._file.type});
+      if(upError) {
+        alert("Error al subir imagen: " + upError.message);
+      } else {
+        const { data: pub } = supabase.storage.from("libros").getPublicUrl(path);
+        imagen_url = pub?.publicUrl || null;
+      }
+    }
+    const payload = armarLibro(form, cursoId, imagen_url);
+    const { error } = modal?.id
+      ? await supabase.from("libros").update(payload).eq("id",modal.id)
+      : await supabase.from("libros").insert(payload);
+    setGuardando(false);
+    if(error) { showToast("No se pudo guardar el libro: "+error.message,"error"); return; }
+    setModal(null); setForm({}); cargar();
+  };
+
+  const eliminar = async (l) => {
+    if(!(await confirmar({ titulo:"¿Borrar este libro?", detalle:`“${l.nombre}” deja de aparecer en la lista de las familias del curso.`, textoConfirmar:"Borrar" }))) return;
+    const { error } = await supabase.from("libros").delete().eq("id",l.id);
+    if(error) { showToast("No se pudo borrar el libro: "+error.message,"error"); return; }
+    cargar();
+  };
+
   const materias = [...new Set(libros.map(l=>l.materia).filter(Boolean))].sort();
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const filtrados = libros.filter(l=> {
     const q = busqueda.toLowerCase();
@@ -169,9 +213,11 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
           const adq = adquiridos.has(l.id);
           return (
             <Card key={l.id} style={{padding:"12px 14px",marginBottom:7,display:"flex",alignItems:"center",gap:12,opacity:adq?0.75:1,borderLeft:`3px solid ${adq?"#10B981":"#E2E8F0"}`}}>
-              <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
-                {adq?"✓":""}
-              </button>
+              {!gestion&&(
+                <button onClick={()=>toggleAdquirido(l.id)} disabled={togglingId===l.id} style={{width:24,height:24,borderRadius:6,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,color:"white",fontWeight:900,transition:"all 0.15s"}}>
+                  {adq?"✓":""}
+                </button>
+              )}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{l.nombre}</div>
                 {l.editorial&&<div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{l.editorial}</div>}
@@ -179,6 +225,12 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
               </div>
               {l.imagen_url&&(
                 <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
+              )}
+              {gestion&&(
+                <div style={{display:"flex",gap:5,flexShrink:0}}>
+                  <button onClick={()=>{setModal(l);setForm({...l});}} aria-label={"Editar "+l.nombre} style={{padding:"5px 7px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="lapiz" size={14} color="#64748B"/></button>
+                  <button onClick={()=>eliminar(l)} aria-label={"Borrar "+l.nombre} style={{padding:"5px 7px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer"}}><Icono nombre="papelera" size={14} color="#EF4444"/></button>
+                </div>
               )}
             </Card>
           );
@@ -189,6 +241,50 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
+      {confirmUI}
+      <Toast/>
+      {/* Modal edicion */}
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar libro":"Nuevo libro"}</div>
+            {[{label:"Nombre",key:"nombre",ph:"Ej: Matemáticas 3"},{label:"Editorial",key:"editorial",ph:"Ej: Santillana"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"}].map(f=>(
+              <div key={f.key} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.label.toUpperCase()}</div>
+                <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
+              </div>
+            ))}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TAPA DEL LIBRO</div>
+              {(form.imagen_url&&!form._file)&&(
+                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
+                  <img src={form.imagen_url} alt="tapa" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"1px solid #E2E8F0"}}/>
+                  <button onClick={()=>setForm(p=>({...p,imagen_url:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+              )}
+              {form._file&&(
+                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
+                  <img src={URL.createObjectURL(form._file)} alt="preview" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"2px solid #3B82F6"}}/>
+                  <button onClick={()=>setForm(p=>({...p,_file:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+              )}
+              <label style={{display:"block",padding:"8px 12px",borderRadius:10,border:"1.5px dashed #CBD5E1",background:"#F8FAFC",cursor:"pointer",fontSize:12,color:"#64748B",textAlign:"center"}}>
+                {form._file||form.imagen_url?"Cambiar imagen":"Subir imagen (JPG, PNG)"}
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files[0]) setForm(p=>({...p,_file:e.target.files[0]})); }}/>
+              </label>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>LINK DE DESCARGA</div>
+              <input value={form.url_descarga||""} onChange={e=>setForm(p=>({...p,url_descarga:e.target.value}))} placeholder="Ej: https://drive.google.com/..." style={inp}/>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,opacity:guardando?0.6:1}}>{modal?.id?"Guardar cambios":"Agregar libro"}</button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Image preview modal */}
       {imgPreview&&(
         <div onClick={()=>setImgPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:400,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -200,12 +296,15 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
 
       {/* Header + stats */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div>
-          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
-          {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
-        </div>
+        {gestion
+          ? <div style={{fontSize:13,color:"#94A3B8"}}>{libros.length} libro{libros.length!==1?"s":""} en la lista</div>
+          : <div>
+              <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {libros.length} adquiridos</div>
+              {libros.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/libros.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+            </div>}
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Descargar</button>
+          {gestion&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
         </div>
       </div>
 
@@ -235,12 +334,18 @@ export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
   );
 }
 
-export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre="" }) {
+// Igual que Libros: las familias ven, descargan y marcan; `gestion` es el panel del colegio.
+export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, gestion=false, cursoNombre="" }) {
   const [utiles,    setUtiles]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
+  const [modal,     setModal]     = useState(null);
+  const [form,      setForm]      = useState({});
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroCat, setFiltroCat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const [confirmar, confirmUI] = useConfirmar();
+  const { showToast, Toast } = useToast();
   const isMobile = useIsMobile();
 
   const cargar = useCallback(async () => {
@@ -267,7 +372,28 @@ export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
     setTogglingId(null);
   };
 
+  const guardar = async () => {
+    if(!gestion||!cursoId||guardando) return;
+    if(!form.item?.trim()) { showToast("Poné el nombre del útil.","error"); return; }
+    setGuardando(true);
+    const payload = armarUtil(form, cursoId);
+    const { error } = modal?.id
+      ? await supabase.from("utiles").update(payload).eq("id",modal.id)
+      : await supabase.from("utiles").insert(payload);
+    setGuardando(false);
+    if(error) { showToast("No se pudo guardar el útil: "+error.message,"error"); return; }
+    setModal(null); setForm({}); cargar();
+  };
+
+  const eliminar = async (u) => {
+    if(!(await confirmar({ titulo:"¿Borrar este útil?", detalle:`“${u.item}” deja de aparecer en la lista de las familias del curso.`, textoConfirmar:"Borrar" }))) return;
+    const { error } = await supabase.from("utiles").delete().eq("id",u.id);
+    if(error) { showToast("No se pudo borrar el útil: "+error.message,"error"); return; }
+    cargar();
+  };
+
   const categorias = [...new Set(utiles.map(u=>u.categoria).filter(Boolean))].sort();
+  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const filtrados = utiles.filter(u=>{
     const q = busqueda.toLowerCase();
@@ -295,7 +421,7 @@ export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
         {/* Categoría header */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:8,marginBottom:0}}>
           <span style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.8,flex:1}}>{cat}</span>
-          <span style={{fontSize:10,color:"#94A3B8"}}>{items.filter(u=>adquiridos.has(u.id)).length}/{items.length}</span>
+          <span style={{fontSize:10,color:"#94A3B8"}}>{gestion?items.length:`${items.filter(u=>adquiridos.has(u.id)).length}/${items.length}`}</span>
         </div>
         {/* Table rows */}
         <div style={{border:"1px solid #E2E8F0",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
@@ -305,11 +431,13 @@ export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
             return (
               <div key={u.id} style={{display:"flex",alignItems:"center",gap:0,background:adq?"#F0FDF4":ri%2===0?"white":"#FAFAFA",borderBottom:isLast?"none":"1px solid #F1F5F9",minHeight:36}}>
                 {/* check */}
-                <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
-                  <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
-                    {adq?"✓":""}
-                  </button>
-                </div>
+                {!gestion&&(
+                  <div style={{width:40,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,borderRight:"1px solid #F1F5F9",alignSelf:"stretch"}}>
+                    <button onClick={()=>toggleAdquirido(u.id)} disabled={togglingId===u.id} style={{width:20,height:20,borderRadius:5,border:`2px solid ${adq?"#10B981":"#CBD5E1"}`,background:adq?"#10B981":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"white",fontWeight:900,flexShrink:0}}>
+                      {adq?"✓":""}
+                    </button>
+                  </div>
+                )}
                 {/* nombre */}
                 <div style={{flex:1,padding:"7px 10px",minWidth:0}}>
                   <span style={{fontSize:13,fontWeight:500,textDecoration:adq?"line-through":"none",color:adq?"#94A3B8":"#0F172A"}}>{u.item}</span>
@@ -319,6 +447,13 @@ export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
                 {u.cantidad&&(
                   <div style={{width:70,padding:"7px 10px",borderLeft:"1px solid #F1F5F9",flexShrink:0,textAlign:"center"}}>
                     <span style={{fontSize:12,color:"#475569",fontWeight:600}}>{u.cantidad}</span>
+                  </div>
+                )}
+                {/* admin actions */}
+                {gestion&&(
+                  <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
+                    <button onClick={()=>{setModal(u);setForm({...u});}} aria-label={"Editar "+u.item} style={{padding:"4px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer"}}><Icono nombre="lapiz" size={14} color="#64748B"/></button>
+                    <button onClick={()=>eliminar(u)} aria-label={"Borrar "+u.item} style={{padding:"4px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer"}}><Icono nombre="papelera" size={14} color="#EF4444"/></button>
                   </div>
                 )}
               </div>
@@ -336,13 +471,39 @@ export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <div>
-          <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
-          {utiles.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/utiles.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+      {confirmUI}
+      <Toast/>
+      {modal!==null&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <Card style={{padding:24,width:"100%",maxWidth:400}}>
+            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar útil":"Nuevo útil"}</div>
+            {[{l:"Nombre",k:"item",ph:"Ej: Cartuchera"},{l:"Categoría",k:"categoria",ph:"Ej: Papelería"},{l:"Cantidad",k:"cantidad",ph:"Ej: 2 unidades"},{l:"Comentario",k:"comentario",ph:"Ej: Con cierre doble"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
+                {f.k==="comentario"
+                  ? <textarea value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} rows={2} style={{...inp,resize:"none"}}/>
+                  : <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
+                }
+              </div>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
+              <button onClick={guardar} disabled={guardando} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,opacity:guardando?0.6:1}}>{modal?.id?"Guardar cambios":"Agregar útil"}</button>
+            </div>
+          </Card>
         </div>
+      )}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        {gestion
+          ? <div style={{fontSize:13,color:"#94A3B8"}}>{utiles.length} útil{utiles.length!==1?"es":""} en la lista</div>
+          : <div>
+              <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
+              {utiles.length>0&&<div style={{marginTop:4,height:5,width:200,background:"#E2E8F0",borderRadius:10,overflow:"hidden"}}><div style={{height:"100%",background:"#10B981",width:`${(adquiridosCount/utiles.length)*100}%`,borderRadius:10,transition:"width 0.3s"}}/></div>}
+            </div>}
         <div style={{display:"flex",gap:8}}>
-          <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
+          <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Descargar</button>
+          {gestion&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
         </div>
       </div>
 

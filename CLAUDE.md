@@ -84,6 +84,7 @@ Sección homónima en `docs/notas-tecnicas.md` + spec/SQL principal:
 | Pagos al colegio (excursiones, "Ya pagué"), reenviar comunicados | `specs/pagos-colegio.md`, `supabase/pagos-colegio.sql`, `src/lib/pagosColegio.js` |
 | Fotos escolares (marca de agua, pedidos, descarga digital) | `supabase/fotos-escolares.sql`, `src/lib/fotosEscolares.js` |
 | Cambios en la salida (Secretaría del nivel) | `supabase/cambios-salida.sql`, `src/lib/cambiosSalida.js` |
+| Útiles y libros (los carga el colegio, por curso y ciclo) | `supabase/listas-solo-colegio.sql`, `src/lib/listasCurso.js` |
 | Encuestas | `specs/encuestas.md` |
 | Mensajes (1 a 1, grupos, difusión, Secretaría, docentes, personal, archivo, fotos) | `specs/mensajes.md`, `specs/docentes-clases-y-grupos.md`, `supabase/mensajes*.sql` |
 | Docentes, materias y clases, horarios | `specs/docentes-clases-y-grupos.md`, `supabase/materias-*.sql`, `supabase/horarios-talleres.sql` |

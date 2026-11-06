@@ -1,8 +1,8 @@
 // Info Útil (puerto RN de src/features/info). Sub-pestañas: Útiles, Uniformes,
-// Libros y Alumnos. Checklists "adquirido" por usuario; las listas las carga el
-// colegio desde su panel. Links de descarga abren con Linking + safeUrl. Las cargas por
-// imagen (tapa de libro) y la exportación a PDF de la web quedan para más
-// adelante (necesitan image-picker / generación de PDF nativa).
+// Libros y Alumnos. Las familias ven, descargan (texto) y marcan; las listas las
+// carga el colegio desde su panel (`gestion`: superadmin/listas.jsx). Links de
+// descarga abren con Linking + safeUrl. La tapa de libro (imagen) y el PDF de
+// la web quedan para más adelante (necesitan image-picker / PDF nativo).
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -12,13 +12,18 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
   Image,
   Linking,
   StyleSheet,
+  Alert,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
 import { safeUrl } from "@shared/helpers";
+import { armarUtil, armarLibro, textoLista } from "@shared/listasCurso";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
 import { useSession } from "../../context/Session";
@@ -26,6 +31,29 @@ import { Card } from "../../components/Card";
 import { Alumnos } from "../contacto";
 
 const t = THEMES.light;
+
+// Descarga la lista en un .txt con la hoja de compartir (guardar en Archivos,
+// Drive, WhatsApp…). La web la imprime a PDF.
+async function descargarLista(tipo, filas, nombreCurso) {
+  if (!filas.length) {
+    Alert.alert("Todavía no hay nada", "Esta lista está vacía.");
+    return;
+  }
+  try {
+    const uri = `${FileSystem.cacheDirectory}lista-${tipo}.txt`;
+    await FileSystem.writeAsStringAsync(uri, textoLista(tipo, filas, nombreCurso));
+    if (!(await Sharing.isAvailableAsync())) throw new Error("compartir");
+    await Sharing.shareAsync(uri, { mimeType: "text/plain", dialogTitle: "Descargar lista", UTI: "public.plain-text" });
+  } catch {
+    Alert.alert("No se pudo descargar", "Probá de nuevo en un rato.");
+  }
+}
+
+const preguntarBorrado = (titulo, nombre, onBorrar) =>
+  Alert.alert(titulo, `“${nombre}” deja de aparecer en la lista de las familias del curso.`, [
+    { text: "Cancelar", style: "cancel" },
+    { text: "Borrar", style: "destructive", onPress: onBorrar },
+  ]);
 
 const abrir = async (url) => {
   const safe = safeUrl(url);
@@ -95,10 +123,14 @@ export function InfoUtil() {
 }
 
 // ── Checklist genérica (Útiles) ─────────────────────────────────────────────
-function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
+// `gestion` (panel del colegio): alta, edición y borrado en `cursoId`, sin marcas
+// y sin ScrollView propio (el panel ya scrollea).
+export function Utiles({ cursoId, cursoIds, userId, gestion = false, esVistaTodos, tagDeCurso }) {
   const [utiles, setUtiles] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) {
@@ -135,6 +167,28 @@ function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
     }
   };
 
+  const guardar = async () => {
+    if (!gestion || !cursoId || !form.item?.trim()) return;
+    const payload = armarUtil(form, cursoId);
+    const { error } = modal?.id
+      ? await supabase.from("utiles").update(payload).eq("id", modal.id)
+      : await supabase.from("utiles").insert(payload);
+    if (error) {
+      Alert.alert("No se pudo guardar", error.message);
+      return;
+    }
+    setModal(null);
+    setForm({});
+    cargar();
+  };
+
+  const eliminar = (u) =>
+    preguntarBorrado("¿Borrar este útil?", u.item, async () => {
+      const { error } = await supabase.from("utiles").delete().eq("id", u.id);
+      if (error) Alert.alert("No se pudo borrar", error.message);
+      else cargar();
+    });
+
   const filtrados = utiles.filter((u) => {
     const q = busqueda.toLowerCase();
     return !q || u.item?.toLowerCase().includes(q) || (u.categoria || "").toLowerCase().includes(q);
@@ -160,21 +214,39 @@ function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
           <View style={styles.groupHeader}>
             <Text style={styles.groupTitle}>{cat}</Text>
             <Text style={styles.groupCount}>
-              {grupo.filter((u) => adquiridos.has(u.id)).length}/{grupo.length}
+              {gestion ? grupo.length : `${grupo.filter((u) => adquiridos.has(u.id)).length}/${grupo.length}`}
             </Text>
           </View>
           {grupo.map((u) => {
             const adq = adquiridos.has(u.id);
             return (
               <View key={u.id} style={[styles.itemRow, adq && styles.itemRowOn]}>
-                <Pressable onPress={() => toggle(u.id)} style={[styles.check, adq && styles.checkOn]}>
-                  {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
-                </Pressable>
+                {gestion ? null : (
+                  <Pressable onPress={() => toggle(u.id)} style={[styles.check, adq && styles.checkOn]}>
+                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
+                  </Pressable>
+                )}
                 <View style={styles.flex1}>
                   <Text style={[styles.itemName, adq && styles.itemNameOn]}>{u.item}</Text>
                   {u.comentario ? <Text style={styles.itemSub}>{u.comentario}</Text> : null}
                 </View>
                 {u.cantidad ? <Text style={styles.cantidad}>{u.cantidad}</Text> : null}
+                {gestion ? (
+                  <View style={styles.itemActions}>
+                    <Pressable
+                      onPress={() => {
+                        setForm({ ...u });
+                        setModal(u);
+                      }}
+                      style={styles.miniBtn}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                    <Pressable onPress={() => eliminar(u)} style={styles.miniBtn} accessibilityLabel={`Borrar ${u.item}`}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             );
           })}
@@ -182,9 +254,9 @@ function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
       ));
   };
 
-  return (
-    <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
-      {utiles.length > 0 ? (
+  const contenido = (
+    <>
+      {utiles.length > 0 && !gestion ? (
         <View style={styles.uniProgress}>
           <View style={styles.progressTop}>
             <Text style={styles.progressLabel}>Adquiridos</Text>
@@ -197,8 +269,23 @@ function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
           </View>
         </View>
       ) : null}
+      {gestion ? null : <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>}
       <View style={styles.toolbar}>
-        <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
+        <Pressable onPress={() => descargarLista("utiles", utiles, esVistaTodos ? (cid) => tagDeCurso(cid)?.nombre : null)} style={styles.descargarBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="download-outline" size={16} color={t.textMuted} />
+          <Text style={styles.descargarTxt}>Descargar</Text>
+        </Pressable>
+        {gestion ? (
+          <Pressable
+            onPress={() => {
+              setForm({});
+              setModal({});
+            }}
+            style={styles.addBtn}
+          >
+            <Text style={styles.addTxt}>+ Agregar</Text>
+          </Pressable>
+        ) : null}
       </View>
       <TextInput
         value={busqueda}
@@ -219,15 +306,33 @@ function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
             </View>
           ))
         : renderGrupos(filtrados)}
-    </ScrollView>
+
+      <ItemFormModal
+        visible={modal !== null}
+        title={modal?.id ? "Editar útil" : "Nuevo útil"}
+        fields={[
+          { l: "Nombre", k: "item", ph: "Ej: Cartuchera" },
+          { l: "Categoría", k: "categoria", ph: "Ej: Papelería" },
+          { l: "Cantidad", k: "cantidad", ph: "Ej: 2 unidades" },
+          { l: "Comentario", k: "comentario", ph: "Ej: Con cierre doble" },
+        ]}
+        form={form}
+        setForm={setForm}
+        onClose={() => setModal(null)}
+        onGuardar={guardar}
+      />
+    </>
   );
+  return gestion ? contenido : <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>{contenido}</ScrollView>;
 }
 
 // ── Libros ───────────────────────────────────────────────────────────────
-function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
+export function Libros({ cursoId, cursoIds, userId, gestion = false, esVistaTodos, tagDeCurso }) {
   const [libros, setLibros] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
   const [preview, setPreview] = useState(null);
 
   const cargar = useCallback(async () => {
@@ -265,6 +370,28 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
     }
   };
 
+  const guardar = async () => {
+    if (!gestion || !cursoId || !form.nombre?.trim()) return;
+    const payload = armarLibro(form, cursoId); // la tapa que ya tenía queda como está
+    const { error } = modal?.id
+      ? await supabase.from("libros").update(payload).eq("id", modal.id)
+      : await supabase.from("libros").insert(payload);
+    if (error) {
+      Alert.alert("No se pudo guardar", error.message);
+      return;
+    }
+    setModal(null);
+    setForm({});
+    cargar();
+  };
+
+  const eliminar = (l) =>
+    preguntarBorrado("¿Borrar este libro?", l.nombre, async () => {
+      const { error } = await supabase.from("libros").delete().eq("id", l.id);
+      if (error) Alert.alert("No se pudo borrar", error.message);
+      else cargar();
+    });
+
   const filtrados = libros.filter((l) => {
     const q = busqueda.toLowerCase();
     return (
@@ -297,9 +424,11 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
             const adq = adquiridos.has(l.id);
             return (
               <Card key={l.id} style={[styles.libroCard, { borderLeftColor: adq ? t.success : t.borderStrong }]}>
-                <Pressable onPress={() => toggle(l.id)} style={[styles.check, adq && styles.checkOn]}>
-                  {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
-                </Pressable>
+                {gestion ? null : (
+                  <Pressable onPress={() => toggle(l.id)} style={[styles.check, adq && styles.checkOn]}>
+                    {adq ? <MaterialCommunityIcons name="check-bold" size={16} color="#FFFFFF" /> : null}
+                  </Pressable>
+                )}
                 <View style={styles.flex1}>
                   <Text style={[styles.itemName, adq && styles.itemNameOn]}>{l.nombre}</Text>
                   {l.editorial ? <Text style={styles.itemSub}>{l.editorial}</Text> : null}
@@ -314,6 +443,22 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
                     <Image source={{ uri: l.imagen_url }} style={styles.cover} />
                   </Pressable>
                 ) : null}
+                {gestion ? (
+                  <View style={styles.itemActions}>
+                    <Pressable
+                      onPress={() => {
+                        setForm({ ...l });
+                        setModal(l);
+                      }}
+                      style={styles.miniBtn}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
+                    </Pressable>
+                    <Pressable onPress={() => eliminar(l)} style={styles.miniBtn} accessibilityLabel={`Borrar ${l.nombre}`}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </Card>
             );
           })}
@@ -321,9 +466,9 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
       ));
   };
 
-  return (
-    <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>
-      {libros.length > 0 ? (
+  const contenido = (
+    <>
+      {libros.length > 0 && !gestion ? (
         <View style={styles.uniProgress}>
           <View style={styles.progressTop}>
             <Text style={styles.progressLabel}>Adquiridos</Text>
@@ -336,8 +481,23 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
           </View>
         </View>
       ) : null}
+      {gestion ? null : <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>}
       <View style={styles.toolbar}>
-        <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
+        <Pressable onPress={() => descargarLista("libros", libros, esVistaTodos ? (cid) => tagDeCurso(cid)?.nombre : null)} style={styles.descargarBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="download-outline" size={16} color={t.textMuted} />
+          <Text style={styles.descargarTxt}>Descargar</Text>
+        </Pressable>
+        {gestion ? (
+          <Pressable
+            onPress={() => {
+              setForm({});
+              setModal({});
+            }}
+            style={styles.addBtn}
+          >
+            <Text style={styles.addTxt}>+ Agregar</Text>
+          </Pressable>
+        ) : null}
       </View>
       <TextInput
         value={busqueda}
@@ -359,14 +519,30 @@ function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
           ))
         : renderGrupos(filtrados)}
 
+      <ItemFormModal
+        visible={modal !== null}
+        title={modal?.id ? "Editar libro" : "Nuevo libro"}
+        fields={[
+          { l: "Nombre", k: "nombre", ph: "Ej: Matemáticas 3" },
+          { l: "Editorial", k: "editorial", ph: "Ej: Santillana" },
+          { l: "Materia", k: "materia", ph: "Ej: Matemáticas" },
+          { l: "Link de descarga", k: "url_descarga", ph: "https://drive.google.com/..." },
+        ]}
+        form={form}
+        setForm={setForm}
+        onClose={() => setModal(null)}
+        onGuardar={guardar}
+      />
+
       <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreview(null)}>
           {preview ? <Image source={{ uri: preview.url }} style={styles.previewImg} resizeMode="contain" /> : null}
           <Text style={styles.previewName}>{preview?.nombre}</Text>
         </Pressable>
       </Modal>
-    </ScrollView>
+    </>
   );
+  return gestion ? contenido : <ScrollView style={styles.flex1} contentContainerStyle={styles.content}>{contenido}</ScrollView>;
 }
 
 // ── Uniformes (solo checklist adquirido) ────────────────────────────────────
@@ -501,6 +677,41 @@ function Uniformes({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
   );
 }
 
+// ── Modal reutilizable de alta/edición (campos de texto) ────────────────────
+function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuardar }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
+        <View style={styles.modalCard}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>{title}</Text>
+            {fields.map((f) => (
+              <View key={f.k}>
+                <Text style={styles.label}>{f.l.toUpperCase()}</Text>
+                <TextInput
+                  value={form[f.k] || ""}
+                  onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
+                  placeholder={f.ph}
+                  placeholderTextColor={t.textFaint}
+                  style={styles.input}
+                />
+              </View>
+            ))}
+            <View style={styles.modalBtns}>
+              <Pressable onPress={onClose} style={styles.cancelBtn}>
+                <Text style={styles.cancelTxt}>Cancelar</Text>
+              </Pressable>
+              <Pressable onPress={onGuardar} style={styles.saveBtn}>
+                <Text style={styles.saveTxt}>Guardar</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   headerWrap: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.lg },
@@ -515,6 +726,10 @@ const styles = StyleSheet.create({
   subTabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   privacidadTxt: { fontSize: 11, color: t.textFaint, marginBottom: SPACE.sm },
+  descargarBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: t.borderStrong, backgroundColor: t.surface, borderRadius: RADIUS.lg, paddingHorizontal: 12, minHeight: 44 },
+  descargarTxt: { fontSize: 12, fontWeight: "700", color: t.textMuted },
+  addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
+  addTxt: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   search: { minHeight: 44, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, fontSize: 13, color: t.text, marginBottom: 12 },
   empty: { textAlign: "center", paddingVertical: 32, color: t.textMuted, fontSize: 13 },
   group: { marginBottom: 14 },
@@ -533,6 +748,8 @@ const styles = StyleSheet.create({
   itemNameOn: { color: t.textFaint, textDecorationLine: "line-through" },
   itemSub: { fontSize: 12, color: t.textMuted, marginTop: 1 },
   cantidad: { fontSize: 12, color: t.textMuted, fontWeight: "600" },
+  itemActions: { flexDirection: "row", gap: 4 },
+  miniBtn: { padding: 6, borderRadius: RADIUS.xs },
   link: { fontSize: 12, fontWeight: "700", color: BLUE[600], marginTop: 3 },
   libroCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, marginBottom: 7, borderLeftWidth: 3, borderRadius: RADIUS.xl, borderColor: t.borderStrong, elevation: 0, shadowOpacity: 0 },
   cover: { width: 44, height: 60, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong },
@@ -549,4 +766,13 @@ const styles = StyleSheet.create({
   uniEmoji: { fontSize: 18 },
   uniTipo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, flex: 1 },
   overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
+  modalCard: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
+  modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 12 },
+  label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 6 },
+  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 13, color: t.text },
+  modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
+  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
+  cancelTxt: { color: t.textMuted, fontSize: 13, fontWeight: "700" },
+  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
+  saveTxt: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 });
