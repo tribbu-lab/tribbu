@@ -168,7 +168,7 @@ function FormRespuesta({ autorizacion, hijo, respuesta, userId, onGuardado }) {
   );
 }
 
-/** Alta de una autorización en uno o varios cursos (Room Parent: su curso; colegio: varios). */
+/** Alta de una autorización en uno o varios cursos (maestra: los suyos; colegio: varios). */
 function NuevaAutorizacion({ cursosDestino, userId, onClose, onCreada }) {
   const [form, setForm] = useState({ titulo: "", descripcion: "", fecha_evento: "", fecha_limite: "", cursos: cursosDestino.length === 1 ? [cursosDestino[0].id] : [] });
   const [guardando, setGuardando] = useState(false);
@@ -253,7 +253,7 @@ async function cargarDatos(cursoIds, { soloGestion = false, misHijosIds = [] } =
 }
 
 /** Pestaña de las familias / Room Parent. */
-export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, cursosAdmin = [], userId, isAdmin, misHijos = [], cursosDocente = [], abrir = null }) {
+export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, tagDeCurso = null, userId, misHijos = [], cursosDocente = [], abrir = null }) {
   const [datos, setDatos] = useState(null);
   const [nueva, setNueva] = useState(false);
   const [cursosInfo, setCursosInfo] = useState([]);
@@ -281,18 +281,15 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
   }, [cursoIds, misHijos]);
   useCargar(cargar);
 
-  // Cursos donde puede crear: Room Parent (en Todos, los de cursosAdmin).
-  // Room Parent: gestiona todo lo del curso. Docente: crea en sus cursos, pero
-  // gestiona solo lo suyo (RLS: puede_ver_lecturas = creador o colegio).
-  const cursosRoom = esVistaTodos ? cursosAdmin : (isAdmin && cursoId ? [cursoId] : []);
-  const cursosDoc = esVistaTodos ? cursosDocente : (cursoId && cursosDocente.includes(cursoId) ? [cursoId] : []);
-  const cursosQueGestiona = [...new Set([...cursosRoom, ...cursosDoc])];
+  // Acá crea solo la docente, en sus cursos (el colegio, desde su panel). Cada uno
+  // gestiona lo suyo (RLS: puede_ver_lecturas = creador o colegio).
+  const cursosQueGestiona = esVistaTodos ? cursosDocente : (cursoId && cursosDocente.includes(cursoId) ? [cursoId] : []);
   useEffect(() => {
     if (!cursosQueGestiona.length) return;
     supabase.from("cursos").select("id,nombre").in("id", cursosQueGestiona).then(({ data }) => setCursosInfo(data || []));
   }, [cursosQueGestiona.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const gestiona = (a) => a.creado_por === userId || cursosRoom.includes(a.curso_id);
+  const gestiona = (a) => a.creado_por === userId;
 
   if (!datos) return <div style={{ padding: 30, textAlign: "center", color: "#94A3B8" }}>Cargando…</div>;
   const { autorizaciones, respuestas, alumnos } = datos;
@@ -365,7 +362,7 @@ export function Autorizaciones({ cursoId, cursoIds = [], esVistaTodos = false, t
       {!autorizaciones.length && (
         <Card style={{ padding: 30, textAlign: "center" }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>No hay autorizaciones</div>
-          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Cuando el colegio o el Room Parent pida permiso para una salida, aparece acá.</div>
+          <div style={{ fontSize: 12.5, color: "#94A3B8", marginTop: 4 }}>Cuando el colegio o una maestra pida permiso para una salida, aparece acá.</div>
         </Card>
       )}
       {abiertas.map(tarjeta)}

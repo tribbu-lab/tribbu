@@ -7,6 +7,8 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 - [x] Web publicada y `supabase/room-parent-alcance.sql` aplicado (2026-11-06).
 - [ ] Probar a mano con una cuenta real de Room Parent (web y app).
+- [ ] Capturas: regenerar el set de tiendas con la versión nueva (01-hoy muestra "Publicar alerta al curso"), y rehacer `public/apoderados-media/app-hoy.jpg` de la landing, que muestra lo mismo.
+- [ ] Probar `supabase/room-parent-avisos-autorizaciones.sql` con rollback y aplicarlo **después** de publicar la web con avisos y autorizaciones nuevos.
 - [ ] La app vieja sigue mostrando Horarios, Familias, alerta y carga de libros
       y útiles hasta que salga la versión de tiendas con este cambio. Con el SQL
       aplicado, su botón de alerta no crea la alerta pero igual manda el push,
@@ -16,9 +18,9 @@ Tachá o borrá cada ítem cuando se resuelva.
 ## Útiles y libros los carga el colegio (2026-11-06)
 
 - [x] `supabase/listas-solo-colegio.sql` probado con usuarios impersonados y aplicado (2026-11-06).
-- [ ] Unir a `main` para publicar la web y sacar la versión de la app: mientras tanto el Room Parent ve los botones viejos y sus cambios fallan sin aviso, y el colegio todavía no tiene la sección.
+- [x] Unido a `main` y web publicada (2026-11-06). La app lo toma con la versión de tiendas.
 - [ ] Probar a mano: administrador y Secretaría cargan, editan, borran, copian y suben un Excel (web y app); la familia descarga y marca, sin botones de edición.
-- [ ] Decidir si la lista del año próximo se les muestra a las familias antes de la promoción (hoy solo ven la del curso donde está el hijo).
+- La lista del año próximo no se muestra antes de la promoción (decidido 2026-11-06).
 - [ ] Si los colegios lo piden: tapa de libro desde la app.
 
 ## Eliminar apoderado (2026-11-05)

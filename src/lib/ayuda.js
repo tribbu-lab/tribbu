@@ -103,7 +103,7 @@ export const PREGUNTAS_FRECUENTES = [
       {
         id: "room-eventos",
         pregunta: "Soy Room Parent, ¿puedo agregar eventos al calendario?",
-        respuesta: "Sí. En Agenda → Calendario tocá \"+ Nuevo\". Le aparece a las familias del curso como un evento de las familias, no del colegio: los actos, feriados y paseos los publica el colegio.",
+        respuesta: "Sí. En Agenda → Calendario tocá \"+ Nuevo\". Le aparece a las familias del curso como un evento de las familias, no del colegio: los actos, feriados y paseos los publica el colegio. Para una salida de familias, podés tildar \"Solicitar asistencia\". Las autorizaciones las piden el colegio y las maestras.",
       },
       {
         id: "cumple",

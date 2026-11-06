@@ -6,6 +6,8 @@ priority: high
 
 ## Summary
 
+> **2026-11-06**: las crean solo el colegio y las maestras. El Room Parent ya no crea ni gestiona las ajenas (`supabase/room-parent-avisos-autorizaciones.sql`). Lo que sigue describe el diseño original.
+
 Hoy, cuando hay una salida (excursión, campamento, acto fuera del colegio), el
 colegio o el Room Parent manda una nota en papel que cada familia tiene que
 firmar y devolver, y alguien tiene que juntar y contar papelitos. Con

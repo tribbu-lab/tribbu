@@ -29,7 +29,7 @@ const fmtFecha = (s) => new Date(s + "T00:00:00").toLocaleDateString("es-AR", { 
 const fmtCuando = (iso) => new Date(iso).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin, items } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, items } = useSession();
   const userId = usuario?.id ?? null;
   const [datos, setDatos] = useState(null);
   const [respondiendo, setRespondiendo] = useState(null); // { a, hijo, respuesta }
@@ -41,14 +41,12 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
   const hoyStr = fmtLocalDate();
 
   const misHijos = useMemo(() => (items || []).filter((i) => i._tipo === "hijo"), [items]);
-  const cursosAdmin = useMemo(() => misHijos.filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id), [misHijos]);
   const { cursosDocente = [] } = useSession();
-  // Room Parent gestiona todo lo del curso; la docente crea en sus cursos pero
-  // gestiona solo lo suyo (RLS: creador o colegio).
-  const cursosRoom = useMemo(() => (esVistaTodos ? [...new Set(cursosAdmin)] : isAdmin && cursoId ? [cursoId] : []), [esVistaTodos, cursosAdmin, isAdmin, cursoId]);
+  // Acá crea solo la docente, en sus cursos (el colegio, desde su panel). Cada uno
+  // gestiona lo suyo (RLS: creador o colegio).
   const cursosQueGestiona = useMemo(
-    () => [...new Set([...cursosRoom, ...(esVistaTodos ? cursosDocente : cursoId && cursosDocente.includes(cursoId) ? [cursoId] : [])])],
-    [cursosRoom, esVistaTodos, cursosDocente, cursoId]
+    () => (esVistaTodos ? cursosDocente : cursoId && cursosDocente.includes(cursoId) ? [cursoId] : []),
+    [esVistaTodos, cursosDocente, cursoId]
   );
 
   const cargar = useCallback(async () => {
@@ -72,7 +70,7 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
     try { await cargar(); } finally { setRefrescando(false); }
   };
 
-  const gestiona = (a) => a.creado_por === userId || cursosRoom.includes(a.curso_id);
+  const gestiona = (a) => a.creado_por === userId;
 
   // Desde Hoy ("Responder autorización"): ir a esa tarjeta, resaltarla y abrir
   // directo el formulario del primer hijo que falta responder.
@@ -210,7 +208,7 @@ export function Autorizaciones({ openAutorizacion = null, nonce = null }) {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState icon="file-sign" title="No hay autorizaciones" note="Cuando el colegio o el Room Parent pida permiso para una salida, aparece acá." />
+          <EmptyState icon="file-sign" title="No hay autorizaciones" note="Cuando el colegio o una maestra pida permiso para una salida, aparece acá." />
         }
       />
       {respondiendo ? (
@@ -325,8 +323,8 @@ function DetalleSheet({ a, ids, alumnos, respuestas, onClose, onEliminada }) {
   );
 }
 
-// Alta en uno o varios cursos (Room Parent: su curso; colegio: varios, con el
-// mismo grupo_id como las Comunicaciones). cursos: [{ id, nombre }].
+// Alta en uno o varios cursos (maestra: los suyos; colegio: varios, con el mismo
+// grupo_id como las Comunicaciones). cursos: [{ id, nombre }].
 function NuevaSheet({ cursos, multi = false, userId, onClose, onCreada }) {
   const [form, setForm] = useState({
     titulo: "", descripcion: "", fecha_evento: "", fecha_limite: "",

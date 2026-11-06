@@ -37,7 +37,7 @@ import { etiquetaDocente } from "../../lib/docentes";
 // dice además cuándo se envió (fmtEnviado).
 const ordenAvisos = ordenPorEnviado;
 
-export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, cursosAdmin=[], userId, isAdmin, isSuper=false, active, onBadgeChange, openAviso=null }) {
+export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds=[], esVistaTodos=false, tagDeCurso=null, userId, isSuper=false, active, onBadgeChange, openAviso=null }) {
   const [recordatorios, setRecordatorios] = useState([]);
   const [leidosSet,     setLeidosSet]     = useState(new Set());
   const [modal,         setModal]         = useState(null);
@@ -101,11 +101,9 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
 
 
   const esPropio = (r) => r.creado_por === userId;
-  // En vista "Todos" el permiso se resuelve contra el rol en el curso de la fila.
-  // Igual que la RLS (puede_editar_recordatorio): cada uno edita/borra lo suyo;
-  // la Room Parent además los avisos viejos sin creador de su curso. Las
-  // Comunicaciones del colegio se gestionan desde el panel del colegio.
-  const puedeEditar = (r) => esPropio(r) || (!r.creado_por && (esVistaTodos ? cursosAdmin.includes(r.curso_id) : isAdmin));
+  // Igual que la RLS (puede_editar_recordatorio): cada uno edita/borra lo suyo.
+  // Las Comunicaciones del colegio se gestionan desde el panel del colegio.
+  const puedeEditar = esPropio;
 
   const guardar = async () => {
     if(!form.texto?.trim()) return;
@@ -127,8 +125,8 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
       await supabase.from("recordatorios").update(upd).eq("id",modal.id);
     } else {
       const { data: creado } = await supabase.from("recordatorios").insert({...payload, creado_por:userId}).select("id").single();
-      // Avisan con push la Room Parent y la maestra del curso (no cualquier familia).
-      if(isAdmin || cursosDocente.includes(cursoDestino)) {
+      // Avisa con push la maestra del curso (no las familias).
+      if(cursosDocente.includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
         await sendPush({ type:"recordatorio", payload:{ titulo:form.titulo?.trim()||textoPlano(form.texto), id:creado?.id, userIds } });
@@ -390,7 +388,7 @@ export function RecordatoriosTab({ items=[], cursosDocente=[], cursoId, cursoIds
           abierto={expandidos.has(r.id)} onAbrir={()=>{ toggleExpandido(r.id); if(!leidosSet.has(r.id)) marcarLeido(r.id); }}
           onNoLeido={()=>marcarLeido(r.id)} lecturas={lecturas[r.id]} onVerLecturas={()=>setVerLecturas(r)}
           onEditar={puedeEditar(r)&&r.tipo!=="colecta_vence" ? ()=>{setModal(r);setForm({titulo:r.titulo||"",texto:r.texto||"",fecha:r.fecha||"",hora_inicio:r.hora_inicio?.slice(0,5)||"",hora_fin:r.hora_fin?.slice(0,5)||"",prioridad:r.prioridad||"media",urgente:r.urgente||false,adjuntos:r.adjuntos||[]});} : null}
-          onBorrar={(puedeEditar(r)&&r.tipo!=="colecta_vence")||(isAdmin&&r.tipo==="colecta_vence") ? ()=>eliminar(r.id) : null}
+          onBorrar={puedeEditar(r)&&r.tipo!=="colecta_vence" ? ()=>eliminar(r.id) : null}
           prio={PRIO[r.prioridad||"media"]||PRIO.media}/>
       ))}
 

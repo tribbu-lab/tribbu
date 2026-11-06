@@ -215,7 +215,7 @@ function AvisoAtencion({ r, membrete, origen, resaltado = false, onEntendido }) 
 }
 
 export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null }) {
-  const { cursoId, cursoIds, esVistaTodos, usuario, isAdmin, items, tagDeCurso, cursosDocente } = useSession();
+  const { cursoId, cursoIds, esVistaTodos, usuario, items, tagDeCurso, cursosDocente } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab + el punto de la campana (mismo hook levantado
   // en _layout.jsx) cuando acá cambia el estado de leídos / se borra un aviso.
@@ -248,12 +248,6 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
 
   const hoyStr = fmtLocalDate();
 
-  // En vista "Todos" el permiso de edición se resuelve contra el rol en el curso
-  // de cada fila, no contra el isAdmin de sesión (que en Todos es false).
-  const cursosAdmin = useMemo(
-    () => new Set((items || []).filter((i) => i.rolEfectivo === "room").map((i) => i.curso_id)),
-    [items]
-  );
 
   // Opciones de curso destino para el alta en vista "Todos" (label = hijo/s).
   const cursosOpciones = useMemo(
@@ -319,8 +313,8 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
       await supabase.from("recordatorios").update(upd).eq("id", modal.id);
     } else {
       const { data: creado } = await supabase.from("recordatorios").insert({ ...payload, creado_por: userId }).select("id").single();
-      // Avisan con push la Room Parent y la maestra del curso (no cualquier familia).
-      if (isAdmin || (cursosDocente || []).includes(cursoDestino)) {
+      // Avisa con push la maestra del curso (no las familias).
+      if ((cursosDocente || []).includes(cursoDestino)) {
         const userIds = await getUserIdsByCurso(cursoDestino);
         // `id` viaja en la notificación: al tocarla, la app abre este aviso.
         await sendPush({ type: "recordatorio", payload: { titulo: form.titulo?.trim() || textoPlano(form.texto), id: creado?.id, userIds } });
@@ -494,7 +488,7 @@ export function Recordatorios({ openAviso = null, openGrupo = null, nonce = null
             esLeido={leidosSet.has(item.id)}
             // Los de colecta no se editan/borran acá: viven y mueren con su colecta (igual que la web)
             puedeEditar={
-              (item.creado_por === userId || (!item.creado_por && (esVistaTodos ? cursosAdmin.has(item.curso_id) : isAdmin))) &&
+              item.creado_por === userId &&
               item.tipo !== "colecta_vence"
             }
             tag={tagDeCurso(item.curso_id)}
