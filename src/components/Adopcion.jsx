@@ -4,7 +4,7 @@
 // (les llegan las notificaciones), cuántas sincronizaron el calendario y
 // cuántas entraron en los últimos 30 días. RPC adopcion_por_curso
 // (supabase/lecturas-y-adopcion.sql) — solo devuelve los cursos que el
-// usuario puede ver (Room Parent de ese curso, o el colegio).
+// usuario puede ver (el colegio: administrador, Secretaría del nivel o super).
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 

@@ -3,6 +3,17 @@
 Lista viva de lo que queda por hacer (última actualización: 2026-10-27).
 Tachá o borrá cada ítem cuando se resuelva.
 
+## Alcance del Room Parent (2026-11-06)
+
+- [ ] Aplicar `supabase/room-parent-alcance.sql` al publicar la web (antes,
+      probarlo en una transacción con rollback). Hasta entonces la base le sigue
+      permitiendo al Room Parent editar horarios, publicar alertas y ver la adopción.
+- [ ] La app vieja sigue mostrando Horarios, Familias, alerta y carga de libros
+      y útiles hasta que salga la versión de tiendas con este cambio. Con el SQL
+      aplicado, su botón de alerta no crea la alerta pero igual manda el push,
+      porque `send-push` no chequea el rol. Crear eventos también le va a fallar
+      a esa versión, porque sigue mandando tipos del colegio.
+
 ## Eliminar apoderado (2026-11-05)
 
 - [x] `supabase/borrado-de-usuarios.sql` aplicado y `manage-auth-user` con la

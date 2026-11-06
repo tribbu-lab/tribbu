@@ -100,20 +100,18 @@ export function InfoUtil({ cursoId, cursoIds, esVistaTodos, tagDeCurso, isAdmin,
           <button key={s.id} onClick={()=>setSec(s.id)} style={{flex:1,padding:"8px 6px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:sec===s.id?"#0F172A":"white",color:sec===s.id?"white":"#94A3B8",boxShadow:sec===s.id?"0 3px 12px rgba(0,0,0,0.15)":"0 1px 6px rgba(0,0,0,0.06)"}}>{s.l}</button>
         ))}
       </div>
-      {sec==="utiles"    &&<Utiles    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="utiles"    &&<Utiles    cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} cursoNombre={cursoNombre}/>}
       {sec==="uniformes" &&<Uniformes cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
-      {sec==="libros"    &&<Libros    cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} isAdmin={isAdmin} cursoNombre={cursoNombre}/>}
+      {sec==="libros"    &&<Libros    cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} userId={userId} cursoNombre={cursoNombre}/>}
       {sec==="alumnos"   &&<Alumnos   cursoId={cursoId} cursoIds={cursoIds} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} isAdmin={isAdmin} userId={userId} onEscribir={onEscribir}/>}
     </div>
   );
 }
 
-export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
+export function Libros({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre="" }) {
   const [libros,    setLibros]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
-  const [modal,     setModal]     = useState(null); // null | "nuevo" | libro obj
   const isMobile = useIsMobile();
-  const [form,      setForm]      = useState({});
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroMat, setFiltroMat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
@@ -144,38 +142,7 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
     setTogglingId(null);
   };
 
-  const guardar = async () => {
-    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
-    if(!form.nombre?.trim()) return;
-    let imagen_url = form.imagen_url||null;
-    if(form._file) {
-      const ext = form._file.name.split(".").pop().toLowerCase();
-      const path = `${cursoId}/${Date.now()}.${ext}`;
-      const { error: upError } = await supabase.storage.from("libros").upload(path, form._file, {upsert:true, contentType: form._file.type});
-      if(upError) {
-        alert("Error al subir imagen: " + upError.message);
-      } else {
-        const { data: pub } = supabase.storage.from("libros").getPublicUrl(path);
-        imagen_url = pub?.publicUrl || null;
-      }
-    }
-    const payload = {nombre:form.nombre.trim(), editorial:form.editorial||null, materia:form.materia||null, curso_id:cursoId, imagen_url, url_descarga:form.url_descarga||null};
-    if(modal?.id) {
-      await supabase.from("libros").update(payload).eq("id",modal.id);
-    } else {
-      await supabase.from("libros").insert(payload);
-    }
-    setModal(null); setForm({}); cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("libro_adquirido").delete().eq("libro_id",id);
-    await supabase.from("libros").delete().eq("id",id);
-    cargar();
-  };
-
   const materias = [...new Set(libros.map(l=>l.materia).filter(Boolean))].sort();
-  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const filtrados = libros.filter(l=> {
     const q = busqueda.toLowerCase();
@@ -213,12 +180,6 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
               {l.imagen_url&&(
                 <img src={l.imagen_url} alt={l.nombre} style={{width:44,height:60,objectFit:"cover",borderRadius:7,border:"1px solid #E2E8F0",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.10)"}} onClick={()=>setImgPreview({url:l.imagen_url,nombre:l.nombre})}/>
               )}
-              {isAdmin&&(
-                <div style={{display:"flex",gap:5,flexShrink:0}}>
-                  <button onClick={()=>{setModal(l);setForm({...l});}} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:11,color:"#64748B"}}>✏️</button>
-                  <button onClick={()=>eliminar(l.id)} style={{padding:"4px 8px",borderRadius:7,border:"1px solid #FEE2E2",background:"#FEF2F2",cursor:"pointer",fontSize:11,color:"#EF4444"}}>🗑</button>
-                </div>
-              )}
             </Card>
           );
         })}
@@ -228,48 +189,6 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
-      {/* Modal edicion */}
-      {modal!==null&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar libro":"Nuevo libro"}</div>
-            {[{label:"Nombre",key:"nombre",ph:"Ej: Matemáticas 3"},{label:"Editorial",key:"editorial",ph:"Ej: Santillana"},{label:"Materia",key:"materia",ph:"Ej: Matemáticas"}].map(f=>(
-              <div key={f.key} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.label.toUpperCase()}</div>
-                <input value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inp}/>
-              </div>
-            ))}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>TAPA DEL LIBRO</div>
-              {(form.imagen_url&&!form._file)&&(
-                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
-                  <img src={form.imagen_url} alt="tapa" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"1px solid #E2E8F0"}}/>
-                  <button onClick={()=>setForm(p=>({...p,imagen_url:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-                </div>
-              )}
-              {form._file&&(
-                <div style={{marginBottom:8,position:"relative",display:"inline-block"}}>
-                  <img src={URL.createObjectURL(form._file)} alt="preview" style={{width:80,height:110,objectFit:"cover",borderRadius:8,border:"2px solid #3B82F6"}}/>
-                  <button onClick={()=>setForm(p=>({...p,_file:null}))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-                </div>
-              )}
-              <label style={{display:"block",padding:"8px 12px",borderRadius:10,border:"1.5px dashed #CBD5E1",background:"#F8FAFC",cursor:"pointer",fontSize:12,color:"#64748B",textAlign:"center"}}>
-                {form._file||form.imagen_url?"Cambiar imagen":"Subir imagen (JPG, PNG)"}
-                <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files[0]) setForm(p=>({...p,_file:e.target.files[0]})); }}/>
-              </label>
-            </div>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>LINK DE DESCARGA</div>
-              <input value={form.url_descarga||""} onChange={e=>setForm(p=>({...p,url_descarga:e.target.value}))} placeholder="Ej: https://drive.google.com/..." style={inp}/>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:6}}>
-              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar libro"}</button>
-            </div>
-          </Card>
-        </div>
-      )}
-
       {/* Image preview modal */}
       {imgPreview&&(
         <div onClick={()=>setImgPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:400,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -287,7 +206,6 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{ const grupos=libros.reduce((acc,l)=>{ const k=l.materia||"Sin materia";(acc[k]=acc[k]||[]).push({Nombre:l.nombre,Editorial:l.editorial||"","Link":l.url_descarga||""});return acc;},{}); exportarPDF(libros.map(l=>({Nombre:l.nombre,Editorial:l.editorial||"",Materia:l.materia||"","Link":l.url_descarga||""})),"libros",{titulo:"Lista de Libros",curso:cursoNombre,columnas:["Nombre","Editorial","Materia","Link"],grupos}); }} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
-          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar libro</button>}
         </div>
       </div>
 
@@ -317,11 +235,9 @@ export function Libros({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
   );
 }
 
-export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, isAdmin, cursoNombre="" }) {
+export function Utiles({ cursoIds, esVistaTodos, tagDeCurso, userId, cursoNombre="" }) {
   const [utiles,    setUtiles]    = useState([]);
   const [adquiridos,setAdquiridos]= useState(new Set());
-  const [modal,     setModal]     = useState(null);
-  const [form,      setForm]      = useState({});
   const [busqueda,  setBusqueda]  = useState("");
   const [filtroCat, setFiltroCat] = useState("all");
   const [togglingId,setTogglingId]= useState(null);
@@ -351,23 +267,7 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
     setTogglingId(null);
   };
 
-  const guardar = async () => {
-    if(!cursoId) return; // en vista "Todos" no hay curso activo (isAdmin ya es false)
-    if(!form.item?.trim()) return;
-    const payload = {item:form.item.trim(), categoria:form.categoria||null, cantidad:form.cantidad||null, comentario:form.comentario||null, curso_id:cursoId};
-    if(modal?.id) await supabase.from("utiles").update(payload).eq("id",modal.id);
-    else          await supabase.from("utiles").insert(payload);
-    setModal(null); setForm({}); cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("util_adquirido").delete().eq("util_id",id);
-    await supabase.from("utiles").delete().eq("id",id);
-    cargar();
-  };
-
   const categorias = [...new Set(utiles.map(u=>u.categoria).filter(Boolean))].sort();
-  const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
   const filtrados = utiles.filter(u=>{
     const q = busqueda.toLowerCase();
@@ -421,13 +321,6 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
                     <span style={{fontSize:12,color:"#475569",fontWeight:600}}>{u.cantidad}</span>
                   </div>
                 )}
-                {/* admin actions */}
-                {isAdmin&&(
-                  <div style={{display:"flex",gap:3,padding:"0 8px",flexShrink:0,borderLeft:"1px solid #F1F5F9",alignSelf:"stretch",alignItems:"center"}}>
-                    <button onClick={()=>{setModal(u);setForm({...u});}} style={{padding:"3px 6px",borderRadius:5,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:10,color:"#64748B"}}>✏️</button>
-                    <button onClick={()=>eliminar(u.id)} style={{padding:"3px 6px",borderRadius:5,border:"none",background:"transparent",cursor:"pointer",fontSize:10,color:"#EF4444"}}>🗑</button>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -443,27 +336,6 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
 
   return (
     <div style={isMobile?{maxWidth:600}:undefined}>
-      {modal!==null&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <Card style={{padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:15,fontWeight:900,marginBottom:16}}>{modal?.id?"Editar útil":"Nuevo útil"}</div>
-            {[{l:"Nombre",k:"item",ph:"Ej: Cartuchera"},{l:"Categoría",k:"categoria",ph:"Ej: Papelería"},{l:"Cantidad",k:"cantidad",ph:"Ej: 2 unidades"},{l:"Comentario",k:"comentario",ph:"Ej: Con cierre doble"}].map(f=>(
-              <div key={f.k} style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>{f.l.toUpperCase()}</div>
-                {f.k==="comentario"
-                  ? <textarea value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} rows={2} style={{...inp,resize:"none"}}/>
-                  : <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/>
-                }
-              </div>
-            ))}
-            <div style={{display:"flex",gap:10,marginTop:6}}>
-              <button onClick={()=>{setModal(null);setForm({});}} style={{flex:1,padding:11,borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#94A3B8"}}>Cancelar</button>
-              <button onClick={guardar} style={{flex:2,padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{modal?.id?"Guardar cambios":"Agregar útil"}</button>
-            </div>
-          </Card>
-        </div>
-      )}
-
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{fontSize:13,color:"#94A3B8"}}>{adquiridosCount} de {utiles.length} adquiridos</div>
@@ -471,7 +343,6 @@ export function Utiles({ cursoId, cursoIds, esVistaTodos, tagDeCurso, userId, is
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={exportar} style={{padding:"7px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748B"}}>Exportar</button>
-          {isAdmin&&<button onClick={()=>{setModal({});setForm({});}} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Agregar</button>}
         </div>
       </div>
 

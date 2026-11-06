@@ -28,7 +28,7 @@ import { etiquetaDocente, separarCumplesDocente } from "../../lib/docentes";
 import { diasVisibles, normalizarDia, grillaHorario } from "../../lib/horarios";
 import { bloquesDeTalleres } from "../../lib/talleres";
 import { textoPlano } from "../../lib/formato";
-import { festejosDelHijo } from "../../lib/festejos";
+import { festejosDelHijo, TIPO_FAMILIAS, CFG_FAMILIAS } from "../../lib/festejos";
 
 const TIPO_CONFIG = {
   cumple:      { emoji:"🎂", color:"#EC4899", bg:"#FDF2F8", label:"Cumpleaños" },
@@ -39,6 +39,7 @@ const TIPO_CONFIG = {
   comunicado:  { emoji:"📢", color:"#F97316", bg:"#FFF7ED", label:"Comunicado" },
   feriado:     { emoji:"🚩", color:"#EF4444", bg:"#FEF2F2", label:"Feriado" },
   vacaciones:  { emoji:"🏖️", color:"#06B6D4", bg:"#ECFEFF", label:"Vacaciones" },
+  [TIPO_FAMILIAS]: CFG_FAMILIAS,
 };
 
 
@@ -256,7 +257,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
   return (
     <div>
       <Toast/>
-      {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} cursosOpciones={opcionesCurso} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
+      {(modal==="nuevo"||modal?.id) && <EventoModal evento={modal==="nuevo"?null:modal} cursoId={cursoId} userId={userId} cursosOpciones={opcionesCurso} soloFamilias={!cursosDocente.length} onClose={()=>setModal(null)} onSave={()=>{ setModal(null); cargar(); }}/>}
       {eventoDetalle&&<EventoAsistenciaModal evento={eventoDetalle} tag={tagDeCurso(eventoDetalle.curso_id)} misHijos={misHijos} userId={userId} onClose={()=>setEventoDetalle(null)}/>}
       {festejoDetalle&&<FestejoDetalleModal evento={festejoDetalle} userId={userId} misHijos={misHijos||[]} onClose={()=>setFestejoDetalle(null)} onUpdate={cargar}/>}
       {confirm && (
@@ -584,7 +585,7 @@ export function Calendario({ cursoId, cursoIds, esVistaTodos=false, tagDeCurso=(
 
             {horariosVisibles.length===0&&(
               <EmptyState icono="reloj" titulo="Todavía no hay horario"
-                nota={isAdmin ? "Cargalo desde Curso → Administrar el curso → Horarios." : "Cuando el colegio cargue el horario de clases, aparece acá."}/>
+                nota={"Cuando el colegio cargue el horario de clases, aparece acá."}/>
             )}
 
             {horariosVisibles.some(h=>h.clases?.optativa)&&<div style={{fontSize:11.5,color:"#7C3AED",marginBottom:10}}>✦ Taller</div>}
@@ -623,11 +624,12 @@ const CAMPOS_GRUPO = ["titulo","tipo","fecha","fecha_fin","hora","hora_fin","tod
 
 // cursosOpciones: en la vista "Todos" (sin curso elegido), los cursos donde se
 // puede crear — [{curso_id, tag:{nombre,color}}]; se elige con "PARA EL CURSO DE".
-export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onClose, onSave }) {
+// soloFamilias: lo crea un Room Parent, así que no elige tipos del colegio.
+export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], soloFamilias = false, onClose, onSave }) {
   const esNuevo = !evento;
   const [form, setForm] = useState({
     titulo:      evento?.titulo      || "",
-    tipo:        evento?.tipo        || "acto",
+    tipo:        soloFamilias ? TIPO_FAMILIAS : evento?.tipo || "acto",
     fecha:       evento?.fecha       || "",
     fecha_fin:   evento?.fecha_fin   || "",
     hora:        evento?.hora        || "",
@@ -708,19 +710,23 @@ export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onCl
             </div>
           </div>
         ) : null}
+        {soloFamilias ? (
+          <div style={{fontSize:12.5,color:"#64748B",lineHeight:1.5,marginBottom:10}}>Lo ven las familias del curso como un evento de las familias, no del colegio.</div>
+        ) : (
         <div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo").map(([k,v])=>(
+            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo"&&k!==TIPO_FAMILIAS).map(([k,v])=>(
               <button key={k} onClick={()=>setForm(p=>({...p,tipo:k,confirma_asistencia:["paseo","acto","reunion"].includes(k)?p.confirma_asistencia:false}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
             ))}
           </div>
         </div>
+        )}
         {[
-          {label:"Título",      key:"titulo",      type:"text", ph:"Ej: Acto del 25 de mayo"},
+          {label:"Título",      key:"titulo",      type:"text", ph:soloFamilias?"Ej: Merienda del curso":"Ej: Acto del 25 de mayo"},
           {label:"Fecha",       key:"fecha",       type:"date"},
           {label:"Fecha fin (opcional, si dura varios días)", key:"fecha_fin", type:"date"},
-          {label:"Lugar",        key:"lugar",         type:"text", ph:"Ej: Patio del colegio"},
+          {label:"Lugar",        key:"lugar",         type:"text", ph:soloFamilias?"Ej: Plaza del barrio":"Ej: Patio del colegio"},
           {label:"URL ubicación", key:"url_ubicacion", type:"url",  ph:"Ej: https://maps.google.com/..."},
           {label:"Descripción",   key:"descripcion",   type:"text", ph:"Detalles adicionales"},
         ].map(f=>(
@@ -946,7 +952,7 @@ function EventoMultiCursoModal({ cursos, userId, onClose, onSave }) {
         <div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Tipo</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo").map(([k,v])=>(
+            {Object.entries(TIPO_CONFIG).filter(([k])=>k!=="cumple"&&k!=="festejo"&&k!==TIPO_FAMILIAS).map(([k,v])=>(
               <button key={k} onClick={()=>setForm(p=>({...p,tipo:k,confirma_asistencia:["paseo","acto","reunion"].includes(k)?p.confirma_asistencia:false}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${form.tipo===k?v.color:"#E2E8F0"}`,background:form.tipo===k?v.bg:"white",cursor:"pointer",fontSize:12,fontWeight:700,color:form.tipo===k?v.color:"#94A3B8"}}>{v.emoji} {v.label}</button>
             ))}
           </div>

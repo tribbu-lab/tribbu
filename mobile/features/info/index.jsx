@@ -1,6 +1,6 @@
 // Info Útil (puerto RN de src/features/info). Sub-pestañas: Útiles, Uniformes,
-// Libros y Alumnos. Checklists "adquirido" por usuario; el admin agrega/edita
-// ítems (texto). Links de descarga abren con Linking + safeUrl. Las cargas por
+// Libros y Alumnos. Checklists "adquirido" por usuario; las listas las carga el
+// colegio desde su panel. Links de descarga abren con Linking + safeUrl. Las cargas por
 // imagen (tapa de libro) y la exportación a PDF de la web quedan para más
 // adelante (necesitan image-picker / generación de PDF nativa).
 
@@ -12,7 +12,6 @@ import {
   ScrollView,
   TextInput,
   Modal,
-  KeyboardAvoidingView,
   Image,
   Linking,
   StyleSheet,
@@ -59,7 +58,7 @@ const SUBS = [
 ];
 
 export function InfoUtil() {
-  const { cursoId, cursoIds, esVistaTodos, tagDeCurso, usuario, isAdmin } = useSession();
+  const { cursoIds, esVistaTodos, tagDeCurso, usuario } = useSession();
   const userId = usuario?.id ?? null;
   const [sec, setSec] = useState("utiles");
 
@@ -82,13 +81,13 @@ export function InfoUtil() {
       </View>
 
       {sec === "utiles" ? (
-        <Utiles cursoId={cursoId} cursoIds={cursoIds} userId={userId} isAdmin={isAdmin} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
+        <Utiles cursoIds={cursoIds} userId={userId} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
       ) : null}
       {sec === "uniformes" ? (
         <Uniformes cursoIds={cursoIds} userId={userId} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
       ) : null}
       {sec === "libros" ? (
-        <Libros cursoId={cursoId} cursoIds={cursoIds} userId={userId} isAdmin={isAdmin} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
+        <Libros cursoIds={cursoIds} userId={userId} esVistaTodos={esVistaTodos} tagDeCurso={tagDeCurso} />
       ) : null}
       {sec === "alumnos" ? <Alumnos /> : null}
     </View>
@@ -96,12 +95,10 @@ export function InfoUtil() {
 }
 
 // ── Checklist genérica (Útiles) ─────────────────────────────────────────────
-function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }) {
+function Utiles({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
   const [utiles, setUtiles] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
-  const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({});
 
   const cargar = useCallback(async () => {
     if (!cursoIds?.length) {
@@ -136,30 +133,6 @@ function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
       await supabase.from("util_adquirido").insert({ util_id: id, usuario_id: userId });
       setAdquiridos((p) => new Set([...p, id]));
     }
-  };
-
-  const guardar = async () => {
-    // Alta/edición solo con un curso concreto (en vista "Todos" cursoId es null
-    // y el UI admin queda oculto igual, pero este guard evita escrituras huérfanas).
-    if (!cursoId || !form.item?.trim()) return;
-    const payload = {
-      item: form.item.trim(),
-      categoria: form.categoria || null,
-      cantidad: form.cantidad || null,
-      comentario: form.comentario || null,
-      curso_id: cursoId,
-    };
-    if (modal?.id) await supabase.from("utiles").update(payload).eq("id", modal.id);
-    else await supabase.from("utiles").insert(payload);
-    setModal(null);
-    setForm({});
-    cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("util_adquirido").delete().eq("util_id", id);
-    await supabase.from("utiles").delete().eq("id", id);
-    cargar();
   };
 
   const filtrados = utiles.filter((u) => {
@@ -202,22 +175,6 @@ function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
                   {u.comentario ? <Text style={styles.itemSub}>{u.comentario}</Text> : null}
                 </View>
                 {u.cantidad ? <Text style={styles.cantidad}>{u.cantidad}</Text> : null}
-                {isAdmin ? (
-                  <View style={styles.itemActions}>
-                    <Pressable
-                      onPress={() => {
-                        setForm({ ...u });
-                        setModal(u);
-                      }}
-                      style={styles.miniBtn}
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                    </Pressable>
-                    <Pressable onPress={() => eliminar(u.id)} style={styles.miniBtn}>
-                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
-                    </Pressable>
-                  </View>
-                ) : null}
               </View>
             );
           })}
@@ -242,17 +199,6 @@ function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
       ) : null}
       <View style={styles.toolbar}>
         <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
-        {isAdmin ? (
-          <Pressable
-            onPress={() => {
-              setForm({});
-              setModal({});
-            }}
-            style={styles.addBtn}
-          >
-            <Text style={styles.addTxt}>+ Agregar</Text>
-          </Pressable>
-        ) : null}
       </View>
       <TextInput
         value={busqueda}
@@ -273,32 +219,15 @@ function Utiles({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
             </View>
           ))
         : renderGrupos(filtrados)}
-
-      <ItemFormModal
-        visible={modal !== null}
-        title={modal?.id ? "Editar útil" : "Nuevo útil"}
-        fields={[
-          { l: "Nombre", k: "item", ph: "Ej: Cartuchera" },
-          { l: "Categoría", k: "categoria", ph: "Ej: Papelería" },
-          { l: "Cantidad", k: "cantidad", ph: "Ej: 2 unidades" },
-          { l: "Comentario", k: "comentario", ph: "Ej: Con cierre doble" },
-        ]}
-        form={form}
-        setForm={setForm}
-        onClose={() => setModal(null)}
-        onGuardar={guardar}
-      />
     </ScrollView>
   );
 }
 
 // ── Libros ───────────────────────────────────────────────────────────────
-function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }) {
+function Libros({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
   const [libros, setLibros] = useState([]);
   const [adquiridos, setAdquiridos] = useState(new Set());
   const [busqueda, setBusqueda] = useState("");
-  const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({});
   const [preview, setPreview] = useState(null);
 
   const cargar = useCallback(async () => {
@@ -334,29 +263,6 @@ function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
       await supabase.from("libro_adquirido").insert({ libro_id: id, usuario_id: userId });
       setAdquiridos((p) => new Set([...p, id]));
     }
-  };
-
-  const guardar = async () => {
-    // Alta/edición solo con un curso concreto (ver comentario en Utiles).
-    if (!cursoId || !form.nombre?.trim()) return;
-    const payload = {
-      nombre: form.nombre.trim(),
-      editorial: form.editorial || null,
-      materia: form.materia || null,
-      curso_id: cursoId,
-      url_descarga: form.url_descarga || null,
-    };
-    if (modal?.id) await supabase.from("libros").update(payload).eq("id", modal.id);
-    else await supabase.from("libros").insert(payload);
-    setModal(null);
-    setForm({});
-    cargar();
-  };
-
-  const eliminar = async (id) => {
-    await supabase.from("libro_adquirido").delete().eq("libro_id", id);
-    await supabase.from("libros").delete().eq("id", id);
-    cargar();
   };
 
   const filtrados = libros.filter((l) => {
@@ -408,22 +314,6 @@ function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
                     <Image source={{ uri: l.imagen_url }} style={styles.cover} />
                   </Pressable>
                 ) : null}
-                {isAdmin ? (
-                  <View style={styles.itemActions}>
-                    <Pressable
-                      onPress={() => {
-                        setForm({ ...l });
-                        setModal(l);
-                      }}
-                      style={styles.miniBtn}
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={16} color={t.textMuted} />
-                    </Pressable>
-                    <Pressable onPress={() => eliminar(l.id)} style={styles.miniBtn}>
-                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={t.danger} />
-                    </Pressable>
-                  </View>
-                ) : null}
               </Card>
             );
           })}
@@ -448,17 +338,6 @@ function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
       ) : null}
       <View style={styles.toolbar}>
         <Text style={styles.privacidadTxt}>🔒 Lo que marcás acá es privado, solo vos lo ves</Text>
-        {isAdmin ? (
-          <Pressable
-            onPress={() => {
-              setForm({});
-              setModal({});
-            }}
-            style={styles.addBtn}
-          >
-            <Text style={styles.addTxt}>+ Agregar</Text>
-          </Pressable>
-        ) : null}
       </View>
       <TextInput
         value={busqueda}
@@ -479,21 +358,6 @@ function Libros({ cursoId, cursoIds, userId, isAdmin, esVistaTodos, tagDeCurso }
             </View>
           ))
         : renderGrupos(filtrados)}
-
-      <ItemFormModal
-        visible={modal !== null}
-        title={modal?.id ? "Editar libro" : "Nuevo libro"}
-        fields={[
-          { l: "Nombre", k: "nombre", ph: "Ej: Matemáticas 3" },
-          { l: "Editorial", k: "editorial", ph: "Ej: Santillana" },
-          { l: "Materia", k: "materia", ph: "Ej: Matemáticas" },
-          { l: "Link de descarga", k: "url_descarga", ph: "https://drive.google.com/..." },
-        ]}
-        form={form}
-        setForm={setForm}
-        onClose={() => setModal(null)}
-        onGuardar={guardar}
-      />
 
       <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreview(null)}>
@@ -637,41 +501,6 @@ function Uniformes({ cursoIds, userId, esVistaTodos, tagDeCurso }) {
   );
 }
 
-// ── Modal reutilizable de alta/edición (campos de texto) ────────────────────
-function ItemFormModal({ visible, title, fields, form, setForm, onClose, onGuardar }) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-        <View style={styles.modalCard}>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.modalTitle}>{title}</Text>
-            {fields.map((f) => (
-              <View key={f.k}>
-                <Text style={styles.label}>{f.l.toUpperCase()}</Text>
-                <TextInput
-                  value={form[f.k] || ""}
-                  onChangeText={(t) => setForm((p) => ({ ...p, [f.k]: t }))}
-                  placeholder={f.ph}
-                  placeholderTextColor={t.textFaint}
-                  style={styles.input}
-                />
-              </View>
-            ))}
-            <View style={styles.modalBtns}>
-              <Pressable onPress={onClose} style={styles.cancelBtn}>
-                <Text style={styles.cancelTxt}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={onGuardar} style={styles.saveBtn}>
-                <Text style={styles.saveTxt}>Guardar</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: t.bg },
   headerWrap: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.lg },
@@ -686,8 +515,6 @@ const styles = StyleSheet.create({
   subTabTxtActive: { color: "#FFFFFF", fontWeight: "700" },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   privacidadTxt: { fontSize: 11, color: t.textFaint, marginBottom: SPACE.sm },
-  addBtn: { backgroundColor: t.accent, borderRadius: RADIUS.lg, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
-  addTxt: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   search: { minHeight: 44, paddingHorizontal: 12, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surface, fontSize: 13, color: t.text, marginBottom: 12 },
   empty: { textAlign: "center", paddingVertical: 32, color: t.textMuted, fontSize: 13 },
   group: { marginBottom: 14 },
@@ -706,8 +533,6 @@ const styles = StyleSheet.create({
   itemNameOn: { color: t.textFaint, textDecorationLine: "line-through" },
   itemSub: { fontSize: 12, color: t.textMuted, marginTop: 1 },
   cantidad: { fontSize: 12, color: t.textMuted, fontWeight: "600" },
-  itemActions: { flexDirection: "row", gap: 4 },
-  miniBtn: { padding: 6, borderRadius: RADIUS.xs },
   link: { fontSize: 12, fontWeight: "700", color: BLUE[600], marginTop: 3 },
   libroCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, marginBottom: 7, borderLeftWidth: 3, borderRadius: RADIUS.xl, borderColor: t.borderStrong, elevation: 0, shadowOpacity: 0 },
   cover: { width: 44, height: 60, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: t.borderStrong },
@@ -724,13 +549,4 @@ const styles = StyleSheet.create({
   uniEmoji: { fontSize: 18 },
   uniTipo: { fontSize: 14.5, fontWeight: "700", color: t.textStrong, flex: 1 },
   overlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: t.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: t.borderStrong, padding: 20 },
-  modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 12 },
-  label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 6 },
-  input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: 12, fontSize: 13, color: t.text },
-  modalBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: t.textMuted, fontSize: 13, fontWeight: "700" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.lg, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 });

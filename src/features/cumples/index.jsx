@@ -120,7 +120,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
       // Traer invitaciones de los hijos del usuario en estos cursos (RLS filtra por apoderado del hijo)
       userId && misHijos?.length ? supabase.from("evento_asistencia").select("*, evento:evento_id(id,titulo,fecha,hora,hora_fin,lugar,tipo,imagen_url,url_ubicacion,descripcion,curso_id)").in("alumno_invitado_id", misHijos) : Promise.resolve({data:[]}),
     ]);
-    // Monto sugerido por familia: en vista Todos solo se muestra si todos los cursos coinciden.
+    // Monto sugerido por cumple: en vista Todos solo se muestra si todos los cursos coinciden.
     const { data: cursosData } = await supabase.from("cursos").select("monto_regalo,moneda_regalo").in("id",cursoIds);
     const montosUniq  = [...new Set((cursosData||[]).map(c=>c.monto_regalo||null))];
     const monedasUniq = [...new Set((cursosData||[]).map(c=>c.moneda_regalo||"$"))];
@@ -285,7 +285,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
         <>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
             <div style={{fontSize:13,color:"#94A3B8"}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}</div>
-            {montoRegalo&&<div style={{fontSize:13,color:"#64748B"}}>· Regalo: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")} por familia</div>}
+            {montoRegalo&&<div style={{fontSize:13,color:"#64748B"}}>· Regalo: {monedaRegalo} {Number(montoRegalo).toLocaleString("es-AR")} por cumple</div>}
           </div>
 
           {/* Banner rápido: crear festejo de su hijo (apoderado o room parent).
@@ -409,7 +409,7 @@ export function Cumpleanios({ cursoId, cursoIds=[], esVistaTodos=false, tagDeCur
               misma palabra dos veces seguidas (mismo error reportado en
               Calendario, acá literal dentro de la propia vista). */}
           {/* El título lo da la pestaña "Cumpleaños" de Agenda. */}
-          <div style={{fontSize:13.5,color:"#64748B",marginBottom:20}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}, de alumnos y maestras{montoRegalo?` · Regalo: ${monedaRegalo} ${Number(montoRegalo).toLocaleString("es-AR")} por familia`:""}</div>
+          <div style={{fontSize:13.5,color:"#64748B",marginBottom:20}}>{lista.length} cumpleaños {esVistaTodos?"en tus cursos":"en el curso"}, de alumnos y maestras{montoRegalo?` · Regalo: ${monedaRegalo} ${Number(montoRegalo).toLocaleString("es-AR")} por cumple`:""}</div>
 
           {invitaciones.length>0&&(
             <div style={{marginBottom:20}}>

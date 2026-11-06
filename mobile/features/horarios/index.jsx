@@ -2,8 +2,7 @@
 // (src/features/superadmin/horarios.jsx) con las mismas reglas
 // (@shared/horarios): bloque en varios días, alcance al editar una serie,
 // buscador de clase, crear clase ahí mismo, talleres optativos con alumnos,
-// copiar un día y copiar de otro curso. Lo usan el panel del colegio
-// (puedeEditarClases) y el Admin del Room Parent (solo bloques).
+// copiar un día y copiar de otro curso. Lo usa el panel del colegio.
 //
 // En el teléfono la semana va por pestañas de día (una grilla de 5–6 columnas
 // no entra). iOS no apila Modals: el borrador del bloque vive acá y las hojas
@@ -406,7 +405,7 @@ function CopiarCursoSheet({ visible, curso, cursos, horarios, clases, onClose, o
 
 const HOY = ["Domingo", ...DIAS_HORARIO][new Date().getDay()];
 
-export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], puedeEditarClases = true }) {
+export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [] }) {
   const [horarios, setHorarios] = useState(null);
   const [clases, setClases] = useState([]);
   const [anotadosPorClase, setAnotadosPorClase] = useState({});
@@ -464,13 +463,13 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
       <View style={s.card}>
         <View style={s.row}>
           <Text style={[s.label, s.flex1, { marginBottom: 0 }]}>Clases de {curso.nombre} · {clases.length}</Text>
-          {puedeEditarClases ? <Pressable onPress={() => { setClaseEd({}); setHoja("clase"); }} hitSlop={6}><Text style={s.link}>+ Nueva</Text></Pressable> : null}
+          <Pressable onPress={() => { setClaseEd({}); setHoja("clase"); }} hitSlop={6}><Text style={s.link}>+ Nueva</Text></Pressable>
         </View>
-        {!clases.length ? <Text style={[s.muted, { marginTop: 6 }]}>{puedeEditarClases ? "Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra)." : "El colegio todavía no cargó las clases de este curso."}</Text> : null}
+        {!clases.length ? <Text style={[s.muted, { marginTop: 6 }]}>Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra).</Text> : null}
         {/* Lista sin pastillas: materia en negrita; maestra y bloques en gris. */}
         <View style={{ marginTop: 4 }}>
           {clases.map((c, i) => (
-            <Pressable key={c.id} disabled={!puedeEditarClases} onPress={() => { setClaseEd({ clase: c }); setHoja("clase"); }} style={[s.claseListaFila, i > 0 && s.opcionBorde]}>
+            <Pressable key={c.id} onPress={() => { setClaseEd({ clase: c }); setHoja("clase"); }} style={[s.claseListaFila, i > 0 && s.opcionBorde]}>
               <Text style={{ fontSize: 14.5, fontWeight: "700", color: t.textStrong }}>{c.materias?.nombre}{c.optativa ? <Text style={{ fontWeight: "600", color: t.textMuted }}>{` · taller optativo (${anotadosPorClase[c.id] || 0})`}</Text> : null}</Text>
               <Text style={{ fontSize: 12.5, color: t.textMuted, marginTop: 1 }}>
                 {c.maestros ? fmtNombre(c.maestros) : "Sin maestra"}{" · "}
@@ -485,7 +484,7 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
       <View style={[s.wrap, { marginBottom: SPACE.sm }]}>
         <Pressable onPress={nuevo} disabled={!clases.length} style={[s.btnPri, !clases.length && { opacity: 0.5 }]}><Text style={s.btnPriTxt}>+ Agregar</Text></Pressable>
         {horarios.length ? <Pressable onPress={() => setHoja("copiarDia")} style={s.btnSec}><Text style={s.btnSecTxt}>Copiar día</Text></Pressable> : null}
-        {puedeEditarClases && cursos.length > 1 ? <Pressable onPress={() => setHoja("copiarCurso")} style={s.btnSec}><Text style={s.btnSecTxt}>De otro curso</Text></Pressable> : null}
+        {cursos.length > 1 ? <Pressable onPress={() => setHoja("copiarCurso")} style={s.btnSec}><Text style={s.btnSecTxt}>De otro curso</Text></Pressable> : null}
       </View>
 
       {/* Días */}
@@ -521,7 +520,7 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
 
       <BloqueSheet visible={hoja === "bloque"} borrador={borrador} setBorrador={setBorrador} curso={curso} horarios={horarios} clases={clases}
         conSabado={dias.includes("Sábado")} onClose={() => setHoja(null)} onGuardado={refrescar}
-        onCrearClase={puedeEditarClases ? (q) => cerrarYAbrir(() => { setClaseEd({ texto: q, volverABloque: true }); setHoja("clase"); }) : null} />
+        onCrearClase={(q) => cerrarYAbrir(() => { setClaseEd({ texto: q, volverABloque: true }); setHoja("clase"); })} />
       {hoja === "clase" && claseEd ? (
         <ClaseSheet visible curso={curso} colegioId={colegioId} clase={claseEd.clase} textoInicial={claseEd.texto} maestros={maestros} usos={claseEd.clase ? usos[claseEd.clase.id] || 0 : 0}
           onClose={() => { const volver = claseEd.volverABloque; setClaseEd(null); if (volver) cerrarYAbrir(() => setHoja("bloque")); else setHoja(null); }}

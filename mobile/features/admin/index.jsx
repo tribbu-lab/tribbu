@@ -1,40 +1,104 @@
 // Admin (puerto RN de src/features/admin · AdminPanel). Solo visible cuando el
-// item activo es Room Parent (rolEfectivo === "room"). Tres pestañas:
-// - General: monto/moneda de regalo del curso (tabla `cursos`) + una línea
-//   calculada ("con N familias, la colecta junta $X").
-// - Horarios: editor compartido (features/horarios) con las clases que cargó
-//   el colegio — bloques en varios días, copiar un día.
-// - Familias (nueva, Parte 3.b del handoff): quiénes son Room Parent del
-//   curso y qué alumnos todavía no tienen ningún apoderado registrado con el
-//   código — el dato que el Room Parent necesita para perseguir altas y hoy
-//   no tiene en ningún lado.
-// Arriba de todo, una alerta urgente (tarjeta roja + bottom sheet) para
-// publicar un aviso al curso sin tener que ir al Muro — mismo mecanismo
-// (tabla `alertas` + push) que ya usa `mobile/features/muro/index.jsx`.
+// item activo es Room Parent (rolEfectivo === "room"). El Room Parent define el
+// monto sugerido por cumple (tabla `cursos`), quién le regala a quién (`cumples`)
+// y nombra a otros Room Parents entre los apoderados del curso.
+// Horarios, familias, adopción y alertas son del colegio.
 
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Modal, KeyboardAvoidingView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Alert, StyleSheet } from "react-native";
 import { supabase } from "../../lib/supabase";
-import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { fmtNombre } from "@shared/helpers";
 import { T } from "@shared/theme";
-import { THEMES, BLUE, SLATE, RADIUS } from "@shared/tokens";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useSession } from "../../context/Session";
-import { HorarioCurso } from "../horarios";
-import { EmptyState } from "../../components/EmptyState";
+import { Buscador } from "../../components/Buscador";
+import { candidatosRoomParent, filtrarCandidatos } from "@shared/apoderados";
+
+// Quiénes son Room Parent del curso y nombrar a otro entre sus apoderados.
+function RoomParentsCurso({ cursoId }) {
+  const [roomParents, setRoomParents] = useState([]);
+  const [hijosCurso, setHijosCurso] = useState([]);
+  const [abierto, setAbierto] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [error, setError] = useState("");
+  const [nombrandoId, setNombrandoId] = useState(null);
+
+  const cargar = useCallback(async () => {
+    if (!cursoId) return;
+    const [rp, hi] = await Promise.all([
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(id,nombre,apellido)").eq("curso_id", cursoId).eq("rol", "room"),
+      supabase.from("hijos").select("nombre, usuario_hijos(usuarios(id,nombre,apellido,rol,activo))").eq("curso_id", cursoId),
+    ]);
+    setRoomParents((rp.data || []).map((r) => r.usuarios).filter(Boolean));
+    setHijosCurso(hi.data || []);
+  }, [cursoId]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const candidatos = filtrarCandidatos(candidatosRoomParent(hijosCurso, roomParents.map((r) => r.id)), busqueda);
+
+  const guardar = async (c) => {
+    setError("");
+    setNombrandoId(c.id);
+    const { error: e } = await supabase.from("usuario_cursos").insert({ usuario_id: c.id, curso_id: cursoId, rol: "room" });
+    setNombrandoId(null);
+    if (e) {
+      setError("No se pudo nombrar. Probá de nuevo.");
+      return;
+    }
+    setAbierto(false);
+    setBusqueda("");
+    cargar();
+  };
+
+  const nombrar = (c) => {
+    Alert.alert(`¿Nombrar a ${fmtNombre(c)} Room Parent?`, `${fmtNombre(c)} va a poder hacer lo mismo que vos en este curso. Para sacarlo, hay que pedírselo al colegio.`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Nombrar", onPress: () => guardar(c) },
+    ]);
+  };
+
+  return (
+    <View style={[styles.card, styles.rpCard]}>
+      <Text style={styles.cardTitle}>Room Parents del curso</Text>
+      {roomParents.map((r) => (
+        <Text key={r.id} style={styles.rpRow}>{fmtNombre(r)}</Text>
+      ))}
+      {error ? <Text style={styles.rpError}>{error}</Text> : null}
+      {!abierto ? (
+        <Pressable onPress={() => setAbierto(true)} style={styles.rpAbrir}>
+          <Text style={styles.rpAbrirTxt}>Nombrar a otro</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.rpLista}>
+          <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o por hijo…" />
+          {candidatos.length === 0 ? <Text style={styles.muted}>No hay apoderados para mostrar.</Text> : null}
+          {candidatos.map((c) => (
+            <View key={c.id} style={styles.rpFila}>
+              <View style={styles.flex1}>
+                <Text style={styles.rpNombre}>{fmtNombre(c)}</Text>
+                <Text style={styles.regaloFecha}>Familia de {c.hijos.join(" y ")}</Text>
+              </View>
+              <Pressable onPress={() => nombrar(c)} disabled={nombrandoId === c.id} style={styles.rpNombrar}>
+                <Text style={styles.rpNombrarTxt}>{nombrandoId === c.id ? "Nombrando…" : "Nombrar"}</Text>
+              </Pressable>
+            </View>
+          ))}
+          <Pressable onPress={() => { setAbierto(false); setBusqueda(""); }} style={styles.rpCancelar}>
+            <Text style={styles.rpCancelarTxt}>Cancelar</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
 
 
 export function AdminPanel() {
   const { cursoId, cursoNombre } = useSession();
-  const [tab, setTab] = useState("general");
   const [form, setForm] = useState({ monto_regalo: "", moneda_regalo: "$" });
   const [saving, setSaving] = useState(false);
-  const [familias, setFamilias] = useState([]);
-  const [roomParents, setRoomParents] = useState([]);
-  const [alertaSheet, setAlertaSheet] = useState(false);
-  const [alertaMsg, setAlertaMsg] = useState("");
-  const [alertaEnviando, setAlertaEnviando] = useState(false);
   const [alumnosRegalo, setAlumnosRegalo] = useState([]);
   const [cumpleMap, setCumpleMap] = useState({});
   const [expandidoId, setExpandidoId] = useState(null);
@@ -91,47 +155,16 @@ export function AdminPanel() {
 
   const cargar = useCallback(async () => {
     if (!cursoId) return;
-    const [c, hijosData, ucData] = await Promise.all([
-      supabase.from("cursos").select("*").eq("id", cursoId).single(),
-      supabase.from("hijos").select("id,nombre,apellido").eq("curso_id", cursoId).order("apellido"),
-      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id", cursoId).eq("rol", "room"),
+    const [c] = await Promise.all([
+      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id", cursoId).single(),
+      cargarRegalos(),
     ]);
     setForm({ monto_regalo: c.data?.monto_regalo ? String(c.data.monto_regalo) : "", moneda_regalo: c.data?.moneda_regalo || "$" });
-    setRoomParents((ucData.data || []).map((r) => r.usuarios).filter(Boolean));
-
-    const hijosCurso = hijosData.data || [];
-    const hijoIds = hijosCurso.map((h) => h.id);
-    const uh = hijoIds.length
-      ? await supabase.from("usuario_hijos").select("hijo_id, usuarios(nombre,apellido,email,telefono)").in("hijo_id", hijoIds)
-      : { data: [] };
-    const apodPorHijo = new Map();
-    for (const r of uh.data || []) {
-      if (!r.usuarios) continue;
-      const arr = apodPorHijo.get(r.hijo_id) || [];
-      arr.push(r.usuarios);
-      apodPorHijo.set(r.hijo_id, arr);
-    }
-    setFamilias(hijosCurso.map((h) => ({ ...h, apoderados: apodPorHijo.get(h.id) || [] })));
-    cargarRegalos();
   }, [cursoId, cargarRegalos]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
-
-  const familiasSinRegistrar = familias.filter((f) => f.apoderados.length === 0);
-
-  const enviarAlerta = async () => {
-    if (!alertaMsg.trim() || !cursoId) return;
-    setAlertaEnviando(true);
-    await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
-    await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: alertaMsg.trim(), hora: "Ahora", activa: true });
-    const userIds = await getUserIdsParaAlerta(cursoId);
-    await sendPush({ type: "alerta", payload: { mensaje: alertaMsg.trim(), userIds } });
-    setAlertaEnviando(false);
-    setAlertaSheet(false);
-    setAlertaMsg("");
-  };
 
   const guardarGeneral = async () => {
     setSaving(true);
@@ -148,196 +181,99 @@ export function AdminPanel() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>Administrar el curso</Text>
+      <Text style={styles.h1}>Regalos y Room Parents</Text>
       <Text style={styles.subtitle}>{cursoNombre}</Text>
 
-      <Pressable onPress={() => setAlertaSheet(true)} style={styles.alertaBanner} accessibilityRole="button">
-        <View style={styles.alertaIcono}>
-          <MaterialCommunityIcons name="alarm-light-outline" size={19} color="#DC2626" />
+      <View style={styles.card}>
+        <Text style={[styles.cardTitle, styles.montoTitulo]}>Monto sugerido por cumple</Text>
+        <Text style={styles.regalosIntro}>Lo que se sugiere gastar en cada regalo. Las familias lo ven en Cumpleaños.</Text>
+        <Text style={styles.label}>MONEDA</Text>
+        <View style={styles.row}>
+          {["$", "USD"].map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setForm((p) => ({ ...p, moneda_regalo: m }))}
+              style={[styles.monedaBtn, form.moneda_regalo === m && styles.monedaBtnOn]}
+            >
+              <Text style={[styles.monedaTxt, form.moneda_regalo === m && { color: T.accent }]}>{m}</Text>
+            </Pressable>
+          ))}
         </View>
-        <View style={styles.flex1}>
-          <Text style={styles.alertaBannerTxt}>Publicar una alerta urgente</Text>
-          <Text style={styles.alertaBannerSub}>Les llega al instante a todas las familias del curso</Text>
-        </View>
-        <MaterialCommunityIcons name="chevron-right" size={20} color={SLATE[400]} />
-      </Pressable>
-
-      <View style={styles.tabs}>
-        {[
-          { id: "general", l: "General" },
-          { id: "horarios", l: "Horarios" },
-          { id: "familias", l: "Familias" },
-          { id: "regalos", l: "Regalos" },
-        ].map((t) => (
-          <Pressable key={t.id} onPress={() => setTab(t.id)} style={[styles.tab, tab === t.id && styles.tabActive]}>
-            <Text style={[styles.tabTxt, tab === t.id && styles.tabTxtActive]}>{t.l}</Text>
-          </Pressable>
-        ))}
+        <Text style={styles.label}>MONTO</Text>
+        <TextInput
+          value={form.monto_regalo}
+          onChangeText={(t) => setForm((p) => ({ ...p, monto_regalo: t }))}
+          placeholder="Ej: 2000"
+          placeholderTextColor="#94A3B8"
+          keyboardType="numeric"
+          style={styles.input}
+        />
+        <Pressable onPress={guardarGeneral} disabled={saving} style={styles.saveBtnFull}>
+          <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
+        </Pressable>
       </View>
 
-      {tab === "general" ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Configuración de regalos</Text>
-          <Text style={styles.label}>MONEDA</Text>
-          <View style={styles.row}>
-            {["$", "USD"].map((m) => (
-              <Pressable
-                key={m}
-                onPress={() => setForm((p) => ({ ...p, moneda_regalo: m }))}
-                style={[styles.monedaBtn, form.moneda_regalo === m && styles.monedaBtnOn]}
-              >
-                <Text style={[styles.monedaTxt, form.moneda_regalo === m && { color: T.accent }]}>{m}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.label}>MONTO SUGERIDO POR FAMILIA</Text>
-          <TextInput
-            value={form.monto_regalo}
-            onChangeText={(t) => setForm((p) => ({ ...p, monto_regalo: t }))}
-            placeholder="Ej: 2000"
-            placeholderTextColor="#94A3B8"
-            keyboardType="numeric"
-            style={styles.input}
-          />
-          {form.monto_regalo && familias.length > 0 ? (
-            <Text style={styles.calculada}>
-              Con {familias.length} alumno{familias.length !== 1 ? "s" : ""}, la colecta junta{" "}
-              {form.moneda_regalo} {(Number(form.monto_regalo) * familias.length).toLocaleString("es-AR")}
-            </Text>
-          ) : null}
-          <Pressable onPress={guardarGeneral} disabled={saving} style={styles.saveBtnFull}>
-            <Text style={styles.saveTxt}>{saving ? "Guardando..." : "Guardar"}</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <RoomParentsCurso key={cursoId} cursoId={cursoId} />
 
-      {tab === "horarios" && cursoId ? (
-        // El colegio arma las clases; el Room Parent arma el horario con ellas.
-        <HorarioCurso key={cursoId} curso={{ id: cursoId, nombre: cursoNombre || "Este curso" }} puedeEditarClases={false} />
-      ) : null}
-
-      {tab === "familias" ? (
-        <View>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Room Parents del curso</Text>
-            {roomParents.length === 0 ? (
-              <EmptyState compact icon="account-star-outline" title="Sin Room Parents" note="El colegio los asigna desde su panel." />
-            ) : (
-              roomParents.map((r, i) => (
-                <Text key={i} style={styles.rpRow}>{fmtNombre(r)} · {r.email}</Text>
-              ))
-            )}
-          </View>
-
-          <Text style={[styles.cardTitle, styles.familiasTitulo]}>
-            Alumnos sin apoderado registrado{familiasSinRegistrar.length ? ` · ${familiasSinRegistrar.length}` : ""}
-          </Text>
-          <Text style={styles.familiasSub}>
-            Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
-          </Text>
-          {familiasSinRegistrar.length === 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.muted}>Todos los alumnos tienen un apoderado registrado</Text>
-            </View>
-          ) : (
-            familiasSinRegistrar.map((f) => (
-              <View key={f.id} style={styles.familiaRow}>
-                <Text style={styles.familiaNombre}>{fmtNombre(f)}</Text>
-                <Text style={styles.familiaPend}>Sin registrar</Text>
-              </View>
-            ))
-          )}
-        </View>
-      ) : null}
-
-      {tab === "regalos" ? (
-        <View>
-          <Text style={styles.regalosIntro}>
-            Asigná qué familia le regala a cada compañero — ordenado por el próximo cumpleaños. Tocá una fila para elegir.
-          </Text>
-          {alumnosRegalo.length === 0 ? (
-            <Text style={styles.muted}>Ningún alumno del curso tiene fecha de nacimiento cargada.</Text>
-          ) : (
-            alumnosRegalo.map((a) => {
-              const cumple = cumpleMap[a.id];
-              const dias = nextBday(a.fecha_nacimiento);
-              const bl = dias === 0 ? { l: "Hoy", c: "#EF4444" } : dias === 1 ? { l: "Mañana", c: "#F59E0B" } : dias <= 7 ? { l: `${dias}d`, c: "#F59E0B" } : { l: `${dias}d`, c: "#94A3B8" };
-              const abierto = expandidoId === a.id;
-              const guardando = guardandoRegaloId === a.id;
-              return (
-                <View key={a.id} style={styles.regaloCard}>
-                  <Pressable onPress={() => setExpandidoId(abierto ? null : a.id)} style={styles.regaloHeader}>
-                    <View style={[styles.avatarChico, { backgroundColor: (a.color || "#3B82F6") + "1F" }]}>
-                      <Text style={[styles.avatarChicoTxt, { color: a.color || "#3B82F6" }]}>{a.nombre?.slice(0, 1)}{a.apellido?.slice(0, 1)}</Text>
-                    </View>
-                    <View style={styles.flex1}>
-                      <Text style={styles.regaloNombre}>{fmtNombre(a)}</Text>
-                      <Text style={styles.regaloFecha}>
-                        {new Date(a.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
-                        <Text style={{ color: bl.c, fontWeight: "700" }}> · {bl.l}</Text>
-                      </Text>
-                    </View>
-                    <Text style={styles.regaloAsignado} numberOfLines={1}>
-                      {cumple?._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : "Sin asignar"}
+      <View>
+        <Text style={[styles.cardTitle, styles.regalosTitulo]}>Quién le regala a quién</Text>
+        <Text style={styles.regalosIntro}>
+          Elegí qué familia le regala a cada compañero, ordenado por el próximo cumpleaños. Tocá una fila para elegir.
+        </Text>
+        {alumnosRegalo.length === 0 ? (
+          <Text style={styles.muted}>Ningún alumno del curso tiene fecha de nacimiento cargada.</Text>
+        ) : (
+          alumnosRegalo.map((a) => {
+            const cumple = cumpleMap[a.id];
+            const dias = nextBday(a.fecha_nacimiento);
+            const bl = dias === 0 ? { l: "Hoy", c: "#EF4444" } : dias === 1 ? { l: "Mañana", c: "#F59E0B" } : dias <= 7 ? { l: `${dias}d`, c: "#F59E0B" } : { l: `${dias}d`, c: "#94A3B8" };
+            const abierto = expandidoId === a.id;
+            const guardando = guardandoRegaloId === a.id;
+            return (
+              <View key={a.id} style={styles.regaloCard}>
+                <Pressable onPress={() => setExpandidoId(abierto ? null : a.id)} style={styles.regaloHeader}>
+                  <View style={[styles.avatarChico, { backgroundColor: (a.color || "#3B82F6") + "1F" }]}>
+                    <Text style={[styles.avatarChicoTxt, { color: a.color || "#3B82F6" }]}>{a.nombre?.slice(0, 1)}{a.apellido?.slice(0, 1)}</Text>
+                  </View>
+                  <View style={styles.flex1}>
+                    <Text style={styles.regaloNombre}>{fmtNombre(a)}</Text>
+                    <Text style={styles.regaloFecha}>
+                      {new Date(a.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
+                      <Text style={{ color: bl.c, fontWeight: "700" }}> · {bl.l}</Text>
                     </Text>
-                    <Text style={styles.regaloChevron}>{abierto ? "▲" : "▼"}</Text>
-                  </Pressable>
-                  {abierto ? (
-                    <View style={styles.regaloOpciones}>
-                      <Pressable onPress={() => asignarRegalo(a.id, null)} disabled={guardando} style={styles.regaloOpcion}>
-                        <Text style={styles.regaloOpcionTxt}>— Sin asignar —</Text>
-                      </Pressable>
-                      {alumnosRegalo.filter((x) => x.id !== a.id).map((x) => {
-                        const sel = cumple?._responsable_hijo?.id === x.id;
-                        return (
-                          <Pressable key={x.id} onPress={() => asignarRegalo(a.id, x.id)} disabled={guardando} style={[styles.regaloOpcion, sel && styles.regaloOpcionOn]}>
-                            <Text style={[styles.regaloOpcionTxt, sel && styles.regaloOpcionTxtOn]}>{fmtNombre(x)}</Text>
-                            {sel ? <Text style={styles.regaloOpcionCheck}>✓</Text> : null}
-                          </Pressable>
-                        );
-                      })}
-                      <Pressable onPress={() => toggleComprado(a.id)} disabled={!cumple?.id} style={styles.compradoRow}>
-                        <View style={[styles.compradoBox, cumple?.comprado && styles.compradoBoxOn]}>
-                          {cumple?.comprado ? <Text style={styles.compradoCheck}>✓</Text> : null}
-                        </View>
-                        <Text style={[styles.compradoTxt, !cumple?.id && styles.compradoTxtDisabled]}>Regalo comprado</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })
-          )}
-        </View>
-      ) : null}
-
-      <Modal visible={alertaSheet} transparent animationType="fade" onRequestClose={() => setAlertaSheet(false)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior="padding">
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>Publicar alerta</Text>
-              <Text style={styles.alertaSub}>Se envía como push a toda la comunidad del curso. Usalo solo para avisos urgentes — suena aunque el teléfono esté en silencio.</Text>
-              <TextInput
-                value={alertaMsg}
-                onChangeText={setAlertaMsg}
-                placeholder="Ej: Mañana no hay clases"
-                placeholderTextColor="#94A3B8"
-                multiline
-                style={[styles.input, styles.alertaInput]}
-              />
-              <View style={styles.modalBtns}>
-                <Pressable onPress={() => setAlertaSheet(false)} style={styles.cancelBtn}>
-                  <Text style={styles.cancelTxt}>Cancelar</Text>
+                  </View>
+                  <Text style={styles.regaloAsignado} numberOfLines={1}>
+                    {cumple?._responsable_hijo ? fmtNombre(cumple._responsable_hijo) : "Sin asignar"}
+                  </Text>
+                  <Text style={styles.regaloChevron}>{abierto ? "▲" : "▼"}</Text>
                 </Pressable>
-                <Pressable onPress={enviarAlerta} disabled={alertaEnviando || !alertaMsg.trim()} style={styles.saveBtn}>
-                  <Text style={styles.saveTxt}>{alertaEnviando ? "Enviando..." : "Enviar"}</Text>
-                </Pressable>
+                {abierto ? (
+                  <View style={styles.regaloOpciones}>
+                    <Pressable onPress={() => asignarRegalo(a.id, null)} disabled={guardando} style={styles.regaloOpcion}>
+                      <Text style={styles.regaloOpcionTxt}>— Sin asignar —</Text>
+                    </Pressable>
+                    {alumnosRegalo.filter((x) => x.id !== a.id).map((x) => {
+                      const sel = cumple?._responsable_hijo?.id === x.id;
+                      return (
+                        <Pressable key={x.id} onPress={() => asignarRegalo(a.id, x.id)} disabled={guardando} style={[styles.regaloOpcion, sel && styles.regaloOpcionOn]}>
+                          <Text style={[styles.regaloOpcionTxt, sel && styles.regaloOpcionTxtOn]}>{fmtNombre(x)}</Text>
+                          {sel ? <Text style={styles.regaloOpcionCheck}>✓</Text> : null}
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable onPress={() => toggleComprado(a.id)} disabled={!cumple?.id} style={styles.compradoRow}>
+                      <View style={[styles.compradoBox, cumple?.comprado && styles.compradoBoxOn]}>
+                        {cumple?.comprado ? <Text style={styles.compradoCheck}>✓</Text> : null}
+                      </View>
+                      <Text style={[styles.compradoTxt, !cumple?.id && styles.compradoTxtDisabled]}>Regalo comprado</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
+            );
+          })
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -349,30 +285,24 @@ const styles = StyleSheet.create({
   h1: { fontSize: 21, fontWeight: "800", color: T.text },
   subtitle: { fontSize: 13, color: "#94A3B8", marginBottom: 16 },
   muted: { fontSize: 13, color: "#94A3B8", textAlign: "center", paddingVertical: 24 },
-  // mismas pestañas que Agenda/Comunicaciones (components/SubTabs)
-  tabs: { flexDirection: "row", backgroundColor: SLATE[100], borderRadius: RADIUS.full, padding: 4, marginBottom: 16 },
-  tab: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 38, borderRadius: RADIUS.full },
-  tabActive: { backgroundColor: THEMES.light.surface, borderWidth: 1, borderColor: THEMES.light.border },
-  tabTxt: { fontSize: 13.5, fontWeight: "600", color: THEMES.light.textMuted },
-  tabTxtActive: { color: BLUE[700], fontWeight: "800" },
 
-  // alerta urgente arriba de todo (Parte 3.b del handoff)
-  alertaBanner: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, backgroundColor: THEMES.light.surface, borderWidth: 1, borderColor: THEMES.light.borderStrong, padding: 14, marginBottom: 16 },
-  alertaIcono: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
-  alertaBannerTxt: { fontSize: 15, fontWeight: "700", color: THEMES.light.textStrong },
-  alertaBannerSub: { fontSize: 12.5, color: THEMES.light.textMuted, marginTop: 2 },
-  alertaSub: { fontSize: 12, color: "#94A3B8", lineHeight: 17, marginBottom: 14 },
-  alertaInput: { minHeight: 80, textAlignVertical: "top" },
 
   card: { backgroundColor: "white", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#E2E8F0" },
   cardTitle: { fontSize: 14, fontWeight: "800", color: T.text, marginBottom: 12 },
-  calculada: { fontSize: 12.5, color: T.accent, fontWeight: "600", marginTop: 10, lineHeight: 18 },
+  montoTitulo: { marginBottom: 4 },
+  rpCard: { marginTop: 16 },
   rpRow: { fontSize: 13, color: T.text, marginBottom: 6 },
-  familiasTitulo: { marginTop: 18 },
-  familiasSub: { fontSize: 12, color: "#94A3B8", lineHeight: 17, marginBottom: 12 },
-  familiaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "white", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 10, paddingHorizontal: 14, marginBottom: 6 },
-  familiaNombre: { fontSize: 13, fontWeight: "600", color: T.text },
-  familiaPend: { fontSize: 11, fontWeight: "700", color: "#B45309", backgroundColor: "#FFFBEB", paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999 },
+  rpError: { fontSize: 12.5, color: "#DC2626", marginTop: 8 },
+  rpAbrir: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", paddingHorizontal: 14, marginTop: 8, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  rpAbrirTxt: { fontSize: 13, fontWeight: "700", color: T.accent },
+  rpLista: { marginTop: 12 },
+  rpFila: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  rpNombre: { fontSize: 13.5, fontWeight: "600", color: T.text },
+  rpNombrar: { minHeight: 36, justifyContent: "center", paddingHorizontal: 12, borderRadius: 8, backgroundColor: "#EFF6FF" },
+  rpNombrarTxt: { fontSize: 12, fontWeight: "700", color: T.accent },
+  rpCancelar: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", marginTop: 4 },
+  rpCancelarTxt: { fontSize: 12.5, fontWeight: "600", color: "#64748B" },
+  regalosTitulo: { marginTop: 20, marginBottom: 4 },
   regalosIntro: { fontSize: 12.5, color: "#94A3B8", lineHeight: 18, marginBottom: 14 },
   regaloCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 8, overflow: "hidden" },
   regaloHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, minHeight: 44 },
@@ -418,9 +348,6 @@ const styles = StyleSheet.create({
   horDel: { padding: 4 },
   horDelTxt: { fontSize: 13, color: "#EF4444" },
 
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 16 },
-  modalCard: { backgroundColor: "white", borderRadius: 20, padding: 20, maxHeight: "88%" },
-  modalTitle: { fontSize: 16, fontWeight: "900", color: T.text, marginBottom: 4 },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: "white" },
   chipOn: { borderColor: T.accent, backgroundColor: "#EFF6FF" },
@@ -428,8 +355,4 @@ const styles = StyleSheet.create({
   chipTxtOn: { color: T.accent, fontWeight: "700" },
   colorDot: { width: 30, height: 30, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
   colorDotOn: { borderColor: T.primary },
-  modalBtns: { flexDirection: "row", gap: 10, marginTop: 18 },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "white", alignItems: "center", justifyContent: "center" },
-  cancelTxt: { fontSize: 13, fontWeight: "600", color: "#94A3B8" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: 10, backgroundColor: T.accent, alignItems: "center", justifyContent: "center" },
 });

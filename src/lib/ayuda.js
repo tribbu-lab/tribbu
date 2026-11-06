@@ -91,6 +91,21 @@ export const PREGUNTAS_FRECUENTES = [
     tema: "Agenda",
     items: [
       {
+        id: "room-regalos",
+        pregunta: "Soy Room Parent, ¿cómo organizo los regalos de cumpleaños?",
+        respuesta: "En Curso → Regalos y Room Parents ponés el monto sugerido por cumple y elegís qué familia le regala a cada compañero. Las familias ven el monto en Agenda → Cumpleaños. Los horarios, los libros, los útiles, la adopción de la app y las alertas los maneja el colegio. Para escribirle a todo el curso, usá el grupo del curso en Mensajes.",
+      },
+      {
+        id: "room-nombrar",
+        pregunta: "Soy Room Parent, ¿cómo nombro a otro?",
+        respuesta: "En Curso → Regalos y Room Parents tocá \"Nombrar a otro\" y elegí entre los apoderados del curso. Para sacar a un Room Parent, hay que pedírselo al colegio.",
+      },
+      {
+        id: "room-eventos",
+        pregunta: "Soy Room Parent, ¿puedo agregar eventos al calendario?",
+        respuesta: "Sí. En Agenda → Calendario tocá \"+ Nuevo\". Le aparece a las familias del curso como un evento de las familias, no del colegio: los actos, feriados y paseos los publica el colegio.",
+      },
+      {
         id: "cumple",
         pregunta: "¿Cómo confirmo si vamos a un cumpleaños?",
         respuesta: "Las invitaciones te aparecen en Hoy. También en Agenda → Cumpleaños: tocá \"Responder →\", decí si van y cuántos hermanos o adultos. Para festejar el de tu hijo tocá \"Crear festejo →\" al lado de su nombre.",

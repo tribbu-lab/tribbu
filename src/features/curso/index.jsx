@@ -33,7 +33,7 @@ const GRUPOS_FAMILIA = [
   ] },
 ];
 const GRUPO_ROOM = { titulo: "Room Parent", items: [
-  { id: "admin", label: "Administrar el curso", desc: "Room Parent: datos del curso y horarios", icono: "ajustes" },
+  { id: "admin", label: "Regalos y Room Parents", desc: "Monto, quién le regala a quién y otros Room Parents", icono: "ajustes" },
 ] };
 const GRUPOS_DOCENTE = [
   { titulo: "Mis cursos", items: [

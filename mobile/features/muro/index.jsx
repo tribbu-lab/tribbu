@@ -21,9 +21,6 @@ import {
   Text,
   Pressable,
   ScrollView,
-  Modal,
-  KeyboardAvoidingView,
-  TextInput,
   StyleSheet,
   RefreshControl,
 } from "react-native";
@@ -31,7 +28,6 @@ import { useRouter } from "expo-router";
 import { useRecarga } from "../../lib/useRecarga";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase } from "../../lib/supabase";
-import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { fmtNombre, fmtRangoHora, fmtLocalDate } from "@shared/helpers";
 import { autorizacionesPendientes } from "@shared/autorizaciones";
 import { montoPago, pagosPendientesFamilia } from "@shared/pagosColegio";
@@ -40,7 +36,7 @@ import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontrado
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { proximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "@shared/muro";
 import { menusParaNivel, nivelDeVista } from "@shared/niveles";
-import { invitacionesDelHijo, festejosDelHijo } from "@shared/festejos";
+import { invitacionesDelHijo, festejosDelHijo, TIPO_FAMILIAS, CFG_FAMILIAS } from "@shared/festejos";
 import { SELECT_REC_CON_LEIDO, separarLeidos, conLeidoDe, SELECT_ALERTA_CON_CERRADA, conCerradaDe, sinCerradas } from "@shared/leidos";
 import { THEMES, TYPE, SPACE, RADIUS, BLUE, SLATE } from "@shared/tokens";
 import { TAB_BAR_SPACE } from "../../components/FloatingTabBar";
@@ -64,6 +60,7 @@ const TIPO_CONFIG = {
   comunicado: { emoji: "📢" },
   feriado: { emoji: "🚩" },
   vacaciones: { emoji: "🏖️" },
+  [TIPO_FAMILIAS]: { emoji: CFG_FAMILIAS.emoji },
 };
 
 const diasHasta = (fechaStr) => {
@@ -74,7 +71,7 @@ const diasHasta = (fechaStr) => {
 
 export function Muro() {
   const router = useRouter();
-  const { cursoId, cursoIds, cursoNombre, isAdmin, usuario, misHijos, items, tagDeCurso, esDocente, hijoActivoId = null } = useSession();
+  const { cursoIds, cursoNombre, usuario, misHijos, items, tagDeCurso, esDocente, hijoActivoId = null } = useSession();
   const userId = usuario?.id ?? null;
   // Refresca el badge de la tab de Avisos + el punto de la campana (hook
   // levantado en (tabs)/_layout.jsx) cuando desde acá se marca un aviso leído
@@ -85,7 +82,6 @@ export function Muro() {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [alertaModal, setAlertaModal] = useState(false);
 
   const hoyLabel = (() => {
     const txt = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }).replace(",", "");
@@ -299,24 +295,7 @@ export function Muro() {
     setRefreshing(false);
   };
 
-  const enviarAlerta = async (msg) => {
-    await supabase.from("alertas").update({ activa: false }).eq("curso_id", cursoId);
-    await supabase.from("alertas").insert({ curso_id: cursoId, mensaje: msg, hora: "Ahora", activa: true });
-    const userIds = await getUserIdsParaAlerta(cursoId);
-    await sendPush({ type: "alerta", payload: { mensaje: msg, userIds } });
-    setAlertaModal(false);
-    cargar();
-    recargarBadge?.();
-  };
-
-  const dismissAlerta = async (alertaId) => {
-    if (!alertaId) return;
-    await supabase.from("alertas").update({ activa: false }).eq("id", alertaId);
-    cargar();
-    recargarBadge?.();
-  };
-
-  // Apoderado (o vista Todos): la cierra solo para sí; sigue activa para el curso.
+  // La cierra solo para sí; sigue activa para el curso.
   const cerrarAlerta = async (alertaId) => {
     if (!alertaId || !userId) return;
     setDatos((d) => ({ ...d, alertas: (d.alertas || []).filter((a) => a.id !== alertaId) }));
@@ -467,12 +446,6 @@ export function Muro() {
 
       {error ? <ErrorMuro onReintentar={cargar} tieneDatos style={{ marginTop: SPACE.lg }} /> : null}
 
-      {isAdmin ? (
-        <Pressable onPress={() => setAlertaModal(true)} style={styles.alertaCta}>
-          <Text style={styles.alertaCtaTxt}>Publicar alerta al curso</Text>
-        </Pressable>
-      ) : null}
-
       {/* Alertas del curso: lo único en rojo (son urgencias reales). */}
       {(datos.alertas || []).map((a) => (
         <View key={a.id} style={styles.alerta}>
@@ -485,11 +458,11 @@ export function Muro() {
             <Text style={styles.alertaMsg}>{a.mensaje}</Text>
           </View>
           <Pressable
-            onPress={() => (isAdmin ? dismissAlerta(a.id) : cerrarAlerta(a.id))}
+            onPress={() => cerrarAlerta(a.id)}
             hitSlop={12}
             style={styles.alertaClose}
             accessibilityRole="button"
-            accessibilityLabel={isAdmin ? "Quitar alerta para todo el curso" : "Cerrar alerta"}
+            accessibilityLabel="Cerrar alerta"
           >
             <MaterialCommunityIcons name="close" size={18} color={SLATE[400]} />
           </Pressable>
@@ -649,7 +622,6 @@ export function Muro() {
         </>
       ) : null}
 
-      <AlertaModal visible={alertaModal} onClose={() => setAlertaModal(false)} onEnviar={enviarAlerta} />
     </ScrollView>
   );
 }
@@ -689,38 +661,6 @@ function Enlace({ texto, onPress }) {
       <Text style={styles.link}>{texto}</Text>
       <MaterialCommunityIcons name="arrow-right" size={16} color={BLUE[600]} />
     </Pressable>
-  );
-}
-
-function AlertaModal({ visible, onClose, onEnviar }) {
-  const [msg, setMsg] = useState("");
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
-        <View style={styles.modalCard}>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.modalTitle}>Publicar alerta</Text>
-            <Text style={styles.modalSub}>Se envía como push a toda la comunidad del curso.</Text>
-            <TextInput
-              value={msg}
-              onChangeText={setMsg}
-              placeholder="Ej: Mañana no hay clases"
-              placeholderTextColor={t.placeholder}
-              multiline
-              style={styles.modalInput}
-            />
-            <View style={styles.modalBtns}>
-              <Pressable onPress={onClose} style={styles.cancelBtn}>
-                <Text style={styles.cancelTxt}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={() => msg.trim() && onEnviar(msg.trim())} style={styles.saveBtn}>
-                <Text style={styles.saveTxt}>Enviar</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
   );
 }
 
@@ -779,8 +719,6 @@ const styles = StyleSheet.create({
   arowMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
 
 
-  alertaCta: { marginTop: SPACE.lg, alignSelf: "flex-start", minHeight: 40, paddingHorizontal: 14, borderRadius: RADIUS.full, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface, alignItems: "center", justifyContent: "center" },
-  alertaCtaTxt: { color: t.danger, fontSize: 13, fontWeight: "700" },
   alerta: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14, marginTop: SPACE.lg, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
   alertaMeta: { fontSize: 12, fontWeight: "700", color: "#B91C1C" },
   alertaMsg: { fontSize: 14, fontWeight: "600", color: t.textStrong, marginTop: 3, lineHeight: 20 },
@@ -795,10 +733,6 @@ const styles = StyleSheet.create({
   errorBtnTxt: { color: t.onAccent, fontSize: 13, fontWeight: "800" },
 
   // modal de alerta
-  modalOverlay: { flex: 1, backgroundColor: t.overlay, alignItems: "center", justifyContent: "center", padding: SPACE.xl },
-  modalCard: { width: "100%", maxWidth: 420, maxHeight: "88%", backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xxl, padding: SPACE.xxl },
-  modalTitle: { fontSize: 15, fontWeight: "900", color: t.text, marginBottom: 4 },
-  modalSub: { fontSize: 12, color: t.textFaint, marginBottom: 14 },
   modalInput: {
     minHeight: 80,
     borderRadius: RADIUS.md,
@@ -811,9 +745,4 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     marginBottom: 14,
   },
-  modalBtns: { flexDirection: "row", gap: SPACE.sm },
-  cancelBtn: { flex: 1, minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1, borderColor: t.borderStrong, alignItems: "center", justifyContent: "center" },
-  cancelTxt: { color: t.textFaint, fontSize: 13, fontWeight: "600" },
-  saveBtn: { flex: 2, minHeight: 44, borderRadius: RADIUS.md, backgroundColor: t.accent, alignItems: "center", justifyContent: "center" },
-  saveTxt: { color: t.onAccent, fontSize: 13, fontWeight: "700" },
 });

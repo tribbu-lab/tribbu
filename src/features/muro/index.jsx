@@ -20,6 +20,7 @@ const TIPO_CONFIG = {
   comunicado:  { emoji:"📢", color:"#F97316", bg:"#FFF7ED", label:"Comunicado" },
   feriado:     { emoji:"🚩", color:"#EF4444", bg:"#FEF2F2", label:"Feriado" },
   vacaciones:  { emoji:"🏖️", color:"#06B6D4", bg:"#ECFEFF", label:"Vacaciones" },
+  [TIPO_FAMILIAS]: CFG_FAMILIAS,
 };
 
 
@@ -30,7 +31,7 @@ import { filtroAlcance, encontradosDeLaSemana, cargarReclamados, claveEncontrado
 import { getStorageBackend } from "../../lib/storage";
 import { proximoCumple as calcProximoCumple, recordatoriosPendientes, colectasActivas, colectasPendientes, colectasPorCerrar, diasVencida, festejosPendientes, festejosRechazados, encuestasAbiertas, alertasUnaPorCurso, textoRespuestasPendientes, ordenarPorVencimiento, avisoVencimiento, fechaCorta, filasMenu, DIAS_PROXIMOS } from "../../lib/muro";
 import { menuParaNivel, nivelDeVista } from "../../lib/niveles";
-import { invitacionesDelHijo, festejosDelHijo } from "../../lib/festejos";
+import { invitacionesDelHijo, festejosDelHijo, TIPO_FAMILIAS, CFG_FAMILIAS } from "../../lib/festejos";
 import { Icono } from "../../components/Icono";
 import { TablaMenu } from "../../components/TablaMenu";
 import { useTabActiva } from "../../hooks/useTabActiva";
@@ -94,7 +95,7 @@ const Encabezado = ({titulo,cuenta,derecha}) => (
 );
 
 
-export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, isAdmin, cursosAdmin=[], esDocente=false, userName, userId, misHijos: misHijosProp=[], hijoActivo=null, onNavigate, isMobile=true }) {
+export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCurso, cursosAdmin=[], esDocente=false, userName, userId, misHijos: misHijosProp=[], hijoActivo=null, onNavigate, isMobile=true }) {
   const misHijos = (misHijosProp||[]).filter(h=>h && typeof h === "string");
   const cursoIds = (cursoIdsProp&&cursoIdsProp.length) ? cursoIdsProp : (cursoId ? [cursoId] : []);
   const tagDe = (cid) => tagDeCurso ? tagDeCurso(cid) : null;
@@ -232,10 +233,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
     setDatos((d) => ({ ...d, encontradosSemana: 0 }));
   };
 
-  const dismissAlerta = async (alerta) => {
-    if(alerta){ await supabase.from("alertas").update({activa:false}).eq("id",alerta.id); cargar(); }
-  };
-  // Apoderado (o vista Todos): la cierra solo para sí; sigue activa para el curso.
+  // La cierra solo para sí; sigue activa para el curso.
   const cerrarAlerta = async (alerta) => {
     if(!alerta || !userId) return;
     setDatos((d) => ({ ...d, alertas:(d.alertas||[]).filter((a)=>a.id!==alerta.id) }));
@@ -491,7 +489,7 @@ export function Muro({ selector, cursoId, cursoIds: cursoIdsProp, items, tagDeCu
           </div>
           <div style={{fontSize:14,fontWeight:600,color:"#0F172A",marginTop:3,lineHeight:1.45}}>{al.mensaje}</div>
         </div>
-        <button onClick={()=>isAdmin?dismissAlerta(al):cerrarAlerta(al)} aria-label={isAdmin?"Quitar alerta para todo el curso":"Cerrar alerta"} title={isAdmin?"Quitar alerta para todo el curso":"Cerrar alerta"} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#94A3B8",padding:2}}>✕</button>
+        <button onClick={()=>cerrarAlerta(al)} aria-label="Cerrar alerta" title="Cerrar alerta" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#94A3B8",padding:2}}>✕</button>
       </div>
     );
   });

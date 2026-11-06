@@ -82,3 +82,11 @@ export const festejosDelHijo = (eventos = [], { hijoActivo = null, misHijos = []
     return !mios || mios.has(hijoActivo);
   });
 };
+
+/**
+ * Evento que crea una familia o un Room Parent: es un tema de las familias, no
+ * algo que publica el colegio (acto, feriado, paseo…). La RLS de eventos solo
+ * les deja crear este tipo y festejos.
+ */
+export const TIPO_FAMILIAS = "familias";
+export const CFG_FAMILIAS = { emoji: "👪", color: "#475569", bg: "#F1F5F9", label: "De las familias" };

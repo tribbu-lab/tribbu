@@ -206,7 +206,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       supabase.from("cursos").select("monto_regalo,moneda_regalo").in("id", cursoIds),
     ]);
 
-    // Monto sugerido por familia: con un solo curso se muestra siempre; en vista
+    // Monto sugerido por cumple: con un solo curso se muestra siempre; en vista
     // Todos solo si todos los cursos coinciden (si difieren, se oculta la pill).
     const cursosData = cur.data;
     const montosUniq = [...new Set((cursosData || []).map((c) => c.monto_regalo || null))];
@@ -384,7 +384,7 @@ export function Cumpleanios({ openFestejoId = null, onClearOpenFestejo }) {
       <Text style={styles.subtitle}>
         {lista.length} {esVistaTodos ? "en tus cursos" : "en el curso"}
         {esteMes ? ` · ${esteMes} este mes` : ""}
-        {montoRegalo ? ` · regalo: ${monedaRegalo} ${Number(montoRegalo).toLocaleString("es-AR")} por familia` : ""}
+        {montoRegalo ? ` · regalo: ${monedaRegalo} ${Number(montoRegalo).toLocaleString("es-AR")} por cumple` : ""}
       </Text>
 
       {/* Tu festejo: crear/ver festejo del propio hijo (card A3 con barra del color del hijo) */}

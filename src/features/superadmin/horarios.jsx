@@ -1,6 +1,5 @@
-// Editor del horario semanal de un curso (web). Lo usan Super Admin →
-// Horarios (puedeEditarClases: crea clases, talleres y copia de otro curso) y
-// el panel del Room Parent (solo arma bloques con las clases que ya existen).
+// Editor del horario semanal de un curso (web). Lo usa el panel del colegio →
+// Horarios (crea clases, talleres y copia de otro curso).
 //
 //   · Grilla Lun–Vie (+ Sábado si hay algo o se pide), horas según lo cargado:
 //     tocás un hueco para agregar ahí, tocás un bloque para editarlo.
@@ -669,7 +668,7 @@ function Grilla({ horarios, dias, optativas, onHueco, onBloque }) {
 
 // ── Pantalla ────────────────────────────────────────────────────────────────
 
-export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], puedeEditarClases = true, showToast, onCambio }) {
+export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], showToast, onCambio }) {
   const [horarios, setHorarios] = useState(null);
   const [clases, setClases] = useState([]);
   const [anotadosPorClase, setAnotadosPorClase] = useState({});
@@ -707,13 +706,13 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
     const serie = serieDe(horarios, h);
     if (serie.length > 1) setAlcanceDe({ h, serie }); else editar(h, [h]);
   };
-  const crearClaseDesdeBloque = puedeEditarClases ? (texto, alCrear) => setClaseEd({ texto, alCrear }) : null;
+  const crearClaseDesdeBloque = (texto, alCrear) => setClaseEd({ texto, alCrear });
 
   const sinUsar = clases.filter((c) => !usos[c.id]).length;
   const atajos = [
     !dias.includes("Sábado") ? { l: "Agregar el sábado", fn: () => setConSabado(true) } : null,
     horarios.length ? { l: "Copiar un día a otros…", fn: () => setCopia("dia") } : null,
-    puedeEditarClases && cursos.length > 1 ? { l: "Copiar de otro curso…", fn: () => setCopia("curso") } : null,
+    cursos.length > 1 ? { l: "Copiar de otro curso…", fn: () => setCopia("curso") } : null,
   ].filter(Boolean);
 
   return (
@@ -726,19 +725,19 @@ export function HorarioCurso({ curso, colegioId, cursos = [], maestros = [], pue
             {sinUsar ? <span style={{ color: "#B45309" }}> · {sinUsar} todavía no {sinUsar === 1 ? "está" : "están"} en el horario</span> : null}
           </div>
           {clases.length ? <button onClick={() => setVerClases((v) => !v)} aria-expanded={verClases} style={btnSec}>{verClases ? "Ocultar clases" : "Ver clases"}</button> : null}
-          {puedeEditarClases ? <button onClick={() => setClaseEd({})} style={btnSec}>+ Nueva clase</button> : null}
+          <button onClick={() => setClaseEd({})} style={btnSec}>+ Nueva clase</button>
         </div>
         {!clases.length ? (
           <div style={{ fontSize: 13, color: C.textMuted, marginTop: 8 }}>
-            {puedeEditarClases ? "Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra)." : "El colegio todavía no cargó las clases de este curso."}
+            Todavía no hay clases. Creá las materias que se dan y quién las da (también Recreo y Almuerzo, sin maestra).
           </div>
         ) : !verClases ? null : (
           // Lista en dos columnas, sin pastillas: materia en negrita, maestra y bloques en gris.
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "2px 16px", marginTop: 8 }}>
             {clases.map((c) => (
-              <button key={c.id} type="button" onClick={puedeEditarClases ? () => setClaseEd({ clase: c }) : undefined} disabled={!puedeEditarClases}
-                title={puedeEditarClases ? "Editar clase" : undefined}
-                style={{ display: "block", textAlign: "left", padding: "7px 0", border: "none", borderBottom: `1px solid ${C.border}`, background: "none", cursor: puedeEditarClases ? "pointer" : "default", fontFamily: "inherit" }}>
+              <button key={c.id} type="button" onClick={() => setClaseEd({ clase: c })}
+                title="Editar clase"
+                style={{ display: "block", textAlign: "left", padding: "7px 0", border: "none", borderBottom: `1px solid ${C.border}`, background: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: C.textStrong }}>{c.materias?.nombre}{c.optativa ? <span style={{ fontWeight: 600, color: C.textMuted }}> · taller optativo ({anotadosPorClase[c.id] || 0})</span> : null}</span>
                 <span style={{ display: "block", fontSize: 12.5, color: C.textMuted, marginTop: 1 }}>
                   {c.maestros ? fmtNombre(c.maestros) : "Sin maestra"} · <span style={{ color: usos[c.id] ? C.textMuted : "#B45309" }}>{usos[c.id] ? `${usos[c.id]} ${usos[c.id] === 1 ? "bloque" : "bloques"}` : "todavía no está en el horario"}</span>

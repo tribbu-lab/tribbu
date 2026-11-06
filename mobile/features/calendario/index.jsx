@@ -30,7 +30,7 @@ import { diasVisibles, normalizarDia, DIA_CORTO, DIAS_HORARIO, grillaHorario } f
 import { exportRowsToExcel } from "../../lib/media";
 import { bloquesDeTalleres } from "@shared/talleres";
 import { textoPlano } from "@shared/formato";
-import { festejosDelHijo } from "@shared/festejos";
+import { festejosDelHijo, TIPO_FAMILIAS, CFG_FAMILIAS } from "@shared/festejos";
 import { useAutoresDocentes } from "../../lib/useAutoresDocentes";
 import { etiquetaDocente, separarCumplesDocente } from "@shared/docentes";
 
@@ -45,6 +45,7 @@ const TIPO_CONFIG = {
   comunicado: { emoji: "📢", color: "#F97316", bg: "#FFF7ED", label: "Comunicado" },
   feriado: { emoji: "🚩", color: "#EF4444", bg: "#FEF2F2", label: "Feriado" },
   vacaciones: { emoji: "🏖️", color: "#06B6D4", bg: "#ECFEFF", label: "Vacaciones" },
+  [TIPO_FAMILIAS]: CFG_FAMILIAS,
 };
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -499,7 +500,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
       {vista === "horario" ? (
         horariosVisibles.length === 0 ? (
           <EmptyState icon="clock-outline" title="Todavía no hay horario"
-            note={isAdmin ? "Cargalo desde Curso → Administrar el curso → Horarios." : "Cuando el colegio cargue el horario de clases, aparece acá."} />
+            note={"Cuando el colegio cargue el horario de clases, aparece acá."} />
         ) : (
           <>
             <Pressable onPress={descargarHorario} style={styles.descargar} hitSlop={6} accessibilityRole="button">
@@ -528,6 +529,7 @@ export function Calendario({ openFecha = null, onClearOpenFecha, soloHorario = f
           cursoId={cursoId}
           userId={userId}
           cursosOpciones={opcionesCurso}
+          soloFamilias={!cursosDocente.length}
           onClose={() => setModal(null)}
           onSave={() => {
             setModal(null);
@@ -699,13 +701,14 @@ async function crearAsistenciaPendiente(eventoId, cursoId) {
 const CAMPOS_GRUPO = ["titulo", "tipo", "fecha", "fecha_fin", "hora", "hora_fin", "todo_el_dia", "lugar", "url_ubicacion", "descripcion", "adjuntos", "confirma_asistencia"];
 
 // cursosOpciones: en "Todos" (sin curso elegido), los cursos donde se puede crear.
-export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onClose, onSave }) {
+// soloFamilias: lo crea un Room Parent, así que no elige tipos del colegio.
+export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], soloFamilias = false, onClose, onSave }) {
   const [cursoElegido, setCursoElegido] = useState(cursosOpciones[0]?.curso_id ?? null);
   const cursoDelForm = evento?.curso_id ?? cursoId ?? cursoElegido;
   const esNuevo = !evento;
   const [form, setForm] = useState({
     titulo: evento?.titulo || "",
-    tipo: evento?.tipo || "acto",
+    tipo: soloFamilias ? TIPO_FAMILIAS : evento?.tipo || "acto",
     fecha: evento?.fecha || "",
     fecha_fin: evento?.fecha_fin || "",
     hora: evento?.hora || "",
@@ -788,10 +791,14 @@ export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onCl
                 </View>
               </>
             ) : null}
+            {soloFamilias ? (
+              <Text style={styles.notaFamilias}>Lo ven las familias del curso como un evento de las familias, no del colegio.</Text>
+            ) : (
+              <>
             <Text style={styles.label}>TIPO</Text>
             <View style={styles.tipoWrap}>
               {Object.entries(TIPO_CONFIG)
-                .filter(([k]) => k !== "cumple" && k !== "festejo")
+                .filter(([k]) => k !== "cumple" && k !== "festejo" && k !== TIPO_FAMILIAS)
                 .map(([k, v]) => (
                   <Pressable
                     key={k}
@@ -804,12 +811,14 @@ export function EventoModal({ evento, cursoId, userId, cursosOpciones = [], onCl
                   </Pressable>
                 ))}
             </View>
+              </>
+            )}
 
             {[
-              { l: "Título", k: "titulo", ph: "Ej: Acto del 25 de mayo" },
+              { l: "Título", k: "titulo", ph: soloFamilias ? "Ej: Merienda del curso" : "Ej: Acto del 25 de mayo" },
               { l: "Fecha", k: "fecha", ph: "Elegir fecha" },
               { l: "Fecha fin (opcional, si dura varios días)", k: "fecha_fin", ph: "Elegir fecha" },
-              { l: "Lugar", k: "lugar", ph: "Ej: Patio del colegio" },
+              { l: "Lugar", k: "lugar", ph: soloFamilias ? "Ej: Plaza del barrio" : "Ej: Patio del colegio" },
               { l: "URL ubicación", k: "url_ubicacion", ph: "https://maps.google.com/..." },
               { l: "Descripción", k: "descripcion", ph: "Detalles adicionales" },
             ].map((f) => (
@@ -1137,6 +1146,7 @@ const styles = StyleSheet.create({
   confirmCard: { width: "100%", maxWidth: 340, backgroundColor: t.surfaceRaised, borderRadius: RADIUS.xl, padding: SPACE.xxl },
   modalTitle: { fontSize: 15, fontWeight: "800", color: t.textStrong, marginBottom: 8 },
   label: { ...TYPE.label, color: t.textFaint, marginBottom: 5, marginTop: 8 },
+  notaFamilias: { fontSize: 12.5, color: t.textMuted, lineHeight: 18, marginTop: 8, marginBottom: 4 },
   errorTxt: { fontSize: 11, color: t.danger, marginTop: 4 },
   input: { minHeight: 44, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: t.borderStrong, backgroundColor: t.surfaceSunken, paddingHorizontal: SPACE.md, fontSize: 13, color: t.text },
   tipoWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

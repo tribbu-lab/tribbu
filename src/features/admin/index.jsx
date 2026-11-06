@@ -1,32 +1,103 @@
 // @ts-nocheck
 import { useState, useCallback } from "react";
-import { EmptyState } from "../../components/EmptyState";
 import { Icono } from "../../components/Icono";
 import { supabase } from "../../supabase";
 import { T, ROL_LABEL, ROL_COLOR, ROL_BG, MESES,
          HIJO_COLORS_CUSTOM, HIJO_COLOR_DEFAULT } from "../../lib/theme";
 import { fmtNombre } from "../../lib/helpers";
 import { Card } from "../../components/Card";
-import { AdopcionTabla } from "../../components/Adopcion";
 import { Pill } from "../../components/Pill";
 import { Spinner } from "../../components/Spinner";
 import { Paginador } from "../../components/Paginador";
 
 
-import { sendPush, getUserIdsParaAlerta } from "../../lib/push";
 import { useCargar } from "../../hooks/useCargar";
-import { HorarioCurso } from "../superadmin/horarios";
+import { useConfirmar } from "../../hooks/useConfirmar";
+import { Buscador } from "../../components/Buscador";
+import { candidatosRoomParent, filtrarCandidatos } from "../../lib/apoderados";
+
+// Quiénes son Room Parent del curso y nombrar a otro entre sus apoderados.
+function RoomParentsCurso({ cursoId }) {
+  const [roomParents,setRoomParents] = useState([]);
+  const [hijosCurso,setHijosCurso]   = useState([]);
+  const [abierto,setAbierto]         = useState(false);
+  const [busqueda,setBusqueda]       = useState("");
+  const [error,setError]             = useState("");
+  const [nombrandoId,setNombrandoId] = useState(null);
+  const [confirmar,confirmUI]        = useConfirmar();
+
+  const cargar = useCallback(async () => {
+    const [rp, hi] = await Promise.all([
+      supabase.from("usuario_cursos").select("usuario_id, usuarios(id,nombre,apellido)").eq("curso_id",cursoId).eq("rol","room"),
+      supabase.from("hijos").select("nombre, usuario_hijos(usuarios(id,nombre,apellido,rol,activo))").eq("curso_id",cursoId),
+    ]);
+    setRoomParents((rp.data||[]).map(r=>r.usuarios).filter(Boolean));
+    setHijosCurso(hi.data||[]);
+  }, [cursoId]);
+  useCargar(cargar);
+
+  const candidatos = filtrarCandidatos(candidatosRoomParent(hijosCurso, roomParents.map(r=>r.id)), busqueda);
+
+  const nombrar = async (c) => {
+    const ok = await confirmar({
+      titulo:`¿Nombrar a ${fmtNombre(c)} Room Parent?`,
+      detalle:`${fmtNombre(c)} va a poder hacer lo mismo que vos en este curso. Para sacarlo, hay que pedírselo al colegio.`,
+      textoConfirmar:"Nombrar",
+      colorAccion:"#3B82F6",
+    });
+    if(!ok) return;
+    setError(""); setNombrandoId(c.id);
+    const { error: e } = await supabase.from("usuario_cursos").insert({usuario_id:c.id, curso_id:cursoId, rol:"room"});
+    setNombrandoId(null);
+    if(e) { setError("No se pudo nombrar. Probá de nuevo."); return; }
+    setAbierto(false); setBusqueda("");
+    cargar();
+  };
+
+  return (
+    <Card style={{padding:20,marginBottom:20}}>
+      {confirmUI}
+      <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>Room Parents del curso</div>
+      {roomParents.map(r=>(
+        <div key={r.id} style={{fontSize:13,color:"#1E293B",marginBottom:6}}>{fmtNombre(r)}</div>
+      ))}
+      {error?<div style={{fontSize:12.5,color:"#DC2626",marginTop:8}}>{error}</div>:null}
+      {!abierto?(
+        <button onClick={()=>setAbierto(true)} style={{marginTop:8,padding:"8px 14px",borderRadius:10,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontFamily:"inherit"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#1D4ED8"}}>Nombrar a otro</span>
+        </button>
+      ):(
+        <div style={{marginTop:12}}>
+          <Buscador value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o por hijo…"/>
+          <div style={{marginTop:8,maxHeight:280,overflowY:"auto"}}>
+            {candidatos.length===0?<div style={{fontSize:13,color:"#94A3B8",padding:"12px 0"}}>No hay apoderados para mostrar.</div>:null}
+            {candidatos.map(c=>(
+              <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #F1F5F9"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:600,color:"#0F172A"}}>{fmtNombre(c)}</div>
+                  <div style={{fontSize:11.5,color:"#94A3B8",marginTop:1}}>Familia de {c.hijos.join(" y ")}</div>
+                </div>
+                <button onClick={()=>nombrar(c)} disabled={nombrandoId===c.id} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#EFF6FF",cursor:"pointer",fontFamily:"inherit"}}>
+                  <span style={{fontSize:12,fontWeight:700,color:"#1D4ED8"}}>{nombrandoId===c.id?"Nombrando…":"Nombrar"}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={()=>{setAbierto(false);setBusqueda("");}} style={{marginTop:10,padding:"6px 0",border:"none",background:"none",cursor:"pointer",fontFamily:"inherit"}}>
+            <span style={{fontSize:12.5,fontWeight:600,color:"#64748B"}}>Cancelar</span>
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export function AdminPanel({ cursoId, cursoNombre }) {
-  const [tab, setTab]   = useState("general");
   const [form, setForm]   = useState({monto_regalo:"",moneda_regalo:"$"});
   const [saving, setSaving] = useState(false);
   const [alumnosRegalo,setAlumnosRegalo] = useState([]);
   const [cumpleMap,setCumpleMap]         = useState({});
   const [guardandoRegaloId,setGuardandoRegaloId] = useState(null);
-  const [familias,setFamilias]     = useState([]);
-  const [roomParents,setRoomParents] = useState([]);
-  const [alertaModal,setAlertaModal] = useState(false);
 
   const inp = {width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid #E2E8F0",fontSize:13,outline:"none",fontFamily:"inherit",background:"#F8FAFC",boxSizing:"border-box"};
 
@@ -78,41 +149,13 @@ export function AdminPanel({ cursoId, cursoNombre }) {
   };
 
   const cargar = useCallback(async () => {
-    const [c, hijosData, ucData] = await Promise.all([
-      supabase.from("cursos").select("*").eq("id",cursoId).single(),
-      supabase.from("hijos").select("id,nombre,apellido").eq("curso_id",cursoId).order("apellido"),
-      supabase.from("usuario_cursos").select("usuario_id, usuarios(nombre,apellido,email,telefono)").eq("curso_id",cursoId).eq("rol","room"),
+    const [c] = await Promise.all([
+      supabase.from("cursos").select("monto_regalo,moneda_regalo").eq("id",cursoId).single(),
+      cargarRegalos(),
     ]);
     setForm({monto_regalo:c.data?.monto_regalo||"",moneda_regalo:c.data?.moneda_regalo||"$"});
-    setRoomParents((ucData.data||[]).map(r=>r.usuarios).filter(Boolean));
-
-    const hijosCurso = hijosData.data||[];
-    const hijoIds = hijosCurso.map(h=>h.id);
-    const uh = hijoIds.length
-      ? await supabase.from("usuario_hijos").select("hijo_id, usuarios(nombre,apellido,email,telefono)").in("hijo_id",hijoIds)
-      : {data:[]};
-    const apodPorHijo = new Map();
-    for(const r of uh.data||[]) {
-      if(!r.usuarios) continue;
-      const arr = apodPorHijo.get(r.hijo_id)||[];
-      arr.push(r.usuarios);
-      apodPorHijo.set(r.hijo_id, arr);
-    }
-    setFamilias(hijosCurso.map(h=>({...h, apoderados: apodPorHijo.get(h.id)||[]})));
-    cargarRegalos();
   }, [cargarRegalos, cursoId]);
   useCargar(cargar);
-
-
-  const familiasSinRegistrar = familias.filter(f=>f.apoderados.length===0);
-
-  const enviarAlerta = async (msg) => {
-    await supabase.from("alertas").update({activa:false}).eq("curso_id",cursoId);
-    await supabase.from("alertas").insert({curso_id:cursoId, mensaje:msg, hora:"Ahora", activa:true});
-    const userIds = await getUserIdsParaAlerta(cursoId);
-    await sendPush({ type:"alerta", payload:{ mensaje:msg, userIds } });
-    setAlertaModal(false);
-  };
 
   const guardarGeneral = async () => {
     setSaving(true);
@@ -122,136 +165,66 @@ export function AdminPanel({ cursoId, cursoNombre }) {
 
   return (
     <div>
-      <div style={{fontSize:24,fontWeight:800,marginBottom:4,letterSpacing:-0.3}}>Administrar el curso</div>
+      <div style={{fontSize:24,fontWeight:800,marginBottom:4,letterSpacing:-0.3}}>Regalos y Room Parents</div>
       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>{cursoNombre}</div>
 
-      <button onClick={()=>setAlertaModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,borderRadius:16,background:"white",border:"1px solid #E2E8F0",padding:14,cursor:"pointer",marginBottom:16,textAlign:"left",fontFamily:"inherit"}}>
-        <span style={{width:36,height:36,flexShrink:0,borderRadius:"50%",background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center"}}><Icono nombre="sirena" size={18} color="#DC2626"/></span>
-        <span style={{display:"block",flex:1}}>
-          <span style={{display:"block",fontSize:15,fontWeight:700,color:"#0F172A"}}>Publicar una alerta urgente</span>
-          <span style={{display:"block",fontSize:12.5,color:"#64748B",marginTop:2}}>Les llega al instante a todas las familias del curso</span>
-        </span>
-        <span style={{display:"inline-flex",transform:"rotate(-90deg)"}}><Icono nombre="chevron" size={18} color="#94A3B8"/></span>
-      </button>
-      {alertaModal&&<AlertaModal onClose={()=>setAlertaModal(false)} onEnviar={enviarAlerta}/>}
+      <Card style={{padding:20,marginBottom:20}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Monto sugerido por cumple</div>
+        <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:14,lineHeight:1.5}}>Lo que se sugiere gastar en cada regalo. Las familias lo ven en Cumpleaños.</div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONEDA</div>
+          <div style={{display:"flex",gap:8}}>
+            {["$","USD"].map(m=>(
+              <button key={m} onClick={()=>setForm(p=>({...p,moneda_regalo:m}))} style={{padding:"7px 20px",borderRadius:10,border:`2px solid ${form.moneda_regalo===m?"#3B82F6":"#E2E8F0"}`,background:form.moneda_regalo===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:form.moneda_regalo===m?"#3B82F6":"#94A3B8"}}>{m}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO</div>
+          <input type="number" value={form.monto_regalo} onChange={e=>setForm(p=>({...p,monto_regalo:e.target.value}))} placeholder="Ej: 2000" style={inp}/>
+        </div>
+        <button onClick={guardarGeneral} disabled={saving} style={{width:"100%",padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
+      </Card>
 
-      {/* Mismas pestañas que Agenda/Comunicaciones (components/SubSeccion). */}
-      <div style={{display:"flex",gap:4,marginBottom:20,padding:4,background:"#F1F5F9",borderRadius:999,maxWidth:520}}>
-        {[{id:"general",l:"General"},{id:"horarios",l:"Horarios"},{id:"familias",l:"Familias"},{id:"regalos",l:"Regalos"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,minHeight:36,borderRadius:999,cursor:"pointer",fontFamily:"inherit",border:tab===t.id?"1px solid #E2E8F0":"1px solid transparent",background:tab===t.id?"white":"transparent"}}>
-            <span style={{fontSize:13.5,fontWeight:tab===t.id?800:600,color:tab===t.id?"#1D4ED8":"#64748B"}}>{t.l}</span>
-          </button>
-        ))}
+      <RoomParentsCurso key={cursoId} cursoId={cursoId}/>
+
+      <div>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Quién le regala a quién</div>
+        <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:16,lineHeight:1.5}}>Elegí qué familia le regala a cada compañero, ordenado por el próximo cumpleaños. Se guarda solo.</div>
+        {alumnosRegalo.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Ningún alumno del curso tiene fecha de nacimiento cargada.</div>}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {alumnosRegalo.map(a=>{
+            const cumple = cumpleMap[a.id];
+            const dias = nextBday(a.fecha_nacimiento);
+            const bl = dias===0?{l:"Hoy",c:"#EF4444"}:dias===1?{l:"Mañana",c:"#F59E0B"}:dias<=7?{l:`${dias}d`,c:"#F59E0B"}:{l:`${dias}d`,c:"#94A3B8"};
+            const guardando = guardandoRegaloId===a.id;
+            return (
+              <Card key={a.id} style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:12,opacity:guardando?0.6:1}}>
+                <div style={{width:34,height:34,borderRadius:"50%",background:(a.color||"#3B82F6")+"1F",color:a.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{a.nombre?.slice(0,1)}{a.apellido?.slice(0,1)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{fmtNombre(a)}</div>
+                  <div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:6,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
+                </div>
+                <select
+                  value={cumple?._responsable_hijo?.id||""}
+                  onChange={e=>asignarRegalo(a.id, e.target.value||null)}
+                  disabled={guardando}
+                  style={{...inp,width:190,marginBottom:0}}
+                >
+                  <option value="">— Sin asignar —</option>
+                  {alumnosRegalo.filter(x=>x.id!==a.id).map(x=>(
+                    <option key={x.id} value={x.id}>{fmtNombre(x)}</option>
+                  ))}
+                </select>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:11.5,color:cumple?.id?"#64748B":"#CBD5E1",whiteSpace:"nowrap",cursor:cumple?.id?"pointer":"default"}}>
+                  <input type="checkbox" checked={!!cumple?.comprado} disabled={!cumple?.id} onChange={()=>toggleComprado(a.id)}/>
+                  Comprado
+                </label>
+              </Card>
+            );
+          })}
+        </div>
       </div>
-
-      {tab==="general"&&(
-        <Card style={{padding:20,marginBottom:14}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Adopción de la app</div>
-          <div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>Cuántas familias del curso reciben las notificaciones y usan tribbu.</div>
-          <AdopcionTabla cursos={[{id:cursoId,nombre:cursoNombre||"Este curso"}]}/>
-        </Card>
-      )}
-      {tab==="general"&&(
-        <Card style={{padding:20}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:14}}>Configuracion de regalos</div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONEDA</div>
-            <div style={{display:"flex",gap:8}}>
-              {["$","USD"].map(m=>(
-                <button key={m} onClick={()=>setForm(p=>({...p,moneda_regalo:m}))} style={{padding:"7px 20px",borderRadius:10,border:`2px solid ${form.moneda_regalo===m?"#3B82F6":"#E2E8F0"}`,background:form.moneda_regalo===m?"#EFF6FF":"white",cursor:"pointer",fontSize:13,fontWeight:700,color:form.moneda_regalo===m?"#3B82F6":"#94A3B8"}}>{m}</button>
-              ))}
-            </div>
-          </div>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",marginBottom:5}}>MONTO SUGERIDO POR FAMILIA</div>
-            <input type="number" value={form.monto_regalo} onChange={e=>setForm(p=>({...p,monto_regalo:e.target.value}))} placeholder="Ej: 2000" style={inp}/>
-          </div>
-          {form.monto_regalo&&familias.length>0&&(
-            <div style={{fontSize:12.5,color:"#3B82F6",fontWeight:600,marginBottom:16,lineHeight:1.5}}>
-              Con {familias.length} alumno{familias.length!==1?"s":""}, la colecta junta {form.moneda_regalo} {(Number(form.monto_regalo)*familias.length).toLocaleString("es-AR")}
-            </div>
-          )}
-          <button onClick={guardarGeneral} disabled={saving} style={{width:"100%",padding:11,borderRadius:10,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>{saving?"Guardando...":"Guardar"}</button>
-        </Card>
-      )}
-
-      {tab==="horarios"&&(
-        // El colegio arma las clases (materia + maestra); el Room Parent arma
-        // el horario con ellas. Editor compartido con Super Admin.
-        <HorarioCurso key={cursoId} curso={{id:cursoId,nombre:cursoNombre||"Este curso"}} puedeEditarClases={false}/>
-      )}
-
-      {tab==="familias"&&(
-        <div>
-          <Card style={{padding:20,marginBottom:18}}>
-            <div style={{fontSize:14,fontWeight:800,marginBottom:12}}>Room Parents del curso</div>
-            {roomParents.length===0
-              ? <EmptyState sinBorde icono="usuarios" titulo="Sin Room Parents" nota="El colegio los asigna desde su panel."/>
-              : roomParents.map((r,i)=>(
-                  <div key={i} style={{fontSize:13,color:"#1E293B",marginBottom:6}}>{fmtNombre(r)} · {r.email}</div>
-                ))
-            }
-          </Card>
-
-          <div style={{fontSize:14,fontWeight:700,marginTop:4,marginBottom:2}}>
-            Alumnos sin apoderado registrado{familiasSinRegistrar.length?` · ${familiasSinRegistrar.length}`:""}
-          </div>
-          <div style={{fontSize:12,color:"#94A3B8",lineHeight:1.5,marginBottom:12}}>
-            Alumnos del curso que todavía no tienen un apoderado con cuenta en tribbu. Las cuentas las crea el colegio.
-          </div>
-          {familiasSinRegistrar.length===0 ? (
-            <Card style={{padding:20}}>
-              <div style={{fontSize:13,color:"#94A3B8",textAlign:"center"}}>Todos los alumnos tienen un apoderado registrado</div>
-            </Card>
-          ) : (
-            familiasSinRegistrar.map(f=>(
-              <div key={f.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"white",borderRadius:10,border:"1px solid #E2E8F0",padding:"10px 14px",marginBottom:6}}>
-                <span style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{fmtNombre(f)}</span>
-                <span style={{fontSize:11,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"3px 8px",borderRadius:20}}>Sin registrar</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {tab==="regalos"&&(
-        <div>
-          <div style={{fontSize:12.5,color:"#94A3B8",marginBottom:16,lineHeight:1.5}}>Asigná qué familia le regala a cada compañero — ordenado por el próximo cumpleaños. Se guarda solo, sin ventanas: elegí en el desplegable de cada fila.</div>
-          {alumnosRegalo.length===0&&<div style={{textAlign:"center",padding:32,color:"#94A3B8",fontSize:13}}>Ningún alumno del curso tiene fecha de nacimiento cargada.</div>}
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {alumnosRegalo.map(a=>{
-              const cumple = cumpleMap[a.id];
-              const dias = nextBday(a.fecha_nacimiento);
-              const bl = dias===0?{l:"Hoy",c:"#EF4444"}:dias===1?{l:"Mañana",c:"#F59E0B"}:dias<=7?{l:`${dias}d`,c:"#F59E0B"}:{l:`${dias}d`,c:"#94A3B8"};
-              const guardando = guardandoRegaloId===a.id;
-              return (
-                <Card key={a.id} style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:12,opacity:guardando?0.6:1}}>
-                  <div style={{width:34,height:34,borderRadius:"50%",background:(a.color||"#3B82F6")+"1F",color:a.color||"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{a.nombre?.slice(0,1)}{a.apellido?.slice(0,1)}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13.5,fontWeight:700,color:"#0F172A"}}>{fmtNombre(a)}</div>
-                    <div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{new Date(a.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})}<span style={{marginLeft:6,fontWeight:700,color:bl.c}}>{bl.l}</span></div>
-                  </div>
-                  <select
-                    value={cumple?._responsable_hijo?.id||""}
-                    onChange={e=>asignarRegalo(a.id, e.target.value||null)}
-                    disabled={guardando}
-                    style={{...inp,width:190,marginBottom:0}}
-                  >
-                    <option value="">— Sin asignar —</option>
-                    {alumnosRegalo.filter(x=>x.id!==a.id).map(x=>(
-                      <option key={x.id} value={x.id}>{fmtNombre(x)}</option>
-                    ))}
-                  </select>
-                  <label style={{display:"flex",alignItems:"center",gap:5,fontSize:11.5,color:cumple?.id?"#64748B":"#CBD5E1",whiteSpace:"nowrap",cursor:cumple?.id?"pointer":"default"}}>
-                    <input type="checkbox" checked={!!cumple?.comprado} disabled={!cumple?.id} onChange={()=>toggleComprado(a.id)}/>
-                    Comprado
-                  </label>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
