@@ -9,6 +9,7 @@ import { PestanasPanel } from "../../components/SubTabs";
 import { Sheet } from "../../components/Sheet";
 import { Button } from "../../components/Button";
 import { Libros, Utiles } from "../info";
+import { CargarExcel } from "./listasExcel";
 import { aniosDeCursos, copiarLista, destinosDeCopia } from "@shared/listasCurso";
 
 const PESTANAS = [{ id: "utiles", label: "Útiles" }, { id: "libros", label: "Libros" }];
@@ -23,6 +24,8 @@ export function ListasAdmin({ cursos, anoActual }) {
   const curso = delAno.find((c) => c.id === cursoId) || null;
   const [tipo, setTipo] = useState("utiles");
   const [copiar, setCopiar] = useState(false);
+  const [excel, setExcel] = useState(false);
+  const [version, setVersion] = useState(0); // recarga la lista después de subir un Excel
   const cursoIds = useMemo(() => (cursoId ? [cursoId] : []), [cursoId]);
 
   const Lista = tipo === "utiles" ? Utiles : Libros;
@@ -46,15 +49,24 @@ export function ListasAdmin({ cursos, anoActual }) {
       <Text style={s.label}>CURSO</Text>
       <CursoListSelector cursos={delAno} seleccionados={cursoId ? [cursoId] : []} onToggle={setCursoId} multi={false} maxHeight={180} />
 
+      <View style={s.tipoExcel}>
+        <PestanasPanel items={PESTANAS} activo={tipo} onIr={setTipo} />
+        <Pressable onPress={() => setExcel((v) => !v)} style={s.copiar} accessibilityRole="button">
+          <Text style={s.copiarTxt}>{excel ? "Cerrar la carga desde Excel" : "Cargar desde Excel"}</Text>
+        </Pressable>
+      </View>
+      {excel ? (
+        <CargarExcel key={`${tipo}-${ano}`} tipo={tipo} ano={ano} cursos={delAno} cursoActual={curso} onHecho={() => setVersion((n) => n + 1)} />
+      ) : null}
+
       {!curso ? (
-        <Text style={s.vacio}>Elegí un curso para ver y editar sus listas.</Text>
+        <Text style={s.vacio}>Elegí un curso para ver y editar sus listas, o cargá muchos cursos de una vez desde Excel.</Text>
       ) : (
         <View style={s.lista}>
-          <PestanasPanel items={PESTANAS} activo={tipo} onIr={setTipo} />
           <Pressable onPress={() => setCopiar(true)} style={s.copiar} accessibilityRole="button">
             <Text style={s.copiarTxt}>Copiar a otros cursos</Text>
           </Pressable>
-          <Lista key={`${tipo}-${curso.id}`} gestion cursoId={curso.id} cursoIds={cursoIds} />
+          <Lista key={`${tipo}-${curso.id}-${version}`} gestion cursoId={curso.id} cursoIds={cursoIds} />
         </View>
       )}
 
@@ -98,7 +110,8 @@ const s = StyleSheet.create({
   anioTxt: { fontSize: 13, fontWeight: "600", color: "#64748B" },
   anioTxtOn: { color: "#FFFFFF", fontWeight: "700" },
   vacio: { textAlign: "center", paddingVertical: 32, color: "#94A3B8", fontSize: 13 },
-  lista: { marginTop: 16 },
+  tipoExcel: { marginTop: 16 },
+  lista: { marginTop: 4 },
   copiar: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", marginBottom: 6 },
   copiarTxt: { fontSize: 13, fontWeight: "700", color: "#2563EB" },
   nota: { fontSize: 13, color: "#64748B", lineHeight: 18, marginBottom: 12 },

@@ -7,9 +7,9 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 - [x] `supabase/listas-solo-colegio.sql` probado con usuarios impersonados y aplicado (2026-11-06).
 - [ ] Unir a `main` para publicar la web y sacar la versión de la app: mientras tanto el Room Parent ve los botones viejos y sus cambios fallan sin aviso, y el colegio todavía no tiene la sección.
-- [ ] Probar a mano: administrador y Secretaría cargan, editan, borran y copian (web y app); la familia descarga y marca, sin botones de edición.
+- [ ] Probar a mano: administrador y Secretaría cargan, editan, borran, copian y suben un Excel (web y app); la familia descarga y marca, sin botones de edición.
 - [ ] Decidir si la lista del año próximo se les muestra a las familias antes de la promoción (hoy solo ven la del curso donde está el hijo).
-- [ ] Si los colegios lo piden: carga por Excel con "Descargar modelo". Tapa de libro desde la app.
+- [ ] Si los colegios lo piden: tapa de libro desde la app.
 
 ## Eliminar apoderado (2026-11-05)
 

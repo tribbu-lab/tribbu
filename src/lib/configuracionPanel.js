@@ -11,7 +11,7 @@ export const GRUPOS_CONFIG = [
 ];
 
 export const DESC_CONFIG = {
-  importar: "Cargar alumnos y familias, horarios o menú desde Excel",
+  importar: "Cargar alumnos y familias, horarios, menú, útiles y libros desde Excel",
   cursos: "Los cursos de cada año lectivo",
   horarios: "El horario semanal de cada curso",
   materias: "Las materias que se dan en el colegio",

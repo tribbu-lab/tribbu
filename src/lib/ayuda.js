@@ -303,7 +303,7 @@ export const PREGUNTAS_COLEGIO = [
       {
         id: "col-listas",
         pregunta: "¿Dónde cargo la lista de útiles y de libros?",
-        respuesta: "En Configuración → Útiles y libros. Elegís el ciclo lectivo y el curso, y agregás, editás o borrás lo que haga falta. Con \"Copiar a otros cursos\" la pasás a las otras divisiones o al año que viene sin volver a tipearla. Las familias la ven en Info Útil: la descargan y marcan lo que ya tienen, pero no la pueden cambiar.",
+        respuesta: "En Configuración → Útiles y libros. Elegís el ciclo lectivo y el curso, y agregás, editás o borrás lo que haga falta. Para cargar muchos de una vez, \"Cargar desde Excel\": descargá el modelo (trae lo que ya está, o un ejemplo), completá una fila por útil o por libro con su curso, subilo y revisá antes de cargar. Lo que tiene el mismo nombre se actualiza y las familias no pierden sus marcas. Con \"Copiar a otros cursos\" la pasás a las otras divisiones o al año que viene sin volver a tipearla. Las familias la ven en Info Útil: la descargan y marcan lo que ya tienen, pero no la pueden cambiar.",
         ir: { panel: "listas", label: "Ir a Útiles y libros" },
       },
       {
