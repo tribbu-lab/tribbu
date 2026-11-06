@@ -5,9 +5,8 @@ Tachá o borrá cada ítem cuando se resuelva.
 
 ## Alcance del Room Parent (2026-11-06)
 
-- [ ] Aplicar `supabase/room-parent-alcance.sql` al publicar la web (antes,
-      probarlo en una transacción con rollback). Hasta entonces la base le sigue
-      permitiendo al Room Parent editar horarios, publicar alertas y ver la adopción.
+- [x] Web publicada y `supabase/room-parent-alcance.sql` aplicado (2026-11-06).
+- [ ] Probar a mano con una cuenta real de Room Parent (web y app).
 - [ ] La app vieja sigue mostrando Horarios, Familias, alerta y carga de libros
       y útiles hasta que salga la versión de tiendas con este cambio. Con el SQL
       aplicado, su botón de alerta no crea la alerta pero igual manda el push,
