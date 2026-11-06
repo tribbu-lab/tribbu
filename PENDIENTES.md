@@ -1,19 +1,36 @@
 # Pendientes de tribbu
 
-Lista viva de lo que queda por hacer (última actualización: 2026-10-27).
+Lista viva de lo que queda por hacer (última actualización: 2026-11-06).
 Tachá o borrá cada ítem cuando se resuelva.
 
 ## Alcance del Room Parent (2026-11-06)
 
-- [x] Web publicada y `supabase/room-parent-alcance.sql` aplicado (2026-11-06).
-- [ ] Probar a mano con una cuenta real de Room Parent (web y app).
-- [ ] Probar el push con sesiones reales tras el cambio de `send-push`: aviso de maestra, comunicado y alerta del colegio, encuesta de una familia y colecta. Si dejan de salir, volver a desplegar la versión anterior.
-- [ ] Capturas: regenerar el set de tiendas con la versión nueva (01-hoy muestra "Publicar alerta al curso"), y rehacer `public/apoderados-media/app-hoy.jpg` de la landing, que muestra lo mismo.
-- [x] `supabase/room-parent-avisos-autorizaciones.sql` probado con rollback y aplicado, con la web ya publicada (2026-11-06).
-- [ ] La app vieja sigue mostrando Horarios, Familias, alerta y carga de libros
-      y útiles hasta que salga la versión de tiendas con este cambio. Con el SQL
-      aplicado, su botón de alerta no crea la alerta ni manda el push. Crear eventos y autorizaciones también le va a
-      fallar a esa versión.
+Publicado y aplicado en producción (`main` `75adb86`): `supabase/room-parent-alcance.sql`, `room-parent-avisos-autorizaciones.sql` y `permisos-push-y-tipo-evento.sql`, y `send-push` desplegada. Solo se probó con datos simulados y con el SQL en rollback.
+
+**Próxima sesión: probar todo, en la web y en el emulador** (`tribbu_test`). Usar el Colegio Demo para no notificar a familias reales; la cuenta demo está en `mobile/STORE_RELEASE.md`. Ese colegio no tiene cuenta de maestra y su familia no tiene acceso: si hacen falta, hay que crearlas.
+
+- [ ] **Push, lo primero:** comunicado del panel a 3°A del Colegio Demo; tiene que llegar. Después, aviso de maestra, alerta del colegio, encuesta de una familia y colecta. Si dejan de salir, volver a desplegar la versión anterior de `send-push`.
+- [ ] **Room Parent:** guardar monto, asignar quién le regala a quién, marcar "Comprado", "Nombrar a otro", evento "De las familias" sin selector de tipo. No tiene alerta en Hoy ni "+ Nuevo" en Autorizaciones, y su aviso no manda push.
+- [ ] **Colegio y maestra:** eventos con todos los tipos, horarios, autorizaciones. Una alerta se publica desde el panel del colegio.
+- [ ] **Familia:** Cumpleaños dice "por cumple". Una alerta se cierra solo para sí.
+
+**App y capturas**
+
+- [ ] Sacar la versión 1.17 (la arma el socio desde `main`; [resumen](https://claude.ai/artifact/32e9UbrTTKkSgcLZFMVpT9)). Hasta entonces, en la versión actual el Room Parent ve Horarios, Familias, alerta y carga de libros y útiles, que ya no le funcionan, y no puede crear eventos ni autorizaciones.
+- [ ] Regenerar las capturas de tiendas (01-hoy muestra "Publicar alerta al curso") y `public/apoderados-media/app-hoy.jpg` de la landing, que muestra lo mismo.
+- [ ] Revisar las capturas que no se abrieron: `app-agenda`, `app-chat`, `app-fotos` y `web-cap-colectas` de la landing; 03-avisos, 05-colectas y 06-comedor de tiendas.
+- [ ] Confirmar que la cuenta demo y las Review Notes no mencionen la alerta del Room Parent, Horarios ni Familias.
+- [ ] Pasar las novedades de la 1.17 a `mobile/stores/` (borrador en el resumen).
+
+**Para decidir**
+
+- [ ] ¿Las familias siguen publicando avisos sin push, o solo usan Mensajes? Hoy pueden, y el Room Parent quedó igual que ellas.
+- [ ] ¿El Room Parent sigue pudiendo editar o borrar encuestas de otras familias, y armar la colecta del regalo de una maestra? Hoy sí.
+
+**Para corregir**
+
+- [ ] Sacar de `mobile/STORE_RELEASE.md` la contraseña de la cuenta demo, porque el repo es público. Para que deje de servir hay que cambiarla y actualizarla en las Review Notes.
+- [ ] En festejos, Marketplace, Lost & Found y talleres, una familia todavía puede mandar a mano un push con texto propio dentro de su colegio.
 
 ## Útiles y libros los carga el colegio (2026-11-06)
 
