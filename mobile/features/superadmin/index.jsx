@@ -45,6 +45,7 @@ import { textoPlano } from "@shared/formato";
 import { EditorFormato } from "../../components/EditorFormato";
 import { DirectivosAdmin, MembreteAdmin } from "./directivos";
 import { ConfiguracionInicio } from "./configuracion";
+import { ListasAdmin } from "./listas";
 import { PrimerosPasos } from "./primerosPasos";
 import { FichaAlumno } from "./fichaAlumno";
 import { CursoListSelector, cursoSelectorStyles } from "../../components/CursoListSelector";
@@ -94,6 +95,7 @@ const SECCIONES = [
     { id: "directivos", l: "Directivos" },
     { id: "menu", l: "Menú" },
     { id: "uniformes", l: "Uniformes" },
+    { id: "listas", l: "Útiles y libros" },
     { id: "colegio", l: "Datos y membrete" },
     { id: "adopcion", l: "Adopción" },
   ]},
@@ -1088,6 +1090,7 @@ export function SuperAdmin() {
       {sec === "materias" ? <MateriasAdmin key={activeColegioId} colegioId={activeColegioId} niveles={colegioNiveles} nivelesPropios={esSecretaria ? usuario?.niveles || [] : null} /> : null}
       {sec === "horarios" ? <HorariosAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "uniformes" ? <UniformesAdmin key={activeColegioId} cursos={cursos} colegioId={activeColegioId} /> : null}
+      {sec === "listas" ? <ListasAdmin key={activeColegioId} cursos={cursos} anoActual={anoActual} /> : null}
       {sec === "alertas" ? <AlertasAdmin cursos={cursos} /> : null}
       {sec === "comunicaciones" ? <ComunicacionesAdmin cursos={cursos} colegioId={activeColegioId} /> : null}
       {sec === "eventos" ? <EventosColegio key={activeColegioId} cursos={cursosVigentes} userId={usuario?.id} esSuper={usuario?.rol === "super"} usuarios={usuarios} abrirNuevo={crear?.tipo === "evento" ? crear.n : null} /> : null}

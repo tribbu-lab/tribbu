@@ -114,6 +114,12 @@ export const PREGUNTAS_FRECUENTES = [
     tema: "Comunidad",
     items: [
       {
+        id: "listas-curso",
+        pregunta: "¿Dónde está la lista de útiles y de libros?",
+        respuesta: "En Curso → Info Útil. La carga el colegio para el curso de tu hijo o hija: la podés descargar y marcar lo que ya tenés (lo que marcás lo ves solo vos). Si falta algo o hay un error, escribile a Secretaría por Mensajes.",
+        ir: { web: "info", mobile: "/(tabs)/info", label: "Ir a Info Útil" },
+      },
+      {
         id: "marketplace",
         pregunta: "¿Cómo vendo o regalo algo en el Marketplace?",
         respuesta: "En Curso → Marketplace tocá \"+ Nuevo\", subí fotos, poné el precio (o \"Lo regalo\") y elegí si lo ve tu curso o todo el colegio. Quien esté interesado te escribe por Mensajes, sin ver tu teléfono ni tu mail. Si te interesa algo, tocá \"Me interesa\" y se abre el chat con quien lo publicó.",
@@ -295,9 +301,15 @@ export const PREGUNTAS_COLEGIO = [
         respuesta: "Para crear lo más común sin tener que saber en qué sección está: un comunicado, un evento, una autorización, una alerta, un alumno o un apoderado. Elegís qué y te lleva directo al formulario. Está arriba de todo en la barra de la izquierda (en el celular, al lado de tu nombre o en el inicio del panel).",
       },
       {
+        id: "col-listas",
+        pregunta: "¿Dónde cargo la lista de útiles y de libros?",
+        respuesta: "En Configuración → Útiles y libros. Elegís el ciclo lectivo y el curso, y agregás, editás o borrás lo que haga falta. Para cargar muchos de una vez, \"Cargar desde Excel\": descargá el modelo (trae lo que ya está, o un ejemplo), completá una fila por útil o por libro con su curso, subilo y revisá antes de cargar. Lo que tiene el mismo nombre se actualiza y las familias no pierden sus marcas. Con \"Copiar a otros cursos\" la pasás a las otras divisiones o al año que viene sin volver a tipearla. Las familias la ven en Info Útil: la descargan y marcan lo que ya tienen, pero no la pueden cambiar.",
+        ir: { panel: "listas", label: "Ir a Útiles y libros" },
+      },
+      {
         id: "col-secretaria",
         pregunta: "¿Qué puede hacer una Secretaría (directivo por nivel)?",
-        respuesta: "Lo mismo que el administrador pero solo en los cursos de sus niveles: comunicados, eventos, autorizaciones, alertas, cambios en la salida, horarios y clases, alumnos y familias (crear cuentas y cambiar contraseñas incluido), Room Parents, mensajes de las familias y talleres. No toca cursos, maestras, menú, uniformes, Marketplace ni los datos del colegio, ni crea otros directivos.",
+        respuesta: "Lo mismo que el administrador pero solo en los cursos de sus niveles: comunicados, eventos, autorizaciones, alertas, cambios en la salida, horarios y clases, alumnos y familias (crear cuentas y cambiar contraseñas incluido), Room Parents, útiles y libros, mensajes de las familias y talleres. No toca cursos, maestras, menú, uniformes, Marketplace ni los datos del colegio, ni crea otros directivos.",
       },
       {
         id: "col-primeros-pasos",

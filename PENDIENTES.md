@@ -3,6 +3,14 @@
 Lista viva de lo que queda por hacer (última actualización: 2026-10-27).
 Tachá o borrá cada ítem cuando se resuelva.
 
+## Útiles y libros los carga el colegio (2026-11-06)
+
+- [x] `supabase/listas-solo-colegio.sql` probado con usuarios impersonados y aplicado (2026-11-06).
+- [ ] Unir a `main` para publicar la web y sacar la versión de la app: mientras tanto el Room Parent ve los botones viejos y sus cambios fallan sin aviso, y el colegio todavía no tiene la sección.
+- [ ] Probar a mano: administrador y Secretaría cargan, editan, borran, copian y suben un Excel (web y app); la familia descarga y marca, sin botones de edición.
+- [ ] Decidir si la lista del año próximo se les muestra a las familias antes de la promoción (hoy solo ven la del curso donde está el hijo).
+- [ ] Si los colegios lo piden: tapa de libro desde la app.
+
 ## Eliminar apoderado (2026-11-05)
 
 - [x] `supabase/borrado-de-usuarios.sql` aplicado y `manage-auth-user` con la
